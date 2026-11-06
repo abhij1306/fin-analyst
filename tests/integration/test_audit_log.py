@@ -81,7 +81,7 @@ def test_doctor_writes_runs_events_and_jsonl(
         (4, "check", "info", None, "quarto: 1.8.25"),
         (5, "check", "info", None, f"data folder: {data_root}"),
         (6, "check", "info", None, "config: display unit crores"),
-        (7, "check", "info", None, "audit schema: version 1"),
+        (7, "check", "info", None, "audit schema: version 2"),
         (8, "check", "info", None, "dictionary schema: version 1"),
     ]
 
@@ -109,7 +109,7 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
     ) == [
         ("folders", "11 created, 0 already present"),
         ("config", "wrote default config.toml"),
-        ("migrate", "shared/audit.duckdb: schema version 0 -> 1 (backup: none, new file)"),
+        ("migrate", "shared/audit.duckdb: schema version 0 -> 2 (backup: none, new file)"),
         ("migrate", "shared/dictionary.duckdb: schema version 0 -> 1 (backup: none, new file)"),
         (
             "dictionary",
@@ -121,7 +121,7 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         "WHERE run_id = ?",
         [run_id],
     ) == [
-        ("shared/audit.duckdb", 0, 1, None, "applied"),
+        ("shared/audit.duckdb", 0, 2, None, "applied"),
         ("shared/dictionary.duckdb", 0, 1, None, "applied"),
     ]
     assert len(jsonl_records(data_root, run_id)) == 9

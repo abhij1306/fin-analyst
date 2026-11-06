@@ -40,7 +40,7 @@ def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -
     ]
     assert result.stdout.splitlines()[-5:] == [
         "created  config.toml",
-        "shared/audit.duckdb: schema version 0 -> 1 (backup: none, new file)",
+        "shared/audit.duckdb: schema version 0 -> 2 (backup: none, new file)",
         "shared/dictionary.duckdb: schema version 0 -> 1 (backup: none, new file)",
         "dictionary: 75 accounts and 106 label mappings added from templates/dictionary",
         f"data folder {data_root}: 11 created, 0 already present",
@@ -56,7 +56,7 @@ def test_init_twice_creates_nothing_and_overwrites_nothing(data_root: Path) -> N
     assert result.exit_code == 0
     assert result.stdout.splitlines() == [
         "kept     config.toml (already present, not changed)",
-        "shared/audit.duckdb: up to date at schema version 1",
+        "shared/audit.duckdb: up to date at schema version 2",
         "shared/dictionary.duckdb: up to date at schema version 1",
         "dictionary: 0 accounts and 0 label mappings added from templates/dictionary",
         f"data folder {data_root}: 0 created, 11 already present",
@@ -93,7 +93,7 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
         "ok    quarto: 1.8.25",
         f"ok    data folder: {data_root}",
         "ok    config: display unit crores",
-        "ok    audit schema: version 1",
+        "ok    audit schema: version 2",
         "ok    dictionary schema: version 1",
         "all checks passed",
     ]
