@@ -1,0 +1,61 @@
+# macOS checks (the product's only target). macOS runners can queue for many minutes, so this runs
+# on every main push, on PRs that touch installation or dependencies, and on demand, not on every PR.
+name: macOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - install.sh
+      - Brewfile
+      - pyproject.toml
+      - uv.lock
+      - src/fin/doctor.py
+      - .github/workflows/macos.yml
+  workflow_dispatch:
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  install-and-test:
+    # Fresh clone -> ./install.sh -> fin doctor passes; a second run changes nothing; pytest on macOS.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Use a temporary data folder
+        run: echo "FIN_DATA_DIR=$RUNNER_TEMP/fin-data" >> "$GITHUB_ENV"
+      - name: First install
+        run: ./install.sh
+      # logs/ is left out of the comparison: every fin command appends its own run log there.
+      - name: Snapshot state
+        run: |
+          eval "$(brew shellenv)"
+          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum config.toml); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/before.txt"
+      - name: Second install
+        run: ./install.sh
+      - name: Second run changed nothing
+        run: |
+          eval "$(brew shellenv)"
+          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum config.toml); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/after.txt"
+          diff -u "$RUNNER_TEMP/before.txt" "$RUNNER_TEMP/after.txt"
+          grep -q "all Brewfile dependencies already installed" "$FIN_DATA_DIR/logs/install.log"
+          grep -q "kept     config.toml (already present, not changed)" "$FIN_DATA_DIR/logs/install.log"
+          grep -q "shared/audit.duckdb: up to date at schema version" "$FIN_DATA_DIR/logs/install.log"
+      - name: fin doctor passes
+        run: |
+          eval "$(brew shellenv)"
+          uv run fin doctor
+      - name: pytest on macOS
+        run: |
+          eval "$(brew shellenv)"
+          uv run pytest --durations=10
