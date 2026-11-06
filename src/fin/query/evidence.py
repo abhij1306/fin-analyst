@@ -25,7 +25,7 @@ from fin.query.run import result_hash, run_select, to_json_rows
 GRID_ROWS_AROUND = 2  # rows shown above and below an Excel value
 
 FACT_SQL = """
-SELECT f.fact_id, f.account, f.fiscal_year, f.scope, f.value, f.confirmed,
+SELECT f.fact_id, f.account, f.fiscal_year, f.period, f.scope, f.value, f.confirmed,
        r.raw_label, r.raw_value_text, r.raw_unit, r.sheet, r.cell, r.page, r.bbox,
        d.file_name, d.archive_path
 FROM raw_values r
@@ -89,7 +89,7 @@ def _fact_section(run: Run, fact: dict[str, Any], folder: Path, books: dict[Path
     ref = f"{fact['sheet']}!{fact['cell']}" if fact["sheet"] else f"page {fact['page']}"
     status = "confirmed" if fact["confirmed"] else "UNCONFIRMED mapping"
     title = (
-        f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['fiscal_year']} "
+        f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['period']} "
         f"{fact['scope']} = {fact['value']} rupees ({status})"
     )
     details = (

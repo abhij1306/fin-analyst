@@ -160,7 +160,7 @@ def test_clean_fixtures_pass_every_gate(root: Path, samples: Path, audit_query: 
             "kestrel/Kestrel_Forgings_Financials_FY23-FY25.xlsx",
             "warning",
             "cross_document and unit_sanity checks not run: no other loaded document has a "
-            "confirmed figure for the same fiscal year, scope and account",
+            "confirmed figure for the same period, scope and account",
         )
     ]
 

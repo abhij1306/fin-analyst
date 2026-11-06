@@ -1,9 +1,13 @@
 """Validation gates (PLAN.md Phase 6). `fin.ingest` runs `validate_document` on every staged
 document, inside its transaction, before COMMIT.
 
-Checks, for each fiscal year and scope in the document (tolerances from config.toml):
+Checks, for each period and scope in the document (tolerances from config.toml). A period is a
+fiscal year, quarter, half year or nine months ("FY25", "FY26-Q1", "FY26-H1"), so only like periods
+are ever compared. An account a document prints on several lines counts once, as their sum
+(`document_facts` in the company database).
 
-- balance_sheet (E401): total assets = total equity and liabilities.
+- balance_sheet (E401): total assets = total equity and liabilities (a half-year balance sheet
+  too).
 - subtotal (E402): every balance-sheet and P&L subtotal the document reports = the sum of its lines,
   following `dictionary.accounts` (parent, sign). A subtotal the document does not show is
   replaced by the sum of its own lines.
@@ -11,8 +15,10 @@ Checks, for each fiscal year and scope in the document (tolerances from config.t
   reconciles the two: one of its lines naming cash shows the balance-sheet figure (Ind AS 7 lets
   closing cash net off bank overdrafts, shown as "Cash and cash equivalents as above / Bank
   overdraft / Total").
-- cross_document (E404): every figure equals the same company / fiscal year / scope / account in
-  each other loaded document (for example a comparative column vs that year's own document).
+  Runs only when the document has both, so a results statement without a cash flow skips it.
+- cross_document (E404): every figure equals the same company / period / scope / account in
+  each other loaded document (for example a comparative column vs that year's own document, or a
+  half-year filing's Q1 column vs the Q1 filing).
 - unit_sanity (E405): a figure that differs from another document by exactly a unit factor (the
   ratio of two units fin reads, such as 100 for crores vs lakhs, or 1000 for lakhs vs thousand
   rupees) is a unit mistake, reported as E405 instead of E404. A single document with a wrong unit
@@ -68,13 +74,13 @@ UNIT_FACTORS = sorted(
 )
 SUBTOTAL_STATEMENTS = ("balance_sheet", "profit_and_loss")
 
-Key = tuple[str, str]  # (fiscal_year, scope)
+Key = tuple[str, str]  # (period, scope)
 
 
 @dataclass(frozen=True)
 class Result:
     check_name: str
-    fiscal_year: str
+    period: str  # "FY25", "FY26-Q1", ...; stored in the audit column fiscal_year
     scope: str
     expected: Decimal
     actual: Decimal
@@ -97,12 +103,10 @@ def _accounts(run: "Run") -> dict[str, Account]:
 
 
 def _figures(con: duckdb.DuckDBPyConnection, doc_id: int) -> dict[Key, dict[str, Decimal]]:
-    """{(fiscal_year, scope): {account: value}} for the confirmed facts of one document."""
+    """{(period, scope): {account: value}} for the confirmed facts of one document."""
     figures: dict[Key, dict[str, Decimal]] = {}
     rows = con.execute(
-        "SELECT fiscal_year, scope, account, sum(value) FROM facts "
-        "WHERE doc_id = ? AND account IS NOT NULL AND confirmed GROUP BY ALL",
-        [doc_id],
+        "SELECT period, scope, account, value FROM document_facts WHERE doc_id = ?", [doc_id]
     ).fetchall()
     for year, scope, account, value in rows:
         figures.setdefault((year, scope), {})[account] = value
@@ -110,9 +114,9 @@ def _figures(con: duckdb.DuckDBPyConnection, doc_id: int) -> dict[Key, dict[str,
 
 
 def _unmapped(con: duckdb.DuckDBPyConnection, doc_id: int) -> dict[tuple[str, str, str], int]:
-    """{(fiscal_year, scope, statement): number of facts without a confirmed account}."""
+    """{(period, scope, statement): number of facts without a confirmed account}."""
     rows = con.execute(
-        "SELECT f.fiscal_year, f.scope, r.statement, count(*) FROM facts f "
+        "SELECT f.period, f.scope, r.statement, count(*) FROM facts f "
         "JOIN raw_values r USING (raw_id) "
         "WHERE f.doc_id = ? AND (f.account IS NULL OR NOT f.confirmed) GROUP BY ALL",
         [doc_id],
@@ -131,12 +135,12 @@ def _compare(
     tolerance = tolerances[TOLERANCE[check]]
     difference = actual - expected
     passed = abs(difference) <= tolerance
-    year, scope = key
+    period, scope = key
     message = (
-        f"{year} {scope}: {what}: expected {expected}, actual {actual}, difference {difference}, "
+        f"{period} {scope}: {what}: expected {expected}, actual {actual}, difference {difference}, "
         f"tolerance {tolerance}"
     )
-    return Result(check, year, scope, expected, actual, tolerance, passed, message)
+    return Result(check, period, scope, expected, actual, tolerance, passed, message)
 
 
 def _line_sum(
@@ -222,9 +226,9 @@ def _across_documents(
     tolerances: dict[str, Decimal],
 ) -> list[Result]:
     others = con.execute(
-        "SELECT d.file_name, f.fiscal_year, f.scope, f.account, sum(f.value) FROM facts f "
-        "JOIN documents d USING (doc_id) WHERE d.status = 'loaded' AND f.doc_id <> ? "
-        "AND f.account IS NOT NULL AND f.confirmed GROUP BY ALL ORDER BY ALL",
+        "SELECT d.file_name, x.period, x.scope, x.account, x.value FROM document_facts x "
+        "JOIN documents d USING (doc_id) WHERE d.status = 'loaded' AND x.doc_id <> ? "
+        "ORDER BY ALL",
         [doc_id],
     ).fetchall()
     results = []
@@ -242,7 +246,7 @@ def _across_documents(
         run.event(
             "validate",
             "cross_document and unit_sanity checks not run: no other loaded document has a "
-            "confirmed figure for the same fiscal year, scope and account",
+            "confirmed figure for the same period, scope and account",
             level="warning",
             file=file,
         )
@@ -264,9 +268,9 @@ def _reconciled(con: duckdb.DuckDBPyConnection, doc_id: int, result: Result) -> 
         return result
     row = con.execute(
         "SELECT r.raw_label FROM facts f JOIN raw_values r USING (raw_id) "
-        "WHERE f.doc_id = ? AND f.fiscal_year = ? AND f.scope = ? AND r.statement = 'cash_flow' "
+        "WHERE f.doc_id = ? AND f.period = ? AND f.scope = ? AND r.statement = 'cash_flow' "
         "AND r.raw_label ILIKE '%cash%' AND f.value = ? ORDER BY f.raw_id LIMIT 1",
-        [doc_id, result.fiscal_year, result.scope, result.expected],
+        [doc_id, result.period, result.scope, result.expected],
     ).fetchone()
     if row is None:
         return result
@@ -299,7 +303,7 @@ def validate_document(
                 "doc_id": str(doc_id),
                 "file_name": file_name,
                 "check_name": result.check_name,
-                "fiscal_year": result.fiscal_year,
+                "fiscal_year": result.period,
                 "scope": result.scope,
                 "expected": result.expected,
                 "actual": result.actual,
@@ -323,7 +327,7 @@ def validate_document(
         {
             "check": r.check_name,
             "code": ERRORS[r.check_name].code,
-            "fiscal_year": r.fiscal_year,
+            "fiscal_year": r.period,
             "scope": r.scope,
             "expected": str(r.expected),
             "actual": str(r.actual),

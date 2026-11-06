@@ -1,6 +1,7 @@
 """Everything a report shows, read with SQL, plus display formatting and the data hash.
 
-`collect` reads one company and scope:
+`collect` reads one company and scope. The health report is annual: it reads fiscal years only
+(period_months = 12); quarter and half-year periods are for `fin query` and the dashboard.
 - metrics (the `metrics` view) and every current fact (`current_facts`) with its cell or page;
 - data quality: unconfirmed mappings and NULL metrics with their missing inputs (company database),
   and failed validations (audit `validation_results`; failed documents were rolled back, so they are
@@ -120,7 +121,8 @@ MONEY_UNITS = {
 }
 
 _METRICS_SQL = """
-SELECT metric, fiscal_year, value, unit FROM metrics WHERE scope = ? ORDER BY metric, fiscal_year
+SELECT metric, fiscal_year, value, unit FROM metrics WHERE scope = ? AND period_months = 12
+ORDER BY metric, fiscal_year
 """
 
 _FACTS_SQL = """
@@ -130,7 +132,7 @@ FROM current_facts cf
 JOIN facts f ON f.fact_id = cf.fact_id
 JOIN raw_values r ON r.raw_id = f.raw_id
 JOIN documents d ON d.doc_id = cf.doc_id
-WHERE cf.scope = ?
+WHERE cf.scope = ? AND cf.period_months = 12
 ORDER BY cf.account, cf.fiscal_year
 """
 
@@ -138,7 +140,7 @@ _METRIC_ACCOUNTS_SQL = "SELECT DISTINCT account FROM metric_definitions ORDER BY
 
 _UNCONFIRMED_SQL = """
 SELECT d.file_name, r.raw_label,
-       array_to_string(list_sort(list_distinct(list(f.fiscal_year))), ', ') AS years
+       array_to_string(list_sort(list_distinct(list(f.period))), ', ') AS years
 FROM facts f
 JOIN documents d ON d.doc_id = f.doc_id
 JOIN raw_values r ON r.raw_id = f.raw_id
@@ -155,9 +157,8 @@ SELECT m.metric, m.fiscal_year,
            FILTER (WHERE i.fact_id IS NULL))), ', '), ''),
            'none (a denominator is zero)') AS missing_inputs
 FROM metrics m
-LEFT JOIN metric_inputs i ON i.metric = m.metric AND i.fiscal_year = m.fiscal_year
-    AND i.scope = m.scope
-WHERE m.scope = ? AND m.value IS NULL
+LEFT JOIN metric_inputs i ON i.metric = m.metric AND i.period = m.period AND i.scope = m.scope
+WHERE m.scope = ? AND m.period_months = 12 AND m.value IS NULL
 GROUP BY m.metric, m.fiscal_year
 ORDER BY m.fiscal_year, m.metric
 """
@@ -188,7 +189,11 @@ def collect(root: Path, company: str, scope: str) -> dict[str, Any]:
     with connect(audit_db_path(root)) as con:
         failed = _rows(con, _FAILED_VALIDATIONS_SQL, [company, scope])
     if not metric_rows:
-        raise ReportRenderFailed(f"{company} has no current {scope} facts to report on")
+        raise ReportRenderFailed(
+            f"{company} has no annual {scope} data to report on: the health report covers fiscal "
+            "years (load an annual report, or results with a 'Year ended' column); quarter and "
+            "half-year figures are in `fin query` and the dashboard"
+        )
     metrics: dict[str, dict[str, Decimal | None]] = {}
     units: dict[str, str] = {}
     for row in metric_rows:

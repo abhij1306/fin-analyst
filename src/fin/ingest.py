@@ -42,6 +42,7 @@ from fin.config import Config
 from fin.db.conn import connect
 from fin.extract.excel import extract_workbook
 from fin.extract.pdf import extract_pdf
+from fin.extract.periods import fiscal_year_of, period_of, resolve_months
 from fin.extract.text import write_notes_markdown
 from fin.extract.units import RUPEES_PER_UNIT
 from fin.map.dictionary import LabelMap, find
@@ -73,6 +74,8 @@ class Row:
     rupees_per_unit: int
     period_end: date
     fiscal_year: str
+    period: str  # "FY25", "FY26-Q1", "FY26-H1" (fin.extract.periods)
+    period_months: int
     scope: str
     rupees: Decimal
 
@@ -83,12 +86,6 @@ class Document:
     notes: list[tuple[str, Path]]  # (section, markdown file)
     notices: list[str]  # things worth logging, e.g. an assumed scope
     warnings: list[str] = field(default_factory=list)  # e.g. a statement page that was skipped
-
-
-def fiscal_year_of(period_end: date, start_month: int) -> str:
-    """'FY25' for the fiscal year that ends in 2025 (31 March 2025 with an April start)."""
-    end_year = period_end.year if period_end.month < start_month else period_end.year + 1
-    return f"FY{end_year % 100:02d}"
 
 
 def files_in(path: Path) -> list[Path]:
@@ -114,6 +111,12 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
     start = config.fiscal_year_start_month
     if suffix in EXCEL_SUFFIXES:
         extraction = extract_workbook(path)
+        months = {
+            (v.sheet, v.cell): resolve_months(
+                v.statement, v.period_end, v.months, start, where=f"{path.name} sheet {v.sheet!r}"
+            )
+            for v in extraction.values
+        }
         rows = [
             Row(
                 sheet=v.sheet,
@@ -128,6 +131,10 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
                 rupees_per_unit=int(RUPEES_PER_UNIT[v.unit]),
                 period_end=v.period_end,
                 fiscal_year=fiscal_year_of(v.period_end, start),
+                period=period_of(
+                    v.period_end, months[(v.sheet, v.cell)], start, where=f"{path.name} {v.cell}"
+                ),
+                period_months=months[(v.sheet, v.cell)],
                 scope=v.scope or config.default_scope,
                 rupees=v.rupees,
             )
@@ -159,6 +166,8 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
                 rupees_per_unit=int(RUPEES_PER_UNIT[v.unit]),
                 period_end=v.period_end,
                 fiscal_year=v.fiscal_year,
+                period=v.period,
+                period_months=v.months,
                 scope=v.scope or config.default_scope,
                 rupees=v.rupees,
             )
@@ -200,7 +209,8 @@ RAW_VALUE_COLUMNS = (
     "raw_unit, rupees_per_unit, run_id"
 )
 FACT_COLUMNS = (
-    "raw_id, doc_id, account, fiscal_year, period_end, scope, value, mapping_id, confirmed, run_id"
+    "raw_id, doc_id, account, fiscal_year, period, period_months, period_end, scope, value, "
+    "mapping_id, confirmed, run_id"
 )
 
 
@@ -237,14 +247,15 @@ def _load(
             version = (row[0] if row else 0) + 1
             latest = max(rows, key=lambda r: r.period_end)
             doc = con.execute(
-                "INSERT INTO documents (file_name, sha256, version, fiscal_year, scope, status, "
-                "archive_path, run_id, ingested_at) VALUES (?, ?, ?, ?, ?, 'loaded', ?, ?, ?) "
-                "RETURNING doc_id",
+                "INSERT INTO documents (file_name, sha256, version, fiscal_year, period_end, "
+                "scope, status, archive_path, run_id, ingested_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?) RETURNING doc_id",
                 [
                     path.name,
                     sha256,
                     version,
                     latest.fiscal_year,
+                    latest.period_end,
                     ",".join(sorted({r.scope for r in rows})),
                     archive,
                     run.run_id,
@@ -269,7 +280,8 @@ def _load(
                     + [r.label, r.raw, r.unit_text, r.rupees_per_unit, run.run_id]
                 )
                 facts.append(
-                    [raw_id, doc_id, mapping and mapping.account, r.fiscal_year, r.period_end]
+                    [raw_id, doc_id, mapping and mapping.account, r.fiscal_year, r.period]
+                    + [r.period_months, r.period_end]
                     + [r.scope, r.rupees, mapping and mapping.mapping_id, mapping is not None]
                     + [run.run_id]
                 )

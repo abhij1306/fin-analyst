@@ -259,7 +259,7 @@ def test_update_pulls_backs_up_and_migrates(
         "SELECT db_file, to_version, backup_path, status FROM migrations "
         "WHERE db_file = 'companies/old.duckdb'"
     )
-    assert (to_version, status) == (2, "applied")
+    assert (to_version, status) == (3, "applied")
     assert (data_root / backup_path).is_file()
     run_id = audit_query("SELECT run_id FROM runs WHERE command = 'update' AND record = 'start'")[
         0
