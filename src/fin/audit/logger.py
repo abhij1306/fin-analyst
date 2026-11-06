@@ -21,8 +21,10 @@ import platform
 import shutil
 import subprocess
 import uuid
+from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +82,7 @@ def _utcnow() -> datetime:
 
 
 def _json_default(value: object) -> str:
-    if isinstance(value, datetime | date | Path):
+    if isinstance(value, datetime | date | Path | Decimal):
         return str(value)
     raise TypeError(f"cannot write {type(value).__name__} to the audit log")
 
@@ -98,6 +100,7 @@ class Run:
         self.loaded = 0
         self.skipped = 0
         self.failed = 0
+        self.failure_codes: list[str] = []  # one error code per failed file
         self.pending_review = 0
         self._seq = 0
         self._records: list[tuple[str, dict[str, Any]]] = []
@@ -239,8 +242,11 @@ class Run:
             )
         if self._jsonl_done < len(self._records):
             typer.echo(f"run {self.run_id} not written to logs/: no logs folder", err=True)
+        codes = Counter(self.failure_codes)
+        by_code = ", ".join(f"{code} x{n}" if n > 1 else code for code, n in sorted(codes.items()))
+        failed = f"{self.failed} ({by_code})" if by_code else str(self.failed)
         typer.echo(
-            f"summary: loaded {self.loaded}, skipped {self.skipped}, failed {self.failed}, "
+            f"summary: loaded {self.loaded}, skipped {self.skipped}, failed {failed}, "
             f"pending review {self.pending_review}, run_id {self.run_id}",
             err=True,
         )

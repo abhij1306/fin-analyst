@@ -60,6 +60,9 @@ class DocumentFailure(FinError):
     """Base for per-document failures (E1xx-E4xx): the command completes with failures."""
 
     exit_code = EXIT_FAILURES
+    # Validation failures (E4xx) set this to every failed check, with expected vs actual; it is
+    # written to review/<company>/<file>.error.json.
+    details: tuple[dict[str, str], ...] = ()
 
 
 class FileUnreadable(DocumentFailure):

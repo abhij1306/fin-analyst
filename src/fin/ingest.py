@@ -8,7 +8,7 @@ For each file, `ingest_file`:
    auditor's report also go to `notes/<company>/` as Markdown).
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
 4. In ONE transaction: inserts the document, its raw values and their facts in rupees, runs every
-   function in `VALIDATORS` (the validation gates arrive in Phase 6), then commits. Any failure
+   function in `VALIDATORS` (the validation gates, `fin.validate.gates`), then commits. Any failure
    rolls the whole document back.
 
 A label the dictionary does not map still loads, as a fact with no account and confirmed = false,
@@ -46,14 +46,15 @@ from fin.extract.text import write_notes_markdown
 from fin.extract.units import RUPEES_PER_UNIT
 from fin.map.dictionary import LabelMap, find
 from fin.paths import archive_dir, company_db_path, review_dir
+from fin.validate.gates import validate_document
 
 COMPANY_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 EXCEL_SUFFIXES = (".xlsx", ".xlsm")
 
-# Checks run on a staged document before commit: f(connection, doc_id). Raise a DocumentFailure
-# (E4xx) to roll the document back. Phase 6 adds the validation gates here.
-Validator = Callable[[duckdb.DuckDBPyConnection, int], None]
-VALIDATORS: list[Validator] = []
+# Checks run on a staged document before commit: f(run, company, connection, doc_id). Raise a
+# DocumentFailure (E4xx) to roll the document back.
+Validator = Callable[[Run, str, duckdb.DuckDBPyConnection, int], None]
+VALIDATORS: list[Validator] = [validate_document]
 
 
 @dataclass(frozen=True)
@@ -275,7 +276,7 @@ def _load(
                 [doc_id, sha256, doc_id],
             )
             for validate in VALIDATORS:
-                validate(con, doc_id)
+                validate(run, company, con, doc_id)
             con.execute("COMMIT")
         except BaseException:
             con.execute("ROLLBACK")
@@ -316,6 +317,7 @@ def ingest_file(
         return f"skipped ({exc})"
     except DocumentFailure as exc:
         run.failed += 1
+        run.failure_codes.append(exc.code)
         run.exit_code = EXIT_FAILURES
         run.event("ingest", exc.message, level="error", code=exc.code, file=name)
         _to_review(run, company, path, exc)
@@ -343,7 +345,14 @@ def _to_review(run: Run, company: str, path: Path, error: DocumentFailure) -> No
     folder = review_dir(run.root, company)
     if path.is_file():
         _copy(path, folder / path.name)
-    reason = {"file": path.name, "code": error.code, "message": error.message, "run_id": run.run_id}
+    reason: dict[str, object] = {
+        "file": path.name,
+        "code": error.code,
+        "message": error.message,
+        "run_id": run.run_id,
+    }
+    if error.details:
+        reason["checks"] = list(error.details)
     try:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{path.name}.error.json").write_text(
