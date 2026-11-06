@@ -276,6 +276,43 @@ Notes and deviations
 Human follow-ups
 - Try `fin review` interactively in a real terminal (tests drive the prompts with piped input).
 
+### Phase 6: Validation gates
+
+Added
+- `fin.validate.gates.validate_document`, registered in `fin.ingest.VALIDATORS`. It runs inside each document's
+  transaction before COMMIT, for every fiscal year and scope in the document:
+  - `balance_sheet` (E401): total assets = total equity and liabilities.
+  - `subtotal` (E402): every balance-sheet and P&L subtotal the document shows = the sum of its lines, following
+    `dictionary.accounts` (parent, sign). A subtotal the document does not show is replaced by the sum of its lines.
+  - `cash_flow` (E403): cash flow closing cash = balance-sheet cash.
+  - `cross_document` (E404): each figure = the same company / fiscal year / scope / account in every other loaded
+    document (for example a comparative column vs that year's own workbook).
+  - `unit_sanity` (E405): a cross-document difference where one figure is exactly a unit factor (a ratio of two
+    units fin reads: 10, 100, 1000, ... 10^7) times the other is reported as a unit mistake, not E404. A lone
+    document with a wrong unit and no overlap with another document is not caught.
+- Tolerances come from `config.toml` (`[tolerances]`); `unit_sanity` uses `cross_document`'s.
+- Only facts with a confirmed account take part. A check whose inputs are missing (no total line, unmapped lines in
+  the statement, nothing to compare with) does not run and logs a `validate` warning event saying why.
+- Every check that runs appends a row to `validation_results` (pass or fail, expected, actual, tolerance). Each
+  failure is also an `error` event with its code.
+- A failed document is rolled back. `review/<company>/<file>.error.json` gains `checks`: every failed check with
+  expected, actual and tolerance. The raised code is the first failed check in the order above.
+- The run summary lists failure codes, for example `failed 2 (E401, E404)`.
+
+Notes and deviations
+- `fin.ingest.Validator` is now `f(run, company, connection, doc_id)` (was `f(connection, doc_id)`), so gates can
+  record results and read config.
+- New: `DocumentFailure.details` and `Run.failure_codes`; the audit JSONL now writes `Decimal` values as strings.
+- `validation_results.doc_id` of a failed document is the doc_id it had while staged; that row was rolled back, so
+  use `file_name` and `run_id` to find it.
+- Default tolerances are unchanged at ₹1 lakh per check. The smallest planted defect is ₹12.00 lakhs (Tarang cash
+  flow), so every defect is caught, and all clean fixtures pass.
+- Cash flow subtotals are not checked (only closing cash vs balance-sheet cash), as the phase asks.
+
+Human follow-ups
+- Confirm the ₹1 lakh default tolerances. Documents in crores with two decimals round each line to ₹1 lakh, so a
+  long subtotal on a real crore-unit report may need a larger `subtotal` tolerance.
+
 ### Phase 8: Query and evidence
 
 Added

@@ -15,6 +15,7 @@ from typer.testing import CliRunner, Result
 
 import fin.ingest
 from fin.audit.errors import BalanceSheetMismatch
+from fin.audit.logger import Run
 from fin.cli import app
 from fin.db.conn import connect
 from fin.map.dictionary import TEMPLATES_DIR
@@ -185,7 +186,9 @@ def test_batch_killed_midway_resumes_without_duplicates(
     shutil.copytree(samples / "clean" / "kestrel", batch / "kestrel")
     calls = []
 
-    def crash_on_second_document(con: duckdb.DuckDBPyConnection, doc_id: int) -> None:
+    def crash_on_second_document(
+        run: Run, company: str, con: duckdb.DuckDBPyConnection, doc_id: int
+    ) -> None:
         calls.append(doc_id)
         if len(calls) == 2:
             raise RuntimeError("simulated kill")
@@ -225,7 +228,7 @@ def test_batch_killed_midway_resumes_without_duplicates(
 def test_failed_validation_rolls_back_the_whole_document(
     root: Path, samples: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def unbalanced(con: duckdb.DuckDBPyConnection, doc_id: int) -> None:
+    def unbalanced(run: Run, company: str, con: duckdb.DuckDBPyConnection, doc_id: int) -> None:
         raise BalanceSheetMismatch("FY25 assets exceed liabilities by 5000000.00")
 
     monkeypatch.setattr(fin.ingest, "VALIDATORS", [unbalanced])
@@ -271,7 +274,7 @@ def test_broken_files_go_to_review_with_their_code(root: Path, samples: Path) ->
         "Tarang_FY2024-25_SCANNED.pdf": "E104",
         "notes.csv": "E103",
     }
-    assert "summary: loaded 0, skipped 0, failed 4" in result.stderr
+    assert "summary: loaded 0, skipped 0, failed 4 (E102, E103, E104, E203)," in result.stderr
     assert query(root, "bluepeak", "SELECT count(*) FROM documents") == [(0,)]
 
 
