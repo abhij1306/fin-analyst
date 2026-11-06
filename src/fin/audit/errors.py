@@ -161,6 +161,13 @@ class MigrationFailed(FinError):
     code = "E503"
 
 
+class SqlFailed(FinError):
+    """E504. A `fin query` or `fin sql` statement failed (syntax, unknown column, constraint);
+    nothing was changed."""
+
+    code = "E504"
+
+
 # E6xx: outputs.
 
 

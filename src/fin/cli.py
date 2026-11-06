@@ -8,7 +8,7 @@ from typing import Annotated
 import typer
 
 from fin import __version__
-from fin.audit.errors import EXIT_FAILURES, FileUnreadable
+from fin.audit.errors import EXIT_FAILURES, FileUnreadable, ReadOnlyViolation
 from fin.audit.logger import Run, execute
 from fin.config import load_config, write_default_config
 from fin.db.migrate import MigrationResult, ensure_current, migrate_all
@@ -18,6 +18,9 @@ from fin.map.commands import map_app, review_app
 from fin.map.dictionary import load_label_map, load_seed
 from fin.map.review import write_pending
 from fin.paths import company_db_path, ensure_data_folder, inbox_dir
+from fin.query.evidence import write_evidence
+from fin.query.run import query
+from fin.query.write import write_sql
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -225,3 +228,56 @@ def ingest_batch(
         _ingest_files(run, jobs, force)
 
     execute("ingest-batch", {"folder": folder, "force": force}, body)
+
+
+@app.command("query")
+def query_command(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    question: Annotated[str, typer.Option("--question", help="The question in words.")],
+    sql: Annotated[str, typer.Option("--sql", help="One SELECT statement.")],
+) -> None:
+    """Answer a question with one read-only SELECT. Prints JSON rows with provenance columns
+    (source_file, source_ref, source_confirmed) when the result has fact_id or raw_id. Anything
+    other than a single SELECT is rejected (E502)."""
+
+    def body(run: Run) -> None:
+        typer.echo(json.dumps(query(run, company, question, sql), indent=2))
+
+    execute("query", {"company": company, "question": question, "sql": sql}, body)
+
+
+@app.command("evidence")
+def evidence_command(
+    query_id: Annotated[str, typer.Argument(help="The query_id printed by `fin query`.")],
+) -> None:
+    """Write an HTML page under evidence/ showing the source of every fact in a query's result.
+    A missing source file is flagged on the page (E604, exit 1)."""
+
+    def body(run: Run) -> None:
+        path = write_evidence(run, query_id)
+        typer.echo(json.dumps({"query_id": query_id, "evidence_path": str(path)}, indent=2))
+        if run.failed:
+            run.exit_code = EXIT_FAILURES
+
+    execute("evidence", {"query_id": query_id}, body)
+
+
+@app.command("sql")
+def sql_command(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    sql: Annotated[str, typer.Option("--sql", help="The statement(s) to run.")],
+    write: Annotated[
+        bool, typer.Option("--write", help="Required: change data (backup + audit log).")
+    ] = False,
+) -> None:
+    """Apply a data change the user asked for: back up the company database, run the SQL in one
+    transaction, and record the statement, rows affected and backup in the audit log."""
+
+    def body(run: Run) -> None:
+        if not write:
+            raise ReadOnlyViolation(
+                "`fin sql` changes data only with --write; to read data use `fin query`"
+            )
+        typer.echo(json.dumps(write_sql(run, company, sql), indent=2))
+
+    execute("sql", {"company": company, "sql": sql, "write": write}, body)
