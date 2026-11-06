@@ -1,3 +1,4 @@
+import json
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -8,6 +9,20 @@ import pytest
 import fin.db.migrate
 from fin.db.conn import connect
 from fin.paths import audit_db_path
+
+SAMPLES = Path(__file__).parent / "fixtures" / "sample-financials"
+
+
+@pytest.fixture
+def samples() -> Path:
+    """The synthetic documents (tests/fixtures/sample-financials; see its README)."""
+    return SAMPLES
+
+
+@pytest.fixture
+def answer_key() -> dict[str, Any]:
+    """Expected values, in rupees, for every line of the synthetic documents."""
+    return json.loads((SAMPLES / "answer_key.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture

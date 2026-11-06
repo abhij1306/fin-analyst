@@ -2,17 +2,20 @@
 (`fin.audit.logger.execute`)."""
 
 import json
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from fin import __version__
-from fin.audit.errors import EXIT_FAILURES
+from fin.audit.errors import EXIT_FAILURES, FileUnreadable
 from fin.audit.logger import Run, execute
-from fin.config import write_default_config
-from fin.db.migrate import MigrationResult, migrate_all
+from fin.config import load_config, write_default_config
+from fin.db.migrate import MigrationResult, ensure_current, migrate_all
 from fin.doctor import run_checks
-from fin.paths import ensure_data_folder
+from fin.ingest import COMPANY_NAME, files_in, ingest_file
+from fin.map.dictionary import load_label_map, load_seed
+from fin.paths import company_db_path, ensure_data_folder, inbox_dir
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -81,6 +84,13 @@ def init() -> None:
             typer.echo("kept     config.toml (already present, not changed)")
             run.event("config", "config.toml already present, not changed")
         _report_migrations(run, migrate_all(run.root, run))
+        seed = load_seed(run.root, run)
+        line = (
+            f"dictionary: {seed.accounts_added} accounts and {seed.labels_added} label mappings "
+            "added from templates/dictionary"
+        )
+        typer.echo(line)
+        run.event("dictionary", line)
         typer.echo(
             f"data folder {run.root}: {len(created)} created, {len(existing)} already present"
         )
@@ -132,3 +142,81 @@ def doctor(
             run.exit_code = EXIT_FAILURES
 
     execute("doctor", {"json": json_output}, body, audit_required=False)
+
+
+def _company(value: str) -> str:
+    if not COMPANY_NAME.match(value):
+        raise typer.BadParameter("use lower-case letters, digits, '-' and '_' (e.g. kestrel)")
+    return value
+
+
+ForceOption = Annotated[
+    bool,
+    typer.Option("--force", help="Load files already ingested again, as a new version."),
+]
+
+
+def _ingest_files(run: Run, jobs: list[tuple[str, list[Path]]], force: bool) -> None:
+    """Ingest each company's files, printing progress as `[i/N] company/file: outcome`."""
+    config = load_config(run.root)
+    total = sum(len(files) for _, files in jobs)
+    done = 0
+    for company, files in jobs:
+        result = ensure_current(run.root, company_db_path(run.root, company), "company", run)
+        if result is not None:
+            _report_migrations(run, [result])
+        label_map = load_label_map(run.root, company)
+        for path in files:
+            done += 1
+            outcome = ingest_file(run, config, company, path, label_map, force=force)
+            typer.echo(f"[{done}/{total}] {company}/{path.name}: {outcome}")
+    if total == 0:
+        typer.echo("no files to ingest")
+
+
+@app.command()
+def ingest(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    path: Annotated[
+        Path | None,
+        typer.Argument(help="A file or folder. Default: inbox/<company>/ in the data folder."),
+    ] = None,
+    force: ForceOption = False,
+) -> None:
+    """Load Excel and PDF documents for one company. Files already loaded are skipped (E105)."""
+
+    def body(run: Run) -> None:
+        source = path if path is not None else inbox_dir(run.root, company)
+        _ingest_files(run, [(company, files_in(source))], force)
+
+    execute("ingest", {"company": company, "path": path, "force": force}, body)
+
+
+@app.command("ingest-batch")
+def ingest_batch(
+    folder: Annotated[
+        Path, typer.Argument(help="A folder with one sub-folder per company, e.g. inbox/.")
+    ],
+    force: ForceOption = False,
+) -> None:
+    """Load every company sub-folder of FOLDER. Safe to re-run after an interruption: files
+    already loaded are skipped (E105), so it resumes where it stopped."""
+
+    def body(run: Run) -> None:
+        if not folder.is_dir():
+            raise FileUnreadable(f"{folder} is not a folder")
+        jobs: list[tuple[str, list[Path]]] = []
+        for entry in sorted(folder.iterdir()):
+            if entry.is_dir() and COMPANY_NAME.match(entry.name):
+                jobs.append((entry.name, files_in(entry)))
+            elif not entry.name.startswith("."):
+                run.skipped += 1
+                message = (
+                    f"{entry.name}: skipped; put files in a company folder named with lower-case "
+                    "letters, digits, '-' and '_'"
+                )
+                run.event("ingest", message, level="warning", file=entry.name)
+                typer.echo(message)
+        _ingest_files(run, jobs, force)
+
+    execute("ingest-batch", {"folder": folder, "force": force}, body)

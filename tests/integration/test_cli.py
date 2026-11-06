@@ -29,14 +29,20 @@ def test_version() -> None:
     assert result.stdout == "fin 0.1.0\n"
 
 
-def test_init_creates_data_folder_config_and_audit_database(data_root: Path) -> None:
+def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -> None:
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0
     assert {p.name for p in data_root.iterdir()} == EXPECTED_SUBDIRS | {"config.toml"}
     assert (data_root / "config.toml").read_text(encoding="utf-8") == DEFAULT_CONFIG_TOML
-    assert result.stdout.splitlines()[-3:] == [
+    assert sorted(p.name for p in (data_root / "shared").iterdir()) == [
+        "audit.duckdb",
+        "dictionary.duckdb",
+    ]
+    assert result.stdout.splitlines()[-5:] == [
         "created  config.toml",
         "shared/audit.duckdb: schema version 0 -> 1 (backup: none, new file)",
+        "shared/dictionary.duckdb: schema version 0 -> 1 (backup: none, new file)",
+        "dictionary: 75 accounts and 106 label mappings added from templates/dictionary",
         f"data folder {data_root}: 11 created, 0 already present",
     ]
 
@@ -51,6 +57,8 @@ def test_init_twice_creates_nothing_and_overwrites_nothing(data_root: Path) -> N
     assert result.stdout.splitlines() == [
         "kept     config.toml (already present, not changed)",
         "shared/audit.duckdb: up to date at schema version 1",
+        "shared/dictionary.duckdb: up to date at schema version 1",
+        "dictionary: 0 accounts and 0 label mappings added from templates/dictionary",
         f"data folder {data_root}: 0 created, 11 already present",
     ]
     assert (data_root / "inbox" / "keep.txt").read_text(encoding="utf-8") == "user file"
@@ -86,6 +94,7 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
         f"ok    data folder: {data_root}",
         "ok    config: display unit crores",
         "ok    audit schema: version 1",
+        "ok    dictionary schema: version 1",
         "all checks passed",
     ]
 
@@ -98,7 +107,7 @@ def test_doctor_json_reports_missing_data_folder(
     assert result.exit_code == 1
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert payload["checks"][-3:] == [
+    assert payload["checks"][-4:] == [
         {
             "name": "data folder",
             "ok": False,
@@ -117,6 +126,13 @@ def test_doctor_json_reports_missing_data_folder(
             "name": "audit schema",
             "ok": False,
             "detail": f"{data_root / 'shared' / 'audit.duckdb'} does not exist",
+            "code": "E001",
+            "fix": "run `uv run fin init`",
+        },
+        {
+            "name": "dictionary schema",
+            "ok": False,
+            "detail": f"{data_root / 'shared' / 'dictionary.duckdb'} does not exist",
             "code": "E001",
             "fix": "run `uv run fin init`",
         },

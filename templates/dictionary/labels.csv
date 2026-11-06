@@ -1,0 +1,119 @@
+label,statement,section,account
+(a) Equity share capital,balance_sheet,,share_capital
+(b) Other equity,balance_sheet,,other_equity
+Total equity,balance_sheet,,total_equity
+Total non-current liabilities,balance_sheet,,total_non_current_liabilities
+(b) Trade payables,balance_sheet,,trade_payables
+(c) Other current liabilities,balance_sheet,,other_current_liabilities
+Total current liabilities,balance_sheet,,total_current_liabilities
+TOTAL EQUITY AND LIABILITIES,balance_sheet,,total_equity_and_liabilities
+"(a) Property, plant and equipment",balance_sheet,,ppe_net
+Total non-current assets,balance_sheet,,total_non_current_assets
+(a) Inventories,balance_sheet,,inventories
+(b) Financial assets - Trade receivables,balance_sheet,,trade_receivables
+(c) Financial assets - Cash and cash equivalents,balance_sheet,,cash
+(d) Other current assets,balance_sheet,,other_current_assets
+Total current assets,balance_sheet,,total_current_assets
+TOTAL ASSETS,balance_sheet,,total_assets
+I. Revenue from operations,profit_and_loss,,revenue
+II. Other income,profit_and_loss,,other_income
+III. Total income (I + II),profit_and_loss,,total_income
+Cost of materials consumed,profit_and_loss,,cost_of_materials
+Employee benefits expense,profit_and_loss,,employee_expense
+Finance costs,profit_and_loss,,finance_cost
+Depreciation and amortisation expense,profit_and_loss,,depreciation
+Other expenses,profit_and_loss,,other_expenses
+Total expenses (IV),profit_and_loss,,total_expenses
+V. Profit before tax (III - IV),profit_and_loss,,pbt
+VI. Tax expense - Current tax,profit_and_loss,,tax_expense
+VII. Profit for the year (V - VI),profit_and_loss,,pat
+Profit before tax,cash_flow,,cf_pbt
+Adjustments for: Depreciation and amortisation expense,cash_flow,,cf_add_depreciation
+Adjustments for: Finance costs,cash_flow,,cf_add_finance_cost
+Adjustments for: Interest income,cash_flow,,cf_less_interest_income
+Operating profit before working capital changes,cash_flow,,cf_op_profit_before_wc
+(Increase)/decrease in inventories,cash_flow,,cf_change_inventories
+(Increase)/decrease in trade receivables,cash_flow,,cf_change_receivables
+(Increase)/decrease in other current assets,cash_flow,,cf_change_oca
+Increase/(decrease) in trade payables,cash_flow,,cf_change_payables
+Increase/(decrease) in other current liabilities,cash_flow,,cf_change_ocl
+Cash generated from operations,cash_flow,,cf_cash_generated
+Income taxes paid,cash_flow,,cf_taxes_paid
+Net cash from operating activities (A),cash_flow,,cfo
+"Purchase of property, plant and equipment",cash_flow,,cf_capex
+Interest received,cash_flow,,cf_interest_received
+Net cash used in investing activities (B),cash_flow,,cfi
+Proceeds from/(repayment of) long-term borrowings (net),cash_flow,,cf_lt_borrowings_net
+Proceeds from/(repayment of) short-term borrowings (net),cash_flow,,cf_st_borrowings_net
+Finance costs paid,cash_flow,,cf_finance_cost_paid
+Dividends paid,cash_flow,,cf_dividends_paid
+Net cash from/(used in) financing activities (C),cash_flow,,cff
+Net increase/(decrease) in cash and cash equivalents (A+B+C),cash_flow,,net_change_cash
+Cash and cash equivalents at the beginning of the year,cash_flow,,opening_cash
+Cash and cash equivalents at the end of the year,cash_flow,,closing_cash
+Equity share capital,balance_sheet,,share_capital
+Reserves and surplus,balance_sheet,,other_equity
+Total shareholders' funds,balance_sheet,,total_equity
+Term loans from banks,balance_sheet,,lt_borrowings
+Working capital borrowings,balance_sheet,,st_borrowings
+Sundry creditors,balance_sheet,,trade_payables
+Other liabilities & provisions,balance_sheet,,other_current_liabilities
+TOTAL SOURCES,balance_sheet,,total_equity_and_liabilities
+Fixed assets (net block),balance_sheet,,ppe_net
+Stock in trade,balance_sheet,,inventories
+Sundry debtors,balance_sheet,,trade_receivables
+Cash & bank balances,balance_sheet,,cash
+"Loans, advances & other current assets",balance_sheet,,other_current_assets
+TOTAL APPLICATION,balance_sheet,,total_assets
+Sales / Income from operations,profit_and_loss,,revenue
+Other income,profit_and_loss,,other_income
+Total revenue,profit_and_loss,,total_income
+Raw material consumed,profit_and_loss,,cost_of_materials
+Staff costs,profit_and_loss,,employee_expense
+Interest & finance charges,profit_and_loss,,finance_cost
+Depreciation,profit_and_loss,,depreciation
+"Manufacturing, selling & admin expenses",profit_and_loss,,other_expenses
+Total expenditure,profit_and_loss,,total_expenses
+Profit before taxation,profit_and_loss,,pbt
+Provision for taxation,profit_and_loss,,tax_expense
+Net profit after tax,profit_and_loss,,pat
+Net profit before tax,cash_flow,,cf_pbt
+Add: Depreciation,cash_flow,,cf_add_depreciation
+Add: Interest & finance charges,cash_flow,,cf_add_finance_cost
+Less: Interest income,cash_flow,,cf_less_interest_income
+Operating profit before WC changes,cash_flow,,cf_op_profit_before_wc
+(Inc)/Dec in stock in trade,cash_flow,,cf_change_inventories
+(Inc)/Dec in sundry debtors,cash_flow,,cf_change_receivables
+(Inc)/Dec in loans & advances,cash_flow,,cf_change_oca
+Inc/(Dec) in sundry creditors,cash_flow,,cf_change_payables
+Inc/(Dec) in other liabilities,cash_flow,,cf_change_ocl
+Direct taxes paid,cash_flow,,cf_taxes_paid
+Net cash from operating activities,cash_flow,,cfo
+Purchase of fixed assets,cash_flow,,cf_capex
+Net cash used in investing activities,cash_flow,,cfi
+Term loans availed/(repaid) (net),cash_flow,,cf_lt_borrowings_net
+Working capital borrowings (net),cash_flow,,cf_st_borrowings_net
+Interest paid,cash_flow,,cf_finance_cost_paid
+Dividend paid,cash_flow,,cf_dividends_paid
+Net cash from financing activities,cash_flow,,cff
+Net increase/(decrease) in cash,cash_flow,,net_change_cash
+Opening cash & bank balances,cash_flow,,opening_cash
+Closing cash & bank balances,cash_flow,,closing_cash
+(a) Financial liabilities - Borrowings,balance_sheet,Non-current liabilities,lt_borrowings
+(a) Financial liabilities - Borrowings,balance_sheet,Current liabilities,st_borrowings
+Borrowings,balance_sheet,Non-current liabilities,lt_borrowings
+Borrowings,balance_sheet,Current liabilities,st_borrowings
+Long-term borrowings,balance_sheet,,lt_borrowings
+Short-term borrowings,balance_sheet,,st_borrowings
+Trade payables,balance_sheet,,trade_payables
+Trade receivables,balance_sheet,,trade_receivables
+Inventories,balance_sheet,,inventories
+Cash and cash equivalents,balance_sheet,,cash
+"Property, plant and equipment",balance_sheet,,ppe_net
+Capital work-in-progress,balance_sheet,,capital_work_in_progress
+Revenue from operations,profit_and_loss,,revenue
+Total income,profit_and_loss,,total_income
+Total expenses,profit_and_loss,,total_expenses
+Profit before tax,profit_and_loss,,pbt
+Profit after tax,profit_and_loss,,pat
+Profit for the year,profit_and_loss,,pat

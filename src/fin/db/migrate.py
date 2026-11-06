@@ -1,9 +1,10 @@
 """Numbered SQL migrations for every database file (PLAN.md §10).
 
 Migrations live in `migrations/<kind>/NNN_name.sql`, numbered 001, 002, ... with no gaps. A kind is
-one database shape: `audit` for `shared/audit.duckdb`, `company` for each
-`companies/<company>.duckdb`. A file's schema version is the highest version in its `schema_version`
-table (0 when the file or the table does not exist).
+one database shape: `audit` for `shared/audit.duckdb`, `dictionary` for
+`shared/dictionary.duckdb`, `company` for each `companies/<company>.duckdb`. A file's schema
+version is the highest version in its `schema_version` table (0 when the file or the table does
+not exist).
 
 `migrate_all`:
 1. Checks every file first. A file newer than the code stops everything with E004 before anything
@@ -23,9 +24,14 @@ from typing import TYPE_CHECKING
 
 import duckdb
 
-from fin.audit.errors import DataFolderNotWritable, MigrationFailed, SchemaNewerThanCode
+from fin.audit.errors import (
+    DataFolderNotWritable,
+    DependencyVersionMismatch,
+    MigrationFailed,
+    SchemaNewerThanCode,
+)
 from fin.db.conn import DEFAULT_RETRY, LockRetry, connect
-from fin.paths import audit_db_path, backups_dir, companies_dir
+from fin.paths import audit_db_path, backups_dir, companies_dir, dictionary_db_path
 
 if TYPE_CHECKING:
     from fin.audit.logger import Run
@@ -110,9 +116,9 @@ def current_version(path: Path, retry: LockRetry = DEFAULT_RETRY) -> int:
 
 
 def targets(root: Path) -> list[Target]:
-    """Every database file `fin migrate` manages: the shared audit database (created if missing) and
-    each existing company database."""
-    found = [Target(audit_db_path(root), "audit")]
+    """Every database file `fin migrate` manages: the shared audit and dictionary databases (created
+    if missing) and each existing company database."""
+    found = [Target(audit_db_path(root), "audit"), Target(dictionary_db_path(root), "dictionary")]
     found.extend(Target(path, "company") for path in sorted(companies_dir(root).glob("*.duckdb")))
     return found
 
@@ -143,6 +149,27 @@ def migrate_all(
             continue
         results.append(_migrate_file(root, target.path, current, pending, run))
     return results
+
+
+def ensure_current(root: Path, path: Path, kind: str, run: "Run") -> MigrationResult | None:
+    """Create `path` at the latest schema if it does not exist (returns the result). An existing
+    file must already be current: older raises E002 (run `fin migrate`, which backs it up first),
+    newer raises E004."""
+    migrations = load_migrations(kind)
+    if not path.exists():
+        return _migrate_file(root, path, 0, migrations, run)
+    current = current_version(path)
+    if current > len(migrations):
+        raise SchemaNewerThanCode(
+            f"{_rel(root, path)} is at schema version {current}, but this fin knows only up to "
+            f"{len(migrations)}; update fin (`git pull`, then `uv sync --frozen`)"
+        )
+    if current < len(migrations):
+        raise DependencyVersionMismatch(
+            f"{_rel(root, path)} is at schema version {current}, expected {len(migrations)}; "
+            "run `uv run fin migrate`"
+        )
+    return None
 
 
 def _rel(root: Path, path: Path) -> str:

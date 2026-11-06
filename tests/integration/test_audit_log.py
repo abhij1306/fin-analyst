@@ -82,12 +82,13 @@ def test_doctor_writes_runs_events_and_jsonl(
         (5, "check", "info", None, f"data folder: {data_root}"),
         (6, "check", "info", None, "config: display unit crores"),
         (7, "check", "info", None, "audit schema: version 1"),
+        (8, "check", "info", None, "dictionary schema: version 1"),
     ]
 
     records = jsonl_records(data_root, run_id)
     assert [(r["table"], r.get("record"), r.get("seq")) for r in records] == [
         ("runs", "start", None),
-        *[("events", None, seq) for seq in range(1, 8)],
+        *[("events", None, seq) for seq in range(1, 9)],
         ("runs", "end", None),
     ]
     assert [r["message"] for r in records if r["table"] == "events"] == [e[4] for e in events]
@@ -109,13 +110,21 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         ("folders", "11 created, 0 already present"),
         ("config", "wrote default config.toml"),
         ("migrate", "shared/audit.duckdb: schema version 0 -> 1 (backup: none, new file)"),
+        ("migrate", "shared/dictionary.duckdb: schema version 0 -> 1 (backup: none, new file)"),
+        (
+            "dictionary",
+            "dictionary: 75 accounts and 106 label mappings added from templates/dictionary",
+        ),
     ]
     assert audit_query(
         "SELECT db_file, from_version, to_version, backup_path, status FROM migrations "
         "WHERE run_id = ?",
         [run_id],
-    ) == [("shared/audit.duckdb", 0, 1, None, "applied")]
-    assert len(jsonl_records(data_root, run_id)) == 6
+    ) == [
+        ("shared/audit.duckdb", 0, 1, None, "applied"),
+        ("shared/dictionary.duckdb", 0, 1, None, "applied"),
+    ]
+    assert len(jsonl_records(data_root, run_id)) == 9
 
 
 def test_runs_are_appended_never_updated(data_root: Path, audit_query: Query) -> None:
@@ -143,7 +152,7 @@ def test_forced_error_logs_its_code_and_exits_2(data_root: Path, audit_query: Qu
 
     assert result.exit_code == 2
     message = (
-        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 0; "
+        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 1; "
         "update fin (`git pull`, then `uv sync --frozen`)"
     )
     assert result.stderr.splitlines()[0] == f"E004: {message}"

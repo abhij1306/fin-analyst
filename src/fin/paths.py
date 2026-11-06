@@ -43,8 +43,28 @@ def audit_db_path(root: Path) -> Path:
     return root / "shared" / "audit.duckdb"
 
 
+def dictionary_db_path(root: Path) -> Path:
+    return root / "shared" / "dictionary.duckdb"
+
+
 def companies_dir(root: Path) -> Path:
     return root / "companies"
+
+
+def company_db_path(root: Path, company: str) -> Path:
+    return companies_dir(root) / f"{company}.duckdb"
+
+
+def inbox_dir(root: Path, company: str) -> Path:
+    return root / "inbox" / company
+
+
+def archive_dir(root: Path, company: str) -> Path:
+    return root / "archive" / company
+
+
+def review_dir(root: Path, company: str) -> Path:
+    return root / "review" / company
 
 
 def backups_dir(root: Path) -> Path:

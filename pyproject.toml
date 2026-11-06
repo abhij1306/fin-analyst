@@ -7,6 +7,7 @@ license = "MIT"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "duckdb==2.0.0",
+    "openpyxl==3.1.5",
     "pdfplumber==0.11.10",
     "typer==0.28.0",
 ]
@@ -24,6 +25,8 @@ packages = ["src/fin"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# The fixture generator is the owner's script, kept as provided.
+extend-exclude = ["tests/fixtures/sample-financials/generator"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "BLE", "S110", "PTH", "T20"]
