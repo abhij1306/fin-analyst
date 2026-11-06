@@ -18,7 +18,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 9 | Reports | Done |
 | 10 | Dashboards | Done |
 | 11 | Audit, delete, update | Done |
-| 12 | Release | Done (clean-machine test pending) |
+| 12 | Release | Done, v1.0.0 tagged (Claude Code clean-machine test on macOS pending) |
 
 ---
 

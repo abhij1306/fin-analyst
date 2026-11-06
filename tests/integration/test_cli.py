@@ -26,7 +26,7 @@ EXPECTED_SUBDIRS = {
 def test_version() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert result.stdout == "fin 0.1.0\n"
+    assert result.stdout == "fin 1.0.0\n"
 
 
 def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -> None:

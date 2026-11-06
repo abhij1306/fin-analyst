@@ -66,7 +66,7 @@ def test_doctor_writes_runs_events_and_jsonl(
         ("end", "doctor", '{"json": false}', "ok", 0, 0, False),
     ]
     for row in runs:
-        assert row[7:9] == ("0.1.0", "2.0.0")
+        assert row[7:9] == ("1.0.0", "2.0.0")
         assert row[9].startswith("3.12.")
         assert re.fullmatch(r"[0-9a-f]{40}", row[10])
 
