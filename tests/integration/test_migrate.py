@@ -56,7 +56,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     without_company_migrations(migrations_dir)
     runner.invoke(app, ["init"])
     company = make_company(data_root)
-    (migrations_dir / "audit" / "002_probe.sql").write_text(
+    (migrations_dir / "audit" / "003_probe.sql").write_text(
         "CREATE TABLE probe (x INTEGER);\nINSERT INTO probe VALUES (42);\n", encoding="utf-8"
     )
     (migrations_dir / "company" / "001_facts.sql").write_text(
@@ -72,18 +72,18 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     run_id = run_id_of(result.stderr)
     backup = data_root / "backups" / run_id
     assert result.stdout.splitlines() == [
-        f"shared/audit.duckdb: schema version 1 -> 2 "
+        f"shared/audit.duckdb: schema version 2 -> 3 "
         f"(backup: backups/{run_id}/shared/audit.duckdb)",
         "shared/dictionary.duckdb: up to date at schema version 1",
         f"companies/acme.duckdb: schema version 0 -> 2 "
         f"(backup: backups/{run_id}/companies/acme.duckdb)",
     ]
     # Backups hold the files as they were before migrating.
-    assert current_version(backup / "shared" / "audit.duckdb") == 1
+    assert current_version(backup / "shared" / "audit.duckdb") == 2
     assert tables(backup / "companies" / "acme.duckdb") == ["seed"]
     assert query(backup / "companies" / "acme.duckdb", "SELECT v FROM seed")[0][0] == 1234.5
     # Live files are migrated, data kept.
-    assert current_version(data_root / "shared" / "audit.duckdb") == 2
+    assert current_version(data_root / "shared" / "audit.duckdb") == 3
     assert audit_query("SELECT x FROM probe") == [(42,)]
     assert tables(company) == ["facts", "schema_version", "seed"]
     assert query(company, "SELECT version, name, run_id FROM schema_version ORDER BY 1") == [
@@ -96,14 +96,14 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
         [run_id],
     ) == [
         ("companies/acme.duckdb", 0, 2, f"backups/{run_id}/companies/acme.duckdb", "applied", None),
-        ("shared/audit.duckdb", 1, 2, f"backups/{run_id}/shared/audit.duckdb", "applied", None),
+        ("shared/audit.duckdb", 2, 3, f"backups/{run_id}/shared/audit.duckdb", "applied", None),
     ]
 
     again = runner.invoke(app, ["migrate"])
 
     assert again.exit_code == 0
     assert again.stdout.splitlines() == [
-        "shared/audit.duckdb: up to date at schema version 2",
+        "shared/audit.duckdb: up to date at schema version 3",
         "shared/dictionary.duckdb: up to date at schema version 1",
         "companies/acme.duckdb: up to date at schema version 2",
     ]
