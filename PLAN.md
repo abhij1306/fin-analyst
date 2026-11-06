@@ -385,6 +385,10 @@ contingent-liability note rows):
 - Not done here: real annual reports are not in the repo. Human follow-up: put 3–5 annual reports of small listed
   Indian manufacturers in the private test set, write a key for each in the `answer_key.json` shape, run
   `uv run python scripts/pdf_bakeoff.py <key> --company <name> --show-misses`, and add the scores to this table.
+- Real-PDF run (after 1.0.0): six Indian annual reports were tried. The word-position approach holds once header
+  blocks, column bands, per-page scope and page skips are in place. Four reports load, and their main totals match the
+  PDF for both years. One fails E403 because of a cash mapping, which is correct for that mapping. One is scanned with
+  an unusable text layer. Quarterly PDFs fail with E202. Details are in CHANGELOG `[Unreleased]`.
 
 ### Phase 5 — Mapping and review
 Build:
