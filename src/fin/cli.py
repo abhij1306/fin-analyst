@@ -17,6 +17,7 @@ from fin.ingest import COMPANY_NAME, files_in, ingest_file
 from fin.map.commands import map_app, review_app
 from fin.map.dictionary import load_label_map, load_seed
 from fin.map.review import write_pending
+from fin.metrics.export import Refresh, refresh_analytics
 from fin.paths import company_db_path, ensure_data_folder, inbox_dir
 from fin.query.evidence import write_evidence
 from fin.query.run import query
@@ -180,6 +181,14 @@ def _ingest_files(run: Run, jobs: list[tuple[str, list[Path]]], force: bool) -> 
         write_pending(run, company)
     if total == 0:
         typer.echo("no files to ingest")
+    _echo_refresh(refresh_analytics(run))
+
+
+def _echo_refresh(refresh: Refresh) -> None:
+    typer.echo(
+        f"metrics: shared/analytics.duckdb refreshed, {refresh.companies} companies, "
+        f"{refresh.metric_rows} metric rows"
+    )
 
 
 @app.command()
@@ -281,3 +290,14 @@ def sql_command(
         typer.echo(json.dumps(write_sql(run, company, sql), indent=2))
 
     execute("sql", {"company": company, "sql": sql, "write": write}, body)
+
+
+metrics_app = typer.Typer(no_args_is_help=True, help="Metrics and the analytics export.")
+app.add_typer(metrics_app, name="metrics")
+
+
+@metrics_app.command("refresh")
+def metrics_refresh() -> None:
+    """Rebuild shared/analytics.duckdb from every company's metrics. Also runs after every
+    ingest."""
+    execute("metrics refresh", {}, lambda run: _echo_refresh(refresh_analytics(run)))

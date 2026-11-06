@@ -142,10 +142,11 @@ def test_default_path_is_the_company_inbox(root: Path, samples: Path) -> None:
     shutil.copy(samples / "clean" / "kestrel" / "Kestrel_Forgings_Financials_FY23-FY25.xlsx", inbox)
     result = ingest("kestrel")
     assert result.exit_code == 0
-    assert result.stdout.splitlines()[-1] == (
+    assert result.stdout.splitlines()[-2:] == [
         "[1/1] kestrel/Kestrel_Forgings_Financials_FY23-FY25.xlsx: loaded as doc_id 1 "
-        "version 1: 162 facts, 0 unmapped labels"
-    )
+        "version 1: 162 facts, 0 unmapped labels",
+        "metrics: shared/analytics.duckdb refreshed, 1 companies, 54 metric rows",
+    ]
 
 
 def test_rerun_skips_duplicates_with_e105_and_force_loads_a_new_version(
@@ -211,6 +212,7 @@ def test_batch_killed_midway_resumes_without_duplicates(
         "[3/4] bluepeak/Bluepeak_Polymers_FY2024-25.xlsx",
         "companies/kestrel.duckdb",
         "[4/4] kestrel/Kestrel_Forgings_Financials_FY23-FY25.xlsx",
+        "metrics",
     ]
     assert "skipped (E105" in resumed.stdout.splitlines()[0]
     assert "summary: loaded 3, skipped 1, failed 0" in resumed.stderr

@@ -13,7 +13,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 4 | PDF bake-off and PDF ingestion | Done (real-PDF bake-off pending; wired into `fin ingest` in Phases 2-3) |
 | 5 | Mapping and review | Done |
 | 6 | Validation gates | Done |
-| 7 | Metrics and analytics export | Not started |
+| 7 | Metrics and analytics export | Done |
 | 8 | Query and evidence | Done |
 | 9 | Reports | Not started |
 | 10 | Dashboards | Not started |

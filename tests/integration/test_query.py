@@ -16,7 +16,7 @@ from typer.testing import CliRunner, Result
 
 from fin.cli import app
 from fin.db.conn import connect
-from fin.paths import audit_db_path, company_db_path
+from fin.paths import analytics_db_path, audit_db_path, company_db_path
 
 runner = CliRunner()
 SAMPLES = Path(__file__).resolve().parents[1] / "fixtures" / "sample-financials"
@@ -336,6 +336,14 @@ def test_sql_write_changes_a_value_with_backup_and_audit_row(kestrel: Path) -> N
         "SELECT sql, mode, row_count, backup_path FROM queries WHERE query_id = ?",
         [out["query_id"]],
     ) == [(sql, "write", 1, out["backup_path"])]
+    # Metrics are refreshed: revenue of 1.00 makes FY25 receivable days 365 x receivables / 1.00.
+    with connect(analytics_db_path(kestrel)) as con:
+        assert con.execute(
+            "SELECT value FROM metrics WHERE company = 'kestrel' AND fiscal_year = 'FY25' "
+            "AND metric = 'receivable_days'"
+        ).fetchall() == [
+            (Decimal(365) * fact("kestrel", "standalone", "FY25", "trade_receivables"),)
+        ]
 
 
 def test_sql_write_rolls_back_every_statement_when_one_fails(kestrel: Path) -> None:

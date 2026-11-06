@@ -313,6 +313,56 @@ Human follow-ups
 - Confirm the ₹1 lakh default tolerances. Documents in crores with two decimals round each line to ₹1 lakh, so a
   long subtotal on a real crore-unit report may need a larger `subtotal` tolerance.
 
+### Phase 7: Metrics and analytics export
+
+Added
+- Company migration `002_metrics.sql` (company schema version 2). Plain SQL views, so metrics are always current:
+  - `current_facts`: one confirmed, mapped fact per account, fiscal year and scope, from current (`loaded`)
+    documents only. When a year appears in more than one document (a comparative column), the document whose own
+    fiscal year it is wins; otherwise the latest report, then the latest ingest. Later queries should use it too.
+  - `metrics` (long format: fiscal_year, period_end, scope, metric, value DECIMAL(38,6), unit). The metrics are
+    revenue_growth, gross_margin, ebitda, ebitda_margin, pat_margin, cfo_to_ebitda, free_cash_flow,
+    capex_to_revenue, receivable/inventory/payable days, cash_conversion_cycle, debt_to_ebitda, interest_cover,
+    current_ratio, debt_to_equity, roce and roe.
+  - Definitions follow the answer key's conventions and are documented in the SQL.
+  - Missing inputs or a zero denominator give NULL. Standalone and consolidated are never mixed.
+  - `metric_definitions` and `metric_inputs`: lineage from metric to the fact_ids it used. A missing input shows as a
+    row with fact_id NULL.
+  - Macros `div6` (exact decimal division) and `prior_fy`.
+- New database kind `analytics` (`shared/analytics.duckdb`), registered in `fin.db.migrate.targets()`, so `fin init`
+  and `fin migrate` create it. It holds tables `metrics` (every company) and `companies` (current documents, facts,
+  unconfirmed facts and failed validations per company).
+- `fin.metrics.export.refresh_analytics(run)` rebuilds both tables in one short write transaction. It runs after every
+  `fin ingest`/`fin ingest-batch`, through `fin metrics refresh`, and after `fin sql --write`
+  (`fin.query.write.refresh_metrics` is no longer a placeholder).
+- Tests (`tests/integration/test_metrics.py`) ingest every clean fixture and check:
+  - every metric equals the answer key for every company, scope and year in it;
+  - lineage back to the source cell;
+  - unconfirmed and superseded facts are excluded;
+  - `fin metrics refresh` writes the expected analytics rows.
+
+Rounding and precision
+- Money metrics (ebitda, free_cash_flow) are exact rupees.
+- DuckDB divides DECIMALs as DOUBLE, so ratios and days are computed with integer paise arithmetic. They are rounded
+  once, half away from zero, to 6 decimal places. Ratios are fractions (0.180000 = 18%).
+- The answer key stores unrounded floats, so the test rounds them the same way. The key's ebitda and free_cash_flow
+  are in hundredths of a document unit, and the test converts them to rupees.
+
+Deviations
+- Bluepeak prints no total current assets or liabilities. When a total is not reported, current_ratio uses the sum
+  of the reported current lines, and `metric_inputs` lists those lines (`stands_in_for`). This matches the key.
+- First-year revenue_growth (Kestrel and Tarang FY23) is NULL. The key has a value, computed from FY22 data that is
+  in no document. The test expects NULL there.
+- Not defined by the key, so defined here and documented in the SQL:
+  - gross margin = (revenue − cost of materials) / revenue;
+  - capex/revenue = −cf_capex / revenue;
+  - ROCE = (PBT + finance cost) / (total equity + debt), using closing balances;
+  - ROE = PAT / total equity, using closing balances.
+- `failed_validations` counts failed rows in audit `validation_results` (all time; the documents themselves were
+  rolled back).
+- `fin doctor` does not check the analytics schema yet. This was left out to avoid conflicts with Phases 5 and 6, and
+  Phase 10 can add it.
+
 ### Phase 8: Query and evidence
 
 Added

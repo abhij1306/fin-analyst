@@ -47,6 +47,10 @@ def dictionary_db_path(root: Path) -> Path:
     return root / "shared" / "dictionary.duckdb"
 
 
+def analytics_db_path(root: Path) -> Path:
+    return root / "shared" / "analytics.duckdb"
+
+
 def companies_dir(root: Path) -> Path:
     return root / "companies"
 
