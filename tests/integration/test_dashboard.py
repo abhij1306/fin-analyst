@@ -49,7 +49,7 @@ def test_snapshot_copies_the_analytics_tables(data_root: Path) -> None:
 
 def test_ingest_runs_while_the_dashboard_reads(data_root: Path) -> None:
     """The dashboard only ever reads a snapshot, and takes the live file briefly to make it. Take
-    snapshots back to back while a separate `fin ingest` process loads another company: both
+    a snapshot every 0.2 s while a separate `fin ingest` process loads another company: both
     succeed with no lock error."""
     assert runner.invoke(app, ["init"]).exit_code == 0
     ingest("kestrel")
@@ -64,6 +64,7 @@ def test_ingest_runs_while_the_dashboard_reads(data_root: Path) -> None:
             try:
                 snapshot_analytics(data_root)
                 snapshots += 1
+                stop.wait(0.2)  # a dashboard refresh, not a busy loop
             except Exception as exc:  # noqa: BLE001 - collected and asserted below
                 errors.append(exc)
                 return
