@@ -15,7 +15,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 6 | Validation gates | Done |
 | 7 | Metrics and analytics export | Done |
 | 8 | Query and evidence | Done |
-| 9 | Reports | Not started |
+| 9 | Reports | Done |
 | 10 | Dashboards | Not started |
 | 11 | Audit, delete, update | Done |
 | 12 | Release | Not started |

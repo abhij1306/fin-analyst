@@ -395,6 +395,57 @@ Notes and deviations
   site is `fin.query.write.refresh_metrics`, which logs a warning event until Phase 7 wires it in.
 - Evidence re-runs the query on current data. If the result hash differs from the logged one, the page says so.
 
+### Phase 9: Reports
+
+Added
+- `fin report <co> [--scope standalone|consolidated] [--render]` (module `fin.report`). Files live in
+  `reports/<co>/<scope>/` in the data folder:
+  - First run: writes the narrative stub `narrative.md` (instructions in an HTML comment, the years, metrics and
+    accounts available, and one `## ` heading per section), prints `"status": "stub_written"` and stops (exit 0).
+  - Next run (or `--render`, which fails with E601 instead of writing a stub): lints the narrative (E602), fills
+    `templates/report/health.qmd`, renders `health.html`, `health.docx` and `health.pdf` (Typst) with
+    `quarto render --to all`, writes `report_data.json` (every value used, each reference with its text, and the
+    data hash), and appends a `reports` audit row (output paths, template commit, data hash, narrative path).
+  - Rendering happens in `.render-<run_id>/` next to the outputs; the files are moved into place only when Quarto
+    produced all three. A failed render raises E601 and leaves the last good report as it was. No Quarto on PATH is
+    E001.
+- Template `templates/report/health.qmd` with sections growth, profitability, cash flow quality, working capital,
+  leverage and liquidity, earnings quality, observations and data quality (unconfirmed mappings, failed validations,
+  missing data), plus an appendix of the facts behind the metrics with file and sheet!cell or page. Python fills
+  `{{narrative:<section>}}` and `{{table:<name>}}` placeholders; no code runs inside Quarto, so no Jupyter.
+- Every table comes from SQL (`fin.report.data.collect`): the `metrics` view and `current_facts` of the company
+  database, and the audit `validation_results` for failed validations (failed documents are rolled back, so they are
+  only there). Missing data lists NULL metrics with the inputs `metric_inputs` lacks.
+- Narrative references, replaced from the database and formatted in the config display unit:
+  `{{metric:<metric>:<FY>}}` (percent for growth, margins, capex/revenue, ROCE and ROE; `x` for the other ratios;
+  `days`; money in the display unit) and `{{fact:<account>:<FY>}}`. A NULL value shows as `n/a` and is listed in
+  the command's `missing_values`. A reference to an unknown metric, account or year is E601, with line numbers.
+- Lint rule (`fin.report.lint`): after removing HTML comments, references and `FYnn` fiscal-year labels, any digit
+  on a line (any Unicode digit, including list numbers like `1.`) is a hand-typed number. E602 lists every offending
+  line with its number.
+- Data hash: SHA-256 of all collected data as sorted JSON (exact decimals as text), so unchanged data gives the same
+  hash and the same numbers.
+- `.claude/commands/report.md`: `/report` runs the stub, reads the data with `fin query`, writes the narrative
+  (describe, don't judge; numbers only as references) and renders.
+- CI: new `report` job (ubuntu, Quarto 1.10.19 via `quarto-dev/quarto-actions/setup@v2.2.0`) ingests Kestrel,
+  renders the committed sample narrative `tests/fixtures/report/kestrel_narrative.md`, checks the three files exist,
+  uploads them as the `kestrel-report` artifact, and runs the report tests with Quarto.
+- Tests: `tests/unit/test_report_lint.py` (planted numbers: exact E602 message and line list), and
+  `tests/integration/test_report.py` (stub, substituted values, tables, audit row, identical data and hash on
+  re-render, a changed fact changes the hash, E602 and E601 keep outputs unchanged, real Quarto render when
+  installed). Tests other than the real render use a stand-in `quarto` script on PATH.
+
+Dependencies
+- None added. Quarto was already in the Brewfile and `fin doctor`.
+
+Deviations
+- Files are under `reports/<co>/<scope>/` rather than `reports/<co>/`, so standalone and consolidated reports of one
+  company never overwrite each other.
+- The lint allows `FYnn` labels in prose as well as inside references; without them the narrative could not say which
+  year a value is for.
+- The report has tables, no charts: Quarto renders plain Markdown here (no code execution, so no Jupyter
+  dependency).
+
 ### Phase 11: Audit, delete, update
 
 Added
