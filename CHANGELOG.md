@@ -130,17 +130,18 @@ Follow-up to the real annual-report run above (Rane, RKFL, Enser, Indo Farm, Ril
 - **Normalization.** Bracketed numbering such as `(ia)` and `(j)` is dropped, and a bracket left holding only "in"
   after the currency is removed (`Basic (in Rs.)` is `basic`). Stored mapping keys are normalized again when read,
   so the leading-roman-numeral change from the previous entry no longer orphans an existing company mapping.
-- Dictionary: 187 new seed labels (P&L structure, OCI, EPS, tax, discontinued operations, quarterly results lines, balance-sheet lines,
-  common cash flow lines).
+- Dictionary: 187 new seed labels (P&L structure, OCI, EPS, tax, discontinued operations, quarterly results
+  lines, balance-sheet lines, common cash flow lines).
 - Migration: `dictionary/002_account_unit_and_pl_tree.sql` (dictionary schema version 2).
 - No new dependencies.
 
-Real reports (data kept off the repo), distinct unmapped labels across all three statements, before and after:
+Real reports (data kept off the repo), distinct unmapped labels across all three statements, before (main with
+quarterly results) and after:
 
 | Report | Before | Seed only | After company mappings | E401 | E402 | E403 |
 |---|---|---|---|---|---|---|
-| Rane | 65 | 42 | 42 | pass | 64 pass | pass |
-| RKFL | 144 | 85 | 84 | pass | 48 pass; consolidated P&L not run | pass |
+| Rane | 65 | 38 | 38 | pass | 64 pass | pass |
+| RKFL | 144 | 81 | 80 | pass | 48 pass; consolidated P&L not run | pass |
 | Enser | 35 (rejected E403) | 16 (rejected E403) | 14, loaded | pass | 26 pass | not run (cash and bank balances) |
 | Indo Farm | 89 | 46 | 44 | pass | 52 pass | pass |
 | Rilinfra | 48 | 30 | 27 | pass | 18 pass | pass |
@@ -149,11 +150,15 @@ Company mappings used: Enser "(c) Cash and Bank Balances" to `cash_and_bank_bala
 liabilities to `trade_payables`, an expenses line to `other_expenses`; Indo Farm "Total A" / "Total B"; Rilinfra
 "MSME;" and two materials lines; RKFL "(i) Investments_C". Key totals, PBT, PAT and EPS match the printed figures.
 
+Quarterly results (seed only), distinct unmapped labels before and after: Elgi Q1 27 to 9, Indo Farm Q2 52 to 38,
+Prism Q1 38 to 20, Rane Q1 20 to 6, Rane Q2 65 to 37, Salzer Q1 36 to 12 (238 to 122 in all).
+
 Human follow-ups:
 - Two lines mapped to one account (trade payables MSME and others, OCI lines, two "Loans" rows) are summed by the
-  gates. The metrics view still takes one fact per account until the parallel `current_facts` change lands; that
-  change must not sum `rupees_per_share` accounts. RKFL's consolidated P&L prints basic EPS three times
-  (continuing, discontinued, total); all three map to `eps_basic`.
+  gates. `document_facts` also sums lines per account; it must not sum `rupees_per_share` accounts. RKFL's
+  consolidated P&L prints basic EPS three times (continuing, discontinued, total); all three map to `eps_basic`,
+  and `document_facts` reports the total line today only through its total-line rule. Check this before relying on
+  EPS from such reports.
 - PDF extraction (out of scope here): Rilinfra's trade payables line is read as "MSME;" (its first wrapped line is
   taken as a heading), RKFL prints the share-of-joint-venture figure twice and the second row is labelled
   "Expenses", and RKFL standalone has a label "(i) Investments_C".
