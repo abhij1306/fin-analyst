@@ -28,6 +28,9 @@ from fin.map.normalize import normalize_label
         ("A. CASH FLOW FROM OPERATING ACTIVITIES", "cash flow from operating activities"),
         ("Civil works (iv)", "civil works"),
         ("Total expenses (IV)", "total expenses"),
+        ("III Total income (I+II)", "total income"),
+        ("IX Profit/(Loss) for the year (VII-VIII)", "profit loss for the year"),
+        ("Various items", "various items"),
     ],
 )
 def test_normalize_label(label: str, expected: str) -> None:

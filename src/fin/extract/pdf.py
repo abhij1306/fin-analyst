@@ -138,6 +138,8 @@ HEADER_LINES = 5  # the most lines one column header can span
 WRAP_FACTOR = 0.8  # a line nearer than this many text heights belongs to the row it touches
 SPREAD_STRADDLE = 2  # a landscape page with at most this many words across its middle is a spread
 INDENT = 2.0  # points: a line starting this much further right is indented
+# A label ending in one of these words carries on to the next line.
+_DANGLING = re.compile(r"\b(and|or|of|to|than|in|for|the|from|with|on|by)$", re.I)
 
 
 @dataclass(frozen=True)
@@ -545,11 +547,13 @@ def _is_note(word: Word) -> bool:
 
 def _is_tail(row: _Row, line: Line, text: str) -> bool:
     """True when a text line just below a value row ends that row's label: the label wrapped around
-    the row's figures, or it ends in a hyphen, or the line starts in lower case."""
+    the row's figures, or it ends in a hyphen or a word like 'and' / 'of', or the line starts in
+    lower case."""
     gap = line[0]["top"] - row.top
     if row.wrapped and gap < WRAP_FACTOR * row.height:
         return True
-    return gap < 2 * row.height and (row.label.endswith("-") or text[:1].islower())
+    dangling = row.label.endswith("-") or _DANGLING.search(row.label) is not None
+    return gap < 2 * row.height and (dangling or text[:1].islower())
 
 
 def _join(head: str, tail: str) -> str:
@@ -599,7 +603,7 @@ def read_page(
         text = line_text(line)
         words, row = split_row(line, columns) if columns else (line, {})
         if not row:
-            if not columns:
+            if not rows:
                 note_x = next((w["x0"] for w in line if _is_note(w)), note_x)
             if columns and statement != "notes" and _NOTES_BLOCK.match(text):
                 break
@@ -638,8 +642,6 @@ def read_page(
                 section = before_heading
             else:
                 label = section
-        rows.append(_Row(label, row, columns, section, note, top, height, wrapped))
-        last_text = None
         below = lines[i] if i < len(lines) else None
         if (
             all(w["text"] in _DASHES for w in row.values())
@@ -647,7 +649,11 @@ def read_page(
             and below is not None
             and below[0]["x0"] > line[0]["x0"] + INDENT
         ):
-            section = label  # a heading printed with nil dashes, items indented below it
+            # A heading printed with nil dashes ("Current assets - -"), items indented below it.
+            last_text, before_heading, section = words, section, label
+            continue
+        rows.append(_Row(label, row, columns, section, note, top, height, wrapped))
+        last_text = None
     found_values = [
         PdfValue(
             label=r.label,
