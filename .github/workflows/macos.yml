@@ -1,18 +1,10 @@
-# macOS checks (the product's only target). macOS runners can queue for many minutes, so this runs
-# on every main push, on PRs that touch installation or dependencies, and on demand, not on every PR.
+# macOS checks (the product's only target): install.sh twice, fin doctor, pytest.
+# macOS runners can queue for a long time, so this runs after merges to main and on demand; PRs use ci.yml.
 name: macOS
 
 on:
   push:
     branches: [main]
-  pull_request:
-    paths:
-      - install.sh
-      - Brewfile
-      - pyproject.toml
-      - uv.lock
-      - src/fin/doctor.py
-      - .github/workflows/macos.yml
   workflow_dispatch:
 
 concurrency:
