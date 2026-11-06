@@ -1,4 +1,5 @@
-"""`fin doctor`: check dependencies, versions and the data folder (PLAN.md §10)."""
+"""`fin doctor`: check dependencies, versions, the data folder, config.toml and the audit schema
+(PLAN.md §10)."""
 
 import re
 import shutil
@@ -8,11 +9,16 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from fin.audit.errors import (
+    DatabaseLocked,
     DataFolderNotWritable,
     DependencyMissing,
     DependencyVersionMismatch,
+    FinError,
+    SchemaNewerThanCode,
 )
-from fin.paths import probe_writable
+from fin.config import load_config
+from fin.db.migrate import current_version, latest_version
+from fin.paths import audit_db_path, probe_writable
 
 PYTHON_VERSION = (3, 12)
 
@@ -126,8 +132,60 @@ def check_data_folder(root: Path) -> Check:
     return Check("data folder", True, str(root))
 
 
+def check_config(root: Path) -> Check:
+    try:
+        config = load_config(root)
+    except DependencyMissing as exc:
+        return Check("config", False, exc.message, exc.code, "run `uv run fin init`")
+    except FinError as exc:
+        return Check(
+            "config",
+            False,
+            exc.message,
+            exc.code,
+            "correct config.toml (or rename it and run `uv run fin init` for a fresh default)",
+        )
+    return Check("config", True, f"display unit {config.display_unit}")
+
+
+def check_audit_schema(root: Path) -> Check:
+    path = audit_db_path(root)
+    latest = latest_version("audit")
+    if not path.is_file():
+        return Check(
+            "audit schema",
+            False,
+            f"{path} does not exist",
+            DependencyMissing.code,
+            "run `uv run fin init`",
+        )
+    try:
+        version = current_version(path)
+    except DatabaseLocked as exc:
+        return Check("audit schema", False, exc.message, exc.code, "close other fin commands")
+    if version < latest:
+        return Check(
+            "audit schema",
+            False,
+            f"version {version}, expected {latest}",
+            DependencyVersionMismatch.code,
+            "run `uv run fin migrate`",
+        )
+    if version > latest:
+        return Check(
+            "audit schema",
+            False,
+            f"version {version} is newer than this fin ({latest})",
+            SchemaNewerThanCode.code,
+            "update fin: `git pull`, then `uv sync --frozen`",
+        )
+    return Check("audit schema", True, f"version {version}")
+
+
 def run_checks(root: Path) -> list[Check]:
     checks = [check_python()]
     checks.extend(check_tool(tool, minimum) for tool, minimum in TOOL_MINIMUMS.items())
     checks.append(check_data_folder(root))
+    checks.append(check_config(root))
+    checks.append(check_audit_schema(root))
     return checks

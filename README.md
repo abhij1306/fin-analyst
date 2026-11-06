@@ -47,9 +47,28 @@ Each line says `ok` or `FAIL`. A failed line shows an error code and the fix:
 
 | Code | Meaning | Fix |
 |---|---|---|
-| E001 | A required program is missing | Run `./install.sh` again |
-| E002 | A program is too old, or the wrong version | Run the `brew upgrade` command shown |
+| E001 | A required program, `config.toml` or the audit database is missing | Run the fix shown (`./install.sh` or `uv run fin init`) |
+| E002 | A program is the wrong version, `config.toml` is invalid, or a database needs migrating | Run the fix shown (`brew upgrade`, correct `config.toml`, or `uv run fin migrate`) |
 | E003 | The data folder is missing or not writable | Run `uv run fin init`, or check folder permissions |
+| E004 | A database is newer than this version of fin | Update fin: `git pull`, then `uv sync --frozen` |
+| E501 | A database is in use by another `fin` command | Wait for it to finish and run the command again |
+| E503 | A database migration failed | The database was restored from `backups/`; report the error |
+
+## Settings
+
+`fin init` writes `~/FinAnalysis/config.toml` once: the display unit (crores by default), default statement scope,
+fiscal year start and validation tolerances. Edit it to change them; `fin init` never overwrites it. Run
+`uv run fin doctor` after editing to check it.
+
+## Logs
+
+Every `fin` command gets a run id, ends with a one-line summary (`loaded, skipped, failed, pending review, run_id`),
+and is recorded in `~/FinAnalysis/shared/audit.duckdb` and `~/FinAnalysis/logs/<date>/<run_id>.jsonl`.
+
+## Updating the database layout
+
+`uv run fin migrate` brings every database up to the current layout. It backs each file up to
+`~/FinAnalysis/backups/<run_id>/` first and is safe to run again.
 
 ## Using it with Claude Code
 

@@ -5,6 +5,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fin.cli import app
+from fin.config import DEFAULT_CONFIG_TOML
 
 runner = CliRunner()
 
@@ -28,22 +29,33 @@ def test_version() -> None:
     assert result.stdout == "fin 0.1.0\n"
 
 
-def test_init_creates_data_folder_tree(data_root: Path) -> None:
+def test_init_creates_data_folder_config_and_audit_database(data_root: Path) -> None:
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0
-    assert {p.name for p in data_root.iterdir()} == EXPECTED_SUBDIRS
-    assert result.stdout.endswith(
-        f"data folder {data_root.resolve()}: 11 created, 0 already present\n"
-    )
+    assert {p.name for p in data_root.iterdir()} == EXPECTED_SUBDIRS | {"config.toml"}
+    assert (data_root / "config.toml").read_text(encoding="utf-8") == DEFAULT_CONFIG_TOML
+    assert result.stdout.splitlines()[-3:] == [
+        "created  config.toml",
+        "shared/audit.duckdb: schema version 0 -> 1 (backup: none, new file)",
+        f"data folder {data_root}: 11 created, 0 already present",
+    ]
 
 
-def test_init_twice_creates_nothing_and_keeps_files(data_root: Path) -> None:
+def test_init_twice_creates_nothing_and_overwrites_nothing(data_root: Path) -> None:
     runner.invoke(app, ["init"])
     (data_root / "inbox" / "keep.txt").write_text("user file", encoding="utf-8")
+    edited = DEFAULT_CONFIG_TOML.replace('unit = "crores"', 'unit = "lakhs"')
+    (data_root / "config.toml").write_text(edited, encoding="utf-8")
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0
-    assert result.stdout == f"data folder {data_root.resolve()}: 0 created, 11 already present\n"
+    assert result.stdout.splitlines() == [
+        "kept     config.toml (already present, not changed)",
+        "shared/audit.duckdb: up to date at schema version 1",
+        f"data folder {data_root}: 0 created, 11 already present",
+    ]
     assert (data_root / "inbox" / "keep.txt").read_text(encoding="utf-8") == "user file"
+    assert (data_root / "config.toml").read_text(encoding="utf-8") == edited
+    assert list((data_root / "backups").iterdir()) == []
 
 
 def test_init_unwritable_location_is_e003(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -71,7 +83,9 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
         "ok    uv: 0.11.28",
         "ok    node: 24.11.1",
         "ok    quarto: 1.8.25",
-        f"ok    data folder: {data_root.resolve()}",
+        f"ok    data folder: {data_root}",
+        "ok    config: display unit crores",
+        "ok    audit schema: version 1",
         "all checks passed",
     ]
 
@@ -84,13 +98,47 @@ def test_doctor_json_reports_missing_data_folder(
     assert result.exit_code == 1
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert payload["checks"][-1] == {
-        "name": "data folder",
-        "ok": False,
-        "detail": f"{data_root.resolve()} does not exist",
-        "code": "E003",
-        "fix": "run `uv run fin init`",
-    }
+    assert payload["checks"][-3:] == [
+        {
+            "name": "data folder",
+            "ok": False,
+            "detail": f"{data_root} does not exist",
+            "code": "E003",
+            "fix": "run `uv run fin init`",
+        },
+        {
+            "name": "config",
+            "ok": False,
+            "detail": f"{data_root / 'config.toml'} is missing; run `uv run fin init` to create it",
+            "code": "E001",
+            "fix": "run `uv run fin init`",
+        },
+        {
+            "name": "audit schema",
+            "ok": False,
+            "detail": f"{data_root / 'shared' / 'audit.duckdb'} does not exist",
+            "code": "E001",
+            "fix": "run `uv run fin init`",
+        },
+    ]
+    assert not data_root.exists()
+
+
+def test_doctor_reports_invalid_config_as_e002(
+    data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _all_tools_present(monkeypatch)
+    runner.invoke(app, ["init"])
+    config = data_root / "config.toml"
+    config.write_text(
+        DEFAULT_CONFIG_TOML.replace('unit = "crores"', 'unit = "millions"'), encoding="utf-8"
+    )
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 1
+    assert (
+        f"FAIL  config: {config} is invalid: display.unit = 'millions'; expected one of rupees, "
+        "thousands, lakhs, crores [E002]"
+    ) in result.stdout
 
 
 def test_doctor_wrong_python_is_e002(data_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
