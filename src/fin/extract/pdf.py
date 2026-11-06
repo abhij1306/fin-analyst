@@ -138,6 +138,8 @@ HEADER_LINES = 5  # the most lines one column header can span
 WRAP_FACTOR = 0.8  # a line nearer than this many text heights belongs to the row it touches
 SPREAD_STRADDLE = 2  # a landscape page with at most this many words across its middle is a spread
 INDENT = 2.0  # points: a line starting this much further right is indented
+TOUCHING = 0.5  # points: figure pieces closer than this are one figure
+_FIGURE_PART = re.compile(r"^\(?[\d,.]+\)?$")
 # A label ending in one of these words carries on to the next line.
 _DANGLING = re.compile(r"\b(and|or|of|to|than|in|for|the|from|with|on|by)$", re.I)
 
@@ -357,7 +359,29 @@ def _lines(words: list[Word]) -> list[Line]:
             lines[-1].append(word)
         else:
             lines.append([word])
-    return [sorted(line, key=lambda w: w["x0"]) for line in lines]
+    return [_join_split_numbers(sorted(line, key=lambda w: w["x0"])) for line in lines]
+
+
+def _join_split_numbers(line: Line) -> Line:
+    """Rejoin a figure the PDF stores as touching pieces ('76,189.2' + '1')."""
+    joined: Line = []
+    for word in line:
+        previous = joined[-1] if joined else None
+        if (
+            previous is not None
+            and word["x0"] - previous["x1"] < TOUCHING
+            and _FIGURE_PART.match(previous["text"])
+            and _FIGURE_PART.match(word["text"])
+        ):
+            joined[-1] = {
+                **previous,
+                "text": previous["text"] + word["text"],
+                "x1": word["x1"],
+                "bottom": max(previous["bottom"], word["bottom"]),
+            }
+        else:
+            joined.append(word)
+    return joined
 
 
 def line_text(line: Line) -> str:
