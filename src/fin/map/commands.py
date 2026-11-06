@@ -1,4 +1,5 @@
-"""`fin map propose` and `fin review` (PLAN.md Phase 5). The logic is in `fin.map.review`.
+"""`fin map propose|set|accounts` and `fin review` (PLAN.md Phase 5). The logic is in
+`fin.map.review`.
 
 `fin review` with no subcommand is the interactive loop; `list`, `confirm` and `reject` are the
 same actions with flags, so Claude can run them when the user asks.
@@ -14,8 +15,11 @@ from fin.audit.errors import FinError, InvalidMapping
 from fin.audit.logger import Run, execute
 from fin.ingest import COMPANY_NAME
 from fin.map import review
+from fin.map.dictionary import STATEMENTS
 
-map_app = typer.Typer(no_args_is_help=True, help="Mapping proposals.")
+map_app = typer.Typer(
+    no_args_is_help=True, help="Mapping proposals, company mappings and the account list."
+)
 review_app = typer.Typer(
     invoke_without_command=True,
     help="Review unmapped labels: interactive without a subcommand, or use list/confirm/reject.",
@@ -56,6 +60,68 @@ def map_propose(
         typer.echo(f"{count} proposals stored as pending for {company}; run `fin review list`")
 
     execute("map propose", {"file": file, "company": company}, body)
+
+
+StatementOption = Annotated[
+    str,
+    typer.Option(
+        "--statement", "-s", help="balance_sheet, profit_and_loss or cash_flow.", show_default=False
+    ),
+]
+
+
+@map_app.command("set")
+def map_set(
+    company: CompanyOption,
+    statement: StatementOption,
+    label: Annotated[str, typer.Option("--label", "-l", help="The label as written.")],
+    account: Annotated[
+        str, typer.Option("--account", "-a", help="Account, see `fin map accounts`.")
+    ],
+    section: Annotated[
+        str, typer.Option(help="Only under this heading (as written); default: any heading.")
+    ] = "",
+) -> None:
+    """Map a label to an account for this company only. Use it to fix the mapping behind a file a
+    validation gate rejected (see review/<company>/<file>.error.json), then ingest the file again.
+    Loaded facts do not change; ingest again (--force for a loaded file) to apply it."""
+
+    def body(run: Run) -> None:
+        if statement not in STATEMENTS:
+            raise InvalidMapping(f"statement must be one of {', '.join(STATEMENTS)}")
+        outcome = review.set_mapping(run, company, statement, label, account, section)
+        where = f" under {section!r}" if section else ""
+        typer.echo(f"{company}: {statement} {label!r}{where} -> {account} ({outcome})")
+
+    execute(
+        "map set",
+        {
+            "company": company,
+            "statement": statement,
+            "label": label,
+            "account": account,
+            "section": section,
+        },
+        body,
+    )
+
+
+@map_app.command("accounts")
+def map_accounts(
+    statement: Annotated[
+        str | None, typer.Option("--statement", "-s", help="Only this statement.")
+    ] = None,
+) -> None:
+    """List the dictionary's accounts: account, statement, parent and sign, unit, description."""
+
+    def body(run: Run) -> None:
+        for account, st, parent, sign, unit, description in review.list_accounts(
+            run.root, statement
+        ):
+            into = f"{'+' if sign == '1' else '-'} {parent}" if parent else "(top line)"
+            typer.echo(f"{account:40} {st:16} {into:42} {unit:16} {description}")
+
+    execute("map accounts", {"statement": statement}, body)
 
 
 def _line(item: review.Item) -> str:

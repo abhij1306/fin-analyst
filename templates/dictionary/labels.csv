@@ -189,3 +189,190 @@ Direct tax paid,cash_flow,,cf_taxes_paid
 "Payments for property, plant and equipment and intangible assets",cash_flow,,cf_capex
 "Purchase of property, plant and equipment and intangible assets",cash_flow,,cf_capex
 Profit after tax for the year,profit_and_loss,,pat
+Goodwill,balance_sheet,,goodwill
+Intangible assets,balance_sheet,,intangible_assets
+Intangible assets under development,balance_sheet,,intangible_assets_under_development
+Tangible assets,balance_sheet,,ppe_net
+Property plant & equipments,balance_sheet,,ppe_net
+Investment accounted for using equity method,balance_sheet,,equity_method_investments
+Investments accounted for using the equity method,balance_sheet,,equity_method_investments
+Loans,balance_sheet,Non-current assets,loans_non_current
+Loans,balance_sheet,Current assets,loans_current
+Long-term loans and advances,balance_sheet,,loans_non_current
+Short-term loans and advances,balance_sheet,,loans_current
+Other financial assets,balance_sheet,Non-current assets,other_financial_assets_non_current
+Other financial assets,balance_sheet,Current assets,other_financial_assets_current
+Income tax assets (net),balance_sheet,Non-current assets,tax_assets_non_current
+Income tax assets (net),balance_sheet,Current assets,tax_assets_current
+Income tax assets,balance_sheet,Non-current assets,tax_assets_non_current
+Income tax assets,balance_sheet,Current assets,tax_assets_current
+Non-current tax assets (net),balance_sheet,,tax_assets_non_current
+Non-current tax assets,balance_sheet,,tax_assets_non_current
+Current tax assets (net),balance_sheet,,tax_assets_current
+Current tax assets,balance_sheet,,tax_assets_current
+Other assets,balance_sheet,Non-current assets,other_non_current_assets
+Other assets,balance_sheet,Current assets,other_current_assets
+Deferred tax assets,balance_sheet,,deferred_tax_assets
+Deferred tax liability,balance_sheet,,deferred_tax_liabilities
+Deferred tax liabilities,balance_sheet,,deferred_tax_liabilities
+Deferred tax liability (net),balance_sheet,,deferred_tax_liabilities
+Lease liability,balance_sheet,Non-current liabilities,lease_liabilities_non_current
+Lease liability,balance_sheet,Current liabilities,lease_liabilities_current
+Money received against share warrants,balance_sheet,,share_warrants
+Non-controlling interests,balance_sheet,,non_controlling_interests
+Non-controlling interest,balance_sheet,,non_controlling_interests
+Total liabilities,balance_sheet,,total_liabilities
+Total outstanding dues of micro enterprises and small enterprises,balance_sheet,,trade_payables
+Total outstanding dues of creditors other than micro enterprises and small enterprises,balance_sheet,,trade_payables
+Micro and small enterprises,balance_sheet,,trade_payables
+Income tax liability (net),balance_sheet,,current_tax_liabilities
+Income tax liability,balance_sheet,,current_tax_liabilities
+Other income (net),profit_and_loss,,other_income
+Power and fuel,profit_and_loss,,power_and_fuel
+Purchase of traded goods,profit_and_loss,,purchases_stock_in_trade
+Cost of material consumed,profit_and_loss,,cost_of_materials
+Changes in inventories of finished goods and work-in-progress,profit_and_loss,,change_in_inventories
+"Increase in inventories of finished goods, work in progress and scrap",profit_and_loss,,change_in_inventories
+"Increase in inventories of finished goods, work in progress, traded goods and scrap",profit_and_loss,,change_in_inventories
+Financial costs,profit_and_loss,,finance_cost
+Depreciation and amortisation,profit_and_loss,,depreciation
+Depreciation and amortization,profit_and_loss,,depreciation
+Profit before exceptional items and tax,profit_and_loss,,profit_before_exceptional_items
+Profit/(loss) before exceptional items and tax,profit_and_loss,,profit_before_exceptional_items
+Profit before exceptional item and tax,profit_and_loss,,profit_before_exceptional_items
+Profit before exceptional and extraordinary items and tax,profit_and_loss,,profit_before_exceptional_items
+Profit before share of profit / (loss) of joint ventures and tax,profit_and_loss,,profit_before_exceptional_items
+Exceptional items,profit_and_loss,,exceptional_items
+Exceptional item,profit_and_loss,,exceptional_items
+Profit before extraordinary items and tax,profit_and_loss,,profit_before_extraordinary_items
+Extraordinary items,profit_and_loss,,extraordinary_items
+Share of profit/(loss) of associates and joint ventures,profit_and_loss,,share_of_associates_jv
+Share of profit/(loss) of joint ventures,profit_and_loss,,share_of_associates_jv
+Share of loss of joint venture,profit_and_loss,,share_of_associates_jv
+Profit before tax from continuing operations,profit_and_loss,,pbt
+Profit/(loss) before tax from continuing operations,profit_and_loss,,pbt
+Tax expense,profit_and_loss,,total_tax_expense
+Tax expense / (credit),profit_and_loss,,total_tax_expense
+Total tax expense,profit_and_loss,,total_tax_expense
+Total tax expense / (credit),profit_and_loss,,total_tax_expense
+Pertaining to profit for the current year,profit_and_loss,,tax_expense
+Tax adjustments for earlier years,profit_and_loss,,tax_expense
+Income tax for earlier years,profit_and_loss,,tax_expense
+Tax in respect of earlier years,profit_and_loss,,tax_expense
+MAT utilisation/(recognition),profit_and_loss,,tax_expense
+MAT credit entitlement,profit_and_loss,,tax_expense
+Deferred tax charge / (credit),profit_and_loss,,deferred_tax
+Deferred tax liability / (assets),profit_and_loss,,deferred_tax
+Profit for the year from continuing operations,profit_and_loss,,profit_continuing_operations
+Profit for the period from continuing operations,profit_and_loss,,profit_continuing_operations
+Profit/(loss) for the period from continuing operations,profit_and_loss,,profit_continuing_operations
+Profit/(loss) from continuing operations,profit_and_loss,,profit_continuing_operations
+Profit(loss) from the period from continuing operations,profit_and_loss,,profit_continuing_operations
+Profit/(loss) from discontinued operations,profit_and_loss,,discontinued_operations_pbt
+Profit/(loss) from discontinuing operations,profit_and_loss,,discontinued_operations_pbt
+Profit for the year before tax from discontinued operations,profit_and_loss,,discontinued_operations_pbt
+Tax expense of discontinued operations,profit_and_loss,,discontinued_operations_tax
+Tax expense of discontinuing operations,profit_and_loss,,discontinued_operations_tax
+Profit/(loss) from discontinued operations (after tax),profit_and_loss,,profit_discontinued_operations
+Profit/(loss) from discontinuing operations (after tax),profit_and_loss,,profit_discontinued_operations
+Profit after tax for the period from discontinued operations,profit_and_loss,,profit_discontinued_operations
+Remeasurements of the defined benefit liability/(asset),profit_and_loss,,oci_items
+Remeasurement of defined benefit liability,profit_and_loss,,oci_items
+Remeasurement of defined benefit plans,profit_and_loss,,oci_items
+Re-measurement of defined employee benefit plans,profit_and_loss,,oci_items
+Remeasurement gains/(losses) on defined benefit plans,profit_and_loss,,oci_items
+Re-measurement gains/(losses) on defined benefit plans,profit_and_loss,,oci_items
+Income tax relating to items that will not be reclassified to profit or loss,profit_and_loss,,oci_items
+Income tax relating to items that will not be reclassified to statement of profit and loss,profit_and_loss,,oci_items
+Income tax related to items that will not be reclassified to profit or loss,profit_and_loss,,oci_items
+Income tax relating to items that will be reclassified to profit or loss,profit_and_loss,,oci_items
+Income tax effect on above,profit_and_loss,,oci_items
+Exchange differences in translating the financial statements of foreign operations,profit_and_loss,,oci_items
+Exchange differences on translation of foreign operations,profit_and_loss,,oci_items
+Exchange difference on translation of foreign operations,profit_and_loss,,oci_items
+Equity instruments through other comprehensive income,profit_and_loss,,oci_items
+Items that will not be reclassified to profit or loss,profit_and_loss,,oci_group_total
+Items that will be reclassified to profit or loss,profit_and_loss,,oci_group_total
+A. Items that will not be reclassified to statement of profit and loss,profit_and_loss,,oci_group_total
+B. Items that will be reclassified to statement of profit and loss,profit_and_loss,,oci_group_total
+Other comprehensive income,profit_and_loss,,oci
+Other comprehensive income/(loss),profit_and_loss,,oci
+Total other comprehensive income,profit_and_loss,,oci
+Total other comprehensive income/(loss),profit_and_loss,,oci
+"Other comprehensive income for the year, net of tax",profit_and_loss,,oci
+Other comprehensive income/(loss) for the year (net of tax),profit_and_loss,,oci
+Other comprehensive loss for the year (net of tax),profit_and_loss,,oci
+Total comprehensive income for the year,profit_and_loss,,total_comprehensive_income
+Total comprehensive income/(loss) for the year,profit_and_loss,,total_comprehensive_income
+Total comprehensive income for the period,profit_and_loss,,total_comprehensive_income
+Total comprehensive income/(loss) for the period,profit_and_loss,,total_comprehensive_income
+Basic,profit_and_loss,,eps_basic
+Diluted,profit_and_loss,,eps_diluted
+Earning per share - basic,profit_and_loss,,eps_basic
+Earning per share - diluted,profit_and_loss,,eps_diluted
+Earnings per share - basic,profit_and_loss,,eps_basic
+Earnings per share - diluted,profit_and_loss,,eps_diluted
+Basic earnings per share,profit_and_loss,,eps_basic
+Diluted earnings per share,profit_and_loss,,eps_diluted
+Net profit/(loss) before extraordinary items and tax,cash_flow,,cf_pbt
+Net profit/(loss) before taxation and extraordinary items,cash_flow,,cf_pbt
+Depreciation and amortisation expense,cash_flow,,cf_add_depreciation
+Depreciation and amortisation,cash_flow,,cf_add_depreciation
+Depreciation and amortization expense,cash_flow,,cf_add_depreciation
+Finance costs,cash_flow,,cf_add_finance_cost
+Income tax paid,cash_flow,,cf_taxes_paid
+Income taxes paid (net of refunds),cash_flow,,cf_taxes_paid
+Net income tax paid (net of refunds),cash_flow,,cf_taxes_paid
+Income tax (paid)/refund received (net),cash_flow,,cf_taxes_paid
+Net cash flow from financing activities,cash_flow,,cff
+Net profit before tax & extra ordinary items,cash_flow,,cf_pbt
+Profit before tax (after exceptional item),cash_flow,,cf_pbt
+Depreciation,cash_flow,,cf_add_depreciation
+Depreciation and amortization expenses,cash_flow,,cf_add_depreciation
+Interest expenses,cash_flow,,cf_add_finance_cost
+Interest expense,cash_flow,,cf_add_finance_cost
+Interest income,cash_flow,Adjustments for,cf_less_interest_income
+Operating profit/(loss) before working capital changes,cash_flow,,cf_op_profit_before_wc
+Operating profit before changes in operating assets and liabilities,cash_flow,,cf_op_profit_before_wc
+(Increase)/decrease in inventory,cash_flow,,cf_change_inventories
+Increase in inventories,cash_flow,,cf_change_inventories
+Increase in trade receivables,cash_flow,,cf_change_receivables
+Increase in trade payables,cash_flow,,cf_change_payables
+Cash (used)/generated from operations,cash_flow,,cf_cash_generated
+Taxes paid (net),cash_flow,,cf_taxes_paid
+Increase/(decrease) in long term borrowings,cash_flow,,cf_lt_borrowings_net
+Increase/(decrease) in short term borrowings,cash_flow,,cf_st_borrowings_net
+Short term borrowings (net),cash_flow,,cf_st_borrowings_net
+Net decrease in cash and cash equivalents,cash_flow,,net_change_cash
+Profit for the period,profit_and_loss,,pat
+Profit/(loss) for the period/year,profit_and_loss,,pat
+Net profit for the period,profit_and_loss,,pat
+Net profit/(loss) for the period,profit_and_loss,,pat
+Net profit/(loss) for the period after tax,profit_and_loss,,pat
+Profit/(loss) before exceptional items,profit_and_loss,,profit_before_exceptional_items
+Total comprehensive income,profit_and_loss,,total_comprehensive_income
+Total comprehensive income/(loss) for the period/year,profit_and_loss,,total_comprehensive_income
+"Total other comprehensive income, net of income tax",profit_and_loss,,oci
+Other comprehensive income for the period,profit_and_loss,,oci
+"Remeasurement gains/(losses) on defined benefit plans, net",profit_and_loss,,oci_items
+Exchange differences on translating financial statements of foreign operations,profit_and_loss,,oci_items
+Tax expenses,profit_and_loss,,total_tax_expense
+Total tax expenses,profit_and_loss,,total_tax_expense
+Net sales,profit_and_loss,,revenue
+Other operating income,profit_and_loss,,revenue
+Changes in inventories,profit_and_loss,,change_in_inventories
+"Depreciation, amortisation and impairment expense",profit_and_loss,,depreciation
+Basic EPS,profit_and_loss,,eps_basic
+Diluted EPS,profit_and_loss,,eps_diluted
+Share of profit from associate,profit_and_loss,,share_of_associates_jv
+Loans receivable,balance_sheet,Current assets,loans_current
+Right of use asset,balance_sheet,,right_of_use_assets
+Income tax asset (net),balance_sheet,Non-current assets,tax_assets_non_current
+Cash and cash equivalents at the beginning of the period,cash_flow,,opening_cash
+Cash and cash equivalents at the end of the period,cash_flow,,closing_cash
+Cash generated from operating activities,cash_flow,,cf_cash_generated
+Proceeds from long term borrowings,cash_flow,,cf_lt_borrowings_net
+Repayment of long term borrowings,cash_flow,,cf_lt_borrowings_net
+Proceeds from short term borrowings,cash_flow,,cf_st_borrowings_net
+Repayment of short term borrowings,cash_flow,,cf_st_borrowings_net
+"Payments for property, plant and equipment",cash_flow,,cf_capex

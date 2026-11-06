@@ -13,7 +13,9 @@ For each file, `ingest_file`:
 
 A label the dictionary does not map still loads, as a fact with no account and confirmed = false,
 and is logged with E301. A file that fails (E1xx-E4xx) is copied to `review/<company>/` with a
-`.error.json` file giving the code and reason; the next file goes on.
+`.error.json` file giving the code and reason; the next file goes on. For a failed check (E4xx) it
+also lists the lines the check used, the labels no mapping matched, and the commands to map a label
+for the company (`fin map set`) and load the file again.
 """
 
 import hashlib
@@ -25,6 +27,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
 import duckdb
 
@@ -45,7 +48,7 @@ from fin.extract.pdf import extract_pdf
 from fin.extract.periods import fiscal_year_of, period_of, resolve_months
 from fin.extract.text import write_notes_markdown
 from fin.extract.units import RUPEES_PER_UNIT
-from fin.map.dictionary import LabelMap, find
+from fin.map.dictionary import LabelMap, map_rows
 from fin.paths import archive_dir, company_db_path, review_dir
 from fin.validate.gates import validate_document
 
@@ -237,6 +240,7 @@ def _load(
 ) -> tuple[int, int, list[tuple[str, str]]]:
     """Stage, validate and commit one document. Returns (doc_id, version, unmapped labels)."""
     unmapped: dict[tuple[str, str], None] = {}
+    unmapped_lines: dict[tuple[str, str, str], None] = {}  # (statement, section, label)
     rows = document.rows
     with connect(company_db_path(run.root, company), write=True) as con:
         con.execute("BEGIN TRANSACTION")
@@ -271,10 +275,13 @@ def _load(
                 ).fetchall()
             ]
             raw_values, facts = [], []
-            for raw_id, r in zip(raw_ids, rows, strict=True):
-                mapping = find(label_map, r.statement, r.section, r.label)
+            keys = ((r.statement, r.scope, r.section, r.label) for r in rows)
+            for raw_id, r, mapping in zip(raw_ids, rows, map_rows(label_map, keys), strict=True):
                 if mapping is None:
                     unmapped[(r.statement, r.label)] = None
+                    unmapped_lines.setdefault((r.statement, r.section, r.label), None)
+                # A per-share figure (EPS) is stored as printed: the statement unit is not its unit.
+                value = r.rupees / r.rupees_per_unit if mapping and mapping.per_share else r.rupees
                 raw_values.append(
                     [raw_id, doc_id, r.sheet, r.cell, r.page, r.bbox, r.statement, r.section]
                     + [r.label, r.raw, r.unit_text, r.rupees_per_unit, run.run_id]
@@ -282,7 +289,7 @@ def _load(
                 facts.append(
                     [raw_id, doc_id, mapping and mapping.account, r.fiscal_year, r.period]
                     + [r.period_months, r.period_end]
-                    + [r.scope, r.rupees, mapping and mapping.mapping_id, mapping is not None]
+                    + [r.scope, value, mapping and mapping.mapping_id, mapping is not None]
                     + [run.run_id]
                 )
             _insert_many(con, "raw_values", RAW_VALUE_COLUMNS, raw_values)
@@ -300,8 +307,13 @@ def _load(
             for validate in VALIDATORS:
                 validate(run, company, con, doc_id)
             con.execute("COMMIT")
-        except BaseException:
+        except BaseException as exc:
             con.execute("ROLLBACK")
+            if isinstance(exc, DocumentFailure):
+                exc.unmapped = tuple(
+                    {"statement": statement, "section": section, "label": label}
+                    for statement, section, label in unmapped_lines
+                )
             raise
     return doc_id, version, list(unmapped)
 
@@ -345,7 +357,10 @@ def ingest_file(
         run.exit_code = EXIT_FAILURES
         run.event("ingest", exc.message, level="error", code=exc.code, file=name)
         _to_review(run, company, path, exc)
-        return f"failed ({exc}); copied to review/{company}/"
+        return (
+            f"failed ({exc}); copied to review/{company}/, reason and how to fix in "
+            f"review/{company}/{path.name}.error.json"
+        )
     for statement, label in unmapped:
         run.event(
             "map",
@@ -367,8 +382,9 @@ def ingest_file(
 
 def _to_review(run: Run, company: str, path: Path, error: DocumentFailure) -> None:
     folder = review_dir(run.root, company)
-    if path.is_file():
-        _copy(path, folder / path.name)
+    copy = folder / path.name
+    if path.is_file() and path.resolve() != copy.resolve():  # not when ingesting the review/ copy
+        _copy(path, copy)
     reason: dict[str, object] = {
         "file": path.name,
         "code": error.code,
@@ -377,6 +393,8 @@ def _to_review(run: Run, company: str, path: Path, error: DocumentFailure) -> No
     }
     if error.details:
         reason["checks"] = list(error.details)
+        reason["unmapped"] = list(error.unmapped)
+        reason["to_fix"] = _to_fix(company, copy, error)
     try:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{path.name}.error.json").write_text(
@@ -384,3 +402,32 @@ def _to_review(run: Run, company: str, path: Path, error: DocumentFailure) -> No
         )
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write to {folder}: {exc}") from exc
+
+
+def _to_fix(company: str, copy: Path, error: DocumentFailure) -> list[str]:
+    """The steps, with commands, to fix a mapping behind a failed check and load the file again.
+    The example command uses the first line of the first failed check (else an unmapped label)."""
+    lines: list[dict[str, str]] = [
+        line for check in error.details for line in cast(list, check.get("lines", []))
+    ]
+    example = (lines or list(error.unmapped) or [{"statement": "STATEMENT", "label": "LABEL"}])[0]
+    statement, label = example["statement"], example["label"].replace('"', '\\"')
+    hints = []
+    if error.code == "E403":
+        hints.append(
+            "   E403: an old-format balance-sheet line 'Cash and bank balances' also holds other "
+            "bank balances (deposits). If so, map it to cash_and_bank_balances, which is not "
+            "compared with closing cash."
+        )
+    return [
+        "1. Compare each failed check's lines, and the unmapped labels, with the source document. "
+        "If the source itself does not add up, the file cannot load as it is.",
+        "2. If a label is mapped to the wrong account, or an unmapped label is part of a failed "
+        "total, map it for this company only (repeat for each label; add --section to limit it "
+        "to one heading). For example:",
+        f'uv run fin map set --company {company} --statement {statement} --label "{label}" '
+        "--account ACCOUNT",
+        f"   The accounts: uv run fin map accounts --statement {statement}",
+        *hints,
+        f'3. Load the file again: uv run fin ingest {company} "{copy}"',
+    ]

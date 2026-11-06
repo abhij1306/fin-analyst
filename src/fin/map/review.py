@@ -8,6 +8,10 @@
 3. `confirm` adds the label to `label_map` (the dictionary grows) and sets `account`, `mapping_id`
    and `confirmed = true` on the company's matching facts. `reject` leaves the facts unconfirmed.
 
+`set_mapping` (`fin map set`) maps a label straight to an account for one company, without a pending
+item: the way to fix the mapping behind a document that a validation gate rejected (it never
+loaded, so it has no pending items), before ingesting it again.
+
 Every step appends a row to the audit table `mapping_decisions`. The actor is `claude` (with
 on_request = true) when the `CLAUDECODE` environment variable is set, else `human`.
 """
@@ -118,6 +122,74 @@ def _accounts(root: Path) -> dict[str, str]:
     """{account: statement} from the dictionary."""
     with connect(dictionary_db_path(root)) as con:
         return dict(con.execute("SELECT account, statement FROM accounts").fetchall())
+
+
+def _per_share(root: Path, account: str) -> bool:
+    with connect(dictionary_db_path(root)) as con:
+        row = con.execute("SELECT unit FROM accounts WHERE account = ?", [account]).fetchone()
+    return row is not None and row[0] == "rupees_per_share"
+
+
+def list_accounts(root: Path, statement: str | None = None) -> list[tuple[str, ...]]:
+    """(account, statement, parent, sign, unit, description) for every account (or one statement's),
+    sorted by statement and account."""
+    with connect(dictionary_db_path(root)) as con:
+        return con.execute(
+            "SELECT account, statement, coalesce(parent, ''), coalesce(CAST(sign AS VARCHAR), ''), "
+            "unit, description FROM accounts WHERE ? IS NULL OR statement = ? ORDER BY ALL",
+            [statement, statement],
+        ).fetchall()
+
+
+def set_mapping(
+    run: Run, company: str, statement: str, label: str, account: str, section: str = ""
+) -> str:
+    """Map a label (as written) to an account for this company only: add a company-scope row to
+    `label_map`, or change the account of the one already there. It wins over global mappings
+    for documents ingested from now on (`fin.map.dictionary.find`); loaded facts do not change.
+    Returns 'added', 'changed' or 'unchanged'."""
+    item = {"statement": statement, "section": section, "label": label}
+    _check_account(_accounts(run.root), account, item)
+    statement, section_key, label_key = _key(statement, section, label)
+    if not label_key:
+        raise InvalidMapping(f"label {label!r} is empty once normalized")
+    with connect(dictionary_db_path(run.root), write=True) as con:
+        existing = con.execute(
+            "SELECT mapping_id, account FROM label_map WHERE scope = 'company' AND company = ? "
+            "AND statement = ? AND section = ? AND label = ?",
+            [company, statement, section_key, label_key],
+        ).fetchone()
+        if existing is not None and existing[1] == account:
+            return "unchanged"
+        if existing is not None:
+            con.execute(
+                "UPDATE label_map SET account = ?, source = 'map set', run_id = ? "
+                "WHERE mapping_id = ?",
+                [account, run.run_id, existing[0]],
+            )
+        else:
+            con.execute(
+                "INSERT INTO label_map (label, statement, section, account, scope, company, "
+                "source, created_at, run_id) VALUES (?, ?, ?, ?, 'company', ?, 'map set', ?, ?)",
+                [
+                    label_key,
+                    statement,
+                    section_key,
+                    account,
+                    company,
+                    datetime.now(UTC).replace(tzinfo=None),
+                    run.run_id,
+                ],
+            )
+    _decide(
+        run,
+        company,
+        {**item, "confidence": None, "reason": None},
+        "edited" if existing else "confirmed",
+        account,
+        "company",
+    )
+    return "changed" if existing else "added"
 
 
 def _check_account(accounts: dict[str, str], account: str, item: Item) -> None:
@@ -276,10 +348,13 @@ def confirm(
         raw_ids = [
             raw_id for raw_id, *fields in unmapped if _key(*fields) == (statement, section, label)
         ]
+        # An unmapped fact was stored in rupees; a per-share figure (EPS) is kept as printed.
         con.execute(
-            "UPDATE facts SET account = ?, mapping_id = ?, confirmed = true "
+            "UPDATE facts SET account = ?, mapping_id = ?, confirmed = true, value = CASE WHEN ? "
+            "THEN round(value / (SELECT r.rupees_per_unit FROM raw_values r "
+            "WHERE r.raw_id = facts.raw_id), 2) ELSE value END "
             "WHERE raw_id IN (SELECT unnest(?))",
-            [account, mapping_id, raw_ids],
+            [account, mapping_id, _per_share(run.root, account), raw_ids],
         )
     decision = "confirmed" if account == item["account"] else "edited"
     _decide(run, company, item, decision, account, scope)

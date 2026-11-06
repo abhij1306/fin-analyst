@@ -88,6 +88,11 @@ def asked_reason(result: subprocess.CompletedProcess) -> str:
             "E701: `fin review confirm` changes data.",
         ),
         ("uv run --frozen fin review confirm --all", "E701: `fin review confirm` changes data."),
+        (
+            'uv run fin map set --company enser --statement balance_sheet --label "Cash" '
+            "--account cash",
+            "E701: `fin map set` changes data.",
+        ),
         ("bash -c 'rm -rf ~/FinAnalysis/shared'", "`rm` on the data folder"),
         (
             'uv run fin sql kestrel --write --sql "UPDATE facts SET value = 1 WHERE fact_id = 3"',

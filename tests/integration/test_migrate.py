@@ -74,7 +74,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     assert result.stdout.splitlines() == [
         f"shared/audit.duckdb: schema version 2 -> 3 "
         f"(backup: backups/{run_id}/shared/audit.duckdb)",
-        "shared/dictionary.duckdb: up to date at schema version 1",
+        "shared/dictionary.duckdb: up to date at schema version 2",
         "shared/analytics.duckdb: up to date at schema version 2",
         f"companies/acme.duckdb: schema version 0 -> 2 "
         f"(backup: backups/{run_id}/companies/acme.duckdb)",
@@ -105,7 +105,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     assert again.exit_code == 0
     assert again.stdout.splitlines() == [
         "shared/audit.duckdb: up to date at schema version 3",
-        "shared/dictionary.duckdb: up to date at schema version 1",
+        "shared/dictionary.duckdb: up to date at schema version 2",
         "shared/analytics.duckdb: up to date at schema version 2",
         "companies/acme.duckdb: up to date at schema version 2",
     ]
@@ -181,6 +181,39 @@ def test_migration_numbering_gap_is_e503(data_root: Path, migrations_dir: Path) 
         f"E503: 003_c.sql: migrations in {migrations_dir / 'company'} must be named NNN_name.sql "
         "and numbered 001, 002, ... with no gaps (expected 002)"
     )
+
+
+def test_dictionary_migration_2_moves_existing_accounts_into_the_new_tree(data_root: Path) -> None:
+    runner.invoke(app, ["init"])
+    dictionary = data_root / "shared" / "dictionary.duckdb"
+    # Put the dictionary back as version 1 left it: no unit column, the old parents and signs.
+    with connect(dictionary, write=True) as con:
+        con.execute("ALTER TABLE accounts DROP COLUMN unit")
+        con.execute("UPDATE accounts SET parent = NULL, sign = NULL WHERE account = 'pat'")
+        con.execute(
+            "UPDATE accounts SET parent = 'pat', sign = -1 "
+            "WHERE account IN ('tax_expense', 'deferred_tax')"
+        )
+        con.execute("UPDATE accounts SET parent = 'pat', sign = 1 WHERE account = 'pbt'")
+        con.execute(
+            "UPDATE accounts SET parent = 'total_equity_and_liabilities' "
+            "WHERE account IN ('total_non_current_liabilities', 'total_current_liabilities')"
+        )
+        con.execute("DELETE FROM schema_version WHERE version = 2")
+
+    result = runner.invoke(app, ["migrate"])
+
+    assert result.exit_code == 0, result.stderr
+    assert query(
+        dictionary,
+        "SELECT account, parent, sign, unit FROM accounts WHERE account IN ('pat', 'pbt', "
+        "'tax_expense', 'total_current_liabilities') ORDER BY 1",
+    ) == [
+        ("pat", "total_comprehensive_income", 1, "rupees"),
+        ("pbt", "profit_continuing_operations", 1, "rupees"),
+        ("tax_expense", "total_tax_expense", 1, "rupees"),
+        ("total_current_liabilities", "total_liabilities", 1, "rupees"),
+    ]
 
 
 def test_migrate_before_init_is_e003(data_root: Path) -> None:

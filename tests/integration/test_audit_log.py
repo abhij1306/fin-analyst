@@ -82,7 +82,7 @@ def test_doctor_writes_runs_events_and_jsonl(
         (5, "check", "info", None, f"data folder: {data_root}"),
         (6, "check", "info", None, "config: display unit crores"),
         (7, "check", "info", None, "audit schema: version 2"),
-        (8, "check", "info", None, "dictionary schema: version 1"),
+        (8, "check", "info", None, "dictionary schema: version 2"),
     ]
 
     records = jsonl_records(data_root, run_id)
@@ -110,11 +110,11 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         ("folders", "11 created, 0 already present"),
         ("config", "wrote default config.toml"),
         ("migrate", "shared/audit.duckdb: schema version 0 -> 2 (backup: none, new file)"),
-        ("migrate", "shared/dictionary.duckdb: schema version 0 -> 1 (backup: none, new file)"),
+        ("migrate", "shared/dictionary.duckdb: schema version 0 -> 2 (backup: none, new file)"),
         ("migrate", "shared/analytics.duckdb: schema version 0 -> 2 (backup: none, new file)"),
         (
             "dictionary",
-            "dictionary: 75 accounts and 175 label mappings added from templates/dictionary",
+            "dictionary: 104 accounts and 362 label mappings added from templates/dictionary",
         ),
     ]
     assert audit_query(
@@ -123,7 +123,7 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         [run_id],
     ) == [
         ("shared/audit.duckdb", 0, 2, None, "applied"),
-        ("shared/dictionary.duckdb", 0, 1, None, "applied"),
+        ("shared/dictionary.duckdb", 0, 2, None, "applied"),
         ("shared/analytics.duckdb", 0, 2, None, "applied"),
     ]
     assert len(jsonl_records(data_root, run_id)) == 11
