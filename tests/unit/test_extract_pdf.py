@@ -54,7 +54,9 @@ def test_every_value_matches_the_answer_key(document: dict) -> None:
 
     found = Counter((v.label, v.fiscal_year, v.rupees) for v in result.values)
     assert found == answer_key_values(document)
-    assert result.scope == document["scope"]
+    # The titles do not say standalone or consolidated; ingest applies defaults.scope.
+    assert {v.scope for v in result.values} == {None}
+    assert result.skipped == []
     assert result.fiscal_years == document["fiscal_years"]
     assert result.unit == "lakh"
     for value in result.values:
