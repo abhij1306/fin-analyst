@@ -4,13 +4,17 @@ Local financial health analysis tool. Ingests company financial documents into D
 
 ## Using the tool
 
-- All data operations go through `uv run fin ...`. Never open `.duckdb` files directly. Never write SQL that modifies data.
+- Use `fin` (`uv run fin ...`) for all data access. Change data only when the user asks, and through `fin` (`fin sql --write`, `fin review`, `fin delete`), which backs up and logs. If the guard asks for confirmation, that is the user's call.
 - Every number you state must come from `fin` output. Never do arithmetic in prose; ratios and growth are computed in SQL.
 - Answers to questions use this format: answer, calculation, source table (file + sheet!cell or page), SQL, flags.
 - Flag unconfirmed mappings, failed validations, and missing data. Never fill gaps with assumptions.
-- Mappings: you propose (`fin map propose`); only the human confirms. Never attempt `fin review confirm` or `fin delete`.
+- Mappings: you propose (`fin map propose`); the user reviews them.
 - Report narrative: describe, don't judge. No recommendations, ratings, or buy/don't-buy language. Numbers in narrative only as inline references, never typed.
 - If a command fails, report the error code and run_id. Don't work around a failure.
+
+## Customising
+
+This app is meant to be modified with Claude Code. Keep modules small and readable, and update `PLAN.md` and `CHANGELOG.md` with every change.
 
 ## Building the tool
 
