@@ -21,5 +21,9 @@ logs/
 .vscode/
 .idea/
 
-# Local Claude Code settings
+# Local Claude Code settings and agent worktrees
 .claude/settings.local.json
+.claude/worktrees/
+
+# Synthetic test documents stay local until Phase 3 moves them into tests/fixtures/
+sample-financials/

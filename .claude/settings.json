@@ -1,12 +1,4 @@
 {
-  "permissions": {
-    "deny": [
-      "Bash(fin delete:*)",
-      "Bash(uv run fin delete:*)",
-      "Bash(fin review confirm:*)",
-      "Bash(uv run fin review confirm:*)"
-    ]
-  },
   "hooks": {
     "PreToolUse": [
       {

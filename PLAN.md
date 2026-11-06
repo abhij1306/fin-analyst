@@ -24,6 +24,11 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 
 ## 1. What it does
 
+Working with many financial data files in Claude Code makes it hard to keep the data maintained, produce outputs and
+keep track of everything. `fin-analyst` lets Claude Code turn raw documents into maintained DuckDB databases, query
+them with evidence, and produce reports and dashboards. It is built for the owner and a friend, who will customise it
+further with Claude Code, so the code and docs stay simple and easy to modify.
+
 - Ingests financial documents (mostly Excel, some PDF) for shortlisted companies into one local DuckDB file per company.
 - Answers natural-language questions through Claude Code; every number traced to its source cell or page.
 - Generates company health reports (Quarto: HTML, Word, PDF) and dashboards (Evidence, local browser).
@@ -67,10 +72,10 @@ Three layers:
 
 Where Claude fits:
 
-- Claude reads CLI output (JSON) and writes back only through CLI commands. Never opens DuckDB files, never edits data directly.
-- Claude proposes mappings; only the human confirms them (`fin review`, interactive terminal).
-- Claude cannot delete data; `fin delete` is human-only.
-- Enforced two ways: PreToolUse guard hook in `.claude/settings.json`, and TTY checks in the CLI for human-only commands.
+- Claude reads CLI output (JSON) and writes back only through CLI commands. Data changes go through `fin`, so they are backed up and audit-logged.
+- Claude proposes mappings; the human reviews them (`fin review`). Claude may confirm them when the user asks.
+- Guardrails prevent accidents only; they never stop Claude doing what the user asked. Risky actions trigger a Claude Code confirmation prompt (PreToolUse guard hook in `.claude/settings.json`, decision `ask`).
+- Claude may run any `fin` command, including `fin delete` and `fin review confirm`, when the user asks.
 
 ## 5. Repo layout
 
@@ -81,7 +86,7 @@ fin-analyst/
   Brewfile  install.sh
   pyproject.toml  uv.lock  .python-version  .gitignore
   .claude/
-    settings.json        # hooks + permissions
+    settings.json        # hooks
     commands/            # ingest, ingest-batch, review, ask, report, dashboard, audit
     hooks/               # log_action.py, guard.py
   src/fin/
@@ -99,7 +104,7 @@ fin-analyst/
     dictionary/schedule_iii.csv
   dashboards/            # Evidence project; reads data folder via config
   tests/
-    fixtures/generate.py # builds synthetic companies with known numbers
+    fixtures/sample-financials/ # synthetic companies with known numbers, generator/ and answer_key.json
     unit/  integration/
   .github/workflows/ci.yml
 ```
@@ -171,10 +176,10 @@ Every `fin` command:
 **Claude Code actions**
 
 - `PostToolUse` hook (`log_action.py`): every tool call → `logs/claude_actions.jsonl` (timestamp, session id, tool, command).
-- `PreToolUse` hook (`guard.py`) blocks, with error E701:
+- `PreToolUse` hook (`guard.py`) asks the user to confirm, with code E701, before:
   - opening any `.duckdb` file in the data folder except through `fin`
   - `rm`, `mv`, or redirects writing into the data folder
-  - `fin review confirm`, `fin delete` (human-only)
+  - `fin review confirm`, `fin delete`
 
 **Traceability**
 
@@ -213,7 +218,7 @@ Every `fin` command:
 | E602 | Narrative contains hand-typed numbers | Block render, list offending lines |
 | E603 | Dashboard build failed | Keep last good build |
 | E604 | Evidence source file missing | Flag in evidence page |
-| E701 | Action blocked by guard | Log, explain |
+| E701 | Action needs confirmation | Guard asks the user; logged |
 
 **Rules**
 
@@ -221,7 +226,7 @@ Every `fin` command:
 - One bad file never stops a batch.
 - Each document loads in one transaction: stage → validate → commit, or roll back entirely.
 - Tolerances live in `config.toml`, never hard-coded.
-- Exit codes: 0 success, 1 completed with failures, 2 command error, 3 blocked by guard.
+- Exit codes: 0 success, 1 completed with failures, 2 command error, 3 refused (needs confirmation).
 
 ## 10. Install, update, uninstall
 
@@ -261,19 +266,20 @@ claude
 | `fin ingest <co> [path]` | `/ingest` | Either |
 | `fin ingest-batch <folder>` | `/ingest-batch` | Either |
 | `fin map propose <file.json>` | used inside `/ingest`, `/review` | Claude |
-| `fin review` (interactive) | `/review` lists items, human confirms in terminal | Human confirms |
+| `fin review` (interactive or flags) | `/review` | Either (asks for confirmation) |
 | `fin query --question --sql` | `/ask` | Either |
+| `fin sql --write <co> --sql "…"` | `/ask` | Either (on user request; backup + audit) |
 | `fin evidence <query_id>` | used inside `/ask` | Either |
 | `fin metrics refresh` | runs after ingest | Either |
 | `fin report <co>` | `/report` | Either |
 | `fin dashboard` | `/dashboard` | Either |
 | `fin audit <co> [metric fy]` | `/audit` | Either |
-| `fin delete <co>` | — | Human only |
+| `fin delete <co>` | — | Either (asks for confirmation) |
 | `fin update`, `fin migrate` | — | Human |
 
 ## 12. Testing and CI
 
-- **Synthetic fixtures** (`tests/fixtures/generate.py`): two fake companies, Excel and text PDF, Schedule III layout, known values; plus deliberately broken versions (unbalanced balance sheet, wrong subtotal, missing unit, encrypted file).
+- **Synthetic fixtures** (`tests/fixtures/sample-financials/`): three fake companies (Kestrel Forgings: Excel with formulas; Bluepeak Polymers: Excel per year, crores, older wording, standalone + consolidated; Tarang Industrial Services: text PDF with notes), known values in `answer_key.json`, plus deliberately broken files (see Phase 6). The set already exists at `sample-financials/` (README, `answer_key.json`, `generator/`, `clean/`, `broken/`), local and untracked; Phase 3 moves it into `tests/fixtures/` and commits the generated files, so CI needs no LibreOffice.
 - **Private golden set**: one real company, ~30 hand-checked figures, kept in the data folder; run with `pytest --golden`. Never committed.
 - **CI** (macOS runner): ruff, pytest, `shellcheck install.sh`, render report for a synthetic company, build Evidence.
 - **Releases**: semantic version tags, `CHANGELOG.md` updated every phase.
@@ -295,7 +301,7 @@ Done when:
 - Fresh clone → `./install.sh` → `fin doctor` passes
 - Running `install.sh` twice causes no changes or errors
 - Hook logs a Claude command to `claude_actions.jsonl`
-- Guard blocks `rm` in the data folder and `fin delete` when run by Claude
+- Guard asks for confirmation before `rm` in the data folder and `fin delete`
 - CI green
 
 ### Phase 1 — Foundation
@@ -323,7 +329,7 @@ Done when:
 
 ### Phase 3 — Synthetic fixtures, Excel ingestion, batch
 Build:
-- Fixture generator (§12)
+- Move `sample-financials/` to `tests/fixtures/sample-financials/` and commit the generated files (§12); its `generator/` is the fixture generator
 - Excel extractor: sheet/cell capture, header and period detection, unit detection ("₹ in lakhs", "in crores"), multi-year columns
 - Staging → commit; dedup by sha256; archive originals
 - `fin ingest`, `fin ingest-batch` with progress and resume
@@ -349,12 +355,12 @@ Done when:
 Build:
 - Dictionary lookup → `review/<co>/pending.json`
 - `fin map propose` accepts Claude JSON proposals (label, account, confidence, reason)
-- `fin review` interactive terminal: confirm, reject, edit; global vs company scope
+- `fin review`: confirm, reject, edit; global vs company scope. Works interactively and non-interactively (flags such as `--id`, `--account`, `--scope`)
 - `/ingest` command: runs ingest, then Claude proposes mappings for pending labels
 
 Done when:
 - Unmapped labels flow propose → confirm; dictionary grows
-- Guard test: Claude cannot run `fin review confirm`
+- `fin review confirm` run by Claude asks the user first and records `actor=claude (on user request)` in `mapping_decisions`
 - `facts.confirmed` reflects review state
 
 ### Phase 6 — Validation gates
@@ -363,7 +369,18 @@ Build:
 - Tolerances from config; failed document rolled back to `review/` with expected vs actual
 
 Done when:
-- Each broken fixture fails with the correct E4xx and nothing is loaded
+- Each broken fixture fails with its expected error and nothing is loaded:
+
+  | File | Expected error | Defect |
+  |---|---|---|
+  | `Kestrel_UNBALANCED_balance_sheet.xlsx` | E401 | FY25 assets ₹50.00 lakhs above liabilities |
+  | `Kestrel_SUBTOTAL_mismatch.xlsx` | E402 | FY24 total expenses ₹12.34 lakhs above the sum of its lines |
+  | `Bluepeak_Polymers_FY2024-25_NO_UNIT.xlsx` | E203 | Unit line removed |
+  | `Bluepeak_Polymers_FY2024-25_COMPARATIVE_mismatch.xlsx` | E404 | FY24 comparatives differ from the FY24 workbook by ₹3.50 Cr; subtotals still add up |
+  | `Tarang_FY2024-25_ENCRYPTED.pdf` | E102 | Password protected (`test1234`) |
+  | `Tarang_FY2024-25_SCANNED.pdf` | E104 | Image only, no text layer |
+  | `Tarang_FY2024-25_CASHFLOW_not_reconciling.pdf` | E403 | Cash flow closing cash ₹12.00 lakhs above balance sheet cash |
+  | Any clean file ingested twice | E105 | Duplicate |
 - Clean fixtures pass
 
 ### Phase 7 — Metrics and analytics export
@@ -378,6 +395,7 @@ Done when:
 ### Phase 8 — Query and evidence
 Build:
 - `fin query`: read-only, rejects non-SELECT (E502), returns JSON with provenance columns, logs to `queries`
+- `fin sql --write <co> --sql "…"`: applies a user-requested data change to one company DB. Backs up first, runs in one transaction, records the statement and rows affected in the audit log, and refreshes metrics. `fin query` stays read-only
 - `fin evidence <query_id>`: HTML page with highlighted PDF crops and Excel context grids
 - `/ask` command with fixed answer format: answer, calculation, source table, SQL, flags
 
@@ -408,7 +426,7 @@ Done when:
 ### Phase 11 — Audit, delete, update
 Build:
 - `fin audit` trace (§8)
-- `fin delete`: human-only, typed company-name confirmation, backup first, deletion record
+- `fin delete`: interactive typed company-name confirmation, or `--yes` for non-interactive use after the user asked. Backup first, then a deletion record
 - `fin update` (§10)
 
 Done when:

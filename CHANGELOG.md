@@ -35,3 +35,23 @@ Notes and deviations
 - `fin init` creates folders only. `config.toml` is created in Phase 1, and databases in Phase 2 (when `fin doctor`
   also gains the schema-version check).
 - `install.sh` leaves out `npm ci --prefix dashboards` until the dashboards project exists (Phase 10).
+
+### Guardrails: confirm instead of block
+
+Guardrails now exist only to prevent accidental changes or deletions of data; they never stop Claude doing what the
+user asked.
+
+Changed
+- `guard.py` (PreToolUse) no longer blocks. For every guarded action (`rm`/`mv`/`rmdir`/`unlink`/`find -delete`,
+  redirects and `tee` into the data folder; direct access to a data-folder `.duckdb` file outside `fin`; `fin delete`;
+  `fin review confirm`) it exits 0 and prints the Claude Code decision `permissionDecision: "ask"` with an E701
+  reason, so the user gets a confirmation prompt. Unreadable input also gets `ask`. Each one is logged to
+  `claude_actions.jsonl` with `"decision": "ask"` (replacing `"blocked": true`).
+- `.claude/settings.json`: the `permissions.deny` list is removed; the hook is the single mechanism.
+- E701 now means "Action needs user confirmation (guard)". `GuardBlocked` keeps its name and exit code 3 for a
+  CLI-level refusal.
+- PLAN.md: purpose statement (§1); new policy in §4, §8, §9, §11; planned `fin sql --write` (Phase 8),
+  non-interactive `fin review` (Phase 5) and `fin delete --yes` (Phase 11); the synthetic documents in
+  `sample-financials/` become the Phase 3 fixtures, with the broken-file table in Phase 6.
+- CLAUDE.md and README describe confirm-not-block; CLAUDE.md gains a short "Customising" note.
+- `.gitignore`: `.claude/worktrees/` and `sample-financials/` (local until Phase 3 moves it into `tests/fixtures/`).

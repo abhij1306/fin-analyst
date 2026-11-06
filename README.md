@@ -53,9 +53,11 @@ Each line says `ok` or `FAIL`. A failed line shows an error code and the fix:
 
 ## Using it with Claude Code
 
-Start Claude Code in this folder with `claude`. Claude runs `fin` commands for you. For safety, it cannot open your
-databases directly, delete or move files in your data folder, or run the commands reserved for you
-(`fin delete`, `fin review confirm`). Every action it takes is logged to `~/FinAnalysis/logs/claude_actions.jsonl`.
+Start Claude Code in this folder with `claude`. Claude runs `fin` commands for you, and can change your data when you
+ask it to. The guardrails only catch accidents: before Claude deletes or moves files in your data folder, opens a
+database directly, or runs `fin delete` or `fin review confirm`, Claude Code asks you to confirm. Approve only if you
+asked for that change. Data changes go through `fin`, which backs up first and records them. Every action Claude takes
+is logged to `~/FinAnalysis/logs/claude_actions.jsonl`.
 
 ## Uninstall
 

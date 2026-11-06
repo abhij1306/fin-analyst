@@ -7,7 +7,7 @@ Phase 0 defines only the codes it raises; Phase 1 adds the rest.
 EXIT_OK = 0
 EXIT_FAILURES = 1
 EXIT_COMMAND_ERROR = 2
-EXIT_BLOCKED = 3
+EXIT_BLOCKED = 3  # the CLI refused: the action needs the user's confirmation
 
 
 class FinError(Exception):
@@ -37,5 +37,7 @@ class DataFolderNotWritable(FinError):
 
 
 class GuardBlocked(FinError):
+    """E701: action needs user confirmation (guard). Raised when the CLI refuses without it."""
+
     code = "E701"
     exit_code = EXIT_BLOCKED
