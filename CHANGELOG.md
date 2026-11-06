@@ -95,6 +95,69 @@ Human follow-ups:
   Check gates that report "not run" for half-year balance sheets with many unconfirmed lines.
 - The health report stays annual; quarterly ratios that need balance-sheet averages are not computed.
 
+### Close mapping and validation gaps found on real reports
+
+Follow-up to the real annual-report run above (Rane, RKFL, Enser, Indo Farm, Rilinfra).
+
+- **Fixing a rejected document.** `fin map set --company <co> --statement <st> --label "<as written>" --account <a>
+  [--section <heading>]` maps a label for one company, with no pending item, so it works for a file a gate rejected.
+  The guard hook asks before it runs. `fin map accounts [--statement]` lists the accounts. For E4xx failures,
+  `review/<co>/<file>.error.json` now holds the lines each failed check used (account, label, section, value as
+  printed, page or cell), the labels no mapping matched, and `to_fix` with the exact commands, including
+  `fin ingest <co> <review copy>`. Ingesting the `review/` copy no longer tries to copy the file onto itself.
+- **Cash and bank balances.** The seed still maps "Cash & bank balances" to `cash` (the Bluepeak fixture and many SME
+  reports print cash equivalents only). When the line also holds deposits (Enser), map it to the new
+  `cash_and_bank_balances` account. E403 does not compare that with closing cash and says why.
+- **Subtotal tree (E402).** New accounts: `total_liabilities`, `profit_before_exceptional_items`,
+  `profit_before_extraordinary_items`, `extraordinary_items`, `share_of_associates_jv`, `total_tax_expense`,
+  `profit_continuing_operations`, discontinued operations (`discontinued_operations_pbt`,
+  `discontinued_operations_tax`, `profit_discontinued_operations`), `oci_items`, `oci`, `oci_group_total`,
+  `total_comprehensive_income`, and balance-sheet lines (goodwill, loans, other financial assets, tax assets,
+  intangible assets under development, equity-method investments, share warrants, non-controlling interests,
+  power and fuel). Dictionary migration `002` moves existing accounts into the new tree.
+- **EPS.** `eps_basic` and `eps_diluted` have unit `rupees_per_share` (new `accounts.unit` column): stored as printed,
+  not multiplied by the statement's unit, never part of a subtotal. `fin review confirm` to a per-share account
+  rescales the facts.
+- **E402 runs more often.** Unmapped lines that cannot be in a subtotal no longer stop it: nil lines, per-share lines
+  (EPS, face value), and P&L "attributable to" lines.
+- **Exceptional items sign.** They are stored as printed. E402 tries them subtracted (Schedule III), then added (RKFL
+  prints a gain as positive and adds it), and says "printed as a gain and added" when it is the second. Same for
+  extraordinary items. Rule documented in `docs/CUSTOMISING.md`.
+- **Sub-headings (Indo Farm).** `map_rows` looks a row up under its heading, then under the balance-sheet part it is
+  in (from the last part heading, or after `Total equity` / `Total non-current assets` / `Total non-current
+  liabilities`), then under any heading. "Borrowings" under "Financial liabilities" now maps to long- or short-term
+  borrowings. A company's own mappings win over global ones.
+- **Normalization.** Bracketed numbering such as `(ia)` and `(j)` is dropped, and a bracket left holding only "in"
+  after the currency is removed (`Basic (in Rs.)` is `basic`). Stored mapping keys are normalized again when read,
+  so the leading-roman-numeral change from the previous entry no longer orphans an existing company mapping.
+- Dictionary: 155 new seed labels (P&L structure, OCI, EPS, tax, discontinued operations, balance-sheet lines,
+  common cash flow lines).
+- Migration: `dictionary/002_account_unit_and_pl_tree.sql` (dictionary schema version 2).
+- No new dependencies.
+
+Real reports (data kept off the repo), distinct unmapped labels across all three statements, before and after:
+
+| Report | Before | Seed only | After company mappings | E401 | E402 | E403 |
+|---|---|---|---|---|---|---|
+| Rane | 65 | 42 | 42 | pass | 64 pass | pass |
+| RKFL | 144 | 85 | 84 | pass | 48 pass; consolidated P&L not run | pass |
+| Enser | 35 (rejected E403) | 16 (rejected E403) | 14, loaded | pass | 26 pass | not run (cash and bank balances) |
+| Indo Farm | 89 | 46 | 44 | pass | 52 pass | pass |
+| Rilinfra | 48 | 30 | 27 | pass | 18 pass | pass |
+
+Company mappings used: Enser "(c) Cash and Bank Balances" to `cash_and_bank_balances`, "Others" under current
+liabilities to `trade_payables`, an expenses line to `other_expenses`; Indo Farm "Total A" / "Total B"; Rilinfra
+"MSME;" and two materials lines; RKFL "(i) Investments_C". Key totals, PBT, PAT and EPS match the printed figures.
+
+Human follow-ups:
+- Two lines mapped to one account (trade payables MSME and others, OCI lines, two "Loans" rows) are summed by the
+  gates. The metrics view still takes one fact per account until the parallel `current_facts` change lands; that
+  change must not sum `rupees_per_share` accounts. RKFL's consolidated P&L prints basic EPS three times
+  (continuing, discontinued, total); all three map to `eps_basic`.
+- PDF extraction (out of scope here): Rilinfra's trade payables line is read as "MSME;" (its first wrapped line is
+  taken as a heading), RKFL prints the share-of-joint-venture figure twice and the second row is labelled
+  "Expenses", and RKFL standalone has a label "(i) Investments_C".
+
 ## [1.0.0] - 2026-11-07
 
 First release: Phases 0-12 below. How it was tested:
