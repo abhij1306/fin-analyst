@@ -2,14 +2,15 @@
 title: Compare
 ---
 
-Companies side by side for one metric and scope, per fiscal year. Companies are listed alphabetically.
+Companies side by side for one metric and scope, per fiscal year (annual figures only). Companies are
+listed alphabetically.
 
 ```sql scope_list
 select distinct scope from analytics.metrics order by scope
 ```
 
 ```sql metric_list
-select distinct metric from analytics.metrics order by metric
+select distinct metric from analytics.metrics where period_months = 12 order by metric
 ```
 
 <Dropdown name=scope data={scope_list} value=scope title="Scope" />
@@ -18,6 +19,7 @@ select distinct metric from analytics.metrics order by metric
 ```sql compare
 select company, fiscal_year, value, unit from analytics.metrics
 where scope = '${inputs.scope.value}' and metric = '${inputs.metric.value}'
+  and period_months = 12
 order by fiscal_year, company
 ```
 

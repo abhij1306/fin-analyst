@@ -6,8 +6,9 @@ produces reports and dashboards, all inside [Claude Code](https://claude.com/cla
 
 **What it does**
 
-- Loads Excel and text-based PDF documents, one database per company, and checks them (balance sheet balances,
-  subtotals add up, cash flow ties to cash, figures agree across documents, units make sense).
+- Loads Excel and text-based PDF documents (annual reports, and quarterly or half-year results), one database per
+  company, and checks them (balance sheet balances, subtotals add up, cash flow ties to cash, figures agree across
+  documents for the same period, units make sense).
 - Computes ratios and growth in SQL and traces every number back to its file and cell or page.
 - Writes health reports (HTML, Word, PDF) and an Evidence dashboard.
 - Logs every action, so any number, report or change can be audited.
