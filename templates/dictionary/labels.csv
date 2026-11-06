@@ -225,12 +225,15 @@ Total liabilities,balance_sheet,,total_liabilities
 Total outstanding dues of micro enterprises and small enterprises,balance_sheet,,trade_payables
 Total outstanding dues of creditors other than micro enterprises and small enterprises,balance_sheet,,trade_payables
 Micro and small enterprises,balance_sheet,,trade_payables
+Income tax liability (net),balance_sheet,,current_tax_liabilities
+Income tax liability,balance_sheet,,current_tax_liabilities
 Other income (net),profit_and_loss,,other_income
 Power and fuel,profit_and_loss,,power_and_fuel
 Purchase of traded goods,profit_and_loss,,purchases_stock_in_trade
 Cost of material consumed,profit_and_loss,,cost_of_materials
 Changes in inventories of finished goods and work-in-progress,profit_and_loss,,change_in_inventories
 "Increase in inventories of finished goods, work in progress and scrap",profit_and_loss,,change_in_inventories
+"Increase in inventories of finished goods, work in progress, traded goods and scrap",profit_and_loss,,change_in_inventories
 Financial costs,profit_and_loss,,finance_cost
 Depreciation and amortisation,profit_and_loss,,depreciation
 Depreciation and amortization,profit_and_loss,,depreciation
@@ -322,3 +325,22 @@ Income taxes paid (net of refunds),cash_flow,,cf_taxes_paid
 Net income tax paid (net of refunds),cash_flow,,cf_taxes_paid
 Income tax (paid)/refund received (net),cash_flow,,cf_taxes_paid
 Net cash flow from financing activities,cash_flow,,cff
+Net profit before tax & extra ordinary items,cash_flow,,cf_pbt
+Profit before tax (after exceptional item),cash_flow,,cf_pbt
+Depreciation,cash_flow,,cf_add_depreciation
+Depreciation and amortization expenses,cash_flow,,cf_add_depreciation
+Interest expenses,cash_flow,,cf_add_finance_cost
+Interest expense,cash_flow,,cf_add_finance_cost
+Interest income,cash_flow,Adjustments for,cf_less_interest_income
+Operating profit/(loss) before working capital changes,cash_flow,,cf_op_profit_before_wc
+Operating profit before changes in operating assets and liabilities,cash_flow,,cf_op_profit_before_wc
+(Increase)/decrease in inventory,cash_flow,,cf_change_inventories
+Increase in inventories,cash_flow,,cf_change_inventories
+Increase in trade receivables,cash_flow,,cf_change_receivables
+Increase in trade payables,cash_flow,,cf_change_payables
+Cash (used)/generated from operations,cash_flow,,cf_cash_generated
+Taxes paid (net),cash_flow,,cf_taxes_paid
+Increase/(decrease) in long term borrowings,cash_flow,,cf_lt_borrowings_net
+Increase/(decrease) in short term borrowings,cash_flow,,cf_st_borrowings_net
+Short term borrowings (net),cash_flow,,cf_st_borrowings_net
+Net decrease in cash and cash equivalents,cash_flow,,net_change_cash

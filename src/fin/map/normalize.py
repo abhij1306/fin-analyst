@@ -22,9 +22,9 @@ _NOTE_REF = re.compile(
     r"\(?\s*(?:refer\s+)?\bnotes?\b(?:\s*no)?\.?\s*\d+[a-z]?"
     r"(?:\s*(?:,|and|&)\s*\d+[a-z]?)*\s*\)?"
 )
-# A roman numeral up to 39 (the lookahead stops it matching the empty string), one letter a-h, or a
+# A roman numeral up to 39 (the lookahead stops it matching the empty string), one letter a-n, or a
 # number of one or two digits; a numeral or number may carry a letter ("(ia)", "(2a)").
-_NUMBER = r"(?:(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})[a-h]?|[a-h]|\d{1,2}[a-h]?)"
+_NUMBER = r"(?:(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})[a-h]?|[a-n]|\d{1,2}[a-h]?)"
 _BRACKETED_NUMBERING = re.compile(rf"\(\s*{_NUMBER}(?:\s*[+\-–]\s*{_NUMBER})*\s*\)")
 _LEADING_NUMBERING = re.compile(r"^(?:(?:(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})|[a-z]|\d{1,2})[.)]\s+)+")
 _LEADING_ROMAN = re.compile(r"^(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})\s+")
