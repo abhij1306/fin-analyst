@@ -35,6 +35,7 @@ from fin.audit.errors import (
     ScannedPdf,
     UnitNotDetected,
 )
+from fin.extract.units import RUPEES_PER_UNIT, unit_in
 
 # Page titles that mark a statement page, checked in order against the page's first lines.
 STATEMENT_TITLES = (
@@ -45,18 +46,6 @@ STATEMENT_TITLES = (
 )
 TITLE_LINES = 3  # how many lines from the top of a page can hold its title
 
-_UNIT_RUPEES = {
-    "rupees": Decimal(1),
-    "thousand": Decimal(1_000),
-    "lakh": Decimal(100_000),
-    "lac": Decimal(100_000),
-    "million": Decimal(1_000_000),
-    "crore": Decimal(10_000_000),
-}
-_UNIT = re.compile(
-    r"(?:\bin\s+|₹\s*|\brs\.?\s*|\binr\s+)(rupees|thousands?|lakhs?|lacs?|millions?|crores?)\b",
-    re.I,
-)
 _MONTH_NAMES = (
     "january february march april may june july august september october november december"
 )
@@ -182,10 +171,9 @@ def statement_of(lines: list[list[dict[str, Any]]]) -> str | None:
 def unit_of(lines: list[list[dict[str, Any]]]) -> str | None:
     """The unit named on the page ("lakh", "crore", ...), or None."""
     for line in lines:
-        match = _UNIT.search(line_text(line))
-        if match:
-            word = match.group(1).lower().rstrip("s")
-            return "rupees" if word == "rupee" else word
+        unit = unit_in(line_text(line))
+        if unit is not None:
+            return unit
     return None
 
 
@@ -278,7 +266,7 @@ def _page_values(
                     fiscal_year=fiscal_year,
                     raw=word["text"],
                     value=value,
-                    rupees=value * _UNIT_RUPEES[unit],
+                    rupees=value * RUPEES_PER_UNIT[unit],
                     unit=unit,
                     page=page,
                     bbox=(word["x0"], word["top"], word["x1"], word["bottom"]),

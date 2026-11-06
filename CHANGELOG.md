@@ -112,6 +112,100 @@ Human follow-ups
   (crores) before Phase 6 uses them.
 - Consider adding dedicated §9 codes for config and local-database problems instead of reusing E001 and E002.
 
+### Phase 2: Schema and dictionary
+
+Added
+- Company schema (migration `company/001_documents_facts.sql`): `documents`, `raw_values`, `facts` (value
+  `DECIMAL(20,2)` rupees), `notes`, plus `schema_version` from the migration framework. Created when a company is
+  first ingested; `fin migrate` keeps existing company files current.
+- Shared dictionary database `shared/dictionary.duckdb` (new migration kind `dictionary`): `accounts` (account,
+  statement, parent, sign, description) and `label_map`. `fin init` creates it with the audit database, and
+  `fin doctor` checks its schema version.
+- Seed files: `templates/dictionary/schedule_iii.csv` (75 Schedule III accounts with parent subtotal and sign, covering
+  every account in the answer key) and `templates/dictionary/labels.csv` (118 label mappings: the Kestrel/Tarang
+  Schedule III wording, Bluepeak's older wording such as "Sundry debtors" and "Reserves and surplus", and common
+  synonyms). `fin init` adds rows that are missing (`fin.map.dictionary.load_seed`) and never changes existing ones.
+- `fin.map.normalize.normalize_label`: lower case, apostrophes, ₹/Rs./INR, note references ("(Note 10)"), numbering
+  ("(a)", "IV.", "(III - IV)", "(A+B+C)"), "&" to "and", punctuation and whitespace.
+- `fin.map.dictionary.load_label_map(root, company)` and `find(label_map, statement, section, label)`.
+
+Notes and deviations
+- `label_map` has two keys beyond PLAN §7: `statement` and `section`. Statement tells apart "Profit before tax" in the
+  P&L (pbt) and the cash flow (cf_pbt). Section (the heading a line sits under, '' for any) tells apart
+  "(a) Financial liabilities - Borrowings" under non-current (lt_borrowings) and current liabilities
+  (st_borrowings); the answer key's flat label list cannot express that and lists only one of them. Also `source`,
+  `created_at`, `run_id`.
+- Statement codes are `balance_sheet`, `profit_and_loss`, `cash_flow`, matching `fin.extract.pdf`.
+- Label mappings are seeded from a second CSV (`labels.csv`), since PLAN names only the accounts CSV.
+- No foreign keys in the company schema: DuckDB cannot update a referenced row (a superseded document).
+- Seed-CSV problems raise E002, like an invalid `config.toml`.
+
+### Phase 3: Synthetic fixtures, Excel ingestion, batch
+
+Added
+- The owner's synthetic documents in `tests/fixtures/sample-financials/` (README, `answer_key.json`, `generator/`,
+  `clean/`, `broken/`), tracked through `.gitignore` negations; the generator replaces PLAN's `generate.py` and is
+  excluded from ruff.
+- `fin.extract.excel.extract_workbook`: every value of the balance sheet, P&L and cash flow sheets with sheet and
+  cell, statement and scope (from the sheet name and title rows), section heading, label, raw text, period end (header
+  dates such as `31.03.2025`, `As at 31-Mar-2025`, Excel dates; any number of year columns) and rupees. Errors: E101
+  unreadable, E102 encrypted, E201 no statement sheets, E202 no period header, E203 no unit line, E204 a value that
+  is not a number, a value with no label, or a formula with no saved value.
+- `fin.extract.units`: unit detection ("₹ in Lakhs", "Rs. in Crores", thousands, millions, rupees) and exact
+  conversion to rupees, now shared with `fin.extract.pdf` (its private copy is removed).
+- `fin.ingest` and the commands `fin ingest <company> [path] [--force]` (default `inbox/<company>/`) and
+  `fin ingest-batch <folder> [--force]` (one sub-folder per company), with `[i/N] company/file: outcome` progress.
+  Per file: sha256 dedup (E105, skipped; `--force` loads a new version and marks the old one `superseded`), extract,
+  archive the original to `archive/<company>/<sha256>.<ext>`, then one transaction: stage document, raw values and
+  facts → run `fin.ingest.VALIDATORS` (empty; Phase 6 adds the gates) → commit, or roll back everything. A failed file
+  is copied to `review/<company>/` with `<file>.error.json` (code, message, run_id) and the batch goes on. Unmapped
+  labels load with `account` NULL and `confirmed` false and are logged with E301 (counted as pending review).
+- PDFs are wired in: `fin ingest` loads them through `fin.extract.pdf.extract_pdf`, stores page and bbox in
+  `raw_values`, and writes the auditor's report and notes Markdown to `notes/<company>/` (rows in `notes`). Note-table
+  values (related parties, contingent liabilities) stay in the Markdown and are not loaded as facts.
+- Resume: every document is its own transaction and duplicates are skipped, so re-running a batch that was killed
+  finishes it without duplicates (tested by crashing the second document of a batch).
+
+Verified
+- Kestrel (1 workbook, 162 facts) and Bluepeak (3 workbooks, 600 facts) load with every fact equal to
+  `answer_key.json` in rupees, at exactly the answer key's sheet!cell, all mapped and confirmed. Tarang (2 PDFs,
+  216 facts) matches too, on the expected pages.
+- The Kestrel workbook's formula cells have cached values (saved by LibreOffice), so they are read as saved. A
+  formula without one raises E204 ("open the file in Excel, save it and ingest it again") rather than recalculating.
+
+Database size vs source size (Windows, DuckDB 2.0.0, clean fixtures through `fin ingest-batch`)
+
+| Company | Source files | Source size | Facts | Database size |
+|---|---|---|---|---|
+| Kestrel | 1 xlsx | 12,503 B | 162 | 2,633,728 B |
+| Bluepeak | 3 xlsx | 39,788 B | 600 | 2,633,728 B |
+| Tarang | 2 pdf | 105,756 B | 216 | 4,993,024 B |
+
+Shared files after that run: `dictionary.duckdb` 1,847,296 B, `audit.duckdb` 3,420,160 B. A DuckDB file is mostly
+fixed block allocation at this scale (Kestrel and Bluepeak are the same size with 3.7 times the facts), so a company
+file starts at a few MB and grows slowly; the archived originals take as much space again as the sources.
+
+Dependencies (exact pins in `uv.lock`)
+- `openpyxl` 3.1.5 (MIT): reads `.xlsx` cell values, cached formula results and coordinates (frozen stack). pandas
+  is not added; openpyxl alone keeps the extractor simple.
+
+Notes and deviations
+- Sources are copied, never moved or deleted: `archive/` and `review/` get copies, and the inbox keeps the original
+  (re-running skips it with E105). Clearing the inbox is left to the user.
+- An E105 skip does not make the exit code 1, so a resumed batch that only skips finished files exits 0.
+- A sheet that does not say standalone or consolidated uses `defaults.scope` from `config.toml`, logged as an event.
+- `documents.scope` is `standalone,consolidated` for a workbook with both; each fact has its own scope.
+- `documents.fiscal_year` is the latest year in the document. Columns added beyond PLAN §7: `documents.archive_path`,
+  `raw_values.statement`, `section`, `rupees_per_unit`, and `facts.doc_id`.
+- An invalid company name (anything but lower-case letters, digits, `-`, `_`) is a usage error (exit 2) from the
+  command line, before a run starts. In `ingest-batch`, a folder with such a name is skipped with a warning.
+- PDF period ends are 31 March of the fiscal year, as `fin.extract.pdf` reads Indian fiscal years.
+
+Human follow-ups
+- Ingest one real company workbook and check what the extractor misses (merged cells, wrapped labels, units in the
+  header row); real CA files are messier than the fixtures.
+- Review the seed label list in `templates/dictionary/labels.csv` and add the wording your documents use.
+
 ### Phase 4: PDF bake-off and extraction
 
 Added

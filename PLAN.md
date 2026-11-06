@@ -8,9 +8,9 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 |---|---|---|
 | 0 | Repo, install, guardrails | Done |
 | 1 | Foundation: config, audit, errors, DB access | Done |
-| 2 | Schema and dictionary | Not started |
-| 3 | Synthetic fixtures, Excel ingestion, batch | Not started |
-| 4 | PDF bake-off and PDF ingestion | Done (wiring into `fin ingest` and the real-PDF bake-off pending) |
+| 2 | Schema and dictionary | Done |
+| 3 | Synthetic fixtures, Excel ingestion, batch | Done |
+| 4 | PDF bake-off and PDF ingestion | Done (real-PDF bake-off pending; wired into `fin ingest` in Phases 2-3) |
 | 5 | Mapping and review | Not started |
 | 6 | Validation gates | Not started |
 | 7 | Metrics and analytics export | Not started |
@@ -90,7 +90,7 @@ fin-analyst/
     commands/            # ingest, ingest-batch, review, ask, report, dashboard, audit
     hooks/               # log_action.py, guard.py
   src/fin/
-    cli.py  config.py  paths.py
+    cli.py  config.py  paths.py  ingest.py
     audit/     logger.py  errors.py
     db/        conn.py  migrate.py  migrations/NNN_*.sql
     extract/   excel.py  pdf.py  text.py  units.py
@@ -101,7 +101,7 @@ fin-analyst/
     report/    render.py  lint.py
   templates/
     report/health.qmd
-    dictionary/schedule_iii.csv
+    dictionary/schedule_iii.csv  labels.csv
   dashboards/            # Evidence project; reads data folder via config
   tests/
     fixtures/sample-financials/ # synthetic companies with known numbers, generator/ and answer_key.json
@@ -142,7 +142,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 **Shared**
 
 - `dictionary.accounts` — account, statement, parent, sign, description (seeded from Schedule III)
-- `dictionary.label_map` — normalized label, account, scope (global/company), company, mapping_id
+- `dictionary.label_map` — normalized label, statement, section (heading the label sits under, or any), account, scope (global/company), company, mapping_id, source
 - `audit.*` — see §8
 - `analytics.metrics` — export of every company's metrics for dashboards
 

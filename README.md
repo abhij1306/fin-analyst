@@ -60,6 +60,19 @@ Each line says `ok` or `FAIL`. A failed line shows an error code and the fix:
 fiscal year start and validation tolerances. Edit it to change them; `fin init` never overwrites it. Run
 `uv run fin doctor` after editing to check it.
 
+## Loading documents
+
+Put a company's Excel (`.xlsx`) and PDF files in `~/FinAnalysis/inbox/<company>/` (company names are lower case, for
+example `kestrel`) and run `uv run fin ingest <company>`, or `uv run fin ingest <company> <file or folder>`. To load
+several companies, give each a folder and run `uv run fin ingest-batch ~/FinAnalysis/inbox`.
+
+- A file already loaded is skipped (E105), so re-running a batch that stopped picks up where it left off. Add
+  `--force` to load a file again as a new version.
+- Each original is copied to `~/FinAnalysis/archive/<company>/`, named by its sha256. Your files are not moved.
+- A file that cannot be loaded is copied to `~/FinAnalysis/review/<company>/` with a `.error.json` giving the error
+  code and reason; nothing from it is loaded.
+- Labels the dictionary does not know load as unconfirmed and are logged with E301.
+
 ## Logs
 
 Every `fin` command gets a run id, ends with a one-line summary (`loaded, skipped, failed, pending review, run_id`),

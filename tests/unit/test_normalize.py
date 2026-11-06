@@ -9,7 +9,10 @@ from fin.map.normalize import normalize_label
         ("(a) Equity share capital", "equity share capital"),
         ("V. Profit before tax (III - IV)", "profit before tax"),
         ("III. Total income (I + II)", "total income"),
-        ("Net increase/(decrease) in cash and cash equivalents (A+B+C)", "net increase decrease in cash and cash equivalents"),  # noqa: E501
+        (
+            "Net increase/(decrease) in cash and cash equivalents (A+B+C)",
+            "net increase decrease in cash and cash equivalents",
+        ),
         ("(Increase)/decrease in inventories", "increase decrease in inventories"),
         ("Fixed assets (net block)", "fixed assets net block"),
         ("Total shareholders' funds", "total shareholders funds"),
