@@ -32,6 +32,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -84,8 +85,12 @@ PRIMARY_STATEMENTS = ("balance_sheet", "profit_and_loss", "cash_flow")
 # Quarterly or half-year results ("Statement of Unaudited Standalone Financial Results for the
 # quarter ended ..."): not read yet, reported as such.
 _INTERIM_TITLE = re.compile(
-    r"financial\s+results\b.*\b(quarter|half[\s-]+year|nine\s+months)", re.I
+    r"^(?:(?:standalone|consolidated|unaudited|un-audited|audited)\s+)*statement\s+of\b.*"
+    r"financial\s+results\b.*\b(quarter|half[\s-]+year|nine\s+months)",
+    re.I,
 )
+# Top-of-page text that starts something other than a statement continued from the page before.
+_OTHER_TITLE = re.compile(r"\bstatement\b|\breport\b|^notes\b|\bnotes\s+(?:to|forming)\b", re.I)
 TITLE_LINES = 6  # how many lines from the top of a page can hold its title
 ANNUAL_PERIOD_END_MONTH = 3  # Indian fiscal years end on 31 March
 
@@ -132,6 +137,7 @@ HEADER_GAP = 12.0  # points: the most space between two lines of one column head
 HEADER_LINES = 5  # the most lines one column header can span
 WRAP_FACTOR = 0.8  # a line nearer than this many text heights belongs to the row it touches
 SPREAD_STRADDLE = 2  # a landscape page with at most this many words across its middle is a spread
+INDENT = 2.0  # points: a line starting this much further right is indented
 
 
 @dataclass(frozen=True)
@@ -222,6 +228,9 @@ def extract_pdf(path: Path) -> PdfExtraction:
     previous: _Page | None = None
     for number, lines in parts:
         statement = statement_of(lines)
+        scope = scope_of(lines)
+        if statement is None and previous is not None and _continues(previous, number, lines):
+            statement, scope = previous.statement, previous.scope
         if statement is None:
             interim = _interim_title(lines)
             if interim:
@@ -237,7 +246,6 @@ def extract_pdf(path: Path) -> PdfExtraction:
                 )
             previous = None
             continue
-        scope = scope_of(lines)
         continues = (
             previous
             if previous is not None
@@ -277,6 +285,15 @@ def extract_pdf(path: Path) -> PdfExtraction:
             )
         raise NoTablesFound(f"{path.name}: no statement tables with values found")
     return PdfExtraction(path, fiscal_years, units[0], values, skipped)
+
+
+def _continues(previous: _Page, number: int, lines: list[Line]) -> bool:
+    """True when an untitled page part carries on the statement just read: the next page part
+    (such as the second half of a balance sheet printed over two half pages), with no other title
+    (statement of changes in equity, notes, a report) at its top."""
+    if previous.statement not in PRIMARY_STATEMENTS or number - previous.number > 1:
+        return False
+    return not any(_OTHER_TITLE.search(line_text(line)) for line in lines[:TITLE_LINES])
 
 
 def _without_repeats(values: list[PdfValue]) -> list[PdfValue]:
@@ -496,9 +513,10 @@ def parse_number(raw: str) -> Decimal:
 def split_row(line: Line, columns: list[Column]) -> tuple[Line, dict[str, Word]]:
     """Split a line into its leading words and its values {fiscal_year: word}.
 
-    Values are the trailing number words, each under a different period column (nearest column
-    centre, overlapping the column widened by COLUMN_TOLERANCE). A line is a value row only when
-    every column has a value; otherwise the values are {}.
+    Values are the trailing number words, each under a different period column. A column owns the
+    band from halfway to its left neighbour to halfway to its right one; the first starts
+    COLUMN_TOLERANCE left of its header and the last runs to the page edge. A line is a value row
+    only when every column has a value; otherwise the values are {}.
     """
     values: dict[str, Word] = {}
     cut = len(line)
@@ -506,18 +524,36 @@ def split_row(line: Line, columns: list[Column]) -> tuple[Line, dict[str, Word]]
         word = line[i]
         if not _NUMBER.match(word["text"]):
             break
-        column = min(columns, key=lambda c: abs(c.center - (word["x0"] + word["x1"]) / 2))
-        overlaps = (
-            word["x0"] <= column.x1 + COLUMN_TOLERANCE
-            and word["x1"] >= column.x0 - COLUMN_TOLERANCE
-        )
-        if not overlaps or column.fiscal_year in values:
+        center = (word["x0"] + word["x1"]) / 2
+        bounds = [(a.center + b.center) / 2 for a, b in pairwise(columns)]
+        column = columns[sum(1 for bound in bounds if center > bound)]
+        if column is columns[0] and word["x1"] < column.x0 - COLUMN_TOLERANCE:
+            break
+        if column.fiscal_year in values:
             break
         values[column.fiscal_year] = word
         cut = i
     if len(values) < len(columns):
         return line, {}
     return line[:cut], {c.fiscal_year: values[c.fiscal_year] for c in columns}
+
+
+def _is_note(word: Word) -> bool:
+    """A 'Note' / 'Notes' / 'Note No.' column heading word."""
+    return word["text"].lower().rstrip(".") in ("note", "notes")
+
+
+def _is_tail(row: _Row, line: Line, text: str) -> bool:
+    """True when a text line just below a value row ends that row's label: the label wrapped around
+    the row's figures, or it ends in a hyphen, or the line starts in lower case."""
+    gap = line[0]["top"] - row.top
+    if row.wrapped and gap < WRAP_FACTOR * row.height:
+        return True
+    return gap < 2 * row.height and (row.label.endswith("-") or text[:1].islower())
+
+
+def _join(head: str, tail: str) -> str:
+    return head + tail if head.endswith("-") else f"{head} {tail}"
 
 
 def read_page(
@@ -543,7 +579,9 @@ def read_page(
         found = header_at(lines, i)
         later = header_at(lines, i + 1) if found else None
         if found and (later is None or later[1] != found[1]):
-            header, i = found
+            header, end = found
+            note_x = next((w["x0"] for ln in lines[i:end] for w in ln if _is_note(w)), note_x)
+            i = end
             if any(c.period_end.month != ANNUAL_PERIOD_END_MONTH for c in header):
                 ends = ", ".join(c.period_end.isoformat() for c in header)
                 if statement != "notes":
@@ -561,20 +599,19 @@ def read_page(
         text = line_text(line)
         words, row = split_row(line, columns) if columns else (line, {})
         if not row:
-            if not columns and any(w["text"].lower() in ("note", "notes") for w in line):
-                note_x = next(w["x0"] for w in line if w["text"].lower() in ("note", "notes"))
+            if not columns:
+                note_x = next((w["x0"] for w in line if _is_note(w)), note_x)
             if columns and statement != "notes" and _NOTES_BLOCK.match(text):
                 break
             if columns and line[0]["x0"] >= columns[0].x0 - COLUMN_TOLERANCE:
                 continue  # column sub-heading ("(Restated)") or margin text, not a heading
-            previous = rows[-1] if rows else None
-            if (
-                previous is not None
-                and previous.wrapped
-                and last_text is None
-                and line[0]["top"] - previous.top < WRAP_FACTOR * previous.height
-            ):
-                previous.label = f"{previous.label} {text}"
+            if rows and last_text is None and _is_tail(rows[-1], line, text):
+                rows[-1].label = _join(rows[-1].label, text)
+                continue
+            if last_text is not None and text[:1].islower():  # a heading wrapped onto two lines
+                if section == line_text(last_text):
+                    section = _join(section, text)
+                last_text = last_text + line
                 continue
             last_text = line
             if not _WORDY.search(text):
@@ -596,15 +633,21 @@ def read_page(
         height = max(w["bottom"] - w["top"] for w in line)
         wrapped = False
         if not label:
-            if last_text is not None and top - last_text[0]["top"] < WRAP_FACTOR * height:
+            if last_text is not None and top - last_text[-1]["top"] < WRAP_FACTOR * height:
                 label, wrapped = line_text(last_text), True
                 section = before_heading
             else:
                 label = section
         rows.append(_Row(label, row, columns, section, note, top, height, wrapped))
         last_text = None
-        if all(w["text"] in _DASHES for w in row.values()) and not _SUB_HEADING.match(label):
-            section = label  # a heading printed with nil dashes ("Current assets - -")
+        below = lines[i] if i < len(lines) else None
+        if (
+            all(w["text"] in _DASHES for w in row.values())
+            and not _SUB_HEADING.match(label)
+            and below is not None
+            and below[0]["x0"] > line[0]["x0"] + INDENT
+        ):
+            section = label  # a heading printed with nil dashes, items indented below it
     found_values = [
         PdfValue(
             label=r.label,
