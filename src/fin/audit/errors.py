@@ -53,6 +53,12 @@ class SchemaNewerThanCode(FinError):
     code = "E004"
 
 
+class UpdateFailed(FinError):
+    """E005. `fin update` stopped: local changes in the repo, or a git, uv or npm step failed."""
+
+    code = "E005"
+
+
 # E1xx: file intake. The file is skipped and moved to review/; the command completes with failures.
 
 

@@ -17,7 +17,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 8 | Query and evidence | Done |
 | 9 | Reports | Not started |
 | 10 | Dashboards | Not started |
-| 11 | Audit, delete, update | Not started |
+| 11 | Audit, delete, update | Done (metric-level trace waits for Phase 7) |
 | 12 | Release | Not started |
 
 ---
@@ -194,6 +194,7 @@ Every `fin` command:
 | E002 | Dependency version mismatch | Same |
 | E003 | Data folder not writable | Stop |
 | E004 | Database schema newer than code | Stop; tell user to update |
+| E005 | `fin update` stopped (local changes, or a git, uv or npm step failed) | Stop; backup is in `backups/<run_id>/` |
 | E101 | File unreadable or corrupt | Skip file, move to review/ with reason |
 | E102 | Encrypted file | Same |
 | E103 | Unsupported format | Same |
