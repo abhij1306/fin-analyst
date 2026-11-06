@@ -6,7 +6,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 
 | Phase | Name | Status |
 |---|---|---|
-| 0 | Repo, install, guardrails | Not started |
+| 0 | Repo, install, guardrails | Done |
 | 1 | Foundation: config, audit, errors, DB access | Not started |
 | 2 | Schema and dictionary | Not started |
 | 3 | Synthetic fixtures, Excel ingestion, batch | Not started |

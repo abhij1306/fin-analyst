@@ -1,0 +1,25 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Never commit data: databases, source documents, logs
+*.duckdb
+*.duckdb.wal
+*.xlsx
+*.xls
+*.pdf
+logs/
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local Claude Code settings
+.claude/settings.local.json

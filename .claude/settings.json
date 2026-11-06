@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(fin delete:*)",
+      "Bash(uv run fin delete:*)",
+      "Bash(fin review confirm:*)",
+      "Bash(uv run fin review confirm:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project \"$CLAUDE_PROJECT_DIR\" --frozen --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project \"$CLAUDE_PROJECT_DIR\" --frozen --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/log_action.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
