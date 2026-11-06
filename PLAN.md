@@ -18,7 +18,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 9 | Reports | Done |
 | 10 | Dashboards | Done |
 | 11 | Audit, delete, update | Done |
-| 12 | Release | Not started |
+| 12 | Release | Done (clean-machine test pending) |
 
 ---
 

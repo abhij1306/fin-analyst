@@ -14,7 +14,7 @@ Local financial health analysis tool. Ingests company financial documents into D
 
 ## Customising
 
-This app is meant to be modified with Claude Code. Keep modules small and readable, and update `PLAN.md` and `CHANGELOG.md` with every change.
+This app is meant to be modified with Claude Code. Keep modules small and readable, and update `PLAN.md` and `CHANGELOG.md` with every change. How to add an account, metric, validation gate or report section, how migrations and tests work, and the module map: `docs/CUSTOMISING.md`.
 
 ## Building the tool
 
