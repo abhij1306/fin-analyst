@@ -542,7 +542,7 @@ def split_row(line: Line, columns: list[Column]) -> tuple[Line, dict[str, Word]]
 
 def _is_note(word: Word) -> bool:
     """A 'Note' / 'Notes' / 'Note No.' column heading word."""
-    return word["text"].lower().rstrip(".") in ("note", "notes")
+    return word["text"].rstrip(".") in ("Note", "Notes", "NOTE", "NOTES")
 
 
 def _is_tail(row: _Row, line: Line, text: str) -> bool:
@@ -584,7 +584,9 @@ def read_page(
         later = header_at(lines, i + 1) if found else None
         if found and (later is None or later[1] != found[1]):
             header, end = found
-            note_x = next((w["x0"] for ln in lines[i:end] for w in ln if _is_note(w)), note_x)
+            note_x = note_x or next(
+                (w["x0"] for ln in lines[i:end] for w in ln if _is_note(w)), None
+            )
             i = end
             if any(c.period_end.month != ANNUAL_PERIOD_END_MONTH for c in header):
                 ends = ", ".join(c.period_end.isoformat() for c in header)
@@ -604,7 +606,7 @@ def read_page(
         words, row = split_row(line, columns) if columns else (line, {})
         if not row:
             if not rows:
-                note_x = next((w["x0"] for w in line if _is_note(w)), note_x)
+                note_x = note_x or next((w["x0"] for w in line if _is_note(w)), None)
             if columns and statement != "notes" and _NOTES_BLOCK.match(text):
                 break
             if columns and line[0]["x0"] >= columns[0].x0 - COLUMN_TOLERANCE:
