@@ -14,7 +14,7 @@ def test_every_plan_code_has_one_error_class_and_its_exit_code() -> None:
     # PLAN.md §9: setup, database and output errors stop the command (2); per-document failures and
     # a missing evidence source complete with failures (1); a refusal pending user confirmation (3).
     assert by_code == {
-        "E001": 2, "E002": 2, "E003": 2, "E004": 2,
+        "E001": 2, "E002": 2, "E003": 2, "E004": 2, "E005": 2,
         "E101": 1, "E102": 1, "E103": 1, "E104": 1, "E105": 1,
         "E201": 1, "E202": 1, "E203": 1, "E204": 1,
         "E301": 1, "E302": 1, "E303": 1, "E304": 2,
