@@ -275,3 +275,35 @@ Notes and deviations
 
 Human follow-ups
 - Try `fin review` interactively in a real terminal (tests drive the prompts with piped input).
+
+### Phase 8: Query and evidence
+
+Added
+- `fin query <co> --question "…" --sql "…"`: runs one SELECT (or WITH … SELECT) on a read-only connection and prints
+  JSON (query_id, rows, row_count, result_hash). When the result has `fact_id` or `raw_id`, each row gets
+  `source_file`, `source_ref` (`sheet!cell` or `page N`) and `source_confirmed`. Anything else (UPDATE, DELETE,
+  COPY, ATTACH, several statements) is rejected with E502. Every attempt, accepted or rejected, appends a `queries`
+  row (mode 'read'); the query_id is the run_id.
+- `fin evidence <query_id>`: re-runs the logged query and writes `evidence/<query_id>.html`: the question, SQL,
+  result, and for each fact its source file and reference, with a highlighted PDF crop
+  (`evidence/<query_id>/fact_N.png`) or a grid of the Excel cells around the value (two rows above and below, from
+  column A) read from the archived workbook, plus flags (unconfirmed mappings, data changed since the query). A
+  missing archived source is flagged on the page with E604 (exit 1), never a crash. Appends a `queries` row with
+  `evidence_path`.
+- `fin sql <co> --write --sql "…"`: backs up the company database to `backups/<run_id>/companies/<co>.duckdb`, runs
+  the statement(s) in one transaction (all or nothing), and appends a `queries` row (mode 'write') with the
+  statement, rows affected (INSERT/UPDATE/DELETE) and backup path. Without `--write` it refuses with E502 and points
+  to `fin query`.
+- E504 `SqlFailed`: a `fin query` or `fin sql` statement failed (bad syntax, unknown column); nothing changed.
+- Guard hook: `fin sql … --write` gets `ask` (E701).
+- `.claude/commands/ask.md`: `/ask` runs `fin query`, then `fin evidence`, and answers in the fixed format (answer,
+  calculation, source table with file and sheet!cell or page, SQL, evidence, flags).
+- Tests: 10 scripted questions on the three synthetic companies (Excel and PDF), checked against
+  `answer_key.json`, each with its evidence page; rejected writes; E504; E604; `fin sql --write` backup, audit row
+  and rollback.
+
+Notes and deviations
+- New error code E504 (PLAN.md §9), because §9 had no code for a SQL statement that fails to parse or bind.
+- Metrics are not refreshed after `fin sql --write` yet, because `fin.metrics` (Phase 7) is not on main. The call
+  site is `fin.query.write.refresh_metrics`, which logs a warning event until Phase 7 wires it in.
+- Evidence re-runs the query on current data. If the result hash differs from the logged one, the page says so.

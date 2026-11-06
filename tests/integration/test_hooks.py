@@ -89,6 +89,10 @@ def asked_reason(result: subprocess.CompletedProcess) -> str:
         ),
         ("uv run --frozen fin review confirm --all", "E701: `fin review confirm` changes data."),
         ("bash -c 'rm -rf ~/FinAnalysis/shared'", "`rm` on the data folder"),
+        (
+            'uv run fin sql kestrel --write --sql "UPDATE facts SET value = 1 WHERE fact_id = 3"',
+            "E701: `fin sql --write` changes data.",
+        ),
     ],
 )
 def test_guard_asks(command: str, reason: str, home: Path, env: dict[str, str]) -> None:
@@ -108,6 +112,8 @@ def test_guard_asks(command: str, reason: str, home: Path, env: dict[str, str]) 
     "command",
     [
         "uv run fin doctor",
+        "uv run fin query kestrel --question 'Revenue?' --sql 'SELECT 1'",
+        "uv run fin sql kestrel --sql 'SELECT 1'",
         "uv run fin ingest acme ~/FinAnalysis/inbox/acme",
         "rm -rf build/tmp",
         "ls ~/FinAnalysis/companies",

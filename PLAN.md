@@ -14,7 +14,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 5 | Mapping and review | Done |
 | 6 | Validation gates | Not started |
 | 7 | Metrics and analytics export | Not started |
-| 8 | Query and evidence | Not started |
+| 8 | Query and evidence | Done |
 | 9 | Reports | Not started |
 | 10 | Dashboards | Not started |
 | 11 | Audit, delete, update | Not started |
@@ -215,6 +215,7 @@ Every `fin` command:
 | E501 | Database locked after retries | Retry with backoff (5 tries), then stop |
 | E502 | Write attempted on read-only path | Reject, log |
 | E503 | Migration failed | Restore from backup, stop |
+| E504 | SQL statement failed (`fin query`, `fin sql`) | Reject, log; nothing changed |
 | E601 | Report render failed | Keep last good report |
 | E602 | Narrative contains hand-typed numbers | Block render, list offending lines |
 | E603 | Dashboard build failed | Keep last good build |

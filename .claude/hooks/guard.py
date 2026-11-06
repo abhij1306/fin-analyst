@@ -4,7 +4,7 @@ Guardrails prevent accidents only; they never stop Claude doing what the user as
 Each guarded action gets a Claude Code confirmation prompt ("ask", code E701):
 - rm, mv (also rmdir, unlink, find -delete), redirects or tee writing into the data folder
 - opening any .duckdb file in the data folder except through `fin`
-- `fin delete` and `fin review confirm`
+- `fin delete`, `fin review confirm` and `fin sql ... --write`
 
 The hook always exits 0. For a guarded action it prints the decision JSON on stdout and logs it to
 claude_actions.jsonl with "decision": "ask"; otherwise it prints nothing and the call goes ahead.
@@ -141,6 +141,8 @@ def check_bash(command: str, cwd: Path, root: Path) -> str | None:
                 if sub[: len(human_only)] == human_only:
                     command_name = " ".join(human_only)
                     return f"`fin {command_name}` changes data"
+            if sub[:1] == ["sql"] and "--write" in args:
+                return "`fin sql --write` changes data"
 
         if name in DELETERS and _paths_in_data(args, cwd, root):
             return f"`{name}` on the data folder ({root})"
