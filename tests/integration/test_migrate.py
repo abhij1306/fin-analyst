@@ -23,6 +23,14 @@ def run_id_of(stderr: str) -> str:
     return match.group(1)
 
 
+def without_company_migrations(migrations_dir: Path) -> Path:
+    """These tests write their own company migrations, so start from none."""
+    folder = migrations_dir / "company"
+    for path in folder.glob("*.sql"):
+        path.unlink()
+    return folder
+
+
 def make_company(root: Path, name: str = "acme") -> Path:
     """A company file that predates its migrations: one table with one known row."""
     path = root / "companies" / f"{name}.duckdb"
@@ -45,6 +53,7 @@ def tables(path: Path) -> list[str]:
 def test_migrate_backs_up_first_applies_and_is_idempotent(
     data_root: Path, migrations_dir: Path, audit_query: Query
 ) -> None:
+    without_company_migrations(migrations_dir)
     runner.invoke(app, ["init"])
     company = make_company(data_root)
     (migrations_dir / "audit" / "002_probe.sql").write_text(
@@ -65,6 +74,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     assert result.stdout.splitlines() == [
         f"shared/audit.duckdb: schema version 1 -> 2 "
         f"(backup: backups/{run_id}/shared/audit.duckdb)",
+        "shared/dictionary.duckdb: up to date at schema version 1",
         f"companies/acme.duckdb: schema version 0 -> 2 "
         f"(backup: backups/{run_id}/companies/acme.duckdb)",
     ]
@@ -94,6 +104,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     assert again.exit_code == 0
     assert again.stdout.splitlines() == [
         "shared/audit.duckdb: up to date at schema version 2",
+        "shared/dictionary.duckdb: up to date at schema version 1",
         "companies/acme.duckdb: up to date at schema version 2",
     ]
     assert [p.name for p in (data_root / "backups").iterdir()] == [run_id]
@@ -105,6 +116,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
 def test_failed_migration_restores_the_backup_and_is_e503(
     data_root: Path, migrations_dir: Path, audit_query: Query
 ) -> None:
+    without_company_migrations(migrations_dir)
     runner.invoke(app, ["init"])
     company = make_company(data_root)
     (migrations_dir / "company" / "001_good.sql").write_text(
@@ -154,6 +166,7 @@ def test_failed_migration_of_a_new_file_removes_it(data_root: Path, migrations_d
 
 
 def test_migration_numbering_gap_is_e503(data_root: Path, migrations_dir: Path) -> None:
+    without_company_migrations(migrations_dir)
     runner.invoke(app, ["init"])
     make_company(data_root)
     (migrations_dir / "company" / "001_a.sql").write_text("SELECT 1;\n", encoding="utf-8")

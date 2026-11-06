@@ -1,5 +1,5 @@
-"""`fin doctor`: check dependencies, versions, the data folder, config.toml and the audit schema
-(PLAN.md §10)."""
+"""`fin doctor`: check dependencies, versions, the data folder, config.toml and the shared
+database schemas (PLAN.md §10)."""
 
 import re
 import shutil
@@ -18,7 +18,7 @@ from fin.audit.errors import (
 )
 from fin.config import load_config
 from fin.db.migrate import current_version, latest_version
-from fin.paths import audit_db_path, probe_writable
+from fin.paths import audit_db_path, dictionary_db_path, probe_writable
 
 PYTHON_VERSION = (3, 12)
 
@@ -149,11 +149,16 @@ def check_config(root: Path) -> Check:
 
 
 def check_audit_schema(root: Path) -> Check:
-    path = audit_db_path(root)
-    latest = latest_version("audit")
+    return check_schema(audit_db_path(root), "audit")
+
+
+def check_schema(path: Path, kind: str) -> Check:
+    """The schema version of a shared database (`kind` names its migrations folder)."""
+    name = f"{kind} schema"
+    latest = latest_version(kind)
     if not path.is_file():
         return Check(
-            "audit schema",
+            name,
             False,
             f"{path} does not exist",
             DependencyMissing.code,
@@ -162,10 +167,10 @@ def check_audit_schema(root: Path) -> Check:
     try:
         version = current_version(path)
     except DatabaseLocked as exc:
-        return Check("audit schema", False, exc.message, exc.code, "close other fin commands")
+        return Check(name, False, exc.message, exc.code, "close other fin commands")
     if version < latest:
         return Check(
-            "audit schema",
+            name,
             False,
             f"version {version}, expected {latest}",
             DependencyVersionMismatch.code,
@@ -173,13 +178,13 @@ def check_audit_schema(root: Path) -> Check:
         )
     if version > latest:
         return Check(
-            "audit schema",
+            name,
             False,
             f"version {version} is newer than this fin ({latest})",
             SchemaNewerThanCode.code,
             "update fin: `git pull`, then `uv sync --frozen`",
         )
-    return Check("audit schema", True, f"version {version}")
+    return Check(name, True, f"version {version}")
 
 
 def run_checks(root: Path) -> list[Check]:
@@ -188,4 +193,5 @@ def run_checks(root: Path) -> list[Check]:
     checks.append(check_data_folder(root))
     checks.append(check_config(root))
     checks.append(check_audit_schema(root))
+    checks.append(check_schema(dictionary_db_path(root), "dictionary"))
     return checks
