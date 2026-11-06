@@ -75,7 +75,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
         f"shared/audit.duckdb: schema version 2 -> 3 "
         f"(backup: backups/{run_id}/shared/audit.duckdb)",
         "shared/dictionary.duckdb: up to date at schema version 1",
-        "shared/analytics.duckdb: up to date at schema version 1",
+        "shared/analytics.duckdb: up to date at schema version 2",
         f"companies/acme.duckdb: schema version 0 -> 2 "
         f"(backup: backups/{run_id}/companies/acme.duckdb)",
     ]
@@ -106,7 +106,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     assert again.stdout.splitlines() == [
         "shared/audit.duckdb: up to date at schema version 3",
         "shared/dictionary.duckdb: up to date at schema version 1",
-        "shared/analytics.duckdb: up to date at schema version 1",
+        "shared/analytics.duckdb: up to date at schema version 2",
         "companies/acme.duckdb: up to date at schema version 2",
     ]
     assert [p.name for p in (data_root / "backups").iterdir()] == [run_id]
@@ -189,3 +189,56 @@ def test_migrate_before_init_is_e003(data_root: Path) -> None:
     assert result.stderr.splitlines()[0] == (
         f"E003: {data_root} is not set up; run `uv run fin init`"
     )
+
+
+def test_periods_migration_keeps_annual_data_working(data_root: Path, migrations_dir: Path) -> None:
+    # A company database at schema version 2 (before periods), holding one annual document.
+    periods = migrations_dir / "company" / "003_periods.sql"
+    sql = periods.read_text(encoding="utf-8")
+    periods.unlink()
+    runner.invoke(app, ["init"])
+    company = make_company(data_root)
+    assert runner.invoke(app, ["migrate"]).exit_code == 0
+    with connect(company, write=True) as con:
+        assert con.execute("SELECT max(version) FROM schema_version").fetchone() == (2,)
+        con.execute(
+            "INSERT INTO documents (file_name, sha256, version, fiscal_year, scope, status, "
+            "archive_path, run_id, ingested_at) VALUES ('ar25.pdf', 'abc', 1, 'FY25', "
+            "'standalone', 'loaded', 'archive/acme/abc.pdf', 'r1', TIMESTAMP '2025-06-01 10:00')"
+        )
+        for raw_id, (account, year, end, value) in enumerate(
+            [
+                ("revenue", "FY25", "2025-03-31", "1100.00"),
+                ("revenue", "FY24", "2024-03-31", "1000.00"),
+                ("pat", "FY25", "2025-03-31", "110.00"),
+            ],
+            start=1,
+        ):
+            con.execute(
+                "INSERT INTO facts (raw_id, doc_id, account, fiscal_year, period_end, scope, "
+                "value, mapping_id, confirmed, run_id) VALUES (?, 1, ?, ?, ?, 'standalone', ?, "
+                "1, true, 'r1')",
+                [raw_id, account, year, end, value],
+            )
+    periods.write_text(sql, encoding="utf-8")
+
+    result = runner.invoke(app, ["migrate"])
+
+    assert result.exit_code == 0, result.stderr
+    assert "companies/acme.duckdb: schema version 2 -> 3" in result.stdout
+    assert query(company, "SELECT account, period, period_months FROM facts ORDER BY fact_id") == [
+        ("revenue", "FY25", 12),
+        ("revenue", "FY24", 12),
+        ("pat", "FY25", 12),
+    ]
+    assert query(company, "SELECT CAST(period_end AS VARCHAR) FROM documents") == [("2025-03-31",)]
+    assert query(
+        company,
+        "SELECT period, metric, CAST(value AS VARCHAR) FROM metrics "
+        "WHERE metric IN ('revenue_growth', 'pat_margin') ORDER BY ALL",
+    ) == [
+        ("FY24", "pat_margin", None),
+        ("FY24", "revenue_growth", None),
+        ("FY25", "pat_margin", "0.100000"),
+        ("FY25", "revenue_growth", "0.100000"),
+    ]

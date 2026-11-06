@@ -39,7 +39,7 @@ def fact_trace(root: Path, company: str, fact_id: int) -> dict[str, Any]:
     with connect(company_db_path(root, company)) as con:
         found = _rows(
             con,
-            "SELECT fact_id, account, fiscal_year, period_end, scope, value, confirmed, "
+            "SELECT fact_id, account, fiscal_year, period, period_end, scope, value, confirmed, "
             "mapping_id, raw_id, doc_id FROM facts WHERE fact_id = ?",
             [fact_id],
         )
@@ -127,20 +127,20 @@ def _trace_or_none(root: Path, company: str, fact_id: int | None) -> dict[str, A
 
 def metric_trace(root: Path, company: str, metric: str, fiscal_year: str) -> dict[str, Any]:
     """Trace a metric to the facts it used (`metric_inputs`), and each fact to its source. One entry
-    per scope. An input with no fact (fact_id null) is why the metric is null. Raises E504 if the
-    company has no such metric and year."""
+    per scope. An input with no fact (fact_id null) is why the metric is null. `fiscal_year` is a
+    period: a fiscal year ("FY25") or a quarter or half year ("FY26-Q1"). Raises E504 if the
+    company has no such metric and period."""
     with connect(company_db_path(root, company)) as con:
         values = _rows(
             con,
-            "SELECT scope, value, unit FROM metrics WHERE metric = ? AND fiscal_year = ? "
-            "ORDER BY scope",
+            "SELECT scope, value, unit FROM metrics WHERE metric = ? AND period = ? ORDER BY scope",
             [metric, fiscal_year],
         )
         inputs = _rows(
             con,
-            "SELECT scope, account, stands_in_for, input_fiscal_year, fact_id FROM metric_inputs "
-            "WHERE metric = ? AND fiscal_year = ? ORDER BY scope, stands_in_for NULLS FIRST, "
-            "account",
+            "SELECT scope, account, stands_in_for, input_period AS input_fiscal_year, fact_id "
+            "FROM metric_inputs WHERE metric = ? AND period = ? "
+            "ORDER BY scope, stands_in_for NULLS FIRST, account, fact_id",
             [metric, fiscal_year],
         )
     if not values:
@@ -230,7 +230,7 @@ def format_fact_trace(trace: dict[str, Any]) -> str:
     fact, raw, doc = trace["fact"], trace["raw_value"], trace["document"]
     run, mapping = trace["ingest_run"], trace["mapping"]
     lines = [
-        f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['fiscal_year']} "
+        f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['period']} "
         f"{fact['scope']} = {fact['value']} rupees (mapping confirmed: {fact['confirmed']})",
         f"raw value: {raw['raw_label']!r} = {raw['raw_value_text']} {raw['raw_unit']} "
         f"under {raw['section']!r} ({raw['statement']})",

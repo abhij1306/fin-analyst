@@ -111,7 +111,7 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         ("config", "wrote default config.toml"),
         ("migrate", "shared/audit.duckdb: schema version 0 -> 2 (backup: none, new file)"),
         ("migrate", "shared/dictionary.duckdb: schema version 0 -> 1 (backup: none, new file)"),
-        ("migrate", "shared/analytics.duckdb: schema version 0 -> 1 (backup: none, new file)"),
+        ("migrate", "shared/analytics.duckdb: schema version 0 -> 2 (backup: none, new file)"),
         (
             "dictionary",
             "dictionary: 75 accounts and 175 label mappings added from templates/dictionary",
@@ -124,7 +124,7 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
     ) == [
         ("shared/audit.duckdb", 0, 2, None, "applied"),
         ("shared/dictionary.duckdb", 0, 1, None, "applied"),
-        ("shared/analytics.duckdb", 0, 1, None, "applied"),
+        ("shared/analytics.duckdb", 0, 2, None, "applied"),
     ]
     assert len(jsonl_records(data_root, run_id)) == 11
 
@@ -154,7 +154,7 @@ def test_forced_error_logs_its_code_and_exits_2(data_root: Path, audit_query: Qu
 
     assert result.exit_code == 2
     message = (
-        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 2; "
+        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 3; "
         "update fin (`git pull`, then `uv sync --frozen`)"
     )
     assert result.stderr.splitlines()[0] == f"E004: {message}"

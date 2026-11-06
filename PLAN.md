@@ -20,6 +20,12 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 11 | Audit, delete, update | Done |
 | 12 | Release | Done, v1.0.0 tagged (Claude Code clean-machine test on macOS pending) |
 
+After 1.0.0 (not phases): real annual-report PDFs, then quarterly and half-year results. Every fact now has a
+period (`FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`; see §7). Results statements (SEBI Reg 33) ingest from PDF next to
+annual reports, quarter / half-year / year columns of both scopes land in their own periods, and like periods are
+compared (E404). Quarterly metrics: revenue, PAT, EBITDA, margins, year-on-year and quarter-on-quarter growth. The
+health report stays annual; the dashboard company page shows quarters.
+
 ---
 
 ## 1. What it does
@@ -132,9 +138,10 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 
 **Per company (`companies/<company>.duckdb`)**
 
-- `documents` — doc_id, file_name, sha256, version, fiscal_year, scope (standalone/consolidated), status, run_id, superseded_by, ingested_at
+- `documents` — doc_id, file_name, sha256, version, fiscal_year, period_end (latest in the document), scope (standalone/consolidated), status, run_id, superseded_by, ingested_at
 - `raw_values` — raw_id, doc_id, sheet, cell, page, bbox, raw_label, raw_value_text, raw_unit, run_id
-- `facts` — fact_id, raw_id, account, fiscal_year, period_end, scope, value `DECIMAL(20,2)` in rupees, mapping_id, confirmed, run_id
+- `facts` — fact_id, raw_id, account, fiscal_year, period, period_months, period_end, scope, value `DECIMAL(20,2)` in rupees, mapping_id, confirmed, run_id
+- `document_facts` and `current_facts` (views): one value per account, period and scope (lines a document maps to the same account are summed, a total line is not added to its parts)
 - `notes` — doc_id, section, markdown_path
 - `metrics` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `schema_version`
@@ -150,6 +157,9 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 
 - All values stored in rupees as exact DECIMAL. Original unit kept in `raw_values`. Display unit set in config.
 - Indian fiscal year (Apr–Mar) default; `period_end` stored explicitly.
+- Periods: `FY25` is the year ended 31 March 2025 (12 months); `FY26-Q1`..`FY26-Q4` quarters, `FY26-H1`/`FY26-H2`
+  half years, `FY26-9M` nine months (`fin.extract.periods`). A balance sheet's period is the part of the year it
+  closes (30 Sep 2025 is `FY26-H1`). Quarters, half years and years are never mixed in a metric or a check.
 - Standalone and consolidated never mixed in one metric.
 
 ## 8. Audit and logging

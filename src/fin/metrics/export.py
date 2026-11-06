@@ -56,8 +56,8 @@ def refresh_analytics(run: Run) -> Refresh:
         ensure_current(root, path, "company", run)
         with connect(path) as con:
             rows = con.execute(
-                "SELECT fiscal_year, period_end, scope, metric, value, unit FROM metrics "
-                "ORDER BY scope, fiscal_year, metric"
+                "SELECT fiscal_year, period, period_months, period_end, scope, metric, value, unit "
+                "FROM metrics ORDER BY scope, period_end, period_months DESC, metric"
             ).fetchall()
             summary = con.execute(_COMPANY_SUMMARY).fetchone()
         assert summary is not None
@@ -74,7 +74,9 @@ def refresh_analytics(run: Run) -> Refresh:
             con.execute("DELETE FROM metrics")
             con.execute("DELETE FROM companies")
             if metrics:
-                con.executemany("INSERT INTO metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", metrics)
+                con.executemany(
+                    "INSERT INTO metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", metrics
+                )
             if companies:
                 con.executemany("INSERT INTO companies VALUES (?, ?, ?, ?, ?, ?, ?, ?)", companies)
             con.execute("COMMIT")

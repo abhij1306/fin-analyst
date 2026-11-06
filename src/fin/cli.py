@@ -339,7 +339,9 @@ def audit_command(
     metric: Annotated[
         str | None, typer.Argument(help="Metric to trace, e.g. current_ratio.")
     ] = None,
-    fiscal_year: Annotated[str | None, typer.Argument(help="Fiscal year, e.g. FY25.")] = None,
+    fiscal_year: Annotated[
+        str | None, typer.Argument(help="Period: a fiscal year (FY25) or a quarter (FY26-Q1).")
+    ] = None,
     fact: Annotated[int | None, typer.Option("--fact", help="Trace one fact_id.")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
 ) -> None:

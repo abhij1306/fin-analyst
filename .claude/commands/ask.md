@@ -6,11 +6,18 @@ argument-hint: <company> <question>
 Answer this question with `fin`: $ARGUMENTS
 
 1. Write one SELECT on the company database (`companies/<company>.duckdb`). Tables: `documents` (use
-   `status = 'loaded'`), `raw_values`, `facts` (value in rupees, `confirmed`). Rules:
-   - Select `f.fact_id` for every fact you use, so each row gets its source.
+   `status = 'loaded'`), `raw_values`, `facts` (value in rupees, `confirmed`); views `current_facts` (one value per
+   account, period and scope, already de-duplicated across documents) and `metrics`. Rules:
+   - Select `f.fact_id` (or `current_facts.fact_id`) for every fact you use, so each row gets its source.
    - Compute ratios, sums and growth in the SQL. Never do arithmetic yourself.
-   - Never mix `standalone` and `consolidated`. If a year appears in two documents (comparatives), pick one
-     with `d.file_name` and say which.
+   - Never mix `standalone` and `consolidated`. If a period appears in two documents (comparatives), pick one
+     with `d.file_name` and say which, or use `current_facts`.
+   - Every fact has a `period`: `FY25` is the year ended 31 March 2025; `FY26-Q1` to `FY26-Q4` are quarters (Q1
+     ends in June), `FY26-H1` / `FY26-H2` half years, `FY26-9M` nine months; `period_months` is its length.
+     `fiscal_year` is the fiscal year the period falls in, so filter on `period` (or `period_months = 12` for
+     years), never on `fiscal_year` alone: that mixes quarters with the year. A half-year balance sheet is the
+     `FY26-H1` period. For quarter-on-quarter or year-on-year questions, compare like periods (`FY26-Q2` with
+     `FY26-Q1` or `FY25-Q2`); the `metrics` view has `revenue_growth` (year on year) and `revenue_growth_qoq`.
 2. Run it:
    `uv run fin query <company> --question "<question>" --sql "<sql>"`
    On an error, report the code (E502, E504, ...) and the run_id, and stop. Don't work around it.
@@ -23,7 +30,7 @@ Answer this question with `fin`: $ARGUMENTS
 
    **Source:**
 
-   | Account | Year | Scope | Value (₹) | File | Sheet!cell or page |
+   | Account | Period | Scope | Value (₹) | File | Sheet!cell or page |
    |---|---|---|---|---|---|
    | one row per fact, from `source_file` and `source_ref` |
 

@@ -13,6 +13,7 @@ from typing import Any
 from fin.extract.pdf import (
     TITLE_LINES,
     Column,
+    complete_header,
     header_at,
     line_text,
     open_pdf,
@@ -93,10 +94,10 @@ def _markdown_blocks(lines: list[list[dict[str, Any]]]) -> list[str]:
         later = header_at(lines, i + 1) if found else None
         if found and (later is None or later[1] != found[1]):
             flush()
-            columns, end = found
+            columns, end = complete_header(lines, i, found[1])
             block = [w for line in lines[i:end] for w in line]
             left = line_text([w for w in block if w["x1"] <= columns[0].x0]) or "Particulars"
-            years = [c.fiscal_year for c in columns]
+            years = [c.label for c in columns]
             table.append("| " + " | ".join([left, *years]) + " |")
             table.append("|" + "---|" * (len(years) + 1))
             i = end
@@ -105,7 +106,7 @@ def _markdown_blocks(lines: list[list[dict[str, Any]]]) -> list[str]:
         i += 1
         words, row = split_row(line, columns) if columns else ([], {})
         if row and table:
-            cells = [row[c.fiscal_year]["text"] if c.fiscal_year in row else "" for c in columns]
+            cells = [row[c.key]["text"] if c.key in row else "" for c in columns]
             table.append("| " + " | ".join([line_text(words), *cells]) + " |")
             continue
         columns = []

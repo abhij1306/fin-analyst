@@ -40,7 +40,60 @@ Human follow-ups:
   rejected by a gate cannot be fixed through `fin review`.
 - Arunaya's statements are scanned pages with an unusable OCR text layer (E201).
 - E402 rarely runs on real reports because EPS and OCI lines stay unmapped.
-- The metrics view takes one fact per account, so two lines mapped to one account give wrong metrics.
+- The metrics view takes one fact per account, so two lines mapped to one account give wrong metrics. (Fixed in
+  "Quarterly and half-year results" below.)
+
+### Quarterly and half-year results
+
+Results statements under SEBI Reg 33 ("Statement of Unaudited Standalone Financial Results for the quarter and half
+year ended ...") now load next to annual reports. Tested on six real results PDFs and four annual reports; every rule
+below is general and covered by a synthetic test.
+
+- Periods: every fact has a `period` and `period_months`: `FY25` (year ended 31 March 2025), `FY26-Q1`..`FY26-Q4`,
+  `FY26-H1`/`FY26-H2`, `FY26-9M` (`fin.extract.periods`, shared by the PDF and Excel extractors). A balance sheet is
+  the part of the year it closes: 30 Sep 2025 is `FY26-H1`, 31 March 2025 is `FY25`.
+- PDF columns:
+  - The length comes from the header words: "Quarter ended", "Three months ended", "Half year ended", "Six months
+    ended", "Nine months ended", "Year ended", "Year to date" / "Period ended". Labels above several columns are
+    spread over them by position, so "Quarter ended" over three columns and "Year ended" over one work.
+  - "Standalone" / "Consolidated" labels over column groups give each column its scope, so both scopes printed side
+    by side stay apart. A repeated header lower on the page keeps the scopes of the one above.
+  - On a results page a flow column must name its length (E202 otherwise): a 31 March quarter is never read as the
+    year. Two columns may end on the same date (the March quarter and the March year).
+  - Dates such as `30-Sep-25` and `3 0-06-2025`; figures printed in pieces a little apart (`9,906.` `15`,
+    `(` `0.11)`); a brace read for a bracket (`{0.61)`); a unit line whose rupee sign is garbled (`a: Crores`).
+  - Titles: results statements are read as profit and loss; "Statement of assets and liabilities" as a balance
+    sheet; in a results document, statements numbered as notes ("1. Balance Sheet as on", "2. Cash flow statement").
+    A results page without a unit line uses the unit of the results page before it.
+- Excel: a header cell such as "Quarter ended 30.06.2025" gives its column's length, the same way.
+- Schema: company migration 003 adds `facts.period`, `facts.period_months` (existing rows back-filled as years) and
+  `documents.period_end`; analytics migration 002 adds `period` and `period_months` to `analytics.metrics`.
+- Multi-line accounts: new view `document_facts` gives one value per document, account, period and scope. Lines a
+  document maps to the same account are summed (trade payables to micro and small enterprises + to others); a line
+  equal to the sum of the others is their total and is used alone. `current_facts`, the metrics and the validation
+  gates all use it. `current_facts.fact_ids` lists the lines used, and `metric_inputs` has one row per line.
+- Metrics: quarters, half years and nine months get revenue, PAT, EBITDA, gross / EBITDA / PAT margin,
+  `revenue_growth` (against the same period a year before) and, for quarters, `revenue_growth_qoq`. Ratios that need
+  a full year of flows or balance-sheet averages (days, returns, leverage, cash conversion) stay annual only. Annual
+  metrics are unchanged.
+- Validation: every check runs per period, so E404 compares like periods only (a Q2 filing's Q1 column with the Q1
+  filing, its year column with the annual report). E401 checks half-year balance sheets. E403 runs only when the
+  document has both a cash flow closing balance and balance-sheet cash.
+- Report: stays annual. With no annual data it fails with a clear E601 message instead of a bare one.
+- Dashboard: the company page has a Quarters section (revenue, EBITDA margin and PAT by quarter); annual charts and
+  the compare page show years only. The dashboard snapshot and `analytics.metrics` carry the period.
+- `fin query` / `/ask`: the command doc explains periods; `fin audit <company> <metric> <period>` takes a quarter.
+- No new dependencies.
+
+Human follow-ups:
+- Results statements number their lines ("5 Profit after tax", "7. Profit / (loss) for the period/ year (5-6)"), so
+  most key lines arrive unmapped: confirm them with `/review` before quarterly metrics fill in.
+- Mapped proposals for Net sales + Other operating income (Prism) both to `revenue` now sum, as intended; check that
+  this is the reading you want for such companies.
+- Results PDFs assume a fiscal year starting in April (quarter names follow it); Excel uses `config.toml`.
+- Some scanned-then-OCRed results pages garble figures ("99 29"); such a line is skipped or unmapped, never guessed.
+  Check gates that report "not run" for half-year balance sheets with many unconfirmed lines.
+- The health report stays annual; quarterly ratios that need balance-sheet averages are not computed.
 
 ## [1.0.0] - 2026-11-07
 

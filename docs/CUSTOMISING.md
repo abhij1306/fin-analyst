@@ -13,7 +13,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `db/conn.py`: the only way to open a database. `db/migrate.py`: runs migrations. `db/migrations/<kind>/NNN_*.sql`:
   the schema (`audit`, `dictionary`, `analytics`, `company`).
 - `ingest.py`: loads one document in one transaction (stage, validate, commit or roll back). `VALIDATORS` lives here.
-- `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...).
+- `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
+  `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read).
 - `map/`: `dictionary.py` (seed and label map), `normalize.py` (label cleaning), `review.py` and `commands.py`
   (`fin map`, `fin review`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405).
@@ -37,11 +38,13 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 Metrics are SQL views in each company database, so they are always current.
 
-1. Add a new file `src/fin/db/migrations/company/003_<name>.sql` (next free number; never edit an applied one). It
-   redefines the `metrics` view with `CREATE OR REPLACE VIEW`, copying the one in `002_metrics.sql` and adding your
-   metric. Do the same for `metric_definitions` (the accounts the metric uses), so `fin audit <co> <metric> <fy>` can
-   trace it. Read the rules at the top of `002_metrics.sql`: facts come from `current_facts`, a missing input gives
-   NULL, ratios use `div6`.
+1. Add a new file `src/fin/db/migrations/company/NNN_<name>.sql` (next free number; never edit an applied one). It
+   redefines the `metrics` view with `CREATE OR REPLACE VIEW`, copying the latest one (`003_periods.sql`) and adding
+   your metric. Do the same for `metric_definitions` (the accounts the metric uses), so `fin audit <co> <metric>
+   <period>` can trace it. Read the rules at the top of `002_metrics.sql` and `003_periods.sql`: facts come from
+   `current_facts` (one value per account, period and scope), a missing input gives NULL, ratios use `div6`. The
+   final `WHERE` of the view says which metrics a year gets and which a quarter or half year gets; a metric that
+   needs a full year of flows or balance-sheet averages belongs to years only.
 2. Run `uv run fin migrate`. Migrations back up, run in a transaction, and roll back on failure (E503).
 3. Optionally show it in the report: add it to `SECTIONS`, `LABELS` (and `PERCENT` if it is a percentage) in
    `src/fin/report/data.py`.
