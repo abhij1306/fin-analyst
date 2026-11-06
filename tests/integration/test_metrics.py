@@ -191,15 +191,26 @@ def test_superseded_documents_are_left_out(root: Path) -> None:
     result = runner.invoke(app, ["ingest", "tarang", str(source), "--force"])
     assert result.exit_code == 0, result.output
     tarang = company_db_path(root, "tarang")
-    # The forced copy supersedes the first; metrics use the new version's facts only.
+    # The forced copy supersedes the first; FY25 inputs come from the new version only.
     [(new_doc,)] = query(tarang, "SELECT doc_id FROM documents WHERE version = 2")
     assert query(
         tarang,
         "SELECT DISTINCT doc_id FROM metric_inputs "
-        "WHERE fiscal_year = 'FY25' AND fact_id IS NOT NULL",
+        "WHERE input_fiscal_year = 'FY25' AND fact_id IS NOT NULL",
     ) == [(new_doc,)]
     assert query(
         analytics_db_path(root),
         "SELECT value FROM metrics WHERE company = 'tarang' AND fiscal_year = 'FY25' "
         "AND metric = 'receivable_days'",
     ) == [(Decimal("74.999878"),)]
+
+
+def test_failed_validations_are_counted(root: Path) -> None:
+    broken = SAMPLES / "broken" / "Kestrel_UNBALANCED_balance_sheet.xlsx"
+    result = runner.invoke(app, ["ingest", "kestrel", str(broken)])
+
+    assert result.exit_code == 1, result.output
+    assert query(
+        analytics_db_path(root),
+        "SELECT company, documents, failed_validations FROM companies ORDER BY company",
+    ) == [("bluepeak", 3, 0), ("kestrel", 1, 4), ("tarang", 2, 0)]
