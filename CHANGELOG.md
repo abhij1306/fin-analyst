@@ -520,7 +520,7 @@ Human follow-ups
 
 Added
 - `README.md` rewritten for the end user: what the tool does and does not do, install, the daily workflow with the
-  slash commands (`/ingest`, `/review`, `/ask`, `/report`, `/dashboard`, `/audit`), `fin sql --write`, deleting a company,
+  slash commands (`/ingest`, `/review`, `/ask`, `/report`, `/audit`) and `fin dashboard`, `fin sql --write`, deleting a company,
   where the data lives, guardrails, `fin update` and uninstall, and a troubleshooting table with every error code.
 - `docs/CUSTOMISING.md`: module map, and how to add a dictionary account or label, a metric, a validation gate and a
   report section; how migrations, tests and the sample fixtures work. Linked from `CLAUDE.md`.
@@ -529,11 +529,11 @@ Added
 
 Notes
 - No git tag is created in this change; `v1.0.0` is added after the clean-machine test (see the `[1.0.0]` heading).
-- `/dashboard` and `fin dashboard` come from Phase 10; the README describes them as PLAN.md specifies.
+- Phase 10 added `fin dashboard` but no `/dashboard` slash command, so the README gives the CLI command for that step.
 
 Human follow-ups
 - Clean-machine test on macOS (new user account, no Homebrew packages assumed): clone the repo, follow only the README
   (`./install.sh`, `claude`, copy a synthetic company from `tests/fixtures/sample-financials/clean/<company>` into
-  `~/FinAnalysis/inbox/<company>/`, `/ingest`, `/review`, `/ask`, `/report`, `/dashboard`, `/audit`), and confirm a first
+  `~/FinAnalysis/inbox/<company>/`, `/ingest`, `/review`, `/ask`, `/report`, `uv run fin dashboard`, `/audit`), and confirm a first
   report is produced with no outside help. Fix any README step that fails.
 - Then tag: `git tag v1.0.0 && git push origin v1.0.0`, and move the Unreleased sections under `## [1.0.0]`.
