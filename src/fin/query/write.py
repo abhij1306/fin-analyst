@@ -14,6 +14,7 @@ import duckdb
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
+from fin.metrics.export import refresh_analytics
 from fin.paths import backups_dir, company_db_path
 
 COUNTED = {
@@ -38,16 +39,9 @@ def backup(root: Path, path: Path, run: Run) -> Path:
 
 
 def refresh_metrics(run: Run, company: str) -> None:
-    """Rebuild the company's metrics after a data change.
-
-    Call site for Phase 7 (`fin metrics refresh`): `fin.metrics` is not on main yet, so this only
-    logs that the refresh is pending.
-    """
-    run.event(
-        "metrics",
-        f"{company}: metrics not refreshed (`fin.metrics` does not exist yet)",
-        level="warning",
-    )
+    """Refresh metrics after a data change. The company's metrics are views, so they are already
+    current; this rebuilds shared/analytics.duckdb (all companies) for the dashboards."""
+    refresh_analytics(run)
 
 
 def write_sql(run: Run, company: str, sql: str) -> dict[str, Any]:

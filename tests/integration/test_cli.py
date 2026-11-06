@@ -35,13 +35,15 @@ def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -
     assert {p.name for p in data_root.iterdir()} == EXPECTED_SUBDIRS | {"config.toml"}
     assert (data_root / "config.toml").read_text(encoding="utf-8") == DEFAULT_CONFIG_TOML
     assert sorted(p.name for p in (data_root / "shared").iterdir()) == [
+        "analytics.duckdb",
         "audit.duckdb",
         "dictionary.duckdb",
     ]
-    assert result.stdout.splitlines()[-5:] == [
+    assert result.stdout.splitlines()[-6:] == [
         "created  config.toml",
         "shared/audit.duckdb: schema version 0 -> 2 (backup: none, new file)",
         "shared/dictionary.duckdb: schema version 0 -> 1 (backup: none, new file)",
+        "shared/analytics.duckdb: schema version 0 -> 1 (backup: none, new file)",
         "dictionary: 75 accounts and 106 label mappings added from templates/dictionary",
         f"data folder {data_root}: 11 created, 0 already present",
     ]
@@ -58,6 +60,7 @@ def test_init_twice_creates_nothing_and_overwrites_nothing(data_root: Path) -> N
         "kept     config.toml (already present, not changed)",
         "shared/audit.duckdb: up to date at schema version 2",
         "shared/dictionary.duckdb: up to date at schema version 1",
+        "shared/analytics.duckdb: up to date at schema version 1",
         "dictionary: 0 accounts and 0 label mappings added from templates/dictionary",
         f"data folder {data_root}: 0 created, 11 already present",
     ]

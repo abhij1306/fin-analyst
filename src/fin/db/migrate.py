@@ -2,7 +2,8 @@
 
 Migrations live in `migrations/<kind>/NNN_name.sql`, numbered 001, 002, ... with no gaps. A kind is
 one database shape: `audit` for `shared/audit.duckdb`, `dictionary` for
-`shared/dictionary.duckdb`, `company` for each `companies/<company>.duckdb`. A file's schema
+`shared/dictionary.duckdb`, `analytics` for `shared/analytics.duckdb`, `company` for each
+`companies/<company>.duckdb`. A file's schema
 version is the highest version in its `schema_version` table (0 when the file or the table does
 not exist).
 
@@ -31,7 +32,13 @@ from fin.audit.errors import (
     SchemaNewerThanCode,
 )
 from fin.db.conn import DEFAULT_RETRY, LockRetry, connect
-from fin.paths import audit_db_path, backups_dir, companies_dir, dictionary_db_path
+from fin.paths import (
+    analytics_db_path,
+    audit_db_path,
+    backups_dir,
+    companies_dir,
+    dictionary_db_path,
+)
 
 if TYPE_CHECKING:
     from fin.audit.logger import Run
@@ -116,9 +123,13 @@ def current_version(path: Path, retry: LockRetry = DEFAULT_RETRY) -> int:
 
 
 def targets(root: Path) -> list[Target]:
-    """Every database file `fin migrate` manages: the shared audit and dictionary databases (created
-    if missing) and each existing company database."""
-    found = [Target(audit_db_path(root), "audit"), Target(dictionary_db_path(root), "dictionary")]
+    """Every database file `fin migrate` manages: the shared audit, dictionary and analytics
+    databases (created if missing) and each existing company database."""
+    found = [
+        Target(audit_db_path(root), "audit"),
+        Target(dictionary_db_path(root), "dictionary"),
+        Target(analytics_db_path(root), "analytics"),
+    ]
     found.extend(Target(path, "company") for path in sorted(companies_dir(root).glob("*.duckdb")))
     return found
 

@@ -75,6 +75,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
         f"shared/audit.duckdb: schema version 2 -> 3 "
         f"(backup: backups/{run_id}/shared/audit.duckdb)",
         "shared/dictionary.duckdb: up to date at schema version 1",
+        "shared/analytics.duckdb: up to date at schema version 1",
         f"companies/acme.duckdb: schema version 0 -> 2 "
         f"(backup: backups/{run_id}/companies/acme.duckdb)",
     ]
@@ -105,6 +106,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     assert again.stdout.splitlines() == [
         "shared/audit.duckdb: up to date at schema version 3",
         "shared/dictionary.duckdb: up to date at schema version 1",
+        "shared/analytics.duckdb: up to date at schema version 1",
         "companies/acme.duckdb: up to date at schema version 2",
     ]
     assert [p.name for p in (data_root / "backups").iterdir()] == [run_id]
