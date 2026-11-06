@@ -344,3 +344,35 @@ Increase/(decrease) in long term borrowings,cash_flow,,cf_lt_borrowings_net
 Increase/(decrease) in short term borrowings,cash_flow,,cf_st_borrowings_net
 Short term borrowings (net),cash_flow,,cf_st_borrowings_net
 Net decrease in cash and cash equivalents,cash_flow,,net_change_cash
+Profit for the period,profit_and_loss,,pat
+Profit/(loss) for the period/year,profit_and_loss,,pat
+Net profit for the period,profit_and_loss,,pat
+Net profit/(loss) for the period,profit_and_loss,,pat
+Net profit/(loss) for the period after tax,profit_and_loss,,pat
+Profit/(loss) before exceptional items,profit_and_loss,,profit_before_exceptional_items
+Total comprehensive income,profit_and_loss,,total_comprehensive_income
+Total comprehensive income/(loss) for the period/year,profit_and_loss,,total_comprehensive_income
+"Total other comprehensive income, net of income tax",profit_and_loss,,oci
+Other comprehensive income for the period,profit_and_loss,,oci
+"Remeasurement gains/(losses) on defined benefit plans, net",profit_and_loss,,oci_items
+Exchange differences on translating financial statements of foreign operations,profit_and_loss,,oci_items
+Tax expenses,profit_and_loss,,total_tax_expense
+Total tax expenses,profit_and_loss,,total_tax_expense
+Net sales,profit_and_loss,,revenue
+Other operating income,profit_and_loss,,revenue
+Changes in inventories,profit_and_loss,,change_in_inventories
+"Depreciation, amortisation and impairment expense",profit_and_loss,,depreciation
+Basic EPS,profit_and_loss,,eps_basic
+Diluted EPS,profit_and_loss,,eps_diluted
+Share of profit from associate,profit_and_loss,,share_of_associates_jv
+Loans receivable,balance_sheet,Current assets,loans_current
+Right of use asset,balance_sheet,,right_of_use_assets
+Income tax asset (net),balance_sheet,Non-current assets,tax_assets_non_current
+Cash and cash equivalents at the beginning of the period,cash_flow,,opening_cash
+Cash and cash equivalents at the end of the period,cash_flow,,closing_cash
+Cash generated from operating activities,cash_flow,,cf_cash_generated
+Proceeds from long term borrowings,cash_flow,,cf_lt_borrowings_net
+Repayment of long term borrowings,cash_flow,,cf_lt_borrowings_net
+Proceeds from short term borrowings,cash_flow,,cf_st_borrowings_net
+Repayment of short term borrowings,cash_flow,,cf_st_borrowings_net
+"Payments for property, plant and equipment",cash_flow,,cf_capex

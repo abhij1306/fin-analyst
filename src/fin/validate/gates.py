@@ -88,6 +88,8 @@ EITHER_SIGN = frozenset({"exceptional_items", "extraordinary_items"})
 OUTSIDE_SUBTOTALS = re.compile(
     r"\bper (?:equity )?share\b|\bbasic\b|\bdiluted\b|\bface value\b|\bnominal value\b"
     r"|\bnumber of (?:equity )?shares\b|\battributable to\b"
+    # Results statements print paid-up share capital and other equity below the P&L.
+    r"|\bpaid up\b|\bshare capital\b|\bother equity\b"
 )
 
 Key = tuple[str, str]  # (period, scope)

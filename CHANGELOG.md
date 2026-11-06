@@ -130,7 +130,7 @@ Follow-up to the real annual-report run above (Rane, RKFL, Enser, Indo Farm, Ril
 - **Normalization.** Bracketed numbering such as `(ia)` and `(j)` is dropped, and a bracket left holding only "in"
   after the currency is removed (`Basic (in Rs.)` is `basic`). Stored mapping keys are normalized again when read,
   so the leading-roman-numeral change from the previous entry no longer orphans an existing company mapping.
-- Dictionary: 155 new seed labels (P&L structure, OCI, EPS, tax, discontinued operations, balance-sheet lines,
+- Dictionary: 187 new seed labels (P&L structure, OCI, EPS, tax, discontinued operations, quarterly results lines, balance-sheet lines,
   common cash flow lines).
 - Migration: `dictionary/002_account_unit_and_pl_tree.sql` (dictionary schema version 2).
 - No new dependencies.

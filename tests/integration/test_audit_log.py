@@ -114,7 +114,7 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         ("migrate", "shared/analytics.duckdb: schema version 0 -> 2 (backup: none, new file)"),
         (
             "dictionary",
-            "dictionary: 104 accounts and 330 label mappings added from templates/dictionary",
+            "dictionary: 104 accounts and 362 label mappings added from templates/dictionary",
         ),
     ]
     assert audit_query(
