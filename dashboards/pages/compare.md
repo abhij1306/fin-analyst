@@ -21,6 +21,6 @@ where scope = '${inputs.scope.value}' and metric = '${inputs.metric.value}'
 order by fiscal_year, company
 ```
 
-<BarChart data={compare} x=fiscal_year y=value series=company type=grouped title="{inputs.metric.value} ({inputs.scope.value})" />
+<BarChart data={compare} x=fiscal_year y=value series=company type=grouped sort=false title="{inputs.metric.value} ({inputs.scope.value})" />
 
 <DataTable data={compare} rows=all />
