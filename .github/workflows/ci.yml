@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: shellcheck install.sh
+
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen
+      - run: uv run pytest --durations=10
+
+  install:
+    # Fresh clone -> ./install.sh -> fin doctor passes; a second run changes nothing.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Use a temporary data folder
+        run: echo "FIN_DATA_DIR=$RUNNER_TEMP/fin-data" >> "$GITHUB_ENV"
+      - name: First install
+        run: ./install.sh
+      - name: Snapshot state
+        run: |
+          eval "$(brew shellenv)"
+          { (cd "$FIN_DATA_DIR" && find . | sort); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/before.txt"
+      - name: Second install
+        run: ./install.sh
+      - name: Second run changed nothing
+        run: |
+          eval "$(brew shellenv)"
+          { (cd "$FIN_DATA_DIR" && find . | sort); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/after.txt"
+          diff -u "$RUNNER_TEMP/before.txt" "$RUNNER_TEMP/after.txt"
+          grep -q "all Brewfile dependencies already installed" "$FIN_DATA_DIR/logs/install.log"
+      - name: fin doctor passes
+        run: |
+          eval "$(brew shellenv)"
+          uv run fin doctor
