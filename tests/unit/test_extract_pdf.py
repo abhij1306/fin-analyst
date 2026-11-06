@@ -16,6 +16,7 @@ from fin.audit.errors import (
     UnitNotDetected,
 )
 from fin.extract.pdf import extract_pdf, render_crop
+from tests.synthetic_pdf import write_pdf
 
 SAMPLES = Path(__file__).parent.parent / "fixtures" / "sample-financials"
 TARANG = json.loads((SAMPLES / "answer_key.json").read_text(encoding="utf-8"))["companies"][
@@ -54,7 +55,9 @@ def test_every_value_matches_the_answer_key(document: dict) -> None:
 
     found = Counter((v.label, v.fiscal_year, v.rupees) for v in result.values)
     assert found == answer_key_values(document)
-    assert result.scope == document["scope"]
+    # The titles do not say standalone or consolidated; ingest applies defaults.scope.
+    assert {v.scope for v in result.values} == {None}
+    assert result.skipped == []
     assert result.fiscal_years == document["fiscal_years"]
     assert result.unit == "lakh"
     for value in result.values:
@@ -120,37 +123,6 @@ def test_file_that_is_not_a_pdf_raises_e101(tmp_path: Path) -> None:
     with pytest.raises(FileUnreadable) as caught:
         extract_pdf(path)
     assert caught.value.code == "E101"
-
-
-def write_pdf(path: Path, lines: list[tuple[float, float, str]]) -> Path:
-    """Write a one-page A4 PDF with Helvetica text at (x, y-from-top) positions."""
-    ops = []
-    for x, y, text in lines:
-        escaped = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-        ops.append(f"BT /F1 10 Tf 1 0 0 1 {x} {842 - y} Tm ({escaped}) Tj ET")
-    stream = "\n".join(ops).encode("latin-1")
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R"
-        b" /Resources << /Font << /F1 5 0 R >> >> >>",
-        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    ]
-    body = b"%PDF-1.4\n"
-    offsets = []
-    for number, obj in enumerate(objects, start=1):
-        offsets.append(len(body))
-        body += b"%d 0 obj\n" % number + obj + b"\nendobj\n"
-    xref = len(body)
-    body += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
-    body += b"".join(b"%010d 00000 n \n" % o for o in offsets)
-    body += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
-        len(objects) + 1,
-        xref,
-    )
-    path.write_bytes(body)
-    return path
 
 
 def test_crore_unit_financial_year_ranges_and_nil_dashes(tmp_path: Path) -> None:

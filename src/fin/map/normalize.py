@@ -7,7 +7,7 @@
 2. Currency markers removed: ₹, Rs., INR.
 3. Note references removed: "(Note 10)", "Note No. 3", "refer note 4".
 4. Numbering removed: "(a)", "(iv)", "(2)", "(III - IV)", "(A+B+C)" anywhere, and "I.", "A.", "1)"
-   at the start.
+   at the start, and a bare roman numeral at the start ("III Total income").
 5. "&" becomes "and"; every other character that is not a letter or digit becomes a space.
 6. Runs of spaces collapse to one; ends trimmed.
 """
@@ -26,6 +26,7 @@ _NOTE_REF = re.compile(
 _NUMBER = r"(?:(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})|[a-h]|\d{1,2})"
 _BRACKETED_NUMBERING = re.compile(rf"\(\s*{_NUMBER}(?:\s*[+\-–]\s*{_NUMBER})*\s*\)")
 _LEADING_NUMBERING = re.compile(r"^(?:(?:(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})|[a-z]|\d{1,2})[.)]\s+)+")
+_LEADING_ROMAN = re.compile(r"^(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})\s+")
 _NOT_WORD = re.compile(r"[^a-z0-9]+")
 
 
@@ -37,5 +38,6 @@ def normalize_label(text: str) -> str:
     label = _NOTE_REF.sub(" ", label)
     label = _BRACKETED_NUMBERING.sub(" ", label)
     label = _LEADING_NUMBERING.sub("", label.strip())
+    label = _LEADING_ROMAN.sub("", label)
     label = label.replace("&", " and ")
     return _NOT_WORD.sub(" ", label).strip()

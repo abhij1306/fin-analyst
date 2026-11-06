@@ -2,6 +2,46 @@
 
 All notable changes to this project. Versions follow semantic versioning.
 
+## [Unreleased]
+
+### Ingest real annual-report PDFs
+
+Stress-tested PDF ingest on six real Indian annual reports (main board and NSE SME). Every rule below is general, and
+each is covered by a synthetic-PDF test.
+
+- PDF headers: period columns are read from blocks of up to five lines, so headers split over several lines work.
+  Supported date forms: `31.03.2025`, `31st March, 2025`, `31-Mar-2025`, `March 31, 2025` and `2024-25`. Only
+  month-end dates count.
+- Annual only: non-March columns raise E202 with a clear message, and interim "financial results" pages are skipped.
+  Quarterly PDFs fail cleanly and load no facts.
+- Columns are bands that split at the midpoints between column centres. Dashes printed far right now land in the
+  right column.
+- Labels:
+  - Wrapped labels are joined.
+  - Unlabelled subtotals take their section's name.
+  - Note references such as `4(a)`, `17A` and `6 & 42` are dropped from labels. The note column comes from the
+    capitalised `Note` heading.
+  - A dash-only row followed by indented lines is treated as a heading, not a zero.
+  - Figures printed in two font pieces are rejoined.
+- Landscape two-up spreads are read as two half pages. An untitled half page continues the previous statement.
+- Scope is per page, so standalone and consolidated statements in one PDF stay apart. Pages with no scope word use
+  `defaults.scope`, with a notice.
+- A statement page that cannot be read is skipped with a warning naming its page and reason. A document fails only if
+  it has no usable primary statement.
+- E403 passes when the cash flow statement reconciles closing cash to balance-sheet cash on a line containing "cash"
+  (for example, after netting an overdraft).
+- Normalization strips bare leading roman numerals (`ii Trade receivables`). Note: this can change the key of an
+  existing company mapping that starts with one.
+- Dictionary: 72 new seed labels for Ind AS and old Schedule III wording.
+- No new dependencies.
+
+Human follow-ups:
+- Enser fails E403. The seed maps "Cash & bank balances" to cash, but that line includes bank deposits. A document
+  rejected by a gate cannot be fixed through `fin review`.
+- Arunaya's statements are scanned pages with an unusable OCR text layer (E201).
+- E402 rarely runs on real reports because EPS and OCI lines stay unmapped.
+- The metrics view takes one fact per account, so two lines mapped to one account give wrong metrics.
+
 ## [1.0.0] - 2026-11-07
 
 First release: Phases 0-12 below. How it was tested:

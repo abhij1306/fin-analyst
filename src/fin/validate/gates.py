@@ -7,7 +7,10 @@ Checks, for each fiscal year and scope in the document (tolerances from config.t
 - subtotal (E402): every balance-sheet and P&L subtotal the document reports = the sum of its lines,
   following `dictionary.accounts` (parent, sign). A subtotal the document does not show is
   replaced by the sum of its own lines.
-- cash_flow (E403): cash flow closing cash = balance-sheet cash.
+- cash_flow (E403): cash flow closing cash = balance-sheet cash, or the cash flow statement itself
+  reconciles the two: one of its lines naming cash shows the balance-sheet figure (Ind AS 7 lets
+  closing cash net off bank overdrafts, shown as "Cash and cash equivalents as above / Bank
+  overdraft / Total").
 - cross_document (E404): every figure equals the same company / fiscal year / scope / account in
   each other loaded document (for example a comparative column vs that year's own document).
 - unit_sanity (E405): a figure that differs from another document by exactly a unit factor (the
@@ -23,7 +26,7 @@ fails, `validate_document` raises the first failure's error (in the order above,
 cross_document), so the document is rolled back and sent to review/ with expected vs actual.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -254,6 +257,23 @@ def _unit_factor(a: Decimal, b: Decimal, tolerance: Decimal) -> bool:
     return any(abs(big - small * factor) <= tolerance for factor in UNIT_FACTORS)
 
 
+def _reconciled(con: duckdb.DuckDBPyConnection, doc_id: int, result: Result) -> Result:
+    """A failed cash_flow check passes when a cash flow line of the same document, year and scope
+    that names cash shows the balance-sheet cash figure: the statement reconciles the two."""
+    if result.check_name != "cash_flow" or result.passed:
+        return result
+    row = con.execute(
+        "SELECT r.raw_label FROM facts f JOIN raw_values r USING (raw_id) "
+        "WHERE f.doc_id = ? AND f.fiscal_year = ? AND f.scope = ? AND r.statement = 'cash_flow' "
+        "AND r.raw_label ILIKE '%cash%' AND f.value = ? ORDER BY f.raw_id LIMIT 1",
+        [doc_id, result.fiscal_year, result.scope, result.expected],
+    ).fetchone()
+    if row is None:
+        return result
+    message = f"{result.message}; reconciled in the cash flow statement by the line {row[0]!r}"
+    return replace(result, passed=True, message=message)
+
+
 def validate_document(
     run: "Run", company: str, con: duckdb.DuckDBPyConnection, doc_id: int
 ) -> None:
@@ -266,6 +286,7 @@ def validate_document(
     file = f"{company}/{file_name}"
     figures = _figures(con, doc_id)
     results = _in_document(run, file, figures, _unmapped(con, doc_id), _accounts(run), tolerances)
+    results = [_reconciled(con, doc_id, r) for r in results]
     results += _across_documents(run, file, con, doc_id, figures, tolerances)
 
     failures = []

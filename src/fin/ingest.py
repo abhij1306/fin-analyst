@@ -21,7 +21,7 @@ import json
 import re
 import shutil
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -82,6 +82,7 @@ class Document:
     rows: list[Row]
     notes: list[tuple[str, Path]]  # (section, markdown file)
     notices: list[str]  # things worth logging, e.g. an assumed scope
+    warnings: list[str] = field(default_factory=list)  # e.g. a statement page that was skipped
 
 
 def fiscal_year_of(period_end: date, start_month: int) -> str:
@@ -156,10 +157,9 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
                 raw=v.raw,
                 unit_text=v.unit,
                 rupees_per_unit=int(RUPEES_PER_UNIT[v.unit]),
-                # The PDF extractor reads Indian fiscal years: FY25 ends 31 March 2025.
-                period_end=date(2000 + int(v.fiscal_year[2:]), 3, 31),
+                period_end=v.period_end,
                 fiscal_year=v.fiscal_year,
-                scope=pdf.scope,
+                scope=v.scope or config.default_scope,
                 rupees=v.rupees,
             )
             for v in pdf.values
@@ -169,7 +169,17 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
         notes = [(note.name[len(path.stem) + 1 : -len(".md")], note) for note in written]
         skipped = sum(1 for v in pdf.values if v.statement == "notes")
         notices = [f"{skipped} note-table values kept in the notes Markdown, not loaded as facts"]
-        return Document(rows, notes, notices)
+        assumed = sorted({v.page for v in pdf.values if v.scope is None and v.statement != "notes"})
+        if assumed:
+            notices.append(
+                f"pages {', '.join(map(str, assumed))} do not say standalone or consolidated; "
+                f"used defaults.scope = {config.default_scope} from config.toml"
+            )
+        warnings = [
+            f"{s.statement} page {s.page} skipped: {s.error.code} {s.error.message}"
+            for s in pdf.skipped
+        ]
+        return Document(rows, notes, notices, warnings)
     raise UnsupportedFormat(f"{path.name}: {suffix or 'no extension'} files are not supported")
 
 
@@ -304,6 +314,8 @@ def ingest_file(
         document = read_document(path, run.root, company, config)
         for notice in document.notices:
             run.event("extract", notice, file=name)
+        for warning in document.warnings:
+            run.event("extract", warning, level="warning", file=name)
         archive = archive_dir(run.root, company) / f"{sha256}{path.suffix.lower()}"
         if not archive.exists():
             _copy(path, archive)

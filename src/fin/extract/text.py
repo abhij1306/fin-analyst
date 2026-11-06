@@ -13,10 +13,10 @@ from typing import Any
 from fin.extract.pdf import (
     TITLE_LINES,
     Column,
-    header_columns,
+    header_at,
     line_text,
     open_pdf,
-    page_lines,
+    page_parts,
     split_row,
     statement_of,
 )
@@ -36,17 +36,17 @@ def write_notes_markdown(path: Path, out_dir: Path) -> list[Path]:
     current: str | None = None
     with open_pdf(path) as pdf:
         for page in pdf.pages:
-            lines = page_lines(page)
-            current = _section_of(lines, current)
-            if current is not None:
-                pages[current].append((page.page_number, lines))
+            for lines in page_parts(page):
+                current = _section_of(lines, current)
+                if current is not None:
+                    pages[current].append((page.page_number, lines))
 
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
     for section in SECTIONS:
         if not pages[section]:
             continue
-        numbers = ", ".join(str(n) for n, _ in pages[section])
+        numbers = ", ".join(str(n) for n in dict.fromkeys(n for n, _ in pages[section]))
         blocks = [f"Source: {path.name}, page(s) {numbers}"]
         for _, lines in pages[section]:
             blocks.extend(_markdown_blocks(lines))
@@ -87,16 +87,22 @@ def _markdown_blocks(lines: list[list[dict[str, Any]]]) -> list[str]:
             blocks.append("\n".join(table))
             table.clear()
 
-    for i, line in enumerate(lines):
-        header = header_columns(line)
-        if header:
+    i = 0
+    while i < len(lines):
+        found = header_at(lines, i)
+        later = header_at(lines, i + 1) if found else None
+        if found and (later is None or later[1] != found[1]):
             flush()
-            columns = header
-            left = line_text([w for w in line if w["x1"] <= header[0].x0]) or "Particulars"
+            columns, end = found
+            block = [w for line in lines[i:end] for w in line]
+            left = line_text([w for w in block if w["x1"] <= columns[0].x0]) or "Particulars"
             years = [c.fiscal_year for c in columns]
             table.append("| " + " | ".join([left, *years]) + " |")
             table.append("|" + "---|" * (len(years) + 1))
+            i = end
             continue
+        line = lines[i]
+        i += 1
         words, row = split_row(line, columns) if columns else ([], {})
         if row and table:
             cells = [row[c.fiscal_year]["text"] if c.fiscal_year in row else "" for c in columns]
@@ -105,7 +111,7 @@ def _markdown_blocks(lines: list[list[dict[str, Any]]]) -> list[str]:
         columns = []
         if _is_bold(line):
             flush()
-            blocks.append(("# " if i == 0 else "## ") + line_text(line))
+            blocks.append(("# " if i == 1 else "## ") + line_text(line))
             continue
         if table:
             flush()
