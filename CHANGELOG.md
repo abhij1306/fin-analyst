@@ -241,3 +241,37 @@ Notes and deviations
 Human follow-ups
 - Run the bake-off on 3-5 real annual reports (small listed Indian manufacturers, BSE/NSE filings) kept in the
   private test set, with a key in the `answer_key.json` shape, and record the scores in PLAN.md.
+
+### Phase 5: Mapping and review
+
+Added
+- `review/<company>/pending.json`, rewritten after every `fin ingest` / `fin ingest-batch`: one item per unmapped
+  label (id, status, statement, section, label, fact count, up to 3 locations, proposal). Ids, proposals and
+  rejections survive re-ingest. Written only when a company has unmapped labels.
+- `fin map propose <file.json> --company <co>`: stores Claude's proposals (`label`, `account`, `confidence`,
+  `reason`, optional `statement`/`section`) as pending. All or nothing; nothing is applied. Unknown account, an
+  account of another statement, or an unknown label: E304. Two accounts for one label: E303. Confidence below 0.7
+  is logged as E302.
+- `fin review`: interactive prompt loop (confirm / reject / edit account / skip / quit; global or company scope)
+  without a subcommand, and `fin review list [--json] [--all]`, `confirm <id>... --company X [--account A]
+  [--scope global|company]`, `reject <id>... --company X`. Confirm adds the label to `label_map` (source
+  `review`), sets `account`, `mapping_id` and `confirmed = true` on the company's matching facts, and removes the
+  item. Reject leaves facts unconfirmed. Confirming over an existing mapping with a different account: E303.
+- Every propose, confirm, edit and reject appends a `mapping_decisions` row. Actor is `claude` with
+  `on_request = true` when `CLAUDECODE` is set, else `human`; proposals are always actor `claude`,
+  `on_request = false`.
+- Claude Code commands `/ingest`, `/ingest-batch`, `/review`.
+- New error E304 (invalid mapping proposal or review request), also in PLAN.md §9.
+
+Dependencies
+- None.
+
+Notes and deviations
+- Item ids are per company, so `confirm` and `reject` take `--company`.
+- `--scope` defaults to `company` (the narrowest). Confirming updates only the reviewed company's facts; another
+  company picks up a global mapping at its next ingest (its pending list refreshes then).
+- The guard hook already asked before `fin review confirm`; a test with flags was added.
+- No audit or company migrations; the dictionary schema is unchanged.
+
+Human follow-ups
+- Try `fin review` interactively in a real terminal (tests drive the prompts with piped input).
