@@ -50,7 +50,7 @@ Start Claude Code in the `fin-analyst` folder with `claude`. Then:
 | 3 | `/review [company]` | Lists the proposed mappings. Tell Claude which to confirm or reject; Claude Code asks you to approve a confirm. |
 | 4 | `/ask <company> <question>` | Answer, calculation, source table (file and sheet!cell or page), the SQL, an evidence page and flags (unconfirmed mappings, missing data). |
 | 5 | `/report <company>` | Writes a narrative that describes the numbers (it never types them) and renders HTML, Word and PDF into `reports/<company>/<scope>/`. |
-| 6 | `/dashboard` | Refreshes the dashboard data and starts the Evidence dashboard (company, compare and data quality pages). |
+| 6 | `/dashboard` (or `uv run fin dashboard`) | Refreshes the dashboard data and starts the Evidence dashboard at http://localhost:3000 (company, compare and data quality pages). It reads a copy of the data, so you can ingest while it is open. `uv run fin dashboard --build` makes a static site instead. |
 | 7 | `/audit <company> [metric fiscal-year or --fact id]` | Traces a figure to its source, or lists the company's history. |
 
 Until you confirm a mapping, the facts it affects are marked unconfirmed and are left out of metrics. Answers say so.
