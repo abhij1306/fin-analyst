@@ -44,7 +44,7 @@ def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -
         "shared/audit.duckdb: schema version 0 -> 2 (backup: none, new file)",
         "shared/dictionary.duckdb: schema version 0 -> 1 (backup: none, new file)",
         "shared/analytics.duckdb: schema version 0 -> 1 (backup: none, new file)",
-        "dictionary: 75 accounts and 106 label mappings added from templates/dictionary",
+        "dictionary: 75 accounts and 175 label mappings added from templates/dictionary",
         f"data folder {data_root}: 11 created, 0 already present",
     ]
 

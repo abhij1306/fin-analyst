@@ -213,10 +213,6 @@ class _Page:
     columns: list[Column]
 
 
-class NotAnnual(PeriodsNotDetected):
-    """A header whose period columns are not all fiscal-year ends (quarterly, half-year)."""
-
-
 def extract_pdf(path: Path) -> PdfExtraction:
     """Extract every readable statement value from a text PDF.
 
@@ -595,7 +591,8 @@ def read_page(
     """Values of one statement page, and the columns in force at its end ([] if none).
 
     `columns` are the columns carried over from the page before (a continued statement).
-    Raises NotAnnual (E202) when a statement page's header has quarter or half-year columns.
+    Raises PeriodsNotDetected (E202) when a statement page's header has quarter or half-year
+    columns.
     """
     rows: list[_Row] = []
     note_x: float | None = None
@@ -615,7 +612,7 @@ def read_page(
             if any(c.period_end.month != ANNUAL_PERIOD_END_MONTH for c in header):
                 ends = ", ".join(c.period_end.isoformat() for c in header)
                 if statement != "notes":
-                    raise NotAnnual(
+                    raise PeriodsNotDetected(
                         f"page {page}: period columns end {ends}; quarterly and half-year "
                         "columns are not supported yet"
                     )
