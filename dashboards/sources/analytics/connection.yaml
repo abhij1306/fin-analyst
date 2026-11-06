@@ -1,0 +1,7 @@
+# The DuckDB file is set by `fin dashboard` through the environment variable
+# EVIDENCE_SOURCE__analytics__filename (a snapshot of shared/analytics.duckdb in the data folder),
+# so no data path is written here. This default only matters if you run `npm run sources` by hand.
+name: analytics
+type: duckdb
+options:
+  filename: analytics.duckdb

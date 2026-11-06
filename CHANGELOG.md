@@ -446,6 +446,39 @@ Deviations
 - The report has tables, no charts: Quarto renders plain Markdown here (no code execution, so no Jupyter
   dependency).
 
+### Phase 10: Dashboards
+
+Added
+- `dashboards/`: an Evidence project (evidence.dev) with a DuckDB source `analytics` over
+  `shared/analytics.duckdb` and pages `company` (one company over the years, with a scope picker so standalone and
+  consolidated are never mixed), `compare` (companies side by side per metric, scope and year) and `quality`
+  (unconfirmed facts and failed validations per company), plus an index of companies. Descriptive only: no scores,
+  rankings or recommendations.
+- `fin dashboard`: copies the analytics tables to `<data>/dashboard/analytics.duckdb`, runs `npm run sources`, then
+  starts the dev server and prints http://localhost:3000. `--build` makes a static build and copies it to
+  `<data>/dashboard/build`; a failed sources step or build raises E603 and leaves the last good build in place.
+- `install.sh` step 5: `npm ci --prefix dashboards`.
+- CI job `dashboard` (ubuntu, Node 22): ingests the clean fixtures, runs `fin dashboard --build` and checks the built
+  site has every page and the company names.
+- Tests: `tests/integration/test_dashboard.py` (snapshot contents, ingest running while snapshots are taken, build copy,
+  E603 keeps the last good build).
+
+Dependencies (npm, in `dashboards/`, all pinned exactly with a committed `package-lock.json`)
+- `@evidence-dev/evidence` 40.1.8, `@evidence-dev/duckdb` 2.0.1, `@evidence-dev/core-components` 5.4.2: the dashboard
+  framework, its DuckDB source and its charts.
+- `typescript` 5.4.2: Evidence peer-depends on exactly this version; without it npm picks TypeScript 7 and fails.
+
+Design notes and deviations
+- Locks: Evidence is never pointed at the live analytics file. `fin dashboard` makes a snapshot with one short
+  read-only open (through `db/conn.py`), so an ingest waits at most for that copy, and the dev server and build only
+  read the snapshot. The snapshot is written with `STORAGE_VERSION 'v1.0.0'` because Evidence bundles an older DuckDB
+  (1.4) that cannot read files written by the Python package (2.0).
+- Evidence pages are client-side apps, so the built page HTML has no company names; they are in the prerendered query
+  results under `api/prerendered_queries`, which is what the CI check reads.
+
+Human follow-ups
+- Look at the dashboard in a browser on macOS (`fin dashboard`) with real data.
+
 ### Phase 11: Audit, delete, update
 
 Added
