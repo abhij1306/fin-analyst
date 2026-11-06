@@ -12,3 +12,7 @@ Ingest documents for the company in `$ARGUMENTS`.
 4. Run `uv run fin map propose <file.json> --company <company>`. Proposals are stored as pending and change no data.
 5. Show the user the proposals (label, account, confidence, reason) and tell them to run `/review` or `uv run fin review` to confirm. Do not run `fin review confirm` unless the user has asked you to.
 6. Flag failed files and unmapped or unconfirmed labels. Do not state numbers that did not come from `fin` output.
+7. For a file that failed a check (E401-E405), read `review/<company>/<file>.error.json`: show each failed check's
+   `lines` and the `unmapped` labels. If a line looks mapped to the wrong account (for example old-format "Cash and
+   bank balances", which also holds deposits), suggest the `fin map set` command from `to_fix` with the account you
+   propose, and why. Run it, then `uv run fin ingest <company> <review copy>`, only when the user asks.

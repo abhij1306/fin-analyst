@@ -412,6 +412,13 @@ def _to_fix(company: str, copy: Path, error: DocumentFailure) -> list[str]:
     ]
     example = (lines or list(error.unmapped) or [{"statement": "STATEMENT", "label": "LABEL"}])[0]
     statement, label = example["statement"], example["label"].replace('"', '\\"')
+    hints = []
+    if error.code == "E403":
+        hints.append(
+            "   E403: an old-format balance-sheet line 'Cash and bank balances' also holds other "
+            "bank balances (deposits). If so, map it to cash_and_bank_balances, which is not "
+            "compared with closing cash."
+        )
     return [
         "1. Compare each failed check's lines, and the unmapped labels, with the source document. "
         "If the source itself does not add up, the file cannot load as it is.",
@@ -421,5 +428,6 @@ def _to_fix(company: str, copy: Path, error: DocumentFailure) -> list[str]:
         f'uv run fin map set --company {company} --statement {statement} --label "{label}" '
         "--account ACCOUNT",
         f"   The accounts: uv run fin map accounts --statement {statement}",
+        *hints,
         f'3. Load the file again: uv run fin ingest {company} "{copy}"',
     ]

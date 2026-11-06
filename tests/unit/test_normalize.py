@@ -31,6 +31,14 @@ from fin.map.normalize import normalize_label
         ("III Total income (I+II)", "total income"),
         ("IX Profit/(Loss) for the year (VII-VIII)", "profit loss for the year"),
         ("Various items", "various items"),
+        ("(ia) Lease liabilities", "lease liabilities"),
+        ("(j) Other non-current assets", "other non current assets"),
+        ("(a) Basic (In Rs.)", "basic"),
+        ("Diluted (in ₹)", "diluted"),
+        (
+            "Profit before tax from continuing operations (iv) = (i-ii+iii)",
+            "profit before tax from continuing operations",
+        ),
     ],
 )
 def test_normalize_label(label: str, expected: str) -> None:

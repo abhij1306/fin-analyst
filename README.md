@@ -65,6 +65,24 @@ Ask Claude in plain words, for example "set the FY24 revenue of kestrel to ...".
 statement in one transaction and records it in the audit log. Claude Code asks you to confirm first.
 `fin query` is read-only and refuses anything but one SELECT.
 
+### Fixing a file that failed a check (E401, E402, E403)
+
+A file that fails a check is not loaded, so its labels are not in `/review`. Open
+`~/FinAnalysis/review/<company>/<file>.error.json`: each failed check lists the lines it used (label, page or cell,
+account), and `unmapped` lists the labels no mapping matched. If the source itself does not add up, the file cannot
+load as it is. If a label is mapped to the wrong account, ask Claude to fix it, or run the commands in `to_fix`:
+
+```
+uv run fin map accounts --statement balance_sheet        # the accounts
+uv run fin map set --company enser --statement balance_sheet --label "(c) Cash and Bank Balances" --account cash_and_bank_balances
+uv run fin ingest enser ~/FinAnalysis/review/enser/enser_ar24.pdf
+```
+
+`fin map set` applies to that company only (add `--section "<heading>"` to limit it to one heading), and only to
+files ingested from then on; ingest a loaded file again with `--force` to apply it. Claude Code asks you to confirm it.
+Example: in old-format reports "Cash and bank balances" also holds bank deposits, so the cash flow's closing cash is
+smaller (E403); map the line to `cash_and_bank_balances`, which is not compared with closing cash.
+
 ### Deleting a company
 
 Ask Claude, or run `uv run fin delete <company>` and type the name when asked (Claude uses `--yes` when you have
@@ -133,10 +151,10 @@ or checks failed, 2 the command could not run, 3 refused until you confirm. Ever
 | E302 | A proposed mapping has low confidence | Same: check it in `/review` |
 | E303 | A label maps to conflicting accounts | Same: you decide in `/review` |
 | E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id or label) | Nothing was applied. Check `fin review list` and the account name, then retry |
-| E401 | Balance sheet does not balance | Nothing from the document was loaded. Compare expected and actual in `review/<company>/<file>.error.json` with the source |
+| E401 | Balance sheet does not balance | Nothing from the document was loaded. Compare expected and actual, and the lines used, in `review/<company>/<file>.error.json` with the source. A wrong mapping: see "Fixing a file that failed a check" |
 | E402 | A subtotal does not equal the sum of its lines | Same |
-| E403 | Cash flow closing cash differs from balance sheet cash | Same |
-| E404 | The same figure differs between documents | Same; decide which document is right |
+| E403 | Cash flow closing cash differs from balance sheet cash | Same. Old-format "Cash and bank balances" also holds deposits: map it with `fin map set` to `cash_and_bank_balances` |
+| E404 | The same figure differs between documents | Nothing was loaded. Compare expected and actual in `review/<company>/<file>.error.json`; decide which document is right |
 | E405 | Unit sanity check failed (a figure is off by exactly a unit factor, such as 100) | Check the unit stated in the file |
 | E501 | A database is in use by another `fin` command | Wait for it to finish and run again |
 | E502 | `fin query` was given something other than one SELECT | Use `fin sql --write` for changes you want made |

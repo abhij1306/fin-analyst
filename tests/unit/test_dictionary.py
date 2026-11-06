@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from fin.cli import app
 from fin.db.conn import connect
-from fin.map.dictionary import find, load_label_map
+from fin.map.dictionary import find, load_label_map, map_rows
 from fin.paths import dictionary_db_path
 
 BORROWINGS = "(a) Financial liabilities - Borrowings"  # under both non-current and current
@@ -89,3 +89,88 @@ def test_company_mapping_wins_for_that_company_only(initialised: Path) -> None:
         "other_current_assets",
         "trade_receivables",
     )
+
+
+def add_company_mapping(root: Path, label: str, section: str, account: str) -> None:
+    """A company-scope row as stored, key already normalized (by the code of its day)."""
+    with connect(dictionary_db_path(root), write=True) as con:
+        con.execute(
+            "INSERT INTO label_map (label, statement, section, account, scope, company, source, "
+            "created_at, run_id) VALUES (?, 'balance_sheet', ?, ?, 'company', 'acme', 'test', ?, "
+            "'test')",
+            [label, section, account, datetime(2026, 1, 1)],
+        )
+
+
+def test_company_mapping_for_any_section_wins_over_a_global_one_for_the_section(
+    initialised: Path,
+) -> None:
+    add_company_mapping(initialised, "borrowings", "", "other_non_current_liabilities")
+    label_map = load_label_map(initialised, "acme")
+
+    mapping = find(label_map, "balance_sheet", "Current liabilities", "Borrowings")
+
+    assert mapping is not None and mapping.account == "other_non_current_liabilities"
+
+
+def test_a_key_stored_before_a_normalization_change_still_matches(initialised: Path) -> None:
+    # Saved before leading roman numerals were dropped: "III Total assets" was "iii total assets".
+    add_company_mapping(initialised, "iii total assets", "", "total_current_assets")
+
+    mapping = find(load_label_map(initialised, "acme"), "balance_sheet", "", "III Total assets")
+
+    assert mapping is not None and mapping.account == "total_current_assets"
+
+
+def test_rows_under_a_sub_heading_map_by_the_part_of_the_balance_sheet_they_are_in(
+    initialised: Path,
+) -> None:
+    rows = [
+        ("Non-current assets", "Property, plant and equipment"),
+        ("Financial Assets", "Loans"),
+        ("Financial Assets", "Total non-current assets"),
+        ("Financial assets", "Loans"),
+        ("Equity", "Total equity"),
+        ("Financial liabilities", "Borrowings"),
+        ("Financial liabilities", "Total non-current liabilities"),
+        ("Financial liabilities", "Borrowings"),
+        ("Trade payables", "Provisions"),
+    ]
+
+    mappings = map_rows(
+        load_label_map(initialised, "acme"),
+        [("balance_sheet", "standalone", section, label) for section, label in rows],
+    )
+
+    assert [m and m.account for m in mappings] == [
+        "ppe_net",
+        "loans_non_current",
+        "total_non_current_assets",
+        "loans_current",
+        "total_equity",
+        "lt_borrowings",
+        "total_non_current_liabilities",
+        "st_borrowings",
+        "st_provisions",
+    ]
+
+
+def test_the_part_starts_again_for_each_statement_and_scope(initialised: Path) -> None:
+    rows = [
+        ("balance_sheet", "standalone", "Equity", "Total equity"),
+        ("balance_sheet", "consolidated", "Financial liabilities", "Borrowings"),
+    ]
+
+    mappings = map_rows(load_label_map(initialised, "acme"), rows)
+
+    assert [m and m.account for m in mappings] == ["total_equity", None]
+
+
+def test_eps_accounts_are_per_share_and_money_accounts_are_not(initialised: Path) -> None:
+    label_map = load_label_map(initialised, "acme")
+
+    basic = find(label_map, "profit_and_loss", "Earnings per equity share", "(a) Basic (in Rs.)")
+    revenue = find(label_map, "profit_and_loss", "", "Revenue from operations")
+
+    assert (basic and (basic.account, basic.per_share)) == ("eps_basic", True)
+    assert (revenue and (revenue.account, revenue.per_share)) == ("revenue", False)

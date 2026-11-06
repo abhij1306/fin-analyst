@@ -15,8 +15,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `ingest.py`: loads one document in one transaction (stage, validate, commit or roll back). `VALIDATORS` lives here.
 - `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
   `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read).
-- `map/`: `dictionary.py` (seed and label map), `normalize.py` (label cleaning), `review.py` and `commands.py`
-  (`fin map`, `fin review`).
+- `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
+  cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405).
 - `metrics/export.py`: copies every company's `metrics` view to `shared/analytics.duckdb`.
 - `query/`: `run.py` (`fin query`), `write.py` (`fin sql --write`), `evidence.py` (evidence pages).
@@ -27,12 +27,32 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 ## Add an account or a label to the dictionary seed
 
-- Account: add a row to `templates/dictionary/schedule_iii.csv` (`account,statement,parent,sign,description`). `parent`
-  is the subtotal it adds into and `sign` is 1 or -1; the validation gates use them.
+- Account: add a row to `templates/dictionary/schedule_iii.csv` (`account,statement,parent,sign,unit,description`).
+  `parent` is the subtotal it adds into and `sign` is 1 or -1; the validation gates use them. `unit` is `rupees`, or
+  `rupees_per_share` for a per-share figure such as EPS: it is stored as printed (not scaled by the statement's unit)
+  and cannot have a parent. `uv run fin map accounts` prints the tree.
 - Label: add a row to `templates/dictionary/labels.csv` (`label,statement,section,account`). The account must exist.
+  `section` is the heading the label sits under, or empty for any heading. For the balance sheet it can also be the
+  part (`Non-current assets`, `Current assets`, `Non-current liabilities`, `Current liabilities`): a row under a
+  sub-heading such as "Financial liabilities" is looked up under the part it is in (`map_rows` in
+  `map/dictionary.py`).
 - Run `uv run fin init`. It adds missing rows to the shared dictionary and never removes or changes existing ones. To
-  change an existing row, use `fin sql` on the dictionary, or confirm the label in `/review`.
+  change an existing row (a new parent or sign), add a `dictionary` migration (see
+  `db/migrations/dictionary/002_account_unit_and_pl_tree.sql`), or use `fin sql` on the dictionary.
+- One company only: `uv run fin map set --company <co> --statement <statement> --label "<label as written>" --account
+  <account> [--section "<heading>"]`. It wins over the seed for that company, for files ingested from then on. This
+  is also how to fix a file a check rejected: its `review/<co>/<file>.error.json` lists the lines and the commands.
+- Changing `normalize.py` is safe for stored mappings: their keys are normalized again when read.
 - Test: add the label to a case in `tests/unit/test_dictionary.py` or `tests/unit/test_normalize.py`.
+
+### Sign conventions
+
+Every figure is stored with the sign printed in the statement. The tree's signs say how lines add up: expenses are
+printed positive and subtracted from income. Exceptional and extraordinary items are the exception: Schedule III
+prints a charge as positive ("V - VI"), but some companies print a gain as positive and add it ("iii + iv"). E402
+tries the dictionary sign first, then the opposite, and its message says "printed as a gain and added" when the
+document adds them. To read the effect on profit, compare the subtotals around it (`profit_before_exceptional_items`
+and the next one shown), not the sign of `exceptional_items` alone.
 
 ## Add a metric
 

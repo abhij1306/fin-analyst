@@ -148,7 +148,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 
 **Shared**
 
-- `dictionary.accounts` — account, statement, parent, sign, description (seeded from Schedule III)
+- `dictionary.accounts` — account, statement, parent, sign, description, unit (`rupees`, or `rupees_per_share` for EPS: stored as printed, never in a subtotal) (seeded from Schedule III)
 - `dictionary.label_map` — normalized label, statement, section (heading the label sits under, or any), account, scope (global/company), company, mapping_id, source
 - `audit.*` — see §8
 - `analytics.metrics` — export of every company's metrics for dashboards
@@ -412,6 +412,13 @@ Done when:
 - `fin review confirm` run by Claude asks the user first and records `actor=claude (on user request)` in `mapping_decisions`
 - `facts.confirmed` reflects review state
 
+After 1.0.0 (real annual reports): `fin map set` maps a label to an account for one company without a pending item,
+which is how a document a gate rejected gets fixed (its `.error.json` lists the lines each failed check used, the
+unmapped labels and the commands); then the `review/` copy is ingested again. `fin map accounts` lists the accounts.
+Lookup prefers the company's own mappings, and a row under a sub-heading ("Financial liabilities") is also looked up
+under the balance-sheet part it is in (from the last part heading, or the last total line). Stored keys are
+normalized again when read, so a normalization change does not orphan an existing mapping.
+
 ### Phase 6 — Validation gates
 Build:
 - Balance sheet balance, P&L subtotals, cash flow reconciliation, cross-document consistency, unit sanity
@@ -431,6 +438,13 @@ Done when:
   | `Tarang_FY2024-25_CASHFLOW_not_reconciling.pdf` | E403 | Cash flow closing cash ₹12.00 lakhs above balance sheet cash |
   | Any clean file ingested twice | E105 | Duplicate |
 - Clean fixtures pass
+
+After 1.0.0 (real annual reports): the subtotal tree covers total liabilities, profit before exceptional and
+extraordinary items, total tax, continuing and discontinued operations, OCI and total comprehensive income. Unmapped
+nil lines, per-share lines and P&L "attributable to" lines do not stop E402. Exceptional and extraordinary items are
+stored as printed; E402 tries them subtracted (Schedule III) and then added (a gain printed as positive), and says
+which. Old-format "Cash and bank balances" can be mapped to `cash_and_bank_balances`, which E403 does not compare with
+closing cash.
 
 ### Phase 7 — Metrics and analytics export
 Build:

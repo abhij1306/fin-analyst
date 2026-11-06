@@ -257,7 +257,13 @@ def _in_document(
         for check, expected, actual, what in pairs:
             missing = [account for account in (expected, actual) if account not in values]
             if missing:
-                not_run(check, key, f"no confirmed {' or '.join(missing)} figure")
+                reason = f"no confirmed {' or '.join(missing)} figure"
+                if "cash" in missing and "cash_and_bank_balances" in values:
+                    reason += (
+                        " (the balance sheet shows cash and bank balances, which also hold other "
+                        "bank balances)"
+                    )
+                not_run(check, key, reason)
             else:
                 pair = (expected, actual)
                 results.append(
