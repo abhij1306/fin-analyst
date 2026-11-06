@@ -10,7 +10,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 1 | Foundation: config, audit, errors, DB access | Done |
 | 2 | Schema and dictionary | Not started |
 | 3 | Synthetic fixtures, Excel ingestion, batch | Not started |
-| 4 | PDF bake-off and PDF ingestion | Not started |
+| 4 | PDF bake-off and PDF ingestion | Done (wiring into `fin ingest` and the real-PDF bake-off pending) |
 | 5 | Mapping and review | Not started |
 | 6 | Validation gates | Not started |
 | 7 | Metrics and analytics export | Not started |
@@ -51,8 +51,8 @@ further with Claude Code, so the code and docs stay simple and easy to modify.
 | CLI | Typer | Entry point `fin` |
 | Database | DuckDB | One file per company + shared files |
 | Excel extraction | openpyxl + pandas | Keeps sheet, cell, type, number format |
-| PDF tables | pdfplumber or pdf-inspector | Decided by Phase 4 bake-off |
-| Notes / auditor text | AnyDoc or pdf-inspector → Markdown | License check in Phase 4 |
+| PDF tables | pdfplumber | Chosen by the Phase 4 bake-off (see Phase 4 decision) |
+| Notes / auditor text | pdfplumber → Markdown (`fin.extract.text`) | AnyDoc and pdf-inspector are MIT; not needed (Phase 4 decision) |
 | Evidence crops | pdfplumber page render + highlight | Avoids AGPL PyMuPDF in an MIT repo |
 | Reports | Quarto | HTML, docx, Typst PDF (no LaTeX) |
 | Dashboards | Evidence | Node LTS, local dev server |
@@ -350,6 +350,38 @@ Done when:
 - Winner chosen with scores recorded
 - Synthetic PDF values match 100%
 - Encrypted → E102, scanned → E104
+
+#### Phase 4 decision
+
+**pdfplumber wins.** Scores from `uv run python scripts/pdf_bakeoff.py` (exact rupee match per label and fiscal
+year, against `answer_key.json`; 59 lines × 2 years per report: every statement line plus the related-party and
+contingent-liability note rows):
+
+| Report | Table style | pdfplumber | pdf-inspector 1.25.2 |
+|---|---|---|---|
+| Tarang FY2023-24 | whitespace only, no lines | 118/118 (100.0%) | 110/118 (93.2%) |
+| Tarang FY2024-25 | header and total rules | 118/118 (100.0%) | 110/118 (93.2%) |
+| **All** | | **236/236 (100.0%)** | **220/236 (93.2%)** |
+
+- pdfplumber is scored through `fin.extract.pdf`, which reads columns from word positions (periods and unit read
+  from the page). pdf-inspector is scored on the Markdown tables of `extract_pages_markdown`, and is given what it
+  lacks: the key's fiscal years for the value columns, the key's unit, and labels compared ignoring spaces around
+  hyphens. Its misses are rows merged with the next section heading ("TOTAL EQUITY AND LIABILITIES II. ASSETS",
+  "Net cash from operating activities (A) B. CASH FLOW FROM INVESTING ACTIVITIES"); its balance sheet table also
+  dropped the prior-year column header.
+- pdfplumber also gives a bbox for every word (needed for evidence crops) and renders pages to PNG through
+  pypdfium2, so one library covers tables, notes text and crops. pdf-inspector gives positions for text runs but
+  not for Markdown table cells.
+- Caveat: the extractor was written against these two synthetic reports, so its 100% is an upper bound. The
+  real-PDF run below decides whether the word-position approach holds.
+- Licenses (the repo is MIT): pdfplumber MIT, pdfminer.six MIT, pypdfium2 Apache-2.0/BSD-3-Clause, pdf-inspector
+  MIT (Firecrawl; Rust wheels for macOS arm64/x86_64), AnyDoc (`firecrawl-anydoc` on PyPI; the `anydoc` name is an
+  unrelated Slack bot) MIT. PyMuPDF (AGPL) is not used. pdf-inspector is a dev dependency, for the bake-off only.
+- Notes and the auditor's report go to Markdown with pdfplumber too (bold lines become headings, note tables become
+  Markdown tables), so AnyDoc is not needed.
+- Not done here: real annual reports are not in the repo. Human follow-up: put 3–5 annual reports of small listed
+  Indian manufacturers in the private test set, write a key for each in the `answer_key.json` shape, run
+  `uv run python scripts/pdf_bakeoff.py <key> --company <name> --show-misses`, and add the scores to this table.
 
 ### Phase 5 — Mapping and review
 Build:
