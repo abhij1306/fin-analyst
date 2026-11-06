@@ -8,10 +8,19 @@ from typing import Annotated
 import typer
 
 from fin import __version__
-from fin.audit.errors import EXIT_FAILURES, FileUnreadable, ReadOnlyViolation
+from fin.audit.errors import EXIT_FAILURES, FileUnreadable, GuardBlocked, ReadOnlyViolation
 from fin.audit.logger import Run, execute
+from fin.audit.trace import (
+    company_history,
+    fact_trace,
+    format_fact_trace,
+    format_history,
+    format_metric_trace,
+    metric_trace,
+)
 from fin.config import load_config, write_default_config
 from fin.db.migrate import MigrationResult, ensure_current, migrate_all
+from fin.delete import delete_company
 from fin.doctor import run_checks
 from fin.ingest import COMPANY_NAME, files_in, ingest_file
 from fin.map.commands import map_app, review_app
@@ -22,6 +31,7 @@ from fin.paths import company_db_path, ensure_data_folder, inbox_dir
 from fin.query.evidence import write_evidence
 from fin.query.run import query
 from fin.query.write import write_sql
+from fin.update import update as run_update
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -301,3 +311,76 @@ def metrics_refresh() -> None:
     """Rebuild shared/analytics.duckdb from every company's metrics. Also runs after every
     ingest."""
     execute("metrics refresh", {}, lambda run: _echo_refresh(refresh_analytics(run)))
+
+
+@app.command("audit")
+def audit_command(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    metric: Annotated[
+        str | None, typer.Argument(help="Metric to trace, e.g. current_ratio.")
+    ] = None,
+    fiscal_year: Annotated[str | None, typer.Argument(help="Fiscal year, e.g. FY25.")] = None,
+    fact: Annotated[int | None, typer.Option("--fact", help="Trace one fact_id.")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+) -> None:
+    """Trace a figure to its file and cell or page (`--fact ID`, or METRIC FISCAL_YEAR), or with
+    neither, list the company's history: ingests, reviews, queries, writes, reports, failures."""
+
+    def body(run: Run) -> None:
+        if (metric is None) != (fiscal_year is None):
+            raise typer.BadParameter("give both METRIC and FISCAL_YEAR, or neither")
+        if fact is not None:
+            result, text = fact_trace(run.root, company, fact), format_fact_trace
+        elif metric is not None and fiscal_year is not None:
+            result, text = (
+                metric_trace(run.root, company, metric, fiscal_year),
+                format_metric_trace,
+            )
+        else:
+            result, text = company_history(run.root, company), format_history
+        if json_output:
+            typer.echo(json.dumps(result, indent=2, default=str))
+        else:
+            typer.echo(text(result))
+
+    execute(
+        "audit",
+        {"company": company, "metric": metric, "fiscal_year": fiscal_year, "fact": fact},
+        body,
+    )
+
+
+@app.command("delete")
+def delete_command(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    yes: Annotated[
+        bool, typer.Option("--yes", help="Skip the typed confirmation (when the user asked).")
+    ] = False,
+) -> None:
+    """Delete a company's database and files after backing them up to backups/<run_id>/. The audit
+    trail stays. Asks you to type the company name unless --yes is given."""
+
+    def body(run: Run) -> None:
+        if not yes:
+            try:
+                typed = typer.prompt(
+                    f"This deletes all data of {company}. Type its name to confirm"
+                )
+            except typer.Abort as exc:
+                raise GuardBlocked("not confirmed; nothing deleted (use --yes to skip)") from exc
+            if typed.strip() != company:
+                raise GuardBlocked("the name typed does not match; nothing deleted")
+        typer.echo(json.dumps(delete_company(run, company), indent=2))
+
+    execute("delete", {"company": company, "yes": yes}, body)
+
+
+@app.command("update")
+def update_command() -> None:
+    """Update fin: back up all databases, git pull, uv sync, npm ci, fin migrate, fin doctor."""
+
+    def body(run: Run) -> None:
+        run_update(run)
+        typer.echo("update finished" if not run.failed else "update finished; fin doctor failed")
+
+    execute("update", {}, body)
