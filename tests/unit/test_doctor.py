@@ -1,6 +1,12 @@
-import pytest
+from pathlib import Path
 
-from fin.doctor import check_tool, parse_version
+import pytest
+from typer.testing import CliRunner
+
+from fin.cli import app
+from fin.db.conn import connect
+from fin.doctor import Check, check_audit_schema, check_tool, parse_version
+from fin.paths import audit_db_path
 
 
 @pytest.mark.parametrize(
@@ -33,3 +39,24 @@ def test_tool_at_or_above_minimum_passes(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr("fin.doctor.tool_version", lambda tool: "v26.8.1")
     check = check_tool("node", (24,))
     assert (check.ok, check.code, check.detail) == (True, None, "26.8.1")
+
+
+def test_audit_schema_check_names_the_fix(data_root: Path, migrations_dir: Path) -> None:
+    CliRunner().invoke(app, ["init"])
+    assert check_audit_schema(data_root) == Check("audit schema", True, "version 1")
+
+    (migrations_dir / "audit" / "002_next.sql").write_text("SELECT 1;\n", encoding="utf-8")
+    assert check_audit_schema(data_root) == Check(
+        "audit schema", False, "version 1, expected 2", "E002", "run `uv run fin migrate`"
+    )
+
+    (migrations_dir / "audit" / "002_next.sql").unlink()
+    with connect(audit_db_path(data_root), write=True) as con:
+        con.execute("INSERT INTO schema_version VALUES (2, '002_future', now(), 'x')")
+    assert check_audit_schema(data_root) == Check(
+        "audit schema",
+        False,
+        "version 2 is newer than this fin (1)",
+        "E004",
+        "update fin: `git pull`, then `uv sync --frozen`",
+    )

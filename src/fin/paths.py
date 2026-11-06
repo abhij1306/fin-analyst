@@ -35,6 +35,22 @@ def logs_dir() -> Path:
     return data_dir() / "logs"
 
 
+def config_path(root: Path) -> Path:
+    return root / "config.toml"
+
+
+def audit_db_path(root: Path) -> Path:
+    return root / "shared" / "audit.duckdb"
+
+
+def companies_dir(root: Path) -> Path:
+    return root / "companies"
+
+
+def backups_dir(root: Path) -> Path:
+    return root / "backups"
+
+
 def probe_writable(folder: Path) -> None:
     """Raise E003 unless a file can be created and removed in `folder`."""
     probe = folder / ".fin_write_probe"
