@@ -14,7 +14,9 @@ from fin.config import load_config, write_default_config
 from fin.db.migrate import MigrationResult, ensure_current, migrate_all
 from fin.doctor import run_checks
 from fin.ingest import COMPANY_NAME, files_in, ingest_file
+from fin.map.commands import map_app, review_app
 from fin.map.dictionary import load_label_map, load_seed
+from fin.map.review import write_pending
 from fin.paths import company_db_path, ensure_data_folder, inbox_dir
 
 app = typer.Typer(
@@ -22,6 +24,8 @@ app = typer.Typer(
     add_completion=False,
     help="Local financial health analysis.",
 )
+app.add_typer(map_app, name="map")
+app.add_typer(review_app, name="review")
 
 
 def _version_callback(value: bool) -> None:
@@ -170,6 +174,7 @@ def _ingest_files(run: Run, jobs: list[tuple[str, list[Path]]], force: bool) -> 
             done += 1
             outcome = ingest_file(run, config, company, path, label_map, force=force)
             typer.echo(f"[{done}/{total}] {company}/{path.name}: {outcome}")
+        write_pending(run, company)
     if total == 0:
         typer.echo("no files to ingest")
 

@@ -116,6 +116,13 @@ class ConflictingMapping(DocumentFailure):
     code = "E303"
 
 
+class InvalidMapping(FinError):
+    """E304. A mapping proposal or review request that cannot be applied: unknown account, an
+    account of another statement, an unknown pending id or label, or unreadable proposals."""
+
+    code = "E304"
+
+
 # E4xx: validation. The whole document is rolled back and sent to review with expected vs actual.
 
 

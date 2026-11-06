@@ -83,6 +83,10 @@ def asked_reason(result: subprocess.CompletedProcess) -> str:
         ),
         ("uv run fin delete acme", "E701: `fin delete` changes data."),
         ("fin review confirm 12", "E701: `fin review confirm` changes data."),
+        (
+            "uv run fin review confirm 3 --company bluepeak --account trade_receivables",
+            "E701: `fin review confirm` changes data.",
+        ),
         ("uv run --frozen fin review confirm --all", "E701: `fin review confirm` changes data."),
         ("bash -c 'rm -rf ~/FinAnalysis/shared'", "`rm` on the data folder"),
     ],

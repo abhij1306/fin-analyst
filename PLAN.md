@@ -11,7 +11,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 2 | Schema and dictionary | Done |
 | 3 | Synthetic fixtures, Excel ingestion, batch | Done |
 | 4 | PDF bake-off and PDF ingestion | Done (real-PDF bake-off pending; wired into `fin ingest` in Phases 2-3) |
-| 5 | Mapping and review | Not started |
+| 5 | Mapping and review | Done |
 | 6 | Validation gates | Not started |
 | 7 | Metrics and analytics export | Not started |
 | 8 | Query and evidence | Not started |
@@ -206,6 +206,7 @@ Every `fin` command:
 | E301 | Unmapped label | Loaded as unconfirmed, queued for review |
 | E302 | Low-confidence mapping | Same |
 | E303 | Conflicting mapping | Same; human decides |
+| E304 | Invalid mapping proposal or review request (unknown account, wrong statement, unknown id or label) | Stop; nothing applied |
 | E401 | Balance sheet doesn't balance | Whole document rolled back, to review with expected vs actual |
 | E402 | Subtotal mismatch | Same |
 | E403 | Cash flow doesn't reconcile to cash balance | Same |
