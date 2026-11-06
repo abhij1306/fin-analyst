@@ -111,3 +111,39 @@ Human follow-ups
 - Confirm the default tolerances (100000.00 rupees, i.e. one lakh, for each check) and the default display unit
   (crores) before Phase 6 uses them.
 - Consider adding dedicated §9 codes for config and local-database problems instead of reusing E001 and E002.
+
+### Phase 4: PDF bake-off and extraction
+
+Added
+- `fin.extract.pdf.extract_pdf(path)`: reads every value from the balance sheet, profit and loss, cash flow and note
+  tables of a text PDF annual report. Each `PdfValue` has the label, fiscal year, raw text, `Decimal` value in
+  document units and in rupees, unit, 1-based page, bbox (points from the page's top-left, pdfplumber's
+  convention), statement, section heading and note reference. `PdfExtraction` adds scope (standalone or
+  consolidated), the fiscal years found and the unit. Columns come from word positions, so tables with and without
+  ruled lines work the same way. Units: rupees, thousands, lakhs (lacs), millions, crores.
+- Errors: E101 (not a readable PDF), E102 (encrypted), E104 (no text layer), E201 (no statement tables), E202 (a
+  statement page with no period headers), E203 (a statement page with no unit).
+- `fin.extract.text.write_notes_markdown(path, out_dir)`: writes `<pdf stem>.auditor_report.md` and
+  `<pdf stem>.notes.md` (bold lines become headings, note tables become Markdown tables), each starting with its
+  source file and pages. Later wiring writes these into `notes/<company>/`.
+- `fin.extract.pdf.render_crop(path, page, bbox, out)`: PNG of the full-width band around a value with the value
+  highlighted, for evidence pages (Phase 8).
+- `scripts/pdf_bakeoff.py`: scores pdfplumber against pdf-inspector on exact-value match with an answer key.
+  pdfplumber 236/236 (100%), pdf-inspector 220/236 (93.2%); decision and licenses in PLAN.md "Phase 4 decision".
+- Synthetic Tarang PDFs, `answer_key.json` and the fixture README in `tests/fixtures/sample-financials/`.
+
+Dependencies (exact pins in `uv.lock`)
+- `pdfplumber` 0.11.10 (MIT): PDF tables, text and page rendering; the bake-off winner. Brings in pdfminer.six (MIT),
+  pypdfium2 (Apache-2.0/BSD-3-Clause) and Pillow.
+- Dev: `pdf-inspector` 1.25.2 (MIT): the bake-off's other contender, used only by `scripts/pdf_bakeoff.py`.
+
+Notes and deviations
+- PDFs are not wired into `fin ingest` yet: Phases 2-3 (schema, ingest) are built in parallel, so the extractor is a
+  standalone module that returns plain data. Wiring it in, with run records and audit events, is the next step.
+- Unit parsing is private to `fin.extract.pdf`; merge it with the Excel extractor's once both are on main.
+- Notes go to Markdown with pdfplumber rather than AnyDoc or pdf-inspector, to keep one PDF library.
+- Wrapped (multi-line) row labels are not joined yet; the synthetic reports have none.
+
+Human follow-ups
+- Run the bake-off on 3-5 real annual reports (small listed Indian manufacturers, BSE/NSE filings) kept in the
+  private test set, with a key in the `answer_key.json` shape, and record the scores in PLAN.md.
