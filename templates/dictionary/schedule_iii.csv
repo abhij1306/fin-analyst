@@ -1,76 +1,105 @@
-account,statement,parent,sign,description
-share_capital,balance_sheet,total_equity,1,Equity share capital
-other_equity,balance_sheet,total_equity,1,"Other equity (reserves and surplus, retained earnings)"
-total_equity,balance_sheet,total_equity_and_liabilities,1,Total equity (shareholders' funds)
-lt_borrowings,balance_sheet,total_non_current_liabilities,1,Non-current borrowings (term loans)
-lease_liabilities_non_current,balance_sheet,total_non_current_liabilities,1,Non-current lease liabilities
-other_financial_liabilities_non_current,balance_sheet,total_non_current_liabilities,1,Other non-current financial liabilities
-lt_provisions,balance_sheet,total_non_current_liabilities,1,Long-term provisions
-deferred_tax_liabilities,balance_sheet,total_non_current_liabilities,1,Deferred tax liabilities (net)
-other_non_current_liabilities,balance_sheet,total_non_current_liabilities,1,Other non-current liabilities
-total_non_current_liabilities,balance_sheet,total_equity_and_liabilities,1,Total non-current liabilities
-st_borrowings,balance_sheet,total_current_liabilities,1,Current borrowings (working capital loans)
-lease_liabilities_current,balance_sheet,total_current_liabilities,1,Current lease liabilities
-trade_payables,balance_sheet,total_current_liabilities,1,Trade payables (sundry creditors)
-other_financial_liabilities_current,balance_sheet,total_current_liabilities,1,Other current financial liabilities
-other_current_liabilities,balance_sheet,total_current_liabilities,1,Other current liabilities
-st_provisions,balance_sheet,total_current_liabilities,1,Short-term provisions
-current_tax_liabilities,balance_sheet,total_current_liabilities,1,Current tax liabilities (net)
-total_current_liabilities,balance_sheet,total_equity_and_liabilities,1,Total current liabilities
-total_equity_and_liabilities,balance_sheet,,,Total equity and liabilities (total sources of funds)
-ppe_net,balance_sheet,total_non_current_assets,1,"Property, plant and equipment, net block"
-capital_work_in_progress,balance_sheet,total_non_current_assets,1,Capital work-in-progress
-intangible_assets,balance_sheet,total_non_current_assets,1,Intangible assets
-right_of_use_assets,balance_sheet,total_non_current_assets,1,Right-of-use assets
-non_current_investments,balance_sheet,total_non_current_assets,1,Non-current investments
-deferred_tax_assets,balance_sheet,total_non_current_assets,1,Deferred tax assets (net)
-other_non_current_assets,balance_sheet,total_non_current_assets,1,Other non-current assets
-total_non_current_assets,balance_sheet,total_assets,1,Total non-current assets
-inventories,balance_sheet,total_current_assets,1,Inventories (stock in trade)
-current_investments,balance_sheet,total_current_assets,1,Current investments
-trade_receivables,balance_sheet,total_current_assets,1,Trade receivables (sundry debtors)
-cash,balance_sheet,total_current_assets,1,Cash and cash equivalents
-other_bank_balances,balance_sheet,total_current_assets,1,Bank balances other than cash and cash equivalents
-other_current_assets,balance_sheet,total_current_assets,1,"Other current assets (loans, advances)"
-total_current_assets,balance_sheet,total_assets,1,Total current assets
-total_assets,balance_sheet,,,Total assets (total application of funds)
-revenue,profit_and_loss,total_income,1,Revenue from operations (sales)
-other_income,profit_and_loss,total_income,1,Other income
-total_income,profit_and_loss,pbt,1,Total income
-cost_of_materials,profit_and_loss,total_expenses,1,Cost of materials consumed
-purchases_stock_in_trade,profit_and_loss,total_expenses,1,Purchases of stock-in-trade
-change_in_inventories,profit_and_loss,total_expenses,1,"Changes in inventories of finished goods, work-in-progress and stock-in-trade"
-employee_expense,profit_and_loss,total_expenses,1,Employee benefits expense (staff costs)
-finance_cost,profit_and_loss,total_expenses,1,Finance costs (interest)
-depreciation,profit_and_loss,total_expenses,1,Depreciation and amortisation expense
-other_expenses,profit_and_loss,total_expenses,1,Other expenses
-total_expenses,profit_and_loss,pbt,-1,Total expenses
-exceptional_items,profit_and_loss,pbt,-1,Exceptional items
-pbt,profit_and_loss,pat,1,Profit before tax
-tax_expense,profit_and_loss,pat,-1,Tax expense (current tax)
-deferred_tax,profit_and_loss,pat,-1,Deferred tax expense
-pat,profit_and_loss,,,Profit for the year (profit after tax)
-cf_pbt,cash_flow,cf_op_profit_before_wc,1,Cash flow: profit before tax
-cf_add_depreciation,cash_flow,cf_op_profit_before_wc,1,Cash flow adjustment: depreciation and amortisation
-cf_add_finance_cost,cash_flow,cf_op_profit_before_wc,1,Cash flow adjustment: finance costs
-cf_less_interest_income,cash_flow,cf_op_profit_before_wc,1,Cash flow adjustment: interest income (negative)
-cf_op_profit_before_wc,cash_flow,cf_cash_generated,1,Operating profit before working capital changes
-cf_change_inventories,cash_flow,cf_cash_generated,1,(Increase)/decrease in inventories
-cf_change_receivables,cash_flow,cf_cash_generated,1,(Increase)/decrease in trade receivables
-cf_change_oca,cash_flow,cf_cash_generated,1,(Increase)/decrease in other current assets
-cf_change_payables,cash_flow,cf_cash_generated,1,Increase/(decrease) in trade payables
-cf_change_ocl,cash_flow,cf_cash_generated,1,Increase/(decrease) in other current liabilities
-cf_cash_generated,cash_flow,cfo,1,Cash generated from operations
-cf_taxes_paid,cash_flow,cfo,1,Income taxes paid (negative)
-cfo,cash_flow,net_change_cash,1,Net cash from operating activities
-cf_capex,cash_flow,cfi,1,Purchase of property and equipment (negative)
-cf_interest_received,cash_flow,cfi,1,Interest received
-cfi,cash_flow,net_change_cash,1,Net cash from investing activities
-cf_lt_borrowings_net,cash_flow,cff,1,Long-term borrowings raised/(repaid) (net)
-cf_st_borrowings_net,cash_flow,cff,1,Short-term borrowings raised/(repaid) (net)
-cf_finance_cost_paid,cash_flow,cff,1,Finance costs paid (negative)
-cf_dividends_paid,cash_flow,cff,1,Dividends paid (negative)
-cff,cash_flow,net_change_cash,1,Net cash from financing activities
-net_change_cash,cash_flow,closing_cash,1,Net increase/(decrease) in cash and cash equivalents
-opening_cash,cash_flow,closing_cash,1,Cash and cash equivalents at the beginning of the year
-closing_cash,cash_flow,,,Cash and cash equivalents at the end of the year
+account,statement,parent,sign,unit,description
+share_capital,balance_sheet,total_equity,1,rupees,Equity share capital
+other_equity,balance_sheet,total_equity,1,rupees,"Other equity (reserves and surplus, retained earnings)"
+share_warrants,balance_sheet,total_equity,1,rupees,Money received against share warrants
+non_controlling_interests,balance_sheet,total_equity,1,rupees,Non-controlling interests (consolidated balance sheet)
+total_equity,balance_sheet,total_equity_and_liabilities,1,rupees,Total equity (shareholders' funds)
+lt_borrowings,balance_sheet,total_non_current_liabilities,1,rupees,Non-current borrowings (term loans)
+lease_liabilities_non_current,balance_sheet,total_non_current_liabilities,1,rupees,Non-current lease liabilities
+other_financial_liabilities_non_current,balance_sheet,total_non_current_liabilities,1,rupees,Other non-current financial liabilities
+lt_provisions,balance_sheet,total_non_current_liabilities,1,rupees,Long-term provisions
+deferred_tax_liabilities,balance_sheet,total_non_current_liabilities,1,rupees,Deferred tax liabilities (net)
+other_non_current_liabilities,balance_sheet,total_non_current_liabilities,1,rupees,Other non-current liabilities
+total_non_current_liabilities,balance_sheet,total_liabilities,1,rupees,Total non-current liabilities
+st_borrowings,balance_sheet,total_current_liabilities,1,rupees,Current borrowings (working capital loans)
+lease_liabilities_current,balance_sheet,total_current_liabilities,1,rupees,Current lease liabilities
+trade_payables,balance_sheet,total_current_liabilities,1,rupees,"Trade payables (sundry creditors); the MSME and other-creditor lines both map here"
+other_financial_liabilities_current,balance_sheet,total_current_liabilities,1,rupees,Other current financial liabilities
+other_current_liabilities,balance_sheet,total_current_liabilities,1,rupees,Other current liabilities
+st_provisions,balance_sheet,total_current_liabilities,1,rupees,Short-term provisions
+current_tax_liabilities,balance_sheet,total_current_liabilities,1,rupees,Current tax liabilities (net)
+total_current_liabilities,balance_sheet,total_liabilities,1,rupees,Total current liabilities
+total_liabilities,balance_sheet,total_equity_and_liabilities,1,rupees,Total liabilities (non-current plus current)
+total_equity_and_liabilities,balance_sheet,,,rupees,Total equity and liabilities (total sources of funds)
+ppe_net,balance_sheet,total_non_current_assets,1,rupees,"Property, plant and equipment, net block"
+capital_work_in_progress,balance_sheet,total_non_current_assets,1,rupees,Capital work-in-progress
+goodwill,balance_sheet,total_non_current_assets,1,rupees,Goodwill
+intangible_assets,balance_sheet,total_non_current_assets,1,rupees,Intangible assets
+intangible_assets_under_development,balance_sheet,total_non_current_assets,1,rupees,Intangible assets under development
+right_of_use_assets,balance_sheet,total_non_current_assets,1,rupees,Right-of-use assets
+equity_method_investments,balance_sheet,total_non_current_assets,1,rupees,Investments accounted for using the equity method
+non_current_investments,balance_sheet,total_non_current_assets,1,rupees,Non-current investments
+loans_non_current,balance_sheet,total_non_current_assets,1,rupees,Non-current loans (long-term loans and advances)
+other_financial_assets_non_current,balance_sheet,total_non_current_assets,1,rupees,Other non-current financial assets
+deferred_tax_assets,balance_sheet,total_non_current_assets,1,rupees,Deferred tax assets (net)
+tax_assets_non_current,balance_sheet,total_non_current_assets,1,rupees,Non-current tax assets (income tax assets (net))
+other_non_current_assets,balance_sheet,total_non_current_assets,1,rupees,Other non-current assets
+total_non_current_assets,balance_sheet,total_assets,1,rupees,Total non-current assets
+inventories,balance_sheet,total_current_assets,1,rupees,Inventories (stock in trade)
+current_investments,balance_sheet,total_current_assets,1,rupees,Current investments
+trade_receivables,balance_sheet,total_current_assets,1,rupees,Trade receivables (sundry debtors)
+cash,balance_sheet,total_current_assets,1,rupees,Cash and cash equivalents
+other_bank_balances,balance_sheet,total_current_assets,1,rupees,Bank balances other than cash and cash equivalents
+cash_and_bank_balances,balance_sheet,total_current_assets,1,rupees,"Cash and bank balances (old format): cash and cash equivalents plus other bank balances, one line"
+loans_current,balance_sheet,total_current_assets,1,rupees,Current loans (short-term loans and advances)
+other_financial_assets_current,balance_sheet,total_current_assets,1,rupees,Other current financial assets
+tax_assets_current,balance_sheet,total_current_assets,1,rupees,Current tax assets (net)
+other_current_assets,balance_sheet,total_current_assets,1,rupees,"Other current assets (loans, advances)"
+total_current_assets,balance_sheet,total_assets,1,rupees,Total current assets
+total_assets,balance_sheet,,,rupees,Total assets (total application of funds)
+revenue,profit_and_loss,total_income,1,rupees,Revenue from operations (sales)
+other_income,profit_and_loss,total_income,1,rupees,Other income
+total_income,profit_and_loss,profit_before_exceptional_items,1,rupees,Total income
+cost_of_materials,profit_and_loss,total_expenses,1,rupees,Cost of materials consumed
+purchases_stock_in_trade,profit_and_loss,total_expenses,1,rupees,Purchases of stock-in-trade
+change_in_inventories,profit_and_loss,total_expenses,1,rupees,"Changes in inventories of finished goods, work-in-progress and stock-in-trade"
+employee_expense,profit_and_loss,total_expenses,1,rupees,Employee benefits expense (staff costs)
+power_and_fuel,profit_and_loss,total_expenses,1,rupees,Power and fuel
+finance_cost,profit_and_loss,total_expenses,1,rupees,Finance costs (interest)
+depreciation,profit_and_loss,total_expenses,1,rupees,Depreciation and amortisation expense
+other_expenses,profit_and_loss,total_expenses,1,rupees,Other expenses
+total_expenses,profit_and_loss,profit_before_exceptional_items,-1,rupees,Total expenses
+profit_before_exceptional_items,profit_and_loss,profit_before_extraordinary_items,1,rupees,Profit before exceptional items and tax (total income less total expenses)
+exceptional_items,profit_and_loss,profit_before_extraordinary_items,-1,rupees,"Exceptional items, as printed: a charge is positive in Schedule III, but some companies print a gain as positive (the subtotal check accepts either and says which)"
+profit_before_extraordinary_items,profit_and_loss,pbt,1,rupees,Profit before extraordinary items and tax (old format)
+extraordinary_items,profit_and_loss,pbt,-1,rupees,"Extraordinary items (old format), as printed; the subtotal check accepts either sign, like exceptional items"
+share_of_associates_jv,profit_and_loss,pbt,1,rupees,"Share of profit/(loss) of associates and joint ventures (a loss is negative)"
+pbt,profit_and_loss,profit_continuing_operations,1,rupees,Profit before tax
+tax_expense,profit_and_loss,total_tax_expense,1,rupees,"Current tax, including tax of earlier years and MAT"
+deferred_tax,profit_and_loss,total_tax_expense,1,rupees,Deferred tax expense
+total_tax_expense,profit_and_loss,profit_continuing_operations,-1,rupees,Total tax expense
+profit_continuing_operations,profit_and_loss,pat,1,rupees,Profit for the year from continuing operations
+discontinued_operations_pbt,profit_and_loss,profit_discontinued_operations,1,rupees,Profit/(loss) from discontinued operations before tax
+discontinued_operations_tax,profit_and_loss,profit_discontinued_operations,-1,rupees,Tax expense of discontinued operations
+profit_discontinued_operations,profit_and_loss,pat,1,rupees,Profit/(loss) from discontinued operations after tax
+pat,profit_and_loss,total_comprehensive_income,1,rupees,Profit for the year (profit after tax)
+oci_items,profit_and_loss,oci,1,rupees,"One line of other comprehensive income, as printed, including the income tax on it"
+oci_group_total,profit_and_loss,,,rupees,"Subtotal of one OCI group (items that will, or will not, be reclassified); its lines add into oci"
+oci,profit_and_loss,total_comprehensive_income,1,rupees,"Other comprehensive income for the year, net of tax"
+total_comprehensive_income,profit_and_loss,,,rupees,Total comprehensive income for the year
+eps_basic,profit_and_loss,,,rupees_per_share,"Basic earnings per share, in rupees per share as printed (not scaled by the statement unit)"
+eps_diluted,profit_and_loss,,,rupees_per_share,"Diluted earnings per share, in rupees per share as printed (not scaled by the statement unit)"
+cf_pbt,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow: profit before tax
+cf_add_depreciation,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: depreciation and amortisation
+cf_add_finance_cost,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: finance costs
+cf_less_interest_income,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: interest income (negative)
+cf_op_profit_before_wc,cash_flow,cf_cash_generated,1,rupees,Operating profit before working capital changes
+cf_change_inventories,cash_flow,cf_cash_generated,1,rupees,(Increase)/decrease in inventories
+cf_change_receivables,cash_flow,cf_cash_generated,1,rupees,(Increase)/decrease in trade receivables
+cf_change_oca,cash_flow,cf_cash_generated,1,rupees,(Increase)/decrease in other current assets
+cf_change_payables,cash_flow,cf_cash_generated,1,rupees,Increase/(decrease) in trade payables
+cf_change_ocl,cash_flow,cf_cash_generated,1,rupees,Increase/(decrease) in other current liabilities
+cf_cash_generated,cash_flow,cfo,1,rupees,Cash generated from operations
+cf_taxes_paid,cash_flow,cfo,1,rupees,Income taxes paid (negative)
+cfo,cash_flow,net_change_cash,1,rupees,Net cash from operating activities
+cf_capex,cash_flow,cfi,1,rupees,Purchase of property and equipment (negative)
+cf_interest_received,cash_flow,cfi,1,rupees,Interest received
+cfi,cash_flow,net_change_cash,1,rupees,Net cash from investing activities
+cf_lt_borrowings_net,cash_flow,cff,1,rupees,Long-term borrowings raised/(repaid) (net)
+cf_st_borrowings_net,cash_flow,cff,1,rupees,Short-term borrowings raised/(repaid) (net)
+cf_finance_cost_paid,cash_flow,cff,1,rupees,Finance costs paid (negative)
+cf_dividends_paid,cash_flow,cff,1,rupees,Dividends paid (negative)
+cff,cash_flow,net_change_cash,1,rupees,Net cash from financing activities
+net_change_cash,cash_flow,closing_cash,1,rupees,Net increase/(decrease) in cash and cash equivalents
+opening_cash,cash_flow,closing_cash,1,rupees,Cash and cash equivalents at the beginning of the year
+closing_cash,cash_flow,,,rupees,Cash and cash equivalents at the end of the year

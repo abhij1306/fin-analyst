@@ -25,13 +25,22 @@ are ever compared. An account a document prints on several lines counts once, as
   and no overlap with another document cannot be caught this way.
 
 Only facts with a confirmed account take part. A check whose inputs are missing (no total line, or
-unmapped lines in the statement) does not run and says so in a warning event.
+unmapped lines in the statement) does not run and says so in a warning event. Unmapped lines that
+cannot be part of a subtotal do not stop the subtotal check: a nil line, a per-share line (EPS,
+face value), and on the P&L the split of profit between owners and non-controlling interests.
+
+Sign of exceptional and extraordinary items: they are stored as printed. Schedule III prints a
+charge as positive and subtracts it ("V - VI"), but some companies print a gain as positive and add
+it ("iii + iv"). The subtotal check tries the dictionary sign (-1) first, then +1, and the message
+says when the document adds them.
 
 Every check that runs is appended to the audit table `validation_results`, pass or fail. If any
 fails, `validate_document` raises the first failure's error (in the order above, unit_sanity before
-cross_document), so the document is rolled back and sent to review/ with expected vs actual.
+cross_document), so the document is rolled back and sent to review/ with expected vs actual and the
+lines each failed check used (label, section, page or cell, account).
 """
 
+import re
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -49,6 +58,7 @@ from fin.audit.errors import (
 from fin.config import load_config
 from fin.db.conn import connect
 from fin.extract.units import RUPEES_PER_UNIT
+from fin.map.normalize import normalize_label
 from fin.paths import dictionary_db_path
 
 if TYPE_CHECKING:
@@ -73,6 +83,12 @@ UNIT_FACTORS = sorted(
     {a / b for a in RUPEES_PER_UNIT.values() for b in RUPEES_PER_UNIT.values() if a > b}
 )
 SUBTOTAL_STATEMENTS = ("balance_sheet", "profit_and_loss")
+EITHER_SIGN = frozenset({"exceptional_items", "extraordinary_items"})
+# An unmapped P&L line whose label or heading matches this is never part of a subtotal.
+OUTSIDE_SUBTOTALS = re.compile(
+    r"\bper (?:equity )?share\b|\bbasic\b|\bdiluted\b|\bface value\b|\bnominal value\b"
+    r"|\bnumber of (?:equity )?shares\b|\battributable to\b"
+)
 
 Key = tuple[str, str]  # (period, scope)
 
@@ -87,6 +103,7 @@ class Result:
     tolerance: Decimal
     passed: bool
     message: str
+    accounts: tuple[str, ...] = ()  # the accounts whose lines the check used
 
 
 @dataclass(frozen=True)
@@ -114,14 +131,21 @@ def _figures(con: duckdb.DuckDBPyConnection, doc_id: int) -> dict[Key, dict[str,
 
 
 def _unmapped(con: duckdb.DuckDBPyConnection, doc_id: int) -> dict[tuple[str, str, str], int]:
-    """{(period, scope, statement): number of facts without a confirmed account}."""
+    """{(period, scope, statement): number of facts without a confirmed account that could be
+    part of a subtotal} (see OUTSIDE_SUBTOTALS; nil lines are left out too)."""
     rows = con.execute(
-        "SELECT f.period, f.scope, r.statement, count(*) FROM facts f "
+        "SELECT f.period, f.scope, r.statement, r.section, r.raw_label FROM facts f "
         "JOIN raw_values r USING (raw_id) "
-        "WHERE f.doc_id = ? AND (f.account IS NULL OR NOT f.confirmed) GROUP BY ALL",
+        "WHERE f.doc_id = ? AND (f.account IS NULL OR NOT f.confirmed) AND f.value <> 0",
         [doc_id],
     ).fetchall()
-    return {(year, scope, statement): count for year, scope, statement, count in rows}
+    counts: dict[tuple[str, str, str], int] = {}
+    for year, scope, statement, section, label in rows:
+        text = f"{normalize_label(label)} / {normalize_label(section)}"
+        if statement == "profit_and_loss" and OUTSIDE_SUBTOTALS.search(text):
+            continue
+        counts[(year, scope, statement)] = counts.get((year, scope, statement), 0) + 1
+    return counts
 
 
 def _compare(
@@ -131,6 +155,7 @@ def _compare(
     actual: Decimal,
     tolerances: dict[str, Decimal],
     what: str,
+    accounts: tuple[str, ...],
 ) -> Result:
     tolerance = tolerances[TOLERANCE[check]]
     difference = actual - expected
@@ -140,7 +165,7 @@ def _compare(
         f"{period} {scope}: {what}: expected {expected}, actual {actual}, difference {difference}, "
         f"tolerance {tolerance}"
     )
-    return Result(check, period, scope, expected, actual, tolerance, passed, message)
+    return Result(check, period, scope, expected, actual, tolerance, passed, message, accounts)
 
 
 def _line_sum(
@@ -148,18 +173,51 @@ def _line_sum(
     values: dict[str, Decimal],
     children: dict[str, list[str]],
     tree: dict[str, Account],
+    flip: frozenset[str] = frozenset(),
 ) -> Decimal | None:
     """The sum of `account`'s lines: each child as reported, or, when the document does not show
-    it, the sum of its own lines. None when the document shows none of them."""
+    it, the sum of its own lines. None when the document shows none of them. The accounts in
+    `flip` are added with the opposite of their dictionary sign."""
     total, found = Decimal(0), False
     for child in children.get(account, []):
         value = values.get(child)
         if value is None:
-            value = _line_sum(child, values, children, tree)
+            value = _line_sum(child, values, children, tree, flip)
         if value is not None:
-            total += tree[child].sign * value
+            sign = -tree[child].sign if child in flip else tree[child].sign
+            total += sign * value
             found = True
     return total if found else None
+
+
+def _subtotal(
+    key: Key,
+    account: str,
+    values: dict[str, Decimal],
+    children: dict[str, list[str]],
+    tree: dict[str, Account],
+    tolerances: dict[str, Decimal],
+) -> Result | None:
+    """Check one reported subtotal against the sum of its lines; None when it has none. When that
+    fails and the lines include exceptional or extraordinary items, try them added instead."""
+    total = _line_sum(account, values, children, tree)
+    if total is None:
+        return None
+    lines, i = [account], 0
+    while i < len(lines):  # the account and everything below it
+        lines += children.get(lines[i], [])
+        i += 1
+    what = f"{account} vs the sum of its lines"
+    used = tuple(lines)
+    result = _compare("subtotal", key, total, values[account], tolerances, what, used)
+    if result.passed or not EITHER_SIGN & values.keys():
+        return result
+    added = _line_sum(account, values, children, tree, EITHER_SIGN)
+    if added is None or added == total:
+        return result
+    what += " (exceptional or extraordinary items printed as a gain and added)"
+    alternative = _compare("subtotal", key, added, values[account], tolerances, what, used)
+    return alternative if alternative.passed else result
 
 
 def _in_document(
@@ -192,6 +250,8 @@ def _in_document(
                 "total_assets",
                 "total assets vs total equity and liabilities",
             ),
+            # Old-format "cash and bank balances" (cash_and_bank_balances) also holds other bank
+            # balances, so it is not compared with closing cash.
             ("cash_flow", "cash", "closing_cash", "cash flow closing cash vs balance-sheet cash"),
         ]
         for check, expected, actual, what in pairs:
@@ -199,21 +259,20 @@ def _in_document(
             if missing:
                 not_run(check, key, f"no confirmed {' or '.join(missing)} figure")
             else:
+                pair = (expected, actual)
                 results.append(
-                    _compare(check, key, values[expected], values[actual], tolerances, what)
+                    _compare(check, key, values[expected], values[actual], tolerances, what, pair)
                 )
         for statement in SUBTOTAL_STATEMENTS:
             lines = unmapped.get((*key, statement), 0)
             if lines:
                 not_run("subtotal", key, f"{lines} {statement} line(s) have no confirmed account")
                 continue
-            for account, value in sorted(values.items()):
-                if tree[account].statement != statement:
-                    continue
-                total = _line_sum(account, values, children, tree)
-                if total is not None:
-                    what = f"{account} vs the sum of its lines"
-                    results.append(_compare("subtotal", key, total, value, tolerances, what))
+            for account in sorted(values):
+                if tree[account].statement == statement:
+                    result = _subtotal(key, account, values, children, tree, tolerances)
+                    if result is not None:
+                        results.append(result)
     return results
 
 
@@ -236,11 +295,11 @@ def _across_documents(
         actual = figures.get((year, scope), {}).get(account)
         if actual is None:
             continue
-        what = f"{account} vs {other_file}"
-        result = _compare("cross_document", (year, scope), expected, actual, tolerances, what)
+        what, key = f"{account} vs {other_file}", (year, scope)
+        result = _compare("cross_document", key, expected, actual, tolerances, what, (account,))
         if not result.passed and _unit_factor(expected, actual, result.tolerance):
             what = f"{account} vs {other_file} differs by a unit factor"
-            result = _compare("unit_sanity", (year, scope), expected, actual, tolerances, what)
+            result = _compare("unit_sanity", key, expected, actual, tolerances, what, (account,))
         results.append(result)
     if not results:
         run.event(
@@ -333,7 +392,21 @@ def validate_document(
             "actual": str(r.actual),
             "tolerance": str(r.tolerance),
             "message": r.message,
+            "lines": _lines(con, doc_id, r),
         }
         for r in failures
     )
     raise error
+
+
+def _lines(con: duckdb.DuckDBPyConnection, doc_id: int, result: Result) -> list[dict[str, str]]:
+    """The document's lines behind a check's accounts, for that year and scope, as written."""
+    rows = con.execute(
+        "SELECT f.account, r.statement, r.section, r.raw_label, r.raw_value_text, "
+        "coalesce(r.sheet || '!' || r.cell, 'page ' || CAST(r.page AS VARCHAR)) "
+        "FROM facts f JOIN raw_values r USING (raw_id) WHERE f.doc_id = ? AND f.period = ? "
+        "AND f.scope = ? AND f.account IN (SELECT unnest(?)) ORDER BY f.raw_id",
+        [doc_id, result.period, result.scope, list(result.accounts)],
+    ).fetchall()
+    fields = ("account", "statement", "section", "label", "value_as_printed", "where")
+    return [dict(zip(fields, row, strict=True)) for row in rows]

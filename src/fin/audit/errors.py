@@ -66,9 +66,11 @@ class DocumentFailure(FinError):
     """Base for per-document failures (E1xx-E4xx): the command completes with failures."""
 
     exit_code = EXIT_FAILURES
-    # Validation failures (E4xx) set this to every failed check, with expected vs actual; it is
-    # written to review/<company>/<file>.error.json.
-    details: tuple[dict[str, str], ...] = ()
+    # Validation failures (E4xx) set this to every failed check, with expected vs actual and the
+    # lines it used; it is written to review/<company>/<file>.error.json.
+    details: tuple[dict[str, object], ...] = ()
+    # The labels of the rolled-back document that no mapping matched (statement, section, label).
+    unmapped: tuple[dict[str, str], ...] = ()
 
 
 class FileUnreadable(DocumentFailure):
