@@ -1,0 +1,94 @@
+---
+title: "{{title}}"
+subtitle: "{{subtitle}}"
+format:
+  html:
+    embed-resources: true
+    toc: true
+  docx:
+    toc: true
+  typst:
+    toc: true
+---
+
+<!--
+fin-analyst health report template (fin.report.render fills it; no code runs in Quarto).
+Placeholders:
+  {{title}}, {{subtitle}}
+  {{narrative:<section>}}  the narrative under that section's heading in narrative.md
+  {{table:<section>}}      the section's table (metrics and facts per fiscal year)
+  {{table:unconfirmed}}, {{table:failed_validations}}, {{table:missing_data}}, {{table:facts}}
+Every value in the tables comes from SQL on the company database (metrics, current_facts) and,
+for failed validations, the audit database.
+-->
+
+Analysis only: this report describes the financial statements. It makes no recommendation or
+rating.
+
+## Growth
+
+{{narrative:growth}}
+
+{{table:growth}}
+
+## Profitability
+
+{{narrative:profitability}}
+
+{{table:profitability}}
+
+## Cash flow quality
+
+{{narrative:cash_flow}}
+
+{{table:cash_flow}}
+
+## Working capital
+
+{{narrative:working_capital}}
+
+{{table:working_capital}}
+
+## Leverage and liquidity
+
+{{narrative:leverage}}
+
+{{table:leverage}}
+
+## Earnings quality
+
+{{narrative:earnings_quality}}
+
+{{table:earnings_quality}}
+
+## Observations
+
+{{narrative:observations}}
+
+## Data quality
+
+{{narrative:data_quality}}
+
+### Unconfirmed mappings
+
+Facts whose label mapping is not confirmed. Metrics leave them out until `fin review` confirms them.
+
+{{table:unconfirmed}}
+
+### Failed validations
+
+Documents rolled back because a validation check failed; their values are not in this report.
+
+{{table:failed_validations}}
+
+### Missing data
+
+Metrics with no value, and the inputs they lack.
+
+{{table:missing_data}}
+
+## Appendix: facts behind the metrics
+
+Every fact the metrics use, with its source file and sheet!cell or page.
+
+{{table:facts}}
