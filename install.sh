@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install fin-analyst on macOS. Safe to run again: it only installs what is missing.
-# Steps (PLAN.md §10): check macOS -> Homebrew -> brew bundle -> uv sync -> fin init -> fin doctor.
+# Steps (PLAN.md §10): check macOS -> Homebrew -> brew bundle -> uv sync -> npm ci -> fin init -> fin doctor.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,7 +66,9 @@ cd "$REPO_DIR"
 step "Syncing Python environment (uv sync --frozen)"
 uv sync --frozen
 
-# 5. Dashboards (npm ci --prefix dashboards) are added in Phase 10.
+# 5. Dashboard packages (exact versions from dashboards/package-lock.json; npm ci is safe to repeat)
+step "Installing dashboard packages (npm ci --prefix dashboards)"
+npm ci --prefix dashboards --no-audit --no-fund
 
 # 6. Data folder
 step "Creating data folder (fin init)"

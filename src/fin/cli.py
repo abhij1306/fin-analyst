@@ -19,6 +19,8 @@ from fin.audit.trace import (
     metric_trace,
 )
 from fin.config import SCOPES, load_config, write_default_config
+from fin.dashboard import build as build_dashboard
+from fin.dashboard import serve as serve_dashboard
 from fin.db.migrate import MigrationResult, ensure_current, migrate_all
 from fin.delete import delete_company
 from fin.doctor import run_checks
@@ -301,6 +303,23 @@ def sql_command(
         typer.echo(json.dumps(write_sql(run, company, sql), indent=2))
 
     execute("sql", {"company": company, "sql": sql, "write": write}, body)
+
+
+@app.command()
+def dashboard(
+    build: Annotated[
+        bool, typer.Option("--build", help="Make a static build instead of starting the server.")
+    ] = False,
+) -> None:
+    """Refresh the dashboard data, then start the Evidence dev server (or --build a static site)."""
+
+    def body(run: Run) -> None:
+        if build:
+            typer.echo(f"dashboard built: {build_dashboard(run.root)}")
+        else:
+            serve_dashboard(run.root)
+
+    execute("dashboard", {"build": build}, body)
 
 
 metrics_app = typer.Typer(no_args_is_help=True, help="Metrics and the analytics export.")

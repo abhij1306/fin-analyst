@@ -76,3 +76,40 @@ jobs:
           path: ${{ runner.temp }}/FinAnalysis/reports/kestrel/standalone/health.*
       # With Quarto on PATH the real-render test runs too (-rs lists any skip).
       - run: uv run pytest tests/integration/test_report.py tests/unit/test_report_lint.py -rs
+
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FIN_DATA_DIR: ${{ github.workspace }}/.fin-data
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboards/package-lock.json
+      - run: uv sync --frozen
+      - run: npm ci --prefix dashboards --no-audit --no-fund
+      - run: uv run fin init
+      - name: Ingest the clean synthetic companies
+        run: |
+          for company in kestrel bluepeak tarang; do
+            uv run fin ingest "$company" "tests/fixtures/sample-financials/clean/$company"
+          done
+      - run: uv run fin dashboard --build
+      - name: The built site has every page and the companies
+        # Pages load their query results from api/prerendered_queries (Arrow files), where the
+        # company names are stored.
+        run: |
+          build="$FIN_DATA_DIR/dashboard/build"
+          for page in index.html company/index.html compare/index.html quality/index.html; do
+            test -f "$build/$page" || { echo "$page missing from the build"; exit 1; }
+          done
+          for company in kestrel bluepeak tarang; do
+            grep -rq "$company" "$build/api/prerendered_queries" || { echo "$company missing from the built data"; exit 1; }
+          done
