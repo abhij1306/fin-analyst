@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from fin.audit.errors import PeriodsNotDetected
 from fin.extract.pdf import extract_pdf, period_end_in
 from tests.synthetic_pdf import write_pdf
 
@@ -29,6 +28,8 @@ def rows(path: Path) -> list[tuple[str, str, str | None, str, str]]:
         ("Mar 31, 2025", date(2025, 3, 31)),
         ("2023-24", date(2024, 3, 31)),
         ("Quarter ended 30.06.2025", date(2025, 6, 30)),
+        ("30-Sep-25", date(2025, 9, 30)),
+        ("3 0-06-2025", date(2025, 6, 30)),  # a date printed in two pieces
         ("April 1, 2023", None),  # an opening balance date, not a period end
         ("2023-25", None),
         ("Particulars", None),
@@ -234,29 +235,6 @@ def test_each_page_keeps_its_scope_continued_pages_and_skipped_pages(tmp_path: P
     assert [(s.page, s.statement, s.error.code) for s in result.skipped] == [
         (4, "balance_sheet", "E202")
     ]
-
-
-def test_quarterly_results_fail_with_e202_and_say_why(tmp_path: Path) -> None:
-    path = write_pdf(
-        tmp_path / "q2.pdf",
-        [(50, 50, "Statement of Unaudited Standalone Financial Results for the quarter ended")],
-        [
-            (50, 50, "Standalone Statement of Cash Flows for the half year ended September 30"),
-            (50, 65, "(Rs. in Lakhs)"),
-            (380, 85, "30.09.2025"),
-            (470, 85, "30.09.2024"),
-            (50, 105, "Net cash from operating activities"),
-            (390, 105, "10.00"),
-            (480, 105, "9.00"),
-        ],
-    )
-
-    with pytest.raises(PeriodsNotDetected) as caught:
-        extract_pdf(path)
-
-    assert caught.value.code == "E202"
-    assert "is a quarterly or half-year results statement" in caught.value.message
-    assert "period columns end 2025-09-30, 2024-09-30" in caught.value.message
 
 
 def test_landscape_spread_is_read_as_two_half_pages(tmp_path: Path) -> None:

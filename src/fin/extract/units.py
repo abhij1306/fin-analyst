@@ -16,12 +16,17 @@ _UNIT = re.compile(
     r"(?:\bin\s+|₹\s*|\brs\.?\s*|\binr\s+)(rupees|thousands?|lakhs?|lacs?|millions?|crores?)\b",
     re.I,
 )
+# A line that is only a unit, after a currency sign the text layer garbled ("a: Crores").
+_UNIT_LINE = re.compile(
+    r"^[^\w\s]{0,3}\w?[^\w\s]{0,3}\s*(rupees|thousands?|lakhs?|lacs?|millions?|crores?)\W{0,2}$",
+    re.I,
+)
 _PAISE = Decimal("0.01")
 
 
 def unit_in(text: str) -> str | None:
     """The unit named in `text` ("lakh", "crore", ...), or None."""
-    match = _UNIT.search(text)
+    match = _UNIT.search(text) or _UNIT_LINE.match(text.strip())
     if match is None:
         return None
     word = match.group(1).lower().rstrip("s")

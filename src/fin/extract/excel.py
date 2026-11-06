@@ -6,8 +6,10 @@ Each sheet is read top to bottom:
    loss, cash flow), the scope (standalone or consolidated) and the unit line ("₹ in Lakhs").
    A sheet whose title names no statement (a cover page, notes) is skipped.
 2. The header is the first row with a period cell: a date ("31.03.2025", "31-Mar-2025",
-   "31 March 2025", an Excel date) alone or after "As at" / "Year ended". Each such cell starts a
-   value column, so any number of years side by side works.
+   "31 March 2025", an Excel date) alone or after "As at" / "Year ended" / "Quarter ended" /
+   "Half year ended" / "Nine months ended". Each such cell starts a value column, so any number of
+   periods side by side works. The words before the date give the period length
+   (`fin.extract.periods`); ingest names the period ("FY25", "FY26-Q1").
 3. Below the header, a row with a label and numbers in the period columns is a value row; a row
    with a label and no numbers is a section heading for the rows under it.
 
@@ -36,6 +38,7 @@ from fin.audit.errors import (
     PeriodsNotDetected,
     UnitNotDetected,
 )
+from fin.extract.periods import months_in
 from fin.extract.units import to_rupees, unit_in
 
 # An encrypted .xlsx is not a zip file but an OLE compound file with this signature.
@@ -43,7 +46,10 @@ _OLE_SIGNATURE = bytes.fromhex("d0cf11e0a1b11ae1")
 
 _MONTH_NAMES = "jan feb mar apr may jun jul aug sep oct nov dec".split()
 _MONTHS = {name: number for number, name in enumerate(_MONTH_NAMES, start=1)}
-_PERIOD_PREFIX = r"(?:(?:as\s+(?:at|on)|(?:for\s+the\s+)?(?:year|period)\s+ended)\s+)?"
+_PERIOD_PREFIX = (
+    r"(?:(?:as\s+(?:at|on)|(?:for\s+the\s+)?(?:year|period|quarter|half[\s-]*year"
+    r"|(?:three|six|nine|twelve)\s+months?)\s+(?:ended|ending))\s+)?"
+)
 _PERIOD_PATTERNS = (
     # 31.03.2025, 31/03/2025, 31-03-2025
     (re.compile(rf"^{_PERIOD_PREFIX}(\d{{1,2}})[./-](\d{{1,2}})[./-](\d{{4}})$"), "dmy"),
@@ -77,6 +83,7 @@ class ExcelValue:
     unit_text: str  # the unit line as written, e.g. "(₹ in Lakhs)"
     unit: str  # lakh, crore, ...
     period_end: date
+    months: int | None  # period length the header cell names (fin.extract.periods.months_in)
     rupees: Decimal
 
 
@@ -180,9 +187,15 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
     title_parts = [sheet.title]
     header_row: int | None = None
     periods: dict[int, date] = {}  # column index -> period end
+    lengths: dict[int, int | None] = {}  # column index -> period length its header names
     for row in sheet.iter_rows():
         periods = {c.column: p for c in row if (p := parse_period(c.value)) is not None}
         if periods:
+            lengths = {
+                c.column: months_in(c.value) if isinstance(c.value, str) else None
+                for c in row
+                if c.column in periods
+            }
             header_row = row[0].row
             break
         title_parts.extend(str(c.value) for c in row if c.value is not None)
@@ -239,6 +252,7 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
                     unit_text=unit_text,
                     unit=unit,
                     period_end=periods[cell.column],
+                    months=lengths[cell.column],
                     rupees=to_rupees(number, unit),
                 )
             )
