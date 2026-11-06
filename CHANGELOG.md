@@ -1,13 +1,20 @@
 # Changelog
 
-All notable changes to this project. Versions follow semantic versioning; `v1.0.0` is tagged in Phase 12.
+All notable changes to this project. Versions follow semantic versioning.
 
-## [1.0.0] - planned, not yet tagged
+## [1.0.0] - 2026-11-07
 
-The first release is the state of `main` after Phase 12's clean-machine test passes. The `v1.0.0` tag is created then, and
-the sections below move under this heading.
+First release: Phases 0-12 below. How it was tested:
+- CI on every PR (Linux): ruff, shellcheck, the full pytest suite, a real Quarto render of a sample report, and an
+  Evidence dashboard build from the sample companies.
+- After every merge (macOS runner): `install.sh` from a fresh clone, run twice with no changes, `fin doctor`, full pytest.
+- End to end from a fresh clone on a separate Linux machine: batch ingest of all sample companies, every broken file
+  failing with its error code, duplicates skipped, `fin query` with sources, an evidence page, `fin sql --write` with
+  backup, `fin audit` metric trace to cells, report render (HTML, Word, PDF), `fin delete` keeping the audit trail, and
+  the dashboard pages.
 
-## [Unreleased]
+Not yet done: the clean-machine test on a new macOS user account driving the workflow from Claude Code using only the
+README (PLAN.md Phase 12). Run it before relying on the README for a new user.
 
 ### Phase 0: Repo, install, guardrails
 
