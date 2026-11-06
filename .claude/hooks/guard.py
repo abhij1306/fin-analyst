@@ -1,12 +1,14 @@
-"""PreToolUse guard: block Claude Code actions that bypass `fin` (PLAN.md §8).
+"""PreToolUse guard: ask the user before Claude Code changes or deletes data (PLAN.md §8).
 
-Blocks, with error E701:
-- opening any .duckdb file in the data folder except through `fin`
+Guardrails prevent accidents only; they never stop Claude doing what the user asked.
+Each guarded action gets a Claude Code confirmation prompt ("ask", code E701):
 - rm, mv (also rmdir, unlink, find -delete), redirects or tee writing into the data folder
-- `fin delete` and `fin review confirm` (human-only)
+- opening any .duckdb file in the data folder except through `fin`
+- `fin delete` and `fin review confirm`
 
-Exit code 2 tells Claude Code to block the call; stderr is shown to Claude.
-Fails closed: input that cannot be parsed is blocked.
+The hook always exits 0. For a guarded action it prints the decision JSON on stdout and logs it to
+claude_actions.jsonl with "decision": "ask"; otherwise it prints nothing and the call goes ahead.
+Input that cannot be parsed also gets "ask", never a silent allow.
 """
 
 import json
@@ -22,7 +24,6 @@ from log_action import append_action, build_record
 from fin.paths import data_dir
 
 CODE = "E701"
-BLOCK_EXIT = 2
 
 FILE_TOOLS = {
     "Read": "file_path",
@@ -139,23 +140,23 @@ def check_bash(command: str, cwd: Path, root: Path) -> str | None:
             for human_only in (["delete"], ["review", "confirm"]):
                 if sub[: len(human_only)] == human_only:
                     command_name = " ".join(human_only)
-                    return f"`fin {command_name}` is human-only; ask the user to run it"
+                    return f"`fin {command_name}` changes data"
 
         if name in DELETERS and _paths_in_data(args, cwd, root):
-            return f"`{name}` on the data folder ({root}) is not allowed"
+            return f"`{name}` on the data folder ({root})"
         if name == "find" and "-delete" in args and _paths_in_data(args, cwd, root):
-            return f"`find -delete` on the data folder ({root}) is not allowed"
+            return f"`find -delete` on the data folder ({root})"
         if name == "tee" and _paths_in_data(args, cwd, root):
-            return f"writing into the data folder ({root}) with tee is not allowed"
+            return f"`tee` into the data folder ({root})"
         for index, token in enumerate(words[:-1]):
             if token in REDIRECTS and _in_data(words[index + 1], cwd, root):
-                return f"redirecting output into the data folder ({root}) is not allowed"
+                return f"redirecting output into the data folder ({root})"
 
         if not _is_fin(rest):
             for token in words:
                 for match in DUCKDB_PATH.findall(token):
                     if _in_data(match, cwd, root):
-                        return f"{match} is a database in the data folder; use `fin` commands"
+                        return f"{match} is a data-folder database opened outside `fin`"
 
         if name in SHELLS and "-c" in args[:-1]:
             reason = check_bash(args[args.index("-c") + 1], cwd, root)
@@ -169,7 +170,7 @@ def check_bash(command: str, cwd: Path, root: Path) -> str | None:
 
 
 def check(tool_name: str, tool_input: dict[str, Any], cwd: Path, root: Path) -> str | None:
-    """Return the reason to block this tool call, or None to allow it."""
+    """Return the reason to ask the user before this tool call, or None to allow it."""
     if tool_name == "Bash":
         command = tool_input.get("command")
         if not isinstance(command, str):
@@ -179,30 +180,40 @@ def check(tool_name: str, tool_input: dict[str, Any], cwd: Path, root: Path) -> 
     if field:
         target = tool_input.get(field)
         if isinstance(target, str) and DUCKDB_PATH.search(target) and _in_data(target, cwd, root):
-            return f"{target} is a database in the data folder; use `fin` commands"
+            return f"{target} is a data-folder database opened outside `fin`"
     return None
 
 
+def ask(payload: dict[str, Any], reason: str) -> int:
+    """Print the "ask" decision so Claude Code shows the user a confirmation prompt, and log it."""
+    decision = {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "ask",
+        "permissionDecisionReason": f"{CODE}: {reason}. Approve only if you asked for this change.",
+    }
+    sys.stdout.write(json.dumps({"hookSpecificOutput": decision}) + "\n")
+    try:
+        append_action(build_record(payload, decision="ask", code=CODE, reason=reason))
+    except OSError as exc:
+        sys.stderr.write(f"{CODE}: could not log the confirmation request: {exc}\n")
+    return 0
+
+
 def main() -> int:
+    payload: Any = None
     try:
         payload = json.loads(sys.stdin.read())
         tool_name = payload["tool_name"]
         tool_input = payload.get("tool_input") or {}
         cwd = Path(payload["cwd"]) if payload.get("cwd") else Path.cwd()
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
-        sys.stderr.write(f"{CODE}: guard could not read hook input ({exc!r}); blocked\n")
-        return BLOCK_EXIT
+        known = payload if isinstance(payload, dict) else {}
+        return ask(known, f"guard could not read hook input ({exc!r})")
 
     reason = check(tool_name, tool_input, cwd, data_dir())
     if reason is None:
         return 0
-
-    sys.stderr.write(f"{CODE}: blocked by guard: {reason}\n")
-    try:
-        append_action(build_record(payload, blocked=True, code=CODE, reason=reason))
-    except OSError as exc:
-        sys.stderr.write(f"{CODE}: could not log the block: {exc}\n")
-    return BLOCK_EXIT
+    return ask(payload, reason)
 
 
 if __name__ == "__main__":
