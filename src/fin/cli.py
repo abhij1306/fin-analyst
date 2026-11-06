@@ -18,7 +18,7 @@ from fin.audit.trace import (
     format_metric_trace,
     metric_trace,
 )
-from fin.config import load_config, write_default_config
+from fin.config import SCOPES, load_config, write_default_config
 from fin.db.migrate import MigrationResult, ensure_current, migrate_all
 from fin.delete import delete_company
 from fin.doctor import run_checks
@@ -31,6 +31,7 @@ from fin.paths import company_db_path, ensure_data_folder, inbox_dir
 from fin.query.evidence import write_evidence
 from fin.query.run import query
 from fin.query.write import write_sql
+from fin.report.render import make_report
 from fin.update import update as run_update
 
 app = typer.Typer(
@@ -384,3 +385,31 @@ def update_command() -> None:
         typer.echo("update finished" if not run.failed else "update finished; fin doctor failed")
 
     execute("update", {}, body)
+
+
+def _scope(value: str | None) -> str | None:
+    if value is not None and value not in SCOPES:
+        raise typer.BadParameter(f"use one of: {', '.join(SCOPES)}")
+    return value
+
+
+@app.command("report")
+def report_command(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    scope: Annotated[
+        str | None,
+        typer.Option("--scope", callback=_scope, help="standalone or consolidated."),
+    ] = None,
+    render: Annotated[
+        bool,
+        typer.Option("--render", help="Only render: fail (E601) if there is no narrative yet."),
+    ] = False,
+) -> None:
+    """Health report. The first run writes reports/<company>/<scope>/narrative.md (fill it with
+    /report); the next run lints it (E602 on hand-typed numbers) and renders HTML, docx and PDF.
+    A failed render (E601) keeps the last good report."""
+
+    def body(run: Run) -> None:
+        typer.echo(json.dumps(make_report(run, company, scope, render), indent=2))
+
+    execute("report", {"company": company, "scope": scope, "render": render}, body)

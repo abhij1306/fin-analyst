@@ -40,3 +40,39 @@ jobs:
           cache-dependency-glob: uv.lock
       - run: uv sync --frozen
       - run: uv run pytest --durations=10
+
+  # Phase 9: render the synthetic company's health report with Quarto (HTML, docx, Typst PDF).
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: quarto-dev/quarto-actions/setup@v2.2.0
+        with:
+          version: 1.10.19
+      - run: uv sync --frozen
+      - run: echo "FIN_DATA_DIR=$RUNNER_TEMP/FinAnalysis" >> "$GITHUB_ENV"
+      - name: Ingest Kestrel and render its report from the sample narrative
+        run: |
+          uv run fin init
+          uv run fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
+          mkdir -p "$FIN_DATA_DIR/reports/kestrel/standalone"
+          cp tests/fixtures/report/kestrel_narrative.md "$FIN_DATA_DIR/reports/kestrel/standalone/narrative.md"
+          uv run fin report kestrel --render
+      - name: All three formats exist
+        run: |
+          cd "$FIN_DATA_DIR/reports/kestrel/standalone"
+          for file in health.html health.docx health.pdf; do
+            test -s "$file" || { echo "missing $file"; exit 1; }
+          done
+          ls -l
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kestrel-report
+          path: ${{ runner.temp }}/FinAnalysis/reports/kestrel/standalone/health.*
+      # With Quarto on PATH the real-render test runs too (-rs lists any skip).
+      - run: uv run pytest tests/integration/test_report.py tests/unit/test_report_lint.py -rs
