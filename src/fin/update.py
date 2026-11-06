@@ -4,7 +4,8 @@
 2. Back up every database to `backups/<run_id>/`.
 3. `git pull --ff-only`, `uv sync --frozen`, and `npm ci` (only if `dashboards/package-lock.json`
    exists).
-4. `fin migrate`, then `fin doctor`, run as new processes so they use the freshly pulled code.
+4. `fin migrate`, `fin metrics refresh`, then `fin doctor`, run as new processes so they use the
+   freshly pulled code.
 
 Each step is logged as an event. A failing step stops the update with E005.
 """
@@ -64,6 +65,7 @@ def update(run: Run) -> None:
         _run(run, "npm ci", NPM_CI, repo)
 
     _run(run, "fin migrate", [*FIN, "migrate"], repo)
+    _run(run, "fin metrics refresh", [*FIN, "metrics", "refresh"], repo)
     doctor = _run(run, "fin doctor", [*FIN, "doctor"], repo, must_succeed=False)
     if doctor.returncode != 0:
         run.failed += 1

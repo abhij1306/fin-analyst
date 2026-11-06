@@ -15,6 +15,7 @@ from fin.audit.trace import (
     fact_trace,
     format_fact_trace,
     format_history,
+    format_metric_trace,
     metric_trace,
 )
 from fin.config import load_config, write_default_config
@@ -311,6 +312,7 @@ def metrics_refresh() -> None:
     ingest."""
     execute("metrics refresh", {}, lambda run: _echo_refresh(refresh_analytics(run)))
 
+
 @app.command("audit")
 def audit_command(
     company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
@@ -330,10 +332,13 @@ def audit_command(
         if fact is not None:
             result, text = fact_trace(run.root, company, fact), format_fact_trace
         elif metric is not None and fiscal_year is not None:
-            result, text = metric_trace(run.root, company, metric, fiscal_year), None
+            result, text = (
+                metric_trace(run.root, company, metric, fiscal_year),
+                format_metric_trace,
+            )
         else:
             result, text = company_history(run.root, company), format_history
-        if json_output or text is None:
+        if json_output:
             typer.echo(json.dumps(result, indent=2, default=str))
         else:
             typer.echo(text(result))

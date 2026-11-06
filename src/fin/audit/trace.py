@@ -2,7 +2,7 @@
 
 - `fact_trace`: fact -> mapping (dictionary row and review decisions) -> raw value -> file and
   `sheet!cell` or `page N`, plus the ingest run that loaded it.
-- `metric_trace`: metric -> facts, then each fact as above. It needs Phase 7's `metric_inputs`.
+- `metric_trace`: metric -> facts (`metric_inputs`), then each fact as above.
 - `company_history`: ingests, reviews, queries, writes, reports, validation failures and deletions
   from the audit database.
 
@@ -15,7 +15,7 @@ from typing import Any
 
 import duckdb
 
-from fin.audit.errors import DependencyMissing, SqlFailed
+from fin.audit.errors import SqlFailed
 from fin.db.conn import connect
 from fin.map.normalize import normalize_label
 from fin.paths import audit_db_path, company_db_path, dictionary_db_path
@@ -121,12 +121,62 @@ def _ingest_run(root: Path, run_id: str, event_file: str) -> dict[str, Any]:
     return run | {"events": events}
 
 
+def _trace_or_none(root: Path, company: str, fact_id: int | None) -> dict[str, Any] | None:
+    return None if fact_id is None else fact_trace(root, company, fact_id)
+
+
 def metric_trace(root: Path, company: str, metric: str, fiscal_year: str) -> dict[str, Any]:
-    """Trace a metric to its facts. Needs `metric_inputs` from Phase 7, which is not built yet."""
-    raise DependencyMissing(
-        f"metrics not available yet: cannot trace {metric} {fiscal_year} for {company}. "
-        "Trace a single figure with `fin audit <company> --fact <fact_id>`"
-    )
+    """Trace a metric to the facts it used (`metric_inputs`), and each fact to its source. One entry
+    per scope. An input with no fact (fact_id null) is why the metric is null. Raises E504 if the
+    company has no such metric and year."""
+    with connect(company_db_path(root, company)) as con:
+        values = _rows(
+            con,
+            "SELECT scope, value, unit FROM metrics WHERE metric = ? AND fiscal_year = ? "
+            "ORDER BY scope",
+            [metric, fiscal_year],
+        )
+        inputs = _rows(
+            con,
+            "SELECT scope, account, stands_in_for, input_fiscal_year, fact_id FROM metric_inputs "
+            "WHERE metric = ? AND fiscal_year = ? ORDER BY scope, stands_in_for NULLS FIRST, "
+            "account",
+            [metric, fiscal_year],
+        )
+    if not values:
+        raise SqlFailed(f"{company} has no metric {metric!r} for {fiscal_year}")
+    scopes = []
+    for entry in values:
+        rows = [
+            {key: row[key] for key in ("account", "stands_in_for", "input_fiscal_year", "fact_id")}
+            | {"trace": _trace_or_none(root, company, row["fact_id"])}
+            for row in inputs
+            if row["scope"] == entry["scope"]
+        ]
+        scopes.append(entry | {"inputs": rows})
+    return {"company": company, "metric": metric, "fiscal_year": fiscal_year, "scopes": scopes}
+
+
+def format_metric_trace(trace: dict[str, Any]) -> str:
+    lines = []
+    for scope in trace["scopes"]:
+        lines.append(
+            f"{trace['metric']} {trace['fiscal_year']} {scope['scope']} = {scope['value']} "
+            f"({scope['unit']})"
+        )
+        for item in scope["inputs"]:
+            if item["trace"] is None:
+                lines.append(f"  {item['account']} {item['input_fiscal_year']}: MISSING (no fact)")
+                continue
+            traced = item["trace"]
+            fact, raw, doc = traced["fact"], traced["raw_value"], traced["document"]
+            via = f" (stands in for {item['stands_in_for']})" if item["stands_in_for"] else ""
+            lines.append(
+                f"  {item['account']}{via} {item['input_fiscal_year']}: {fact['value']} "
+                f"= fact {fact['fact_id']}, {doc['file_name']} {raw['source']}, "
+                f"mapping confirmed: {fact['confirmed']}"
+            )
+    return "\n".join(lines)
 
 
 def company_history(root: Path, company: str) -> dict[str, Any]:

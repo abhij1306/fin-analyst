@@ -17,7 +17,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 8 | Query and evidence | Done |
 | 9 | Reports | Not started |
 | 10 | Dashboards | Not started |
-| 11 | Audit, delete, update | Done (metric-level trace waits for Phase 7) |
+| 11 | Audit, delete, update | Done |
 | 12 | Release | Not started |
 
 ---

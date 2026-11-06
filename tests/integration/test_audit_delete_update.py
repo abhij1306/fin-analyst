@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 from collections.abc import Callable
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,7 @@ from typer.testing import CliRunner, Result
 import fin.update
 from fin.cli import app
 from fin.db.conn import connect
-from fin.paths import company_db_path
+from fin.paths import analytics_db_path, company_db_path
 
 runner = CliRunner()
 SAMPLES = Path(__file__).resolve().parents[1] / "fixtures" / "sample-financials"
@@ -80,10 +81,32 @@ def test_audit_unknown_fact_is_e504(kestrel: Path) -> None:
     assert "E504" in result.output
 
 
-def test_audit_metric_is_not_available_yet(kestrel: Path) -> None:
-    result = invoke("audit", "kestrel", "current_ratio", "FY25")
+def test_audit_traces_a_metric_to_its_cells(kestrel: Path) -> None:
+    result = invoke("audit", "kestrel", "ebitda", "FY25", "--json")
+    assert result.exit_code == 0, result.output
+    trace = json.loads(result.stdout)
+
+    (scope,) = trace["scopes"]
+    assert scope["scope"] == "standalone"
+    assert scope["unit"] == "rupees"
+    document = KEY["companies"]["kestrel"]["documents"][0]
+    cells = document["locations"]["FY25"]
+    facts = KEY["companies"]["kestrel"]["facts"]["standalone"]["FY25"]
+    inputs = {item["account"]: item["trace"] for item in scope["inputs"]}
+    assert sorted(inputs) == ["depreciation", "finance_cost", "other_income", "pbt"]
+    for account, traced in inputs.items():
+        assert traced["raw_value"]["source"] == cells[account]
+        assert traced["document"]["file_name"] == KESTREL_FILE
+        assert traced["fact"]["value"] == f"{facts[account]}.00"
+    expected = facts["pbt"] + facts["finance_cost"] + facts["depreciation"] - facts["other_income"]
+    assert Decimal(scope["value"]) == expected
+    assert cells["pbt"] in invoke("audit", "kestrel", "ebitda", "FY25").stdout
+
+
+def test_audit_unknown_metric_is_e504(kestrel: Path) -> None:
+    result = invoke("audit", "kestrel", "no_such_metric", "FY25")
     assert result.exit_code == 2
-    assert "metrics not available yet" in result.output
+    assert "E504" in result.output
 
 
 def test_audit_history_lists_ingest_and_query(kestrel: Path) -> None:
@@ -136,6 +159,11 @@ def test_delete_removes_company_keeps_audit_trail(
         assert not (root / folder / "kestrel").exists()
     assert list((root / "evidence").glob("*.html")) == []
     assert (root / "inbox" / "other").is_dir()
+
+    # The company's rows are gone from the analytics export.
+    with connect(analytics_db_path(root)) as con:
+        assert con.execute("SELECT count(*) FROM metrics").fetchone()[0] == 0
+        assert con.execute("SELECT count(*) FROM companies").fetchone()[0] == 0
 
     # The backup holds what was removed.
     backup = root / payload["backup_path"]
@@ -231,7 +259,7 @@ def test_update_pulls_backs_up_and_migrates(
         "SELECT db_file, to_version, backup_path, status FROM migrations "
         "WHERE db_file = 'companies/old.duckdb'"
     )
-    assert (to_version, status) == (1, "applied")
+    assert (to_version, status) == (2, "applied")
     assert (data_root / backup_path).is_file()
     run_id = audit_query("SELECT run_id FROM runs WHERE command = 'update' AND record = 'start'")[
         0
@@ -250,6 +278,7 @@ def test_update_pulls_backs_up_and_migrates(
         "git pull",
         "uv sync",
         "fin migrate",
+        "fin metrics refresh",
         "fin doctor",
     ]
 

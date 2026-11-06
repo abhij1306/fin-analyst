@@ -402,25 +402,27 @@ Added
   with the raw value as written, the dictionary mapping row, every review decision about the label, the archived copy,
   and the ingest run with its events (`fin.audit.trace`). `fin audit <company>` lists the company's history from the audit
   database: runs (ingests, reviews, writes, with their warnings and errors), mapping decisions, queries, reports,
-  validation failures and deletions. `fin audit <company> <metric> <fy>` exists but stops with E001 "metrics not
-  available yet" until Phase 7's `metric_inputs` is merged.
+  validation failures and deletions. `fin audit <company> <metric> <fy>` traces a metric through Phase 7's
+  `metric_inputs` to its facts (one entry per scope), and each fact to its file and cell or page; an input with no
+  fact shows as MISSING.
 - `/audit` slash command.
 - `fin delete <company>`: needs the company name typed back, or `--yes` (for Claude to use when the user asked; the guard
   hook still asks). It copies everything it removes to `backups/<run_id>/` first, then removes `companies/<co>.duckdb`
   (+ `.wal`), `inbox/`, `archive/`, `review/`, `notes/` and `reports/` of the company, and the evidence pages of its
   queries. It appends a `deletions` row (files removed, row counts, backup path). Audit rows are never touched; mappings
-  the company confirmed stay in the shared dictionary. A wrong name exits 3 (E701) and changes nothing.
+  the company confirmed stay in the shared dictionary. The analytics export is rebuilt afterwards
+  (`refresh_analytics`), which drops the company's rows from `shared/analytics.duckdb`. A wrong name exits 3 (E701) and changes nothing.
 - `fin update`: refuses if the repo has local changes, backs up every database to `backups/<run_id>/`, then
   `git pull --ff-only`, `uv sync --frozen`, `npm ci --prefix dashboards` (only if `dashboards/package-lock.json`
   exists), `fin migrate` and `fin doctor`. `fin migrate` and `fin doctor` run as new processes (`uv run --frozen fin`),
-  so they use the freshly pulled code. Each step is an audit event; a failing step stops with E005. A failing
+  so they use the freshly pulled code. `fin metrics refresh` runs between them, because new metric views change the
+  analytics export. Each step is an audit event; a failing step stops with E005. A failing
   `fin doctor` ends the update with exit 1.
 - `python -m fin` (`src/fin/__main__.py`).
 - Error E005 (`UpdateFailed`), added to PLAN.md §9.
 
 Deviations
 - PLAN.md §10 says `backups/<timestamp>/`; backups are in `backups/<run_id>/`, like every other backup.
-- The metric-level trace is not built (see above); `fin audit` is fact-level only for now.
 
 Human follow-ups
 - Run `fin update` once on a real clone with Homebrew's uv and node (the test replaces the uv and npm steps).

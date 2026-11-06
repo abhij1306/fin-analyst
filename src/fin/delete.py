@@ -19,6 +19,7 @@ from pathlib import Path
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing
 from fin.audit.logger import Run
 from fin.db.conn import connect
+from fin.metrics.export import refresh_analytics
 from fin.paths import (
     archive_dir,
     audit_db_path,
@@ -110,6 +111,7 @@ def delete_company(run: Run, company: str) -> dict[str, object]:
             },
         )
     run.event("delete", f"{company}: removed {len(removed)} paths", context={"removed": removed})
+    refresh_analytics(run)  # drops the company's rows from shared/analytics.duckdb
     return {
         "company": company,
         "files_removed": removed,
