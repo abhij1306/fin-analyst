@@ -24,11 +24,13 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
-- `metrics/export.py`: copies every company's `metrics` view to `shared/analytics.duckdb`.
+- `metrics/export.py`: copies every company's metrics, metric definitions, standard statements, findings,
+  coverage, unread pages and unverified facts to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
 - `statements.py`: the `standard_statements` view (made per connection from the dictionary's account tree) and
   `fin statements`. `workbook.py`: `fin export` (the Excel workbook).
 - `query/`: `run.py` (`fin query`), `write.py` (`fin sql --write`), `evidence.py` (evidence pages).
-- `report/`: `data.py` (sections and labels), `lint.py` (the no-typed-numbers rule), `render.py` (Quarto).
+- `report/`: `data.py` (what the report reads, categories, labels, tables), `chart.py` (the SVG line chart),
+  `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).
 - `delete.py`, `update.py`, `doctor.py`: `fin delete`, `fin update`, `fin doctor`.
 - Outside `src/`: `templates/dictionary/` (seed CSVs), `templates/report/health.qmd`, `.claude/commands/` (slash
   commands), `.claude/hooks/` (action log), `dashboards/` (Evidence project).
@@ -36,6 +38,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 ## Add an account or a label to the dictionary seed
 
 - Account: add a row to `templates/dictionary/schedule_iii.csv` (`account,statement,parent,sign,unit,description`).
+  The description starts with the line name statements show, up to the first `;` or bracket
+  (`Other comprehensive income items; one line of ...`).
   `parent` is the subtotal it adds into and `sign` is 1 or -1; the validation gates use them. `unit` is `rupees`, or
   `rupees_per_share` for a per-share figure such as EPS: it is stored as printed (not scaled by the statement's unit)
   and cannot have a parent. `uv run fin map accounts` prints the tree.
@@ -138,14 +142,24 @@ up is for the user to see and decide.
 
 ## Add a report section
 
-A section is a heading in `templates/report/health.qmd` plus an entry in `SECTIONS` in `src/fin/report/data.py`
-(`(key, title, [("metric", name) or ("fact", account), ...])`).
+The report is built in `src/fin/report/`: `data.py` reads the data (`collect`) and turns it into Markdown tables;
+`render.py` fills `templates/report/health.qmd`. A narrative section is a key in `TITLES` (`data.py`): the stub
+gets a `## <Title>` heading for it, and `{{narrative:<key>}}` in the template places the text.
 
-1. Add the entry to `SECTIONS`.
-2. Add `## <Title>`, `{{narrative:<key>}}` and `{{table:<key>}}` to `health.qmd`, in the same order.
-3. Update `.claude/commands/report.md` only if the way the narrative is written changes.
-4. Test: extend `tests/integration/test_report.py`. The narrative never contains typed numbers; it uses
-   `{{metric:name:FY25}}` and `{{fact:account:FY25}}` (the lint in `report/lint.py` enforces it).
+- **A metric category** (a metric whose `metric_definitions.category` is new): add `(category, title)` to
+  `CATEGORIES` in `data.py`. Its section (heading, narrative, trend table of every metric in the category, chart)
+  is made by `category_section` in `render.py` and appears whenever the company has such a metric. Optionally list
+  up to four same-unit metrics in `CHARTS` for its chart, and display names in `LABELS`; ratios shown as times go
+  in `TIMES` (every other ratio is a percentage).
+- **A metric in the summary or peer table:** add `("metric", name)` or `("fact", account)` to `KEY_ROWS`.
+- **A new fixed section** (one table): add its key and title to `TITLES` and to `sections()` in `render.py`, a
+  function in `data.py` that returns its Markdown table, and an entry in the `tables` dict in `build` (`render.py`);
+  then put `## <Title>`, `{{narrative:<key>}}` and `{{table:<key>}}` in `health.qmd`. Read new data in `collect`
+  with SQL, so the data hash covers it.
+- Update `.claude/commands/report.md` with what to write under the new heading.
+- Test: extend `tests/integration/test_report.py` (the fake Quarto keeps the filled template as the HTML, so assert
+  table lines in it). The narrative never contains typed numbers; it uses `{{metric:name:FY25}}`,
+  `{{metric:name:FY26-Q1}}` and `{{fact:account:FY25}}` (the lint in `report/lint.py` enforces it).
 
 ## Change the PDF parser
 

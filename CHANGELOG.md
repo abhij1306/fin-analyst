@@ -4,6 +4,54 @@ All notable changes to this project. Versions follow semantic versioning.
 
 ## [Unreleased]
 
+### Reports and dashboards for the full metric set
+
+- **EBITDA from profit before exceptional items.** EBITDA = PBT before exceptional items + finance costs +
+  depreciation - other income (other income treated as before). PBT before exceptional items is PBT when the period
+  prints no exceptional or extraordinary items (or prints them as nil); otherwise the printed "Profit before
+  exceptional items and tax" plus any share of associates and joint ventures. Exceptional items are stored as
+  printed with either sign, so their sign is never guessed; a period that prints exceptional items but not the
+  subtotal before them has no EBITDA (its missing input is listed). EBITDA margin, debt/EBITDA, net debt/EBITDA,
+  interest cover, CFO/EBITDA, EBITDA growth and CAGR and TTM EBITDA follow. `metric_inputs` lists only the lines a
+  period uses. The synthetic companies print no exceptional items, so their answer keys are unchanged (the key's
+  conventions text now says so); a new test loads a PDF with exceptional items both ways and checks EBITDA,
+  margin, growth and interest cover against values worked out by hand.
+- **Statements in the documents' unit.** `fin statements` and `fin export` show money in the unit the company's
+  documents use (lakh, crore, million, thousand; the most recent document's when they differ), two decimals, named
+  in each header (`(₹ in lakh)`) and in the export's first column and Metrics sheet Unit column; EPS as printed.
+  `--json` stays in rupees and each row gains `unit` (the document unit, or `rupees_per_share`).
+- **Statement line names.** Account descriptions now start with a plain statement-style name (up to the first `;`
+  or bracket): e.g. "Other comprehensive income items", "OCI group subtotal", "Investments", "Interest income",
+  "Depreciation and amortisation" on the cash flow (no more "Cash flow adjustment: ..."), "Assets held for sale".
+- **Health report by category** (`fin report`, `/report`): summary of key metrics for the latest five fiscal
+  years (both scopes where present); one section per metric category with data, each with a trend table and an SVG
+  line chart (`fin.report.chart`, no new dependency); "Latest quarters" (revenue, EBITDA, PAT, margins, year-on-year
+  and quarter-on-quarter growth, TTM) when quarters are loaded; "Peer comparison" with `fin report <co> --peers a,b`
+  (key metrics for the latest fiscal year every company has); findings with their sources; data coverage (mapped
+  share per statement, unverified Claude-read figures, pages not read, unconfirmed mappings, missing data);
+  appendices: condensed standard statements (subtotals), metric definitions and formulas, facts behind the metrics.
+  A category or section with no data is left out. Narrative references and the lint accept quarter and half-year
+  periods (`FY26-Q1`, `FY26-H1`, `FY26-9M`). A narrative with text under a section the report does not have (for
+  example "Peer comparison" without `--peers`) stops with E601.
+- **Dashboards by category:** `analytics.duckdb` gains `metrics.category` and the tables `metric_definitions`,
+  `statements` (in the documents' unit), `findings`, `coverage`, `unread_pages` and `unverified_facts`. Company page:
+  trend charts per category, any metric by category, quarters with TTM, the standard statements for a chosen
+  period, the company's findings and coverage. Compare page: category, then metric, across companies, with its
+  definition. Data quality page: findings, held documents, coverage, unread pages, unverified Claude-read figures.
+  Evidence cannot build a source with no rows, so the findings, unread pages and unverified facts sources return
+  one placeholder row (company NULL) when empty; the pages leave it out.
+- Schema (edited in place, no migrations): `documents.unread_pages` (JSON of the statement pages fin could not
+  read), the `statement_coverage` view, and the analytics tables above. An `analytics.duckdb` missing a table is
+  deleted and made again at the next refresh (it is derived). Company databases made before this change lack
+  `unread_pages` and `statement_coverage`: re-create the data folder (`fin init`, then ingest again).
+- CI: the report job ingests the three synthetic companies and renders Kestrel with `--peers bluepeak,tarang`,
+  checking every section is in the HTML; the real-Quarto test also renders a company with quarters and peers. The
+  dashboard job checks the new data is in the build.
+- Docs: README ("Reports and dashboards"), `/report` step by step, `/dashboard`, `/statements`, PLAN.md,
+  `docs/CUSTOMISING.md` ("Add a report section", module map, account descriptions). No new dependencies.
+- Not included: peer figures cannot be cited in the narrative (they are in the comparison table only); the
+  dashboard's statement period picker opens on the earliest period, not the latest.
+
 ### Standard statements and the full metric set
 
 - **Standard statements.** `fin statements <company> [--period FY25] [--scope standalone] [--json]` shows the profit
