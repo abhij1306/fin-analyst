@@ -39,7 +39,7 @@ select * from ${annual}
 where metric in ('gross_margin', 'ebitda_margin', 'ebit_margin', 'pat_margin')
 ```
 
-<LineChart data={profitability} x=fiscal_year y=value series=metric yFmt=pct1 title="Margins" emptySet=pass emptyMessage="None loaded." />
+<LineChart data={profitability} x=fiscal_year y=value series=metric sort=false yFmt=pct1 title="Margins" emptySet=pass emptyMessage="None loaded." />
 
 ## Returns
 
@@ -47,7 +47,7 @@ where metric in ('gross_margin', 'ebitda_margin', 'ebit_margin', 'pat_margin')
 select * from ${annual} where metric in ('roe', 'roce', 'roa')
 ```
 
-<LineChart data={returns} x=fiscal_year y=value series=metric yFmt=pct1 title="Return on equity, capital employed and assets (closing balances)" emptySet=pass emptyMessage="None loaded." />
+<LineChart data={returns} x=fiscal_year y=value series=metric sort=false yFmt=pct1 title="Return on equity, capital employed and assets (closing balances)" emptySet=pass emptyMessage="None loaded." />
 
 ## Liquidity
 
@@ -55,7 +55,7 @@ select * from ${annual} where metric in ('roe', 'roce', 'roa')
 select * from ${annual} where metric in ('current_ratio', 'quick_ratio', 'cash_ratio')
 ```
 
-<LineChart data={liquidity} x=fiscal_year y=value series=metric yFmt=num2 title="Liquidity ratios (times)" emptySet=pass emptyMessage="None loaded." />
+<LineChart data={liquidity} x=fiscal_year y=value series=metric sort=false yFmt=num2 title="Liquidity ratios (times)" emptySet=pass emptyMessage="None loaded." />
 
 ## Solvency
 
@@ -64,7 +64,7 @@ select * from ${annual}
 where metric in ('debt_to_equity', 'debt_to_ebitda', 'net_debt_to_ebitda', 'interest_cover')
 ```
 
-<LineChart data={solvency} x=fiscal_year y=value series=metric yFmt=num2 title="Leverage and interest cover (times)" emptySet=pass emptyMessage="None loaded." />
+<LineChart data={solvency} x=fiscal_year y=value series=metric sort=false yFmt=num2 title="Leverage and interest cover (times)" emptySet=pass emptyMessage="None loaded." />
 
 ## Efficiency
 
@@ -73,7 +73,7 @@ select * from ${annual}
 where metric in ('receivable_days', 'inventory_days', 'payable_days', 'cash_conversion_cycle')
 ```
 
-<LineChart data={efficiency} x=fiscal_year y=value series=metric yFmt=num1 title="Working capital days" emptySet=pass emptyMessage="None loaded." />
+<LineChart data={efficiency} x=fiscal_year y=value series=metric sort=false yFmt=num1 title="Working capital days" emptySet=pass emptyMessage="None loaded." />
 
 ## Cash flow
 
@@ -89,7 +89,7 @@ select * from ${annual} where metric in ('cfo', 'free_cash_flow')
 select * from ${annual} where metric in ('revenue_growth', 'ebitda_growth', 'pat_growth')
 ```
 
-<LineChart data={growth} x=fiscal_year y=value series=metric yFmt=pct1 title="Growth on the year before" emptySet=pass emptyMessage="None loaded." />
+<LineChart data={growth} x=fiscal_year y=value series=metric sort=false yFmt=pct1 title="Growth on the year before" emptySet=pass emptyMessage="None loaded." />
 
 ## Earnings quality
 
@@ -97,7 +97,7 @@ select * from ${annual} where metric in ('revenue_growth', 'ebitda_growth', 'pat
 select * from ${annual} where category = 'earnings_quality'
 ```
 
-<LineChart data={earnings_quality} x=fiscal_year y=value series=metric yFmt=pct1 title="Other income and exceptional items as a share of PBT, effective tax rate" emptySet=pass emptyMessage="None loaded." />
+<LineChart data={earnings_quality} x=fiscal_year y=value series=metric sort=false yFmt=pct1 title="Other income and exceptional items as a share of PBT, effective tax rate" emptySet=pass emptyMessage="None loaded." />
 
 ## Any metric
 
@@ -113,9 +113,10 @@ select distinct category from ${annual} order by category
 ```sql category_metrics
 select fiscal_year, metric, value from ${annual}
 where category = '${inputs.category.value}'
+order by fiscal_year, metric
 ```
 
-<LineChart data={category_metrics} x=fiscal_year y=value series=metric title="{inputs.category.value}" emptySet=pass emptyMessage="None loaded." />
+<LineChart data={category_metrics} x=fiscal_year y=value series=metric sort=false title="{inputs.category.value}" emptySet=pass emptyMessage="None loaded." />
 
 <DataTable data={category_metrics} rows=all emptySet=pass emptyMessage="None loaded." />
 

@@ -151,8 +151,8 @@ def _compare(
     passed = abs(difference) <= tolerance
     period, scope = key
     message = (
-        f"{period} {scope}: {what}: expected {expected}, actual {actual}, difference {difference}, "
-        f"tolerance {tolerance}"
+        f"{period} {scope}: {what}: expected ₹{expected:,}, actual ₹{actual:,}, "
+        f"difference ₹{difference:,}, tolerance ₹{tolerance:,}"
     )
     return Result(check, period, scope, expected, actual, tolerance, passed, message, accounts)
 

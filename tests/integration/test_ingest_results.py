@@ -288,7 +288,7 @@ def test_a_different_q1_column_in_the_q2_filing_is_an_e404_finding(
     assert {(code, period) for code, period, _ in rows} == {("E404", "FY26-Q1")}
     assert any(
         message.startswith(
-            "FY26-Q1 standalone: pbt vs q1.pdf: expected 105000000.00, actual 106000000.00"
+            "FY26-Q1 standalone: pbt vs q1.pdf: expected ₹105,000,000.00, actual ₹106,000,000.00"
         )
         for _, _, message in rows
     )
@@ -303,8 +303,9 @@ def test_an_unbalanced_half_year_balance_sheet_is_an_e401_finding(
     assert findings(root)[0] == (
         "E401",
         "FY26-H1",
-        "FY26-H1 standalone: total assets vs total equity and liabilities: expected 50000000.00, "
-        "actual 50500000.00, difference 500000.00, tolerance 100000.00",
+        "FY26-H1 standalone: total assets vs total equity and liabilities: "
+        "expected ₹50,000,000.00, actual ₹50,500,000.00, difference ₹500,000.00, "
+        "tolerance ₹100,000.00",
     )
 
 
