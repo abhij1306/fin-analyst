@@ -38,7 +38,7 @@ from fin.map.dictionary import (
     upsert_label,
 )
 from fin.map.normalize import normalize_label
-from fin.paths import COMPANY_NAME, company_db_path, dictionary_db_path, review_dir
+from fin.paths import companies_dir, company_db_path, dictionary_db_path, review_dir
 
 SCOPES = ("global", "company")
 LOW_CONFIDENCE = 0.7  # proposals below this are logged as E302
@@ -57,20 +57,17 @@ def _current_actor() -> tuple[str, bool]:
     return "human", False
 
 
-def _pending_path(root: Path, company: str) -> Path:
-    """`review/<company>/pending.json`, refusing any company name that could point elsewhere."""
-    if not COMPANY_NAME.match(company):
-        raise InvalidMapping(f"{company!r} is not a company name")
-    reviews = (root / "review").resolve()
-    path = (review_dir(root, company) / "pending.json").resolve()
-    if not path.is_relative_to(reviews):
-        raise InvalidMapping(f"{path} is outside {reviews}")
-    return path
+def _pending_path(root: Path, company: str) -> Path | None:
+    """`review/<company>/pending.json` for a loaded company, else None. The folder name comes from
+    the company databases on disk, never from the input, so it cannot point anywhere else."""
+    loaded = {db.stem: db.stem for db in companies_dir(root).glob("*.duckdb")}
+    name = loaded.get(company)
+    return None if name is None else review_dir(root, name) / "pending.json"
 
 
 def read_pending(root: Path, company: str) -> Pending:
     path = _pending_path(root, company)
-    if not path.is_file():
+    if path is None or not path.is_file():
         return {"company": company, "next_id": 1, "items": []}
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -80,6 +77,8 @@ def read_pending(root: Path, company: str) -> Pending:
 
 def _save(root: Path, company: str, pending: Pending) -> None:
     path = _pending_path(root, company)
+    if path is None:
+        raise InvalidMapping(f"{company!r} is not a loaded company")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(pending, indent=2) + "\n", encoding="utf-8")
