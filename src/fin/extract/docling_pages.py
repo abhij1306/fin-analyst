@@ -252,13 +252,13 @@ def _figures(
         text = " ".join(cell.text.split())
         if not text:
             continue
+        if _DIGIT.search(text) and text.startswith("(") != text.endswith(")"):
+            raise ParseError(f"page {page}: figure {text!r} has an unpaired bracket (Docling)")
         value = parse_figure(text)
         if value is None:
             if _DIGIT.search(text):
                 raise ParseError(f"page {page}: cell {text[:30]!r} is not one figure (Docling)")
             continue  # words under a period column ("Audited"): not a figure
-        if text.startswith("(") != text.endswith(")"):
-            raise ParseError(f"page {page}: figure {text!r} has an unpaired bracket (Docling)")
         found.append((column, Cell(text, cell.header, cell.bbox or table_box), value))
     return found
 

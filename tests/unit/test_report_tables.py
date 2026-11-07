@@ -30,7 +30,7 @@ def test_summary_shows_a_metric_only_the_other_scope_has() -> None:
 
     assert (
         summary_tables(report, "crores")
-        == "**Standalone**\n\n| | FY25 |\n|---|---|\n| ROCE | 20.0% |"
+        == "**Standalone**\n\n|  | FY25 |\n|---|---|\n| ROCE | 20.0% |"
     )
 
 
