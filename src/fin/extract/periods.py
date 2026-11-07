@@ -21,6 +21,31 @@ from datetime import date
 from fin.audit.errors import PeriodsNotDetected
 
 FY_START_MONTH = 4  # Indian fiscal years start in April
+# The primary statements, whose lines become facts. A balance sheet is a point in time; the others
+# are flows over a period.
+STATEMENTS = ("balance_sheet", "profit_and_loss", "cash_flow")
+# Month names and abbreviations as printed in column headers, for the PDF and Excel extractors.
+MONTHS = {
+    name: number
+    for number, names in enumerate(
+        (
+            ("january", "jan"),
+            ("february", "feb"),
+            ("march", "mar"),
+            ("april", "apr"),
+            ("may",),
+            ("june", "jun"),
+            ("july", "jul"),
+            ("august", "aug"),
+            ("september", "sep", "sept"),
+            ("october", "oct"),
+            ("november", "nov"),
+            ("december", "dec"),
+        ),
+        start=1,
+    )
+    for name in names
+}
 YEAR_TO_DATE = 0  # months_in result: from the start of the fiscal year to the column's date
 
 # Header words naming a period length, checked in this order.
@@ -56,8 +81,10 @@ def months_from_start(period_end: date, start_month: int = FY_START_MONTH) -> in
 
 
 def fiscal_year_of(period_end: date, start_month: int = FY_START_MONTH) -> str:
-    """'FY25' for the fiscal year that ends in 2025 (31 March 2025 with an April start)."""
-    end_year = period_end.year if period_end.month < start_month else period_end.year + 1
+    """'FY25' for the fiscal year that ends in 2025 (31 March 2025 with an April start, 31 December
+    2025 with a January start)."""
+    ends_next_year = start_month > 1 and period_end.month >= start_month
+    end_year = period_end.year + 1 if ends_next_year else period_end.year
     return f"FY{end_year % 100:02d}"
 
 

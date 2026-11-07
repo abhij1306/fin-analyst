@@ -78,7 +78,12 @@ def test_q1_results_keep_the_march_quarter_apart_from_the_march_year(tmp_path: P
 
     result = extract_pdf(path)
 
-    assert result.fiscal_years == ["FY26-Q1", "FY25-Q4", "FY25-Q1", "FY25"]
+    assert [*dict.fromkeys(v.period for v in result.values)] == [
+        "FY26-Q1",
+        "FY25-Q4",
+        "FY25-Q1",
+        "FY25",
+    ]
     assert rows(path) == [
         (1, "profit_and_loss", "standalone", "FY26-Q1", 3, "Revenue from operations", "1,100.00"),
         (1, "profit_and_loss", "standalone", "FY25-Q4", 3, "Revenue from operations", "1,050.00"),
@@ -172,3 +177,31 @@ def test_results_columns_that_do_not_name_their_length_are_e202(tmp_path: Path) 
         "q4.pdf: no statement page could be read: page 1: results statement column ending "
         "2025-03-31 does not say whether it is a quarter, half year or year"
     )
+
+
+def test_periods_follow_the_configured_fiscal_year_start(tmp_path: Path) -> None:
+    # A calendar-year company (fiscal_year_start_month = 1): a quarter ending 31 March is Q1 and
+    # a year ending 31 December is the fiscal year.
+    path = write_pdf(
+        tmp_path / "cy.pdf",
+        [
+            (50, 50, "Statement of Unaudited Standalone Financial Results"),
+            (50, 65, "(Rs. in Lakhs)"),
+            (270, 80, "Quarter ended"),
+            (390, 80, "Year ended"),
+            (280, 92, "31.03.2025"),
+            (400, 92, "31.12.2024"),
+            (50, 120, "Revenue from operations"),
+            (285, 120, "1,050.00"),
+            (405, 120, "4,100.00"),
+        ],
+    )
+
+    values = extract_pdf(path, start_month=1).values
+
+    assert [(v.period, v.fiscal_year, v.months) for v in values] == [
+        ("FY25-Q1", "FY25", 3),
+        ("FY24", "FY24", 12),
+    ]
+    with pytest.raises(PeriodsNotDetected):  # an April start cannot place a December year end
+        extract_pdf(path)

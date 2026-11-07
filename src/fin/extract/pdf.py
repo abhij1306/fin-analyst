@@ -17,8 +17,9 @@ is read as two halves. On each statement page (balance sheet, profit and loss, c
    March 31," / "2024") is read as one. Words in or just above the header that only name a period
    length ("Quarter ended", "Half year ended", "Year ended") are spread over the columns below
    them, so one page can hold quarter, half-year and year columns. `fin.extract.periods` names
-   each column's period ("FY25", "FY26-Q1", "FY26-H1"). A flow column that names no length is a
-   year only when it ends on 31 March and the page is not a results statement; otherwise the page
+   each column's period ("FY25", "FY26-Q1", "FY26-H1") for the configured fiscal year start. A
+   flow column that names no length is a year only when it ends on the fiscal year end (31 March
+   by default) and the page is not a results statement; otherwise the page
    is skipped (E202), as it is when two columns hold the same period (such as standalone and
    consolidated printed side by side).
 4. A line whose trailing numbers sit under every period column is a value row. The words to their
@@ -64,8 +65,17 @@ from fin.audit.errors import (
     ScannedPdf,
     UnitNotDetected,
 )
-from fin.extract.periods import PHRASE, fiscal_year_of, months_in, period_of, resolve_months
-from fin.extract.units import RUPEES_PER_UNIT, unit_in
+from fin.extract.periods import (
+    FY_START_MONTH,
+    MONTHS,
+    PHRASE,
+    STATEMENTS,
+    fiscal_year_of,
+    months_in,
+    period_of,
+    resolve_months,
+)
+from fin.extract.units import NIL, parse_figure, to_rupees, unit_in
 
 Word = dict[str, Any]
 Line = list[Word]
@@ -109,7 +119,6 @@ STATEMENT_TITLES = (
     ),
     ("notes", re.compile(r"^notes\b", re.I)),
 )
-PRIMARY_STATEMENTS = ("balance_sheet", "profit_and_loss", "cash_flow")
 _RESULTS_TITLE = re.compile(r"financial\s+results\b", re.I)
 # In a results document, a statement numbered as a note ("1. Balance Sheet as on").
 _NUMBERED = re.compile(r"^\d{1,2}\s*[.)]\s*")
@@ -129,27 +138,6 @@ NAMED_LINES = 12  # top lines searched for them, down to the first figure (below
 _FIGURE_TEXT = re.compile(r"\d[,.]\d")  # a figure with a comma or decimal point, not a page number
 LABEL_LINES = 4  # how many lines above a column header can hold period-length labels
 
-_MONTHS = {
-    name: number
-    for number, names in enumerate(
-        (
-            ("january", "jan"),
-            ("february", "feb"),
-            ("march", "mar"),
-            ("april", "apr"),
-            ("may",),
-            ("june", "jun"),
-            ("july", "jul"),
-            ("august", "aug"),
-            ("september", "sep", "sept"),
-            ("october", "oct"),
-            ("november", "nov"),
-            ("december", "dec"),
-        ),
-        start=1,
-    )
-    for name in names
-}
 _ORDINAL = r"(?:st|nd|rd|th)?"
 _NUMERIC_DATE = re.compile(r"\b(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{4})\b")  # 31.03.2025
 _DAY_FIRST = re.compile(  # 31 March 2025, 31-Mar-2025, 30-Sep-25
@@ -157,7 +145,6 @@ _DAY_FIRST = re.compile(  # 31 March 2025, 31-Mar-2025, 30-Sep-25
 )
 _MONTH_FIRST = re.compile(rf"\b([a-z]{{3,9}})\.?\s*(\d{{1,2}}){_ORDINAL}\s*,?\s*(\d{{4}})\b", re.I)
 _FY_RANGE = re.compile(r"\b(\d{4})\s*[-–]\s*(\d{2}|\d{4})\b")  # 2023-24 or 2023-2024
-_DASHES = ("-", "–", "—")
 _NUMBER = re.compile(r"^\(?-?(?:[\d,]*\d(?:\.\d+)?|\.\d+)\)?$|^[-–—]$")
 _YEAR = re.compile(r"^(19|20)\d\d$")
 _NOTE_REF = re.compile(r"^\d{1,3}(\.\d{1,2})?[a-z]?(\([a-z0-9]{1,4}\))*$|^&$|^and$", re.I)
@@ -217,9 +204,6 @@ class SkippedPage:
 
 @dataclass(frozen=True)
 class PdfExtraction:
-    path: Path
-    fiscal_years: list[str]  # periods of the first statement's header, latest first
-    unit: str  # unit of the first statement page
     values: list[PdfValue]
     skipped: list[SkippedPage] = field(default_factory=list)
 
@@ -233,10 +217,6 @@ class Column:
     period: str | None = None  # "FY25", "FY26-Q1", ...: set once the statement is known
 
     @property
-    def fiscal_year(self) -> str:
-        return fiscal_year_of(self.period_end)
-
-    @property
     def key(self) -> str:
         """Tells apart the columns of one header (two can end on the same date)."""
         return f"{self.period_end.isoformat()}|{self.months}"
@@ -245,7 +225,7 @@ class Column:
     def label(self) -> str:
         """The column's name in a Markdown table: 'FY25', or its length and date."""
         return self.period or (
-            self.fiscal_year
+            fiscal_year_of(self.period_end)
             if self.months in (None, 12)
             else f"{self.months or 'YTD'}M to {self.period_end}"
         )
@@ -277,8 +257,9 @@ class _Page:
     failed: DocumentFailure | None = None  # why the page was not read
 
 
-def extract_pdf(path: Path) -> PdfExtraction:
-    """Extract every readable statement value from a text PDF.
+def extract_pdf(path: Path, start_month: int = FY_START_MONTH) -> PdfExtraction:
+    """Extract every readable statement value from a text PDF. Periods are named for a fiscal year
+    starting in `start_month` (config `fiscal_year_start_month`).
 
     Raises E101/E102/E104, and E201/E202/E203 when no statement page can be read at all.
     """
@@ -288,8 +269,6 @@ def extract_pdf(path: Path) -> PdfExtraction:
     results = any(_is_results(lines) for _, lines in parts)
     values: list[PdfValue] = []
     skipped: list[SkippedPage] = []
-    fiscal_years: list[str] = []
-    units: list[str] = []
     previous: _Page | None = None
     for number, lines in parts:
         statement = statement_of(lines, numbered=results)
@@ -316,40 +295,24 @@ def extract_pdf(path: Path) -> PdfExtraction:
             and number - previous.number <= 1
             else None
         )
-        unit = unit_of(lines) or (continues.unit if continues else None)
         try:
-            if unit is None:
-                raise UnitNotDetected(f"page {number}: no unit line such as '₹ in Lakhs'")
-            page_values, columns = read_page(
+            page_values, previous = _read_part(
                 lines,
                 number,
                 statement,
                 scope,
-                unit,
-                continues.columns if continues else [],
+                continues,
                 results=_is_results(lines) or bool(continues and results),
+                start_month=start_month,
             )
-            if not columns:
-                raise PeriodsNotDetected(
-                    f"page {number}: no period column headers (such as 'As at 31 March 2025')"
-                )
-            if not page_values and statement in PRIMARY_STATEMENTS and not continues:
-                raise NoTablesFound(
-                    f"page {number}: titled as a statement, but no line has a figure under "
-                    "every period column"
-                )
         except (UnitNotDetected, PeriodsNotDetected, NoTablesFound, ParseError) as exc:
             if statement != "notes":
                 skipped.append(SkippedPage(number, statement, exc))
-            previous = _Page(number, statement, scope, unit or "", [], exc)
+            previous = _Page(number, statement, scope, "", [], exc)
             continue
-        previous = _Page(number, statement, scope, unit, columns)
-        if statement != "notes":
-            units.append(unit)
-            fiscal_years = fiscal_years or list(dict.fromkeys(c.period or "" for c in columns))
         values.extend(page_values)
 
-    if not any(v.statement in PRIMARY_STATEMENTS for v in values):
+    if not any(v.statement in STATEMENTS for v in values):
         if skipped:
             reasons = "; ".join(s.error.message for s in skipped[:5])
             more = f" (and {len(skipped) - 5} more)" if len(skipped) > 5 else ""
@@ -359,7 +322,45 @@ def extract_pdf(path: Path) -> PdfExtraction:
             error.pages = tuple(s.as_dict() for s in skipped)
             raise error
         raise NoTablesFound(f"{path.name}: no statement tables with values found")
-    return PdfExtraction(path, fiscal_years, units[0], values, skipped)
+    return PdfExtraction(values, skipped)
+
+
+def _read_part(
+    lines: list[Line],
+    number: int,
+    statement: str,
+    scope: str | None,
+    continues: _Page | None,
+    *,
+    results: bool,
+    start_month: int,
+) -> tuple[list[PdfValue], _Page]:
+    """The values of one statement page part, and the page as read. `continues`: the page before,
+    when this part carries on its statement (its unit and columns hold until replaced). Raises
+    E203 (no unit), E202 (no period columns), E201 (no full row on a primary statement) or E204."""
+    unit = unit_of(lines) or (continues.unit if continues else None)
+    if unit is None:
+        raise UnitNotDetected(f"page {number}: no unit line such as '₹ in Lakhs'")
+    page_values, columns = read_page(
+        lines,
+        number,
+        statement,
+        scope,
+        unit,
+        continues.columns if continues else [],
+        results=results,
+        start_month=start_month,
+    )
+    if not columns:
+        raise PeriodsNotDetected(
+            f"page {number}: no period column headers (such as 'As at 31 March 2025')"
+        )
+    if not page_values and statement in STATEMENTS and not continues:
+        raise NoTablesFound(
+            f"page {number}: titled as a statement, but no line has a figure under every period "
+            "column"
+        )
+    return page_values, _Page(number, statement, scope, unit, columns)
 
 
 def _untitled_statement(lines: list[Line], number: int) -> tuple[str, DocumentFailure] | None:
@@ -410,7 +411,7 @@ def _continues(previous: _Page, number: int, lines: list[Line]) -> bool:
     (such as the second half of a balance sheet printed over two half pages), with no other title
     (statement of changes in equity, notes, a report, or words naming another statement) at its
     top."""
-    if previous.statement not in PRIMARY_STATEMENTS or number - previous.number > 1:
+    if previous.statement not in STATEMENTS or number - previous.number > 1:
         return False
     if any(_OTHER_TITLE.search(line_text(line)) for line in lines[:TITLE_LINES]):
         return False
@@ -448,11 +449,6 @@ def page_parts(page: Any) -> list[list[Line]]:
         right = [w for w in words if (w["x0"] + w["x1"]) / 2 >= middle]
         return [_lines(half) for half in (left, right) if half]
     return [_lines(words)]
-
-
-def page_lines(page: Any) -> list[Line]:
-    """Group a page's words into lines, top to bottom, each line left to right. Raises E101."""
-    return [line for part in page_parts(page) for line in part]
 
 
 def _lines(words: list[Word]) -> list[Line]:
@@ -509,7 +505,7 @@ def _title(lines: list[Line], numbered: bool = False) -> tuple[str, re.Match[str
                 continue
             for statement, title in STATEMENT_TITLES:
                 match = title.search(_NUMBERED.sub("", text))
-                if match and statement in PRIMARY_STATEMENTS:
+                if match and statement in STATEMENTS:
                     return statement, match
     for line in lines[:TITLE_LINES]:
         text = line_text(line).strip()
@@ -560,7 +556,7 @@ def period_end_in(text: str) -> date | None:
         return _month_end(int(numeric.group(3)), int(numeric.group(2)), int(numeric.group(1)))
     for pattern, day_group, month_group in ((_DAY_FIRST, 1, 2), (_MONTH_FIRST, 2, 1)):
         for match in pattern.finditer(text):
-            month = _MONTHS.get(match.group(month_group).lower())
+            month = MONTHS.get(match.group(month_group).lower())
             if month is not None:
                 year = int(match.group(3))
                 year = year + 2000 if year < 100 else year
@@ -625,6 +621,19 @@ def block_columns(block: list[Line]) -> list[Column]:
             columns.append(Column(period, min(w["x0"] for w in stack), max(w["x1"] for w in stack)))
     columns.sort(key=lambda c: c.x0)
     return columns if len(columns) >= 2 else []
+
+
+def header_starting(lines: list[Line], i: int) -> tuple[list[Column], int] | None:
+    """The column header that starts at line i, with its period lengths (`complete_header`), and
+    the index of the line after it; None when no header starts there. A header found at i that
+    ends where the one found at i + 1 ends starts at i + 1 instead (line i is a title above it)."""
+    found = header_at(lines, i)
+    if found is None:
+        return None
+    later = header_at(lines, i + 1)
+    if later is not None and later[1] == found[1]:
+        return None
+    return complete_header(lines, i, found[1])
 
 
 def header_at(lines: list[Line], i: int) -> tuple[list[Column], int] | None:
@@ -694,20 +703,6 @@ def spread(columns: list[Column], labels: list[tuple[float, Any]]) -> list[Any]:
     return values
 
 
-def header_columns(line: Line) -> list[Column]:
-    """Period columns named in a single line; [] if fewer than two."""
-    return block_columns([line])
-
-
-def parse_number(raw: str) -> Decimal:
-    """'1,234.56' -> 1234.56; '(56.67)' -> -56.67; '.82' -> 0.82; a lone dash means nil -> 0."""
-    if raw in _DASHES:
-        return Decimal(0)
-    negative = raw.startswith("(") and raw.endswith(")") or raw.startswith("-")
-    value = Decimal(raw.strip("()").lstrip("-").replace(",", ""))
-    return -value if negative else value
-
-
 def split_row(line: Line, columns: list[Column]) -> tuple[Line, dict[str, Word]]:
     """Split a line into its leading words and its values {column key: word}.
 
@@ -757,7 +752,7 @@ def _join(head: str, tail: str) -> str:
 
 
 def resolve_columns(
-    columns: list[Column], statement: str, page: int, *, results: bool
+    columns: list[Column], statement: str, page: int, *, results: bool, start_month: int
 ) -> list[Column]:
     """Name each column's period for this statement (`fin.extract.periods`). Raises E202 when a
     column's period cannot be told, or two columns would hold the same period."""
@@ -769,14 +764,27 @@ def resolve_columns(
                 f"{where}: results statement column ending {column.period_end.isoformat()} does "
                 "not say whether it is a quarter, half year or year"
             )
-        months = resolve_months(statement, column.period_end, column.months, where=where)
-        period = period_of(column.period_end, months, where=where)
+        months = resolve_months(
+            statement, column.period_end, column.months, start_month, where=where
+        )
+        period = period_of(column.period_end, months, start_month, where=where)
         resolved.append(replace(column, months=months, period=period))
     names = [c.period for c in resolved]
     if len(set(names)) < len(names):
         listed = ", ".join(c.period for c in resolved if c.period)
         raise PeriodsNotDetected(f"{where}: two columns hold the same period ({listed})")
     return resolved
+
+
+@dataclass
+class _Reader:
+    """What reading a page has found so far, top to bottom."""
+
+    rows: list[_Row] = field(default_factory=list)
+    note_x: float | None = None  # left edge of the "Note" column heading
+    section: str = ""  # the heading the next row sits under
+    before_heading: str = ""  # the section before the last heading line, to undo a wrapped label
+    last_text: Line | None = None  # the line just read, when it was a text line
 
 
 def read_page(
@@ -788,6 +796,7 @@ def read_page(
     columns: list[Column],
     *,
     results: bool = False,
+    start_month: int = FY_START_MONTH,
 ) -> tuple[list[PdfValue], list[Column]]:
     """Values of one statement page, and the columns in force at its end ([] if none).
 
@@ -795,94 +804,117 @@ def read_page(
     `results`: the page is a quarterly or half-year results statement, so a flow column must name
     its length. Raises PeriodsNotDetected (E202) when a header's periods cannot be told.
     """
-    rows: list[_Row] = []
-    note_x: float | None = None
-    section = ""
-    before_heading = ""  # the section before the last heading line, to undo a wrapped label
-    last_text: Line | None = None  # the line just read, when it was a text line
+    state = _Reader()
     i = 0
     while i < len(lines):
-        found = header_at(lines, i)
-        later = header_at(lines, i + 1) if found else None
-        if found and (later is None or later[1] != found[1]):
-            header, end = complete_header(lines, i, found[1])
-            note_x = note_x or next(
-                (w["x0"] for ln in lines[i:end] for w in ln if _is_note(w)), None
-            )
+        found = header_starting(lines, i)
+        if found is not None:
+            header, end = found
+            state.note_x = state.note_x or _note_x([w for ln in lines[i:end] for w in ln])
             i = end
             try:
-                columns = resolve_columns(header, statement, page, results=results)
+                columns = resolve_columns(
+                    header, statement, page, results=results, start_month=start_month
+                )
             except PeriodsNotDetected:
                 if statement != "notes":
                     raise
                 columns = []
                 continue
-            last_text = None
+            state.last_text = None
             continue
         line = lines[i]
         i += 1
-        text = line_text(line)
         words, row = split_row(line, columns) if columns else (line, {})
         if not row:
-            if not rows:
-                note_x = note_x or next((w["x0"] for w in line if _is_note(w)), None)
-            if columns and statement != "notes" and _NOTES_BLOCK.match(text):
+            if _text_line(state, line, columns, statement):
                 break
-            if columns and line[0]["x0"] >= columns[0].x0 - COLUMN_TOLERANCE:
-                continue  # column sub-heading ("(Restated)") or margin text, not a heading
-            if rows and last_text is None and _is_tail(rows[-1], line, text):
-                rows[-1].label = _join(rows[-1].label, text)
-                continue
-            if last_text is not None and text[:1].islower():  # a heading wrapped onto two lines
-                if section == line_text(last_text):
-                    section = _join(section, text)
-                last_text = last_text + line
-                continue
-            last_text = line
-            if not _WORDY.search(text):
-                continue
-            before_heading = section
-            if not _SUB_HEADING.match(text):
-                section = text
             continue
-        note = None
-        if note_x is not None:
-            notes: list[str] = []
-            while words and _NOTE_REF.match(words[-1]["text"]):
-                if words[-1]["x0"] < note_x - COLUMN_TOLERANCE:
-                    break
-                notes.insert(0, words.pop()["text"])
-            note = " ".join(notes) or None
-        label = line_text(words)
-        top = line[0]["top"]
+        words, note = _strip_note(words, state.note_x)
         height = max(w["bottom"] - w["top"] for w in line)
-        wrapped = False
-        if not label:
-            if last_text is not None and top - last_text[-1]["top"] < WRAP_FACTOR * height:
-                label, wrapped = line_text(last_text), True
-                section = before_heading
-            else:
-                label = section
+        label, wrapped = _row_label(state, words, line, height)
         below = lines[i] if i < len(lines) else None
         if (
-            all(w["text"] in _DASHES for w in row.values())
+            all(w["text"] in NIL for w in row.values())
             and not _SUB_HEADING.match(label)
             and below is not None
             and below[0]["x0"] > line[0]["x0"] + INDENT
         ):
             # A heading printed with nil dashes ("Current assets - -"), items indented below it.
-            last_text, before_heading, section = words, section, label
+            state.last_text, state.before_heading, state.section = words, state.section, label
             continue
         if statement != "notes":
             _check_figures(label, row, page)
-        rows.append(_Row(label, row, columns, section, note, top, height, wrapped))
-        last_text = None
+        state.rows.append(
+            _Row(label, row, columns, state.section, note, line[0]["top"], height, wrapped)
+        )
+        state.last_text = None
     found_values = [
-        _value(r, column, r.values[column.key], page, statement, scope, unit)
-        for r in rows
+        _value(r, column, r.values[column.key], page, statement, scope, unit, start_month)
+        for r in state.rows
         for column in r.columns
     ]
     return found_values, columns
+
+
+def _note_x(words: Line) -> float | None:
+    """The left edge of the first 'Note' column heading word among `words`, or None."""
+    return next((w["x0"] for w in words if _is_note(w)), None)
+
+
+def _text_line(state: _Reader, line: Line, columns: list[Column], statement: str) -> bool:
+    """Take in a line with no row of figures: a heading, the tail of a wrapped label or heading, or
+    text in the figure columns (ignored). True when it is a "Notes:" line that ends the table."""
+    text = line_text(line)
+    if not state.rows:
+        state.note_x = state.note_x or _note_x(line)
+    if columns and statement != "notes" and _NOTES_BLOCK.match(text):
+        return True
+    if columns and line[0]["x0"] >= columns[0].x0 - COLUMN_TOLERANCE:
+        return False  # column sub-heading ("(Restated)") or margin text, not a heading
+    if state.rows and state.last_text is None and _is_tail(state.rows[-1], line, text):
+        state.rows[-1].label = _join(state.rows[-1].label, text)
+        return False
+    if state.last_text is not None and text[:1].islower():  # a heading wrapped onto two lines
+        if state.section == line_text(state.last_text):
+            state.section = _join(state.section, text)
+        state.last_text = state.last_text + line
+        return False
+    state.last_text = line
+    if _WORDY.search(text):
+        state.before_heading = state.section
+        if not _SUB_HEADING.match(text):
+            state.section = text
+    return False
+
+
+def _strip_note(words: Line, note_x: float | None) -> tuple[Line, str | None]:
+    """A row's label words without the note reference at their end (under the "Note" column at
+    `note_x`), and that reference."""
+    if note_x is None:
+        return words, None
+    words = list(words)
+    notes: list[str] = []
+    while words and _NOTE_REF.match(words[-1]["text"]):
+        if words[-1]["x0"] < note_x - COLUMN_TOLERANCE:
+            break
+        notes.insert(0, words.pop()["text"])
+    return words, " ".join(notes) or None
+
+
+def _row_label(state: _Reader, words: Line, line: Line, height: float) -> tuple[str, bool]:
+    """A row's label, and whether it was taken from the line above. A row with no label words
+    takes the text line just above it (a label wrapped around its figures), or else the heading it
+    sits under (an unlabelled subtotal)."""
+    label = line_text(words)
+    if label:
+        return label, False
+    if state.last_text is not None and line[0]["top"] - state.last_text[-1]["top"] < (
+        WRAP_FACTOR * height
+    ):
+        state.section = state.before_heading
+        return line_text(state.last_text), True
+    return state.section, False
 
 
 def _check_figures(label: str, row: dict[str, Word], page: int) -> None:
@@ -907,18 +939,20 @@ def _value(
     statement: str,
     scope: str | None,
     unit: str,
+    start_month: int,
 ) -> PdfValue:
     assert column.period is not None and column.months is not None
-    value = parse_number(word["text"])
+    value = parse_figure(word["text"])
+    assert value is not None  # split_row takes only figures
     return PdfValue(
         label=row.label,
-        fiscal_year=column.fiscal_year,
+        fiscal_year=fiscal_year_of(column.period_end, start_month),
         period=column.period,
         months=column.months,
         period_end=column.period_end,
         raw=word["text"],
         value=value,
-        rupees=value * RUPEES_PER_UNIT[unit],
+        rupees=to_rupees(value, unit),
         unit=unit,
         page=page,
         bbox=(word["x0"], word["top"], word["x1"], word["bottom"]),
@@ -929,14 +963,11 @@ def _value(
     )
 
 
-def render_crop(
-    path: Path,
-    page: int,
-    bbox: tuple[float, float, float, float],
-    out: Path,
-    margin: float = 24.0,
-    resolution: int = 150,
-) -> Path:
+CROP_MARGIN = 24.0  # points above and below the value in an evidence crop
+CROP_RESOLUTION = 150  # dpi of an evidence crop
+
+
+def render_crop(path: Path, page: int, bbox: tuple[float, float, float, float], out: Path) -> Path:
     """Write a PNG of the full-width band around `bbox` on `page` (1-based), bbox highlighted.
 
     The band spans the page width so the row label shows next to the value.
@@ -946,11 +977,11 @@ def render_crop(
         _, top, _, bottom = bbox
         region = (
             0.0,
-            max(0.0, top - margin),
+            max(0.0, top - CROP_MARGIN),
             float(p.width),
-            min(float(p.height), bottom + margin),
+            min(float(p.height), bottom + CROP_MARGIN),
         )
-        image = p.crop(region).to_image(resolution=resolution)
+        image = p.crop(region).to_image(resolution=CROP_RESOLUTION)
         image.draw_rect(bbox, stroke=(220, 0, 0), fill=(255, 230, 0, 60), stroke_width=2)
         out.parent.mkdir(parents=True, exist_ok=True)
         image.save(out)
