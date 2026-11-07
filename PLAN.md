@@ -281,7 +281,7 @@ Every `fin` command:
 
 ## 9. Error handling
 
-The code table (meaning and what to do) is in `README.md`, "Troubleshooting and error codes"; each code's class
+The code table (meaning and what to do) is in `README.md`, "Error codes"; each code's class
 is in `src/fin/audit/errors.py`. E1xx-E2xx fail one document (the batch goes on); E301-E303 load facts unconfirmed;
 E401-E405 are findings (the document is held); setup, database and output errors stop the command.
 

@@ -1,25 +1,50 @@
 # fin-analyst
 
-A local tool for looking at the financial health of companies. You drop financial documents (Excel, PDF) into a
-folder. `fin` loads them into a local database, answers questions with the source cell or page for every number, and
-produces reports and dashboards, all inside [Claude Code](https://claude.com/claude-code).
+Turn company financial statements into a database you can question, chart and report on, from inside
+[Claude Code](https://claude.com/claude-code).
 
-**What it does**
+You drop annual reports and quarterly results (Excel or PDF) into a folder and talk to Claude. `fin`, the tool
+underneath, loads every figure into a local database with its source cell or page, maps it to a standard chart of
+accounts (Indian Schedule III formats), checks that the numbers add up, and computes about 65 metrics. You get
+standard statements, answers with sources, health reports and dashboards.
 
-- Loads Excel and text-based PDF documents (annual reports, and quarterly or half-year results), one database per
-  company, and checks them (balance sheet balances, subtotals add up, cash flow ties to cash, figures agree across
-  documents for the same period, units make sense). What does not add up is shown to you as a finding; you decide
-  whether to keep the document as filed or have Claude fix it.
-- Computes ratios and growth in SQL and traces every number back to its file and cell or page.
-- Writes health reports (HTML, Word, PDF) and an Evidence dashboard.
-- Logs every action, so any number, report or change can be audited.
+## How you use it
 
-**What it does not do**
+Start Claude Code in this folder (`claude`) and ask in plain words. For example:
 
-- It analyses only. It gives no scores, rankings or recommendations; decisions stay with you.
-- It does not read scanned PDFs (no text layer) itself and does not guess: unknown labels and missing numbers are
-  flagged, never filled in. When you ask, Claude can read pages fin could not (see "Pages fin could not read").
-- Everything stays on your Mac. The Python code never calls an AI service; Claude Code does the judgement work.
+> Load the files I put in the inbox for kestrel.
+>
+> What was kestrel's EBITDA margin over the last three years, and why did it change?
+>
+> Show bluepeak's balance sheet for FY25.
+>
+> Compare kestrel and bluepeak on return on capital employed.
+>
+> Write a health report for kestrel with bluepeak as a peer.
+>
+> Open the dashboard.
+
+Claude runs `fin` for you, shows where every number came from, and asks you whenever a decision is yours.
+
+## What happens to your documents
+
+1. **Load.** Files in `~/FinAnalysis/inbox/<company>/` are read: every figure keeps its file, sheet and cell (or
+   page), its unit (lakh, crore, ...) and its period (`FY25`, a quarter like `FY26-Q1`, a half `FY26-H1`, nine
+   months `FY26-9M`), standalone or consolidated.
+2. **Map.** Each line ("Revenue from operations", "Trade payables", ...) is matched to an account in the chart of
+   accounts. A line fin has not seen before waits for review: Claude proposes an account (or a new one), you
+   confirm. Confirmed mappings are remembered for next time.
+3. **Check.** Does the balance sheet balance? Do subtotals add up? Does closing cash match? Does this document agree
+   with earlier ones for the same period? What doesn't add up becomes a **finding**, never a silent fix (see
+   [Findings](#findings)).
+4. **Analyse.** Standard statements in the filing's own unit, and metrics by category: profitability, returns,
+   liquidity, solvency, working capital, cash flow, growth (with 3- and 5-year CAGR), earnings quality, per share,
+   lending (NBFCs and banks) and trailing twelve months. Each metric has a definition, a formula and the lines it
+   used. A metric with missing inputs is left blank, never guessed.
+5. **Report.** Health reports (HTML, Word, PDF) and dashboards (company, compare, data quality).
+
+fin analyses; it does not judge. No scores, ratings or recommendations: decisions stay with you. Everything stays on
+your Mac.
 
 ## Install
 
@@ -31,140 +56,88 @@ cd fin-analyst
 ./install.sh
 ```
 
-The installer checks you are on macOS, asks before installing [Homebrew](https://brew.sh) if it is missing, installs
-`uv`, `node`, `quarto` and `poppler` (lets Claude read PDF pages as images), sets up the Python environment, creates your data folder and runs `uv run fin doctor`.
-You can run it again at any time; it only installs what is missing. Its log is `~/FinAnalysis/logs/install.log`.
+The installer asks before installing [Homebrew](https://brew.sh) if it is missing, then installs `uv`, `node`,
+`quarto` and `poppler`, sets up the tool, creates your data folder (`~/FinAnalysis`) and runs `uv run fin doctor`.
+Running it again only installs what is missing. Its log is `~/FinAnalysis/logs/install.log`.
 
-To keep your data elsewhere, set `FIN_DATA_DIR` (for example `export FIN_DATA_DIR="$HOME/Documents/FinAnalysis"`)
-before installing, and add that line to `~/.zshrc`.
+To keep your data somewhere else, set `FIN_DATA_DIR` before installing (for example
+`export FIN_DATA_DIR="$HOME/Documents/FinAnalysis"`) and add that line to `~/.zshrc`.
 
-Check the installation at any time with `uv run fin doctor`. Each line says `ok`, `warn` (works, but worth fixing,
-such as poppler missing) or `FAIL`, with an error code and the fix (see Troubleshooting).
+`uv run fin doctor` checks the installation at any time: each line is `ok`, `warn` or `FAIL` with the fix.
 
-## Daily workflow
+## Slash commands
 
-Start Claude Code in the `fin-analyst` folder with `claude`. Then:
+Plain requests work; these are shortcuts. Each one runs `fin` (see `uv run fin --help`).
 
-| Step | You do | What happens |
-|---|---|---|
-| 1 | Drop files in `~/FinAnalysis/inbox/<company>/` (lower-case company name, for example `kestrel`) | |
-| 2 | `/ingest <company>` (or `/ingest-batch` for every folder under `inbox/`) | Loads the files, checks them, and proposes accounts for labels it does not know. A document with findings is held and Claude asks you: save as is, or have Claude fix it (see "Findings"). A file with nothing readable goes to `review/<company>/` with a reason. A file already loaded is skipped (E105). |
-| 3 | `/review [company]` | Lists the proposed mappings. Tell Claude which to confirm or reject. When no account fits a line, Claude may propose a new account; it is added only if you confirm it (`fin map accounts --added` prints added accounts to share). |
-| 4 | `/ask <company> <question>` | Answer, calculation, source table (file and sheet!cell or page), the SQL, an evidence page and flags (unconfirmed mappings, missing data). |
-| 5 | `/statements <company> [period] [scope]` (or `uv run fin statements <company>`) | Shows the profit and loss, balance sheet and cash flow in the standard account order, whatever labels the filing used, in the unit the documents use (lakh, crore, ...). A printed subtotal that its mapped lines do not fully explain gets an "Unmapped / other" line for the difference and says how much the lines explain. `uv run fin export <company>` writes `reports/<company>/<company>_financials.xlsx`: every period side by side, one sheet per statement and scope, and a Metrics sheet with each metric's definition. |
-| 6 | `/report <company> [--peers a,b]` | Writes a narrative that describes the numbers (it never types them) and renders HTML, Word and PDF into `reports/<company>/<scope>/`. See [Reports and dashboards](#reports-and-dashboards). |
-| 7 | `/dashboard` (or `uv run fin dashboard`) | Refreshes the dashboard data and starts the Evidence dashboard at http://localhost:3000 (company, compare and data quality pages; see [Reports and dashboards](#reports-and-dashboards)). It reads a copy of the data, so you can ingest while it is open. `uv run fin dashboard --build` makes a static site instead (kept in `~/FinAnalysis/dashboard/build`; a failed build, E603, keeps the last good one). |
-| 8 | `/audit <company> [metric fiscal-year or --fact id]` | Traces a figure to its source, or lists the company's history. |
-| 9 | `/verify <company> <file>` | On request: Claude reads the pages you name and `fin verify` compares that reading with what is loaded (agree, differ, missing). |
-| any time | `/status [company]` (or `uv run fin status`) | Per company: periods loaded and gaps, held documents, findings, mappings waiting for review, unverified figures read by Claude, and inbox files not yet ingested. |
+| Command | What it does |
+|---|---|
+| `/ingest <company>` | Load the company's inbox files, check them, propose accounts for new lines. `/ingest-batch` does every company. |
+| `/review [company]` | Show lines waiting for an account; tell Claude which to confirm or reject. |
+| `/status [company]` | What is loaded, which periods are missing, held documents, findings, items waiting for you. |
+| `/statements <company> [period]` | Profit and loss, balance sheet and cash flow in standard order, or an Excel export with every period and all metrics. |
+| `/ask <company> <question>` | An answer with the calculation, the source cells or pages, the SQL and an evidence page. |
+| `/report <company> [--peers a,b]` | Health report: key metrics, one section per category, latest quarters, peers, findings, data coverage. |
+| `/dashboard` | Dashboards at http://localhost:3000: Company, Compare and Data quality. |
+| `/audit <company> [metric year]` | Trace a figure back to its source, or show the company's history. |
+| `/verify <company> <file>` | Have Claude read pages independently and compare with what is loaded. |
 
-Until you confirm a mapping, the facts it affects are marked unconfirmed and are left out of metrics. Answers say so.
+## Findings
 
-Ask Claude which metrics exist (`/ask`), or see the `metric_definitions` view (`uv run fin sql <company> --sql
-"SELECT * FROM metric_definitions"`) and the export's Metrics sheet. A metric whose inputs are missing has no
-value; nothing is guessed.
+When a filing doesn't add up, fin shows you; it doesn't reject the document or quietly change it. The checks:
+balance sheet balances (E401), subtotals equal their lines (E402), closing cash ties to the balance sheet (E403), the
+same figure agrees across documents, such as a restatement or a quarter against its year (E404), and no figure is off
+by a unit factor (E405).
 
-### Reports and dashboards
+A document with open findings is **held**: stored, but kept out of answers, metrics and reports until you choose.
+Claude shows each finding with both figures and where each came from, then asks you to:
 
-The health report (`/report`) has a summary of key metrics over the latest five fiscal years, one section per
-metric category (trend table and chart), the latest quarters when they are loaded, an optional peer comparison
-(`--peers a,b`), findings and data coverage, and appendices (statements, metric definitions, the facts behind the
-metrics). The narrative is Claude's; every number in it is a reference filled in from the database, and it
-describes without judging.
+- **Save as is.** The document loads exactly as filed; the findings stay attached and are mentioned in answers and
+  reports.
+- **Have Claude fix it**, for example a line mapped to the wrong account or a figure read wrongly. Fixes are backed
+  up and logged, and held documents are checked again after each one.
 
-The dashboards (`/dashboard`) have a **Company** page (one company by category), a **Compare** page (one metric
-across companies) and a **Data quality** page (findings, held documents, coverage, unread pages, unverified
-figures). To add a metric, report section or page, see [docs/CUSTOMISING.md](docs/CUSTOMISING.md).
+## Pages fin can't read
 
-The slash commands call `fin` for you. You can also run `uv run fin --help` and use the commands directly.
+fin reads Excel files and digital PDFs. When it can't read a page (a scanned PDF, an unusual layout), it says which
+pages. If you ask, Claude reads those pages and fin loads that reading through the same checks. Figures read by
+Claude are marked as such until a second, independent reading agrees (`/verify`).
 
-### Changing data
+## Your data
 
-Ask Claude in plain words, for example "set the FY24 revenue of kestrel to ...". Claude uses
-`uv run fin sql <company> --write --sql "..."`, which backs up the company database to `backups/<run_id>/`, runs the
-statement in one transaction and records it in the audit log. Without `--write`, `fin sql` only reads: it refuses
-anything but one SELECT.
-
-### Findings
-
-fin is an analysis tool: when what a company filed does not add up, that is a finding to show you, not a reason to
-reject the document. The checks: the balance sheet balances (E401), subtotals equal their lines (E402), closing cash
-ties to the balance sheet (E403), a figure equals the same figure in other documents (E404, for example a
-restatement, or a quarter against its year) and is not off by a unit factor (E405). `fin verify` differences are
-findings too.
-
-A document with open findings is **held**: it is stored, but its figures stay out of answers, metrics and reports
-until you decide. `uv run fin findings list [company]` shows each finding with this document's figure and what it was
-compared with, each with its file and page or cell. Claude then asks you:
-
-- **Save as is**: `uv run fin findings accept <company> <finding ids>`. The document is loaded exactly as filed. The
-  findings stay attached, marked accepted: `/ask` flags them and the report describes them.
-- **Have Claude fix it**: for example a label mapped to the wrong account (`uv run fin map set ...`, then
-  `uv run fin ingest <company> <file> --force`), or a figure read wrongly (`uv run fin sql <company> --write ...`).
-  Held documents are checked again after every fix; a finding that no longer appears is resolved, and a document
-  with no open findings is loaded.
-
-Example: in old-format reports "Cash and bank balances" also holds bank deposits, so the cash flow's closing cash is
-smaller (E403); mapping that line to `cash_and_bank_balances` (not compared with closing cash) fixes it.
-
-### Pages fin could not read
-
-A scanned PDF (E104), a file with no readable headers (E201-E204), or a statement page fin skipped can be read by
-Claude instead, only when you ask. `/ingest` names the pages and offers it. Claude reads the pages as images and
-copies every figure exactly as printed into a reading file in `review/<company>/`; then
-`uv run fin ingest <company> <file> --reading <reading.csv>` loads it for the statements fin could not read, through
-the same checks. These facts are marked as read by Claude and stay unverified
-until a second, independent reading agrees (`uv run fin verify <company> <file> --reading <second.csv>`).
-Differences are findings, not errors: shown with both values and sources for you to decide (see "Findings"). `/ask` flags unverified Claude-read figures,
-and the dashboard's data quality page counts them.
-
-### Deleting a company
-
-Ask Claude, or run `uv run fin delete <company>` and type the name when asked (Claude uses `--yes` when you have
-asked it to). Everything removed is copied to `backups/<run_id>/` first. The audit history stays, and so do mappings
-you confirmed for all companies.
-
-## Where your data lives
-
-Outside this folder, in `~/FinAnalysis` (or `FIN_DATA_DIR`). Updating or uninstalling never touches it.
+Everything lives in `~/FinAnalysis` (or `FIN_DATA_DIR`), outside this folder; updating or uninstalling never touches
+it.
 
 ```
 ~/FinAnalysis/
-  config.toml             # display unit, default scope, fiscal year start, validation tolerances
-  inbox/<company>/        # drop documents here
-  archive/<company>/      # copies of originals after ingest, named by sha256
-  companies/<company>.duckdb
-  shared/                 # dictionary.duckdb, audit.duckdb, analytics.duckdb
-  review/<company>/       # unreadable files with .error.json reasons, pending mappings
-  notes/<company>/        # notes to accounts and auditor reports as Markdown
-  evidence/  reports/  logs/  backups/
+  config.toml           # display unit, default scope, fiscal year start, check tolerances
+  inbox/<company>/      # drop documents here
+  companies/            # one database per company
+  shared/               # chart of accounts, audit log, dashboard data
+  reports/<company>/    # health reports and Excel exports
+  review/<company>/     # files fin could not load, with the reason
+  archive/  evidence/  notes/  logs/  backups/
 ```
 
-Edit `config.toml` to change settings; `fin init` never overwrites it. Run `uv run fin doctor` after editing.
-Never open the `.duckdb` files directly; use `fin`.
+Change settings in `config.toml`, then run `uv run fin doctor`. Don't open the database files directly; ask Claude.
 
-## Guardrails
+**Safety net.** Claude works without approval prompts. Every change to data goes through `fin`, which backs up the
+database first (`backups/<run_id>/`) and records the change in the audit log; every action Claude takes is logged to
+`logs/claude_actions.jsonl`. Deleting a company copies everything to `backups/` first.
 
-Claude works for you without approval prompts. The safety net is in `fin`: every data change goes through it, backs
-up the database first to `backups/<run_id>/` and is recorded in the audit log. Every action Claude takes is logged to
-`~/FinAnalysis/logs/claude_actions.jsonl`. `fin delete` asks you to type the company name when you run it yourself.
+## Update, uninstall, customise
 
-## Update and uninstall
+- **Update:** `uv run fin update` backs up all databases, pulls the latest version and runs `fin doctor`.
+- **New database layout:** there are no migrations. If a new version changes the layout (`fin doctor` says E002),
+  move `~/FinAnalysis` aside, run `uv run fin init` and load your documents again.
+- **Uninstall:** delete this folder. Your data stays in `~/FinAnalysis` until you delete it.
+- **Customise:** add an account, a metric, a check or a report section with Claude Code; see
+  [docs/CUSTOMISING.md](docs/CUSTOMISING.md).
 
-- Update: `uv run fin update`. It refuses if you have local changes in this folder, backs up all databases, pulls the
-  latest code, installs dependencies, refreshes the metrics and runs `fin doctor`. If a step fails (E005), the
-  backup is in `~/FinAnalysis/backups/<run_id>/`.
-- There are no database migrations. If a new version changes the database layout, move `~/FinAnalysis` away and run
-  `uv run fin init` again (the doctor says so with E002).
-- Uninstall: delete the `fin-analyst` folder. To remove your data as well, delete `~/FinAnalysis` yourself.
+## Error codes
 
-To modify the app with Claude Code, see [docs/CUSTOMISING.md](docs/CUSTOMISING.md).
-
-## Troubleshooting and error codes
-
-When a command fails, note the error code and the run id it prints. Exit codes: 0 success (held documents and
-findings included), 1 finished but some files failed, 2 the command could not run, 3 refused until you confirm. Every run is in
-`~/FinAnalysis/logs/<date>/<run_id>.jsonl`; `uv run fin audit <company>` shows a company's history.
+When a command fails it prints an error code and a run id; Claude reports both. Exit codes: 0 success (held
+documents and findings included), 1 finished but some files failed, 2 the command could not run, 3 refused until you
+confirm. Every run is logged in `~/FinAnalysis/logs/<date>/<run_id>.jsonl`.
 
 | Code | Meaning | What to do |
 |---|---|---|
@@ -175,28 +148,27 @@ findings included), 1 finished but some files failed, 2 the command could not ru
 | E101 | File is unreadable or corrupt | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
 | E102 | File is password protected | Save an unprotected copy and ingest that |
 | E103 | Unsupported file format | Convert it to `.xlsx` or a text PDF |
-| E104 | Scanned PDF (no text layer); fin cannot read it | Get an Excel or text-PDF version, or ask Claude to read the pages (see "Pages fin could not read") |
-| E105 | The same file (same sha256) is already loaded | Nothing to do. Use `--force` to load it again as a new version |
+| E104 | Scanned PDF (no text layer); fin cannot read it | Get an Excel or text-PDF version, or ask Claude to read the pages |
+| E105 | The same file is already loaded | Nothing to do. Use `--force` to load it again as a new version |
 | E201 | No tables found in the file | Check the file has statement tables; read the reason in `review/<company>/` |
-| E202 | Fiscal periods or column headers not detected | Fix the headers in the file, then ingest again |
+| E202 | Fiscal periods or column headers not detected | Fix the headers in the file, or ask Claude to read the pages |
 | E203 | Unit (crores, lakhs, ...) not detected | Add a unit line such as "Rs. in Crores" to the file, then ingest again |
 | E204 | Parse error while reading the file | Read the reason in `review/<company>/<file>.error.json` and fix the file |
-| E205 | A reading file (`--reading`) cannot be used: missing columns, unknown statement or scope, bad figure, date or source, or nothing fin did not read already | Fix the line named in the message and run again |
-| E301 | A label is not in the dictionary | Loaded as unconfirmed. Run `/review` to confirm a mapping |
+| E205 | A Claude reading file cannot be used (missing columns, unknown statement or scope, bad figure, date or source) | Fix the line named in the message and run again |
+| E301 | A line is not in the chart of accounts | Loaded as unconfirmed. Run `/review` to confirm a mapping |
 | E302 (warning) | A proposed mapping has low confidence; a warning, not an error | Check it in `/review` |
-| E303 | A label maps to conflicting accounts | Same: you decide in `/review` |
-| E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id or label, invalid new account) | Nothing was applied. Check `fin review list` and the account name, then retry |
-| E406 | `fin findings accept` named a finding that does not exist or is not open | Nothing was accepted. Check the ids with `uv run fin findings list <company>` |
+| E303 | A line maps to conflicting accounts | You decide in `/review` |
+| E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id, invalid new account) | Nothing was applied. Check `/review` and the account name, then retry |
+| E401-E405 | Findings, not errors: balance sheet (E401), subtotal (E402), cash (E403), documents disagree (E404), unit factor (E405) | The document is held, not rejected. See [Findings](#findings) |
+| E406 | A finding to accept does not exist or is not open | Nothing was accepted. Check the ids with `uv run fin findings list <company>` |
 | E501 | A database is in use by another `fin` command | Wait for it to finish and run again |
-| E502 | `fin sql` without `--write` was given something other than one SELECT | Add `--write` only for a change you asked for |
+| E502 | `fin sql` without `--write` was given something other than one SELECT | Use `--write` only for a change you asked for |
 | E503 | A database could not be created from its schema file | Report the error |
 | E504 | A SQL statement failed (syntax, unknown column, constraint) | Nothing changed. Fix the statement |
 | E601 | Report render failed | The last good report is kept. Run `uv run fin doctor` (Quarto) and try again |
-| E602 | The narrative contains hand-typed numbers | Replace each listed line with a `{{metric:...}}` or `{{fact:...}}` reference, or reword it |
+| E602 | The report narrative contains hand-typed numbers | Replace each listed number with a `{{metric:...}}` or `{{fact:...}}` reference, or reword it |
 | E603 | Dashboard build failed | The last good build is kept. Run `uv run fin doctor` (node) and try again |
 | E604 | An evidence source file is missing from the archive | The page is still produced and flags it. Restore the original into `archive/` |
-| E701 | The action needs your confirmation | `fin delete` run by you exits 3 when the typed name does not match; Claude uses `--yes` when you asked |
+| E701 | The action needs your confirmation | `fin delete` run by hand exits 3 when the typed name does not match; Claude uses `--yes` when you asked |
 
-| E401-E405 | Findings, not errors: balance sheet (E401), subtotal (E402), cash flow (E403), a figure differs between documents (E404), unit factor (E405) | The document is held, not rejected, and the command exits 0. See "Findings" |
-
-This is the one list of error codes; the code that raises each is in `src/fin/audit/errors.py`.
+The code that raises each error is in `src/fin/audit/errors.py`.
