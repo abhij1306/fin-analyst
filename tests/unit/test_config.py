@@ -33,6 +33,21 @@ def test_set_docling_changes_only_that_line(tmp_path: Path) -> None:
     assert load_config(tmp_path).docling is True
 
 
+def test_set_docling_keeps_a_trailing_comment(tmp_path: Path) -> None:
+    write_default_config(tmp_path)
+    path = tmp_path / "config.toml"
+    path.write_text(
+        DEFAULT_CONFIG_TOML.replace("docling = false", "docling = false  # off"), encoding="utf-8"
+    )
+
+    set_docling(tmp_path, True)
+
+    assert path.read_text(encoding="utf-8") == DEFAULT_CONFIG_TOML.replace(
+        "docling = false", "docling = true  # off"
+    )
+    assert load_config(tmp_path).docling is True
+
+
 def test_set_docling_adds_the_pdf_table_to_an_older_config(tmp_path: Path) -> None:
     (tmp_path / "config.toml").write_text(OLDER_CONFIG, encoding="utf-8")
 

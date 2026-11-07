@@ -361,3 +361,36 @@ def test_sql_write_records_the_question(kestrel: Path) -> None:
     assert audit_rows(
         kestrel, "SELECT question FROM queries WHERE query_id = ?", [out["query_id"]]
     ) == [("fix",)]
+
+
+def test_sql_write_counts_rows_changed_by_a_statement_with_returning(kestrel: Path) -> None:
+    where = "WHERE account = 'revenue' AND fiscal_year = 'FY25'"
+    changed = f"UPDATE facts SET value = 1.00 {where} RETURNING fact_id, value"
+    none = "UPDATE facts SET value = 1.00 WHERE fact_id = -1 RETURNING fact_id"
+
+    out = json.loads(invoke("sql", "kestrel", "--write", "--sql", changed).stdout)
+    nothing = invoke("sql", "kestrel", "--write", "--sql", none)
+
+    assert out["rows_affected"] == 1
+    assert nothing.exit_code == 0, nothing.output
+    assert json.loads(nothing.stdout)["rows_affected"] == 0
+
+
+def test_a_row_without_a_fact_id_gets_no_provenance(kestrel: Path) -> None:
+    # A raw value no fact points to (its fact deleted).
+    drop = "DELETE FROM facts WHERE fact_id = (SELECT min(fact_id) FROM facts)"
+    assert invoke("sql", "kestrel", "--write", "--sql", drop).exit_code == 0
+
+    result = invoke("sql", "kestrel", "--sql", "SELECT CAST(NULL AS BIGINT) AS fact_id")
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["rows"] == [
+        {
+            "fact_id": None,
+            "source_file": None,
+            "source_ref": None,
+            "source_confirmed": None,
+            "source_read_by": None,
+            "source_verified": None,
+        }
+    ]

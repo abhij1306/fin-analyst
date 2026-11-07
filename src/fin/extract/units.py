@@ -21,7 +21,8 @@ _PAISE = Decimal("0.01")
 
 # A figure printed as nil: a lone dash or the word "nil" (any case).
 NIL = ("-", "–", "—", "nil")
-# '1,234.56', '(56.67)', '-56.67', '.82'; paired brackets or a minus mean negative.
+# '1,234.56', '(56.67)', '-56.67', '.82'; paired brackets or a minus mean negative. A lone bracket
+# ('(56.67' or '56.67)') is not a figure.
 _FIGURE = re.compile(r"^([({])?\s*(?:(-)\s*)?([\d,]*\d(?:\.\d+)?|\.\d+)\s*(\))?$")
 
 
@@ -61,5 +62,7 @@ def parse_figure(text: str) -> Decimal | None:
     if match is None:
         return None
     opening, minus, digits, closing = match.groups()
+    if bool(opening) != bool(closing):
+        return None  # an unpaired bracket: the sign is unknown
     value = Decimal(digits.replace(",", ""))
     return -value if (opening and closing) or minus else value
