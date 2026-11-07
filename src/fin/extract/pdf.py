@@ -145,7 +145,8 @@ _DAY_FIRST = re.compile(  # 31 March 2025, 31-Mar-2025, 30-Sep-25
 )
 _MONTH_FIRST = re.compile(rf"\b([a-z]{{3,9}})\.?\s*(\d{{1,2}}){_ORDINAL}\s*,?\s*(\d{{4}})\b", re.I)
 _FY_RANGE = re.compile(r"\b(\d{4})\s*[-–]\s*(\d{2}|\d{4})\b")  # 2023-24 or 2023-2024
-_NUMBER = re.compile(r"^\(?-?(?:[\d,]*\d(?:\.\d+)?|\.\d+)\)?$|^[-–—]$")
+_NUMBER = re.compile(r"^\(?-?(?:[\d,]*\d(?:\.\d+)?|\.\d+)\)?$")
+_DASH = re.compile(r"^[-–—]$")  # a nil figure printed as a dash
 _YEAR = re.compile(r"^(19|20)\d\d$")
 _NOTE_REF = re.compile(r"^\d{1,3}(\.\d{1,2})?[a-z]?(\([a-z0-9]{1,4}\))*$|^&$|^and$", re.I)
 _SUB_HEADING = re.compile(r"^\(?\s*[a-z]{1,4}\s*\)", re.I)  # "(a)", "b)", "(iii)", "(c )"
@@ -271,58 +272,86 @@ def extract_pdf(path: Path, start_month: int = FY_START_MONTH) -> PdfExtraction:
     skipped: list[SkippedPage] = []
     previous: _Page | None = None
     for number, lines in parts:
-        statement = statement_of(lines, numbered=results)
-        scope = scope_of(lines, numbered=results)
-        if statement is None and previous is not None and _continues(previous, number, lines):
-            statement, scope = previous.statement, previous.scope
-            if previous.failed is not None:  # carries on a page that was not read: nor is it
-                if _figure_lines(lines) >= UNREAD_FIGURE_LINES:
-                    reason = f"page {number}: carries on page {previous.number}, which was not read"
-                    skipped.append(SkippedPage(number, statement, type(previous.failed)(reason)))
-                previous = None
-                continue
-        if statement is None:
-            untitled = _untitled_statement(lines, number)
-            if untitled is not None:
-                skipped.append(SkippedPage(number, *untitled))
-            previous = None
-            continue
-        continues = (
-            previous
-            if previous is not None
-            and previous.failed is None
-            and (previous.statement, previous.scope) == (statement, scope)
-            and number - previous.number <= 1
-            else None
+        previous = _read_one_part(
+            number, lines, previous, values, skipped, results=results, start_month=start_month
         )
-        try:
-            page_values, previous = _read_part(
-                lines,
-                number,
-                statement,
-                scope,
-                continues,
-                results=_is_results(lines) or bool(continues and results),
-                start_month=start_month,
-            )
-        except (UnitNotDetected, PeriodsNotDetected, NoTablesFound, ParseError) as exc:
-            if statement != "notes":
-                skipped.append(SkippedPage(number, statement, exc))
-            previous = _Page(number, statement, scope, "", [], exc)
-            continue
-        values.extend(page_values)
-
     if not any(v.statement in STATEMENTS for v in values):
-        if skipped:
-            reasons = "; ".join(s.error.message for s in skipped[:5])
-            more = f" (and {len(skipped) - 5} more)" if len(skipped) > 5 else ""
-            error = type(skipped[0].error)(
-                f"{path.name}: no statement page could be read: {reasons}{more}"
-            )
-            error.pages = tuple(s.as_dict() for s in skipped)
-            raise error
-        raise NoTablesFound(f"{path.name}: no statement tables with values found")
+        raise _nothing_read(path, skipped)
     return PdfExtraction(values, skipped)
+
+
+def _read_one_part(
+    number: int,
+    lines: list[Line],
+    previous: _Page | None,
+    values: list[PdfValue],
+    skipped: list[SkippedPage],
+    *,
+    results: bool,
+    start_month: int,
+) -> _Page | None:
+    """Read one page part: add its values to `values`, or record why it was skipped in `skipped`.
+    Returns the page as read, for the next part to carry on from (None when there is none)."""
+    statement = statement_of(lines, numbered=results)
+    scope = scope_of(lines, numbered=results)
+    if statement is None and previous is not None and _continues(previous, number, lines):
+        statement, scope = previous.statement, previous.scope
+        if previous.failed is not None:  # carries on a page that was not read: nor is it
+            _skip_unread_carry_on(previous, number, lines, skipped)
+            return None
+    if statement is None:
+        untitled = _untitled_statement(lines, number)
+        if untitled is not None:
+            skipped.append(SkippedPage(number, *untitled))
+        return None
+    continues = _carried_from(previous, number, statement, scope)
+    try:
+        page_values, page = _read_part(
+            lines,
+            number,
+            statement,
+            scope,
+            continues,
+            results=_is_results(lines) or bool(continues and results),
+            start_month=start_month,
+        )
+    except (UnitNotDetected, PeriodsNotDetected, NoTablesFound, ParseError) as exc:
+        if statement != "notes":
+            skipped.append(SkippedPage(number, statement, exc))
+        return _Page(number, statement, scope, "", [], exc)
+    values.extend(page_values)
+    return page
+
+
+def _skip_unread_carry_on(
+    previous: _Page, number: int, lines: list[Line], skipped: list[SkippedPage]
+) -> None:
+    """Record a page part that carries on a page that was not read (when it holds figures)."""
+    if previous.failed is not None and _figure_lines(lines) >= UNREAD_FIGURE_LINES:
+        reason = f"page {number}: carries on page {previous.number}, which was not read"
+        skipped.append(SkippedPage(number, previous.statement, type(previous.failed)(reason)))
+
+
+def _carried_from(
+    previous: _Page | None, number: int, statement: str, scope: str | None
+) -> _Page | None:
+    """The page before, when it was read and this part carries on its statement; else None."""
+    if previous is None or previous.failed is not None:
+        return None
+    if (previous.statement, previous.scope) != (statement, scope):
+        return None
+    return previous if number - previous.number <= 1 else None
+
+
+def _nothing_read(path: Path, skipped: list[SkippedPage]) -> DocumentFailure:
+    """The error for a PDF where no statement page could be read."""
+    if not skipped:
+        return NoTablesFound(f"{path.name}: no statement tables with values found")
+    reasons = "; ".join(s.error.message for s in skipped[:5])
+    more = f" (and {len(skipped) - 5} more)" if len(skipped) > 5 else ""
+    error = type(skipped[0].error)(f"{path.name}: no statement page could be read: {reasons}{more}")
+    error.pages = tuple(s.as_dict() for s in skipped)
+    return error
 
 
 def _read_part(
@@ -393,17 +422,27 @@ def _named_statement(lines: list[Line]) -> tuple[str, str] | None:
         text = line_text(line).strip()
         if _is_value_like(line) and _FIGURE_TEXT.search(line[-1]["text"]):
             break
-        if not text or text[0].islower() or _is_value_like(line):
-            continue
-        if text.rstrip(" -").endswith((".", ":")):
+        if not _could_be_title(line, text):
             continue
         match = _STATEMENT_WORDS.search(text)
         if match and len(text[: match.start()].split()) < TITLE_WORDS:
-            words = match.group(0).lower()
-            if "sheet" in words or "assets" in words:
-                return "balance_sheet", text
-            return ("cash_flow" if "cash" in words else "profit_and_loss"), text
+            return _statement_named(match.group(0).lower()), text
     return None
+
+
+def _could_be_title(line: Line, text: str) -> bool:
+    """False for an empty line, one starting in lower case, a table row, or one ending in '.' or
+    ':' (a sentence or a lead-in)."""
+    if not text or text[0].islower() or _is_value_like(line):
+        return False
+    return not text.rstrip(" -").endswith((".", ":"))
+
+
+def _statement_named(words: str) -> str:
+    """The primary statement that title words (in lower case) name."""
+    if "sheet" in words or "assets" in words:
+        return "balance_sheet"
+    return "cash_flow" if "cash" in words else "profit_and_loss"
 
 
 def _continues(previous: _Page, number: int, lines: list[Line]) -> bool:
@@ -498,20 +537,30 @@ def line_text(line: Line) -> str:
 
 
 def _title(lines: list[Line], numbered: bool = False) -> tuple[str, re.Match[str]] | None:
+    """(statement, title match) from the page's top lines. `numbered`: first look for a primary
+    statement titled as a numbered note ("1. Balance Sheet as on")."""
     if numbered:
-        for line in lines[:TITLE_LINES]:
-            text = line_text(line).strip()
-            if not _NUMBERED.match(text):
-                continue
-            for statement, title in STATEMENT_TITLES:
-                match = title.search(_NUMBERED.sub("", text))
-                if match and statement in STATEMENTS:
-                    return statement, match
+        found = _numbered_title(lines)
+        if found is not None:
+            return found
     for line in lines[:TITLE_LINES]:
         text = line_text(line).strip()
         for statement, title in STATEMENT_TITLES:
             match = title.search(text)
             if match:
+                return statement, match
+    return None
+
+
+def _numbered_title(lines: list[Line]) -> tuple[str, re.Match[str]] | None:
+    """(statement, title match) for a primary statement titled as a numbered note, or None."""
+    for line in lines[:TITLE_LINES]:
+        text = line_text(line).strip()
+        if not _NUMBERED.match(text):
+            continue
+        for statement, title in STATEMENT_TITLES:
+            match = title.search(_NUMBERED.sub("", text))
+            if match and statement in STATEMENTS:
                 return statement, match
     return None
 
@@ -575,10 +624,15 @@ def _month_end(year: int, month: int, day: int) -> date | None:
     return date(year, month, day)
 
 
+def _is_number(text: str) -> bool:
+    """A figure ("1,234.56", "(56)", ".82") or a nil dash."""
+    return bool(_NUMBER.match(text) or _DASH.match(text))
+
+
 def _is_value_like(line: Line) -> bool:
     """True when a line ends in a figure (not a bare year), so it cannot be part of a header."""
     last = line[-1]["text"]
-    return bool(_NUMBER.match(last)) and not _YEAR.match(last)
+    return _is_number(last) and not _YEAR.match(last)
 
 
 def _runs(line: Line) -> list[list[Word]]:
@@ -715,7 +769,7 @@ def split_row(line: Line, columns: list[Column]) -> tuple[Line, dict[str, Word]]
     cut = len(line)
     for i in range(len(line) - 1, -1, -1):
         word = line[i]
-        if not _NUMBER.match(word["text"]):
+        if not _is_number(word["text"]):
             break
         center = (word["x0"] + word["x1"]) / 2
         bounds = [(a.center + b.center) / 2 for a, b in pairwise(columns)]
@@ -812,49 +866,77 @@ def read_page(
             header, end = found
             state.note_x = state.note_x or _note_x([w for ln in lines[i:end] for w in ln])
             i = end
-            try:
-                columns = resolve_columns(
-                    header, statement, page, results=results, start_month=start_month
-                )
-            except PeriodsNotDetected:
-                if statement != "notes":
-                    raise
-                columns = []
-                continue
-            state.last_text = None
+            columns = _header_columns(
+                state, header, statement, page, results=results, start_month=start_month
+            )
             continue
-        line = lines[i]
+        below = lines[i + 1] if i + 1 < len(lines) else None
+        if _read_line(state, lines[i], below, columns, statement, page):
+            break
         i += 1
-        words, row = split_row(line, columns) if columns else (line, {})
-        if not row:
-            if _text_line(state, line, columns, statement):
-                break
-            continue
-        words, note = _strip_note(words, state.note_x)
-        height = max(w["bottom"] - w["top"] for w in line)
-        label, wrapped = _row_label(state, words, line, height)
-        below = lines[i] if i < len(lines) else None
-        if (
-            all(w["text"] in NIL for w in row.values())
-            and not _SUB_HEADING.match(label)
-            and below is not None
-            and below[0]["x0"] > line[0]["x0"] + INDENT
-        ):
-            # A heading printed with nil dashes ("Current assets - -"), items indented below it.
-            state.last_text, state.before_heading, state.section = words, state.section, label
-            continue
-        if statement != "notes":
-            _check_figures(label, row, page)
-        state.rows.append(
-            _Row(label, row, columns, state.section, note, line[0]["top"], height, wrapped)
-        )
-        state.last_text = None
     found_values = [
         _value(r, column, r.values[column.key], page, statement, scope, unit, start_month)
         for r in state.rows
         for column in r.columns
     ]
     return found_values, columns
+
+
+def _header_columns(
+    state: _Reader,
+    header: list[Column],
+    statement: str,
+    page: int,
+    *,
+    results: bool,
+    start_month: int,
+) -> list[Column]:
+    """The columns a header row names. On a notes page, a header whose periods cannot be told
+    gives no columns ([]) rather than raising PeriodsNotDetected (E202)."""
+    try:
+        columns = resolve_columns(header, statement, page, results=results, start_month=start_month)
+    except PeriodsNotDetected:
+        if statement != "notes":
+            raise
+        return []
+    state.last_text = None
+    return columns
+
+
+def _read_line(
+    state: _Reader,
+    line: Line,
+    below: Line | None,
+    columns: list[Column],
+    statement: str,
+    page: int,
+) -> bool:
+    """Take in one line that is not a header: a row of figures, a heading or text. `below`: the
+    next line, if any. True when the line ends the table (a "Notes:" line)."""
+    words, row = split_row(line, columns) if columns else (line, {})
+    if not row:
+        return _text_line(state, line, columns, statement)
+    words, note = _strip_note(words, state.note_x)
+    height = max(w["bottom"] - w["top"] for w in line)
+    label, wrapped = _row_label(state, words, line, height)
+    if _is_nil_heading(row, label, line, below):
+        # A heading printed with nil dashes ("Current assets - -"), items indented below it.
+        state.last_text, state.before_heading, state.section = words, state.section, label
+        return False
+    if statement != "notes":
+        _check_figures(label, row, page)
+    state.rows.append(
+        _Row(label, row, columns, state.section, note, line[0]["top"], height, wrapped)
+    )
+    state.last_text = None
+    return False
+
+
+def _is_nil_heading(row: dict[str, Word], label: str, line: Line, below: Line | None) -> bool:
+    """True for a row whose figures are all nil dashes, with the next line indented below it."""
+    if not all(w["text"] in NIL for w in row.values()) or _SUB_HEADING.match(label):
+        return False
+    return below is not None and below[0]["x0"] > line[0]["x0"] + INDENT
 
 
 def _note_x(words: Line) -> float | None:

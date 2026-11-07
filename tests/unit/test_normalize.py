@@ -21,6 +21,7 @@ from fin.map.normalize import normalize_label
         ("Trade receivables (Note 10)", "trade receivables"),
         ("Trade receivables Note No. 10", "trade receivables"),
         ("Revenue (refer note 13 and 14)", "revenue"),
+        ("Revenue   notes 3, 4a & 5 from operations", "revenue from operations"),
         ("Revenue in ₹", "revenue in"),
         ("Rs. Revenue", "revenue"),
         ("  Sundry   DEBTORS  ", "sundry debtors"),
