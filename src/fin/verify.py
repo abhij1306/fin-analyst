@@ -143,28 +143,31 @@ def _finding(
     }
 
 
-def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
-    """Compare `reading` with what is loaded for document `path`; mark agreeing facts verified,
-    record every comparison, and return the result (see the module docstring)."""
-    config = load_config(run.root)
-    lines = read_reading(reading, config.fiscal_year_start_month)
-    sha256, reading_sha = sha256_of(path), sha256_of(reading)
-    db = company_db_path(run.root, company)
-    doc_id, loaded_reading, loaded = None, None, []
-    if db.is_file():
-        ensure_database(db, "company")
-        with connect(db) as con:
-            doc = con.execute(
-                "SELECT doc_id, reading_sha256 FROM documents WHERE sha256 = ? AND status IN "
-                "('loaded', 'held') ORDER BY version DESC LIMIT 1",
-                [sha256],
-            ).fetchone()
-            if doc is not None:
-                doc_id, loaded_reading = doc
-                loaded = [_loaded(row) for row in con.execute(_LOADED_LINES, [doc_id]).fetchall()]
-    same_reading = loaded_reading == reading_sha
-    results = compare(lines, loaded)
+Comparison = tuple[str, ReadingLine | None, Loaded | None]
 
+
+def _loaded_document(db: Path, sha256: str) -> tuple[Any, Any, list[Loaded]]:
+    """The newest loaded or held version of the document with this hash: its doc_id, the hash of
+    the reading it was loaded with, and its loaded lines. (None, None, []) when it is not loaded."""
+    if not db.is_file():
+        return None, None, []
+    ensure_database(db, "company")
+    with connect(db) as con:
+        doc = con.execute(
+            "SELECT doc_id, reading_sha256 FROM documents WHERE sha256 = ? AND status IN "
+            "('loaded', 'held') ORDER BY version DESC LIMIT 1",
+            [sha256],
+        ).fetchone()
+        if doc is None:
+            return None, None, []
+        doc_id, loaded_reading = doc
+        loaded = [_loaded(row) for row in con.execute(_LOADED_LINES, [doc_id]).fetchall()]
+    return doc_id, loaded_reading, loaded
+
+
+def _marks(results: list[Comparison], same_reading: bool) -> tuple[list[Any], list[Any]]:
+    """Fact ids to mark verified (they agree, and were not read by Claude from this same reading)
+    and unverified (they differ)."""
     verified, unverified = [], []
     for outcome, _, fact in results:
         if fact is None:
@@ -173,52 +176,63 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
             verified.append(fact.fact_id)
         elif outcome == "differ":
             unverified.append(fact.fact_id)
+    return verified, unverified
 
-    name = f"{company}/{path.name}"
-    rows, findings = [], []
-    for outcome, line, fact in results:
-        either = line if line is not None else fact
-        assert either is not None
-        row = {
-            "outcome": outcome,
-            "statement": either.statement,
-            "scope": either.scope,
-            "period": either.period,
-            "label": either.label,
-            "fin_value": fact.rupees if fact else None,
-            "reading_value": line.rupees if line else None,
-            "fin_printed": fact.raw if fact else None,
-            "reading_printed": line.raw if line else None,
-            "fin_source": fact.source if fact else None,
-            "reading_source": f"{line.source}, reading line {line.line}" if line else None,
-            "fact_id": fact.fact_id if fact else None,
-            "read_by": fact.read_by if fact else None,
-            "marked_verified": fact is not None and fact.fact_id in verified,
-        }
-        rows.append(row)
-        if outcome != "agree":
-            findings.append(_finding(company, doc_id, path, reading, reading_sha, row))
-    if doc_id is None:  # nothing loaded to attach them to: the audit log only
-        for finding in findings:
-            run.record("findings", finding)
-    else:
-        with connect(db, write=True) as con:
-            con.execute("BEGIN TRANSACTION")
-            try:
-                for ids, flag in ((verified, True), (unverified, False)):
-                    if ids:
-                        marks = ", ".join("?" for _ in ids)
-                        con.execute(
-                            f"UPDATE facts SET verified = ? WHERE fact_id IN ({marks})",
-                            [flag, *ids],
-                        )
-                where = "doc_id = ? AND check_name = 'verify_reading' AND other_sha256 = ?"
-                record(run, company, con, findings, where, [doc_id, reading_sha])
-                con.execute("COMMIT")
-            except BaseException:
-                con.execute("ROLLBACK")
-                raise
-    counts = {outcome: sum(1 for r in rows if r["outcome"] == outcome) for outcome in OUTCOMES}
+
+def _row(
+    outcome: str, line: ReadingLine | None, fact: Loaded | None, verified: list[Any]
+) -> dict[str, Any]:
+    """One comparison as a result row."""
+    either = line if line is not None else fact
+    assert either is not None
+    return {
+        "outcome": outcome,
+        "statement": either.statement,
+        "scope": either.scope,
+        "period": either.period,
+        "label": either.label,
+        "fin_value": fact.rupees if fact else None,
+        "reading_value": line.rupees if line else None,
+        "fin_printed": fact.raw if fact else None,
+        "reading_printed": line.raw if line else None,
+        "fin_source": fact.source if fact else None,
+        "reading_source": f"{line.source}, reading line {line.line}" if line else None,
+        "fact_id": fact.fact_id if fact else None,
+        "read_by": fact.read_by if fact else None,
+        "marked_verified": fact is not None and fact.fact_id in verified,
+    }
+
+
+def _save(
+    run: Run,
+    company: str,
+    db: Path,
+    doc_id: Any,
+    reading_sha: str,
+    marks: tuple[list[Any], list[Any]],
+    findings: list[dict[str, Any]],
+) -> None:
+    """In one transaction: set the verified flags and record the findings for the document."""
+    with connect(db, write=True) as con:
+        con.execute("BEGIN TRANSACTION")
+        try:
+            for ids, flag in zip(marks, (True, False), strict=True):
+                if ids:
+                    placeholders = ", ".join("?" for _ in ids)
+                    con.execute(
+                        f"UPDATE facts SET verified = ? WHERE fact_id IN ({placeholders})",
+                        [flag, *ids],
+                    )
+            where = "doc_id = ? AND check_name = 'verify_reading' AND other_sha256 = ?"
+            record(run, company, con, findings, where, [doc_id, reading_sha])
+            con.execute("COMMIT")
+        except BaseException:
+            con.execute("ROLLBACK")
+            raise
+
+
+def _notes(company: str, path: Path, doc_id: Any, same_reading: bool) -> list[str]:
+    """Notes shown with the result: the document is not loaded, or this is its own reading."""
     notes = []
     if doc_id is None:
         notes.append(f"{path.name} is not loaded for {company}: every reading line is missing")
@@ -227,6 +241,35 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
             "this is the reading the document was loaded with: figures read by Claude are not "
             "verified by it; a second, independent reading is needed"
         )
+    return notes
+
+
+def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
+    """Compare `reading` with what is loaded for document `path`; mark agreeing facts verified,
+    record every comparison, and return the result (see the module docstring)."""
+    config = load_config(run.root)
+    lines = read_reading(reading, config.fiscal_year_start_month)
+    sha256, reading_sha = sha256_of(path), sha256_of(reading)
+    db = company_db_path(run.root, company)
+    doc_id, loaded_reading, loaded = _loaded_document(db, sha256)
+    same_reading = loaded_reading == reading_sha
+    results = compare(lines, loaded)
+    verified, unverified = _marks(results, same_reading)
+
+    name = f"{company}/{path.name}"
+    rows = [_row(outcome, line, fact, verified) for outcome, line, fact in results]
+    findings = [
+        _finding(company, doc_id, path, reading, reading_sha, row)
+        for row in rows
+        if row["outcome"] != "agree"
+    ]
+    if doc_id is None:  # nothing loaded to attach them to: the audit log only
+        for finding in findings:
+            run.record("findings", finding)
+    else:
+        _save(run, company, db, doc_id, reading_sha, (verified, unverified), findings)
+    counts = {outcome: sum(1 for r in rows if r["outcome"] == outcome) for outcome in OUTCOMES}
+    notes = _notes(company, path, doc_id, same_reading)
     run.event(
         "verify",
         f"{name} against {reading.name}: "

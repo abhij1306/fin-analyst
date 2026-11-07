@@ -23,14 +23,15 @@ from fin.dashboard import build as build_dashboard
 from fin.dashboard import serve as serve_dashboard
 from fin.db.schema import ensure_database
 from fin.delete import delete_company
-from fin.doctor import run_checks
+from fin.doctor import Check, run_checks
 from fin.findings import accept, format_finding, list_findings
-from fin.ingest import COMPANY_NAME, files_in, ingest_file
+from fin.ingest import files_in, ingest_file
 from fin.map.commands import map_app, review_app
 from fin.map.dictionary import load_label_map, load_seed
 from fin.map.review import write_pending
 from fin.metrics.export import refresh_analytics
 from fin.paths import (
+    COMPANY_NAME,
     analytics_db_path,
     audit_db_path,
     company_db_path,
@@ -120,6 +121,24 @@ def init() -> None:
     execute("init", {}, body, audit_required=False)
 
 
+def _check_level(check: Check) -> str:
+    """Log level for a doctor check: error when it failed, warning when it warns, else info."""
+    if not check.ok:
+        return "error"
+    if check.warning:
+        return "warning"
+    return "info"
+
+
+def _check_line(check: Check) -> str:
+    """One doctor check as a line of plain text."""
+    if check.warning:
+        return f"warn  {check.name}: {check.detail}; fix: {check.fix}"
+    if check.ok:
+        return f"ok    {check.name}: {check.detail}"
+    return f"FAIL  {check.name}: {check.detail} [{check.code}] fix: {check.fix}"
+
+
 @app.command()
 def doctor(
     json_output: Annotated[bool, typer.Option("--json", help="Print results as JSON.")] = False,
@@ -133,7 +152,7 @@ def doctor(
             run.event(
                 "check",
                 f"{check.name}: {check.detail}",
-                level="error" if not check.ok else "warning" if check.warning else "info",
+                level=_check_level(check),
                 code=check.code,
                 context=None if check.fix is None else {"fix": check.fix},
             )
@@ -142,14 +161,7 @@ def doctor(
             typer.echo(json.dumps(payload, indent=2))
         else:
             for check in checks:
-                if check.warning:
-                    typer.echo(f"warn  {check.name}: {check.detail}; fix: {check.fix}")
-                elif check.ok:
-                    typer.echo(f"ok    {check.name}: {check.detail}")
-                else:
-                    typer.echo(
-                        f"FAIL  {check.name}: {check.detail} [{check.code}] fix: {check.fix}"
-                    )
+                typer.echo(_check_line(check))
             typer.echo("all checks passed" if not failed else f"{len(failed)} check(s) failed")
         if failed:
             run.failed = len(failed)

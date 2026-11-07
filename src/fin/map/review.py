@@ -38,7 +38,7 @@ from fin.map.dictionary import (
     upsert_label,
 )
 from fin.map.normalize import normalize_label
-from fin.paths import company_db_path, dictionary_db_path, review_dir
+from fin.paths import COMPANY_NAME, company_db_path, dictionary_db_path, review_dir
 
 SCOPES = ("global", "company")
 LOW_CONFIDENCE = 0.7  # proposals below this are logged as E302
@@ -58,7 +58,14 @@ def _current_actor() -> tuple[str, bool]:
 
 
 def _pending_path(root: Path, company: str) -> Path:
-    return review_dir(root, company) / "pending.json"
+    """`review/<company>/pending.json`, refusing any company name that could point elsewhere."""
+    if not COMPANY_NAME.match(company):
+        raise InvalidMapping(f"{company!r} is not a company name")
+    reviews = (root / "review").resolve()
+    path = (review_dir(root, company) / "pending.json").resolve()
+    if not path.is_relative_to(reviews):
+        raise InvalidMapping(f"{path} is outside {reviews}")
+    return path
 
 
 def read_pending(root: Path, company: str) -> Pending:
@@ -289,6 +296,18 @@ def _check_proposal(
     return item
 
 
+def _stored_new_account(new: dict[str, str] | None) -> dict[str, Any] | None:
+    """A proposed new account as kept on its pending item (sign as +1/-1, no parent as None)."""
+    if new is None:
+        return None
+    return {
+        "parent": new["parent"] or None,
+        "sign": int(new["sign"]) if new["sign"] else None,
+        "unit": new["unit"],
+        "description": new["description"],
+    }
+
+
 def propose(run: Run, company: str, proposals: list[dict[str, Any]]) -> int:
     """Store proposals on the matching pending items. All or nothing: any bad proposal (E304) or
     two different accounts for one label (E303) applies none. A proposal with `new_account`
@@ -312,14 +331,7 @@ def propose(run: Run, company: str, proposals: list[dict[str, Any]]) -> int:
             account=proposal["account"],
             confidence=proposal["confidence"],
             reason=proposal["reason"],
-            new_account=None
-            if new is None
-            else {
-                "parent": new["parent"] or None,
-                "sign": int(new["sign"]) if new["sign"] else None,
-                "unit": new["unit"],
-                "description": new["description"],
-            },
+            new_account=_stored_new_account(new),
         )
         _decide(run, company, item, "proposed", item["account"], None)
         if item["confidence"] < LOW_CONFIDENCE:

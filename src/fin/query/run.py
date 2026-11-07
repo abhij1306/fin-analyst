@@ -70,7 +70,7 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
         except duckdb.Error as exc:
             raise SqlFailed(f"the query failed: {' '.join(str(exc).split())}") from exc
         columns = rows[0] if rows else {}
-        key = "fact_id" if "fact_id" in columns else "raw_id" if "raw_id" in columns else None
+        key = next((name for name in ("fact_id", "raw_id") if name in columns), None)
         if key is None:
             return rows
         sources = {}

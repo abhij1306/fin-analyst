@@ -17,9 +17,9 @@ from typing import Any
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
-from fin.ingest import COMPANY_NAME, files_in, sha256_of
+from fin.ingest import files_in, sha256_of
 from fin.map.review import open_items, read_pending
-from fin.paths import companies_dir, company_db_path, inbox_dir
+from fin.paths import COMPANY_NAME, companies_dir, company_db_path, inbox_dir
 
 PERIOD = re.compile(r"^FY(\d+)(?:-([QH])(\d))?$")
 KINDS = {12: "years", 6: "halves", 3: "quarters", 9: "nine_months"}

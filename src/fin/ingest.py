@@ -27,7 +27,6 @@ fin could not read the file at all), through the same stage -> validate -> commi
 
 import hashlib
 import json
-import re
 import shutil
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -59,7 +58,6 @@ from fin.findings import check_document, supersede
 from fin.map.dictionary import LabelMap, map_rows
 from fin.paths import archive_dir, company_db_path, review_dir
 
-COMPANY_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 EXCEL_SUFFIXES = (".xlsx", ".xlsm")
 
 
@@ -393,6 +391,30 @@ def _load(
     return doc_id, version, list(unmapped), open_findings
 
 
+def _refuse_duplicate(run: Run, company: str, name: str, sha256: str, force: bool) -> None:
+    """Raise DuplicateFile when a file with this sha256 was already ingested for the company,
+    unless `force` (load it again as a new version)."""
+    with connect(company_db_path(run.root, company)) as con:
+        earlier = con.execute(
+            "SELECT doc_id FROM documents WHERE sha256 = ? ORDER BY version DESC", [sha256]
+        ).fetchone()
+    if earlier is not None and not force:
+        raise DuplicateFile(
+            f"{name}: already ingested as doc_id {earlier[0]} (same sha256); "
+            "use --force to load it again as a new version"
+        )
+
+
+def _archive_reading(run: Run, company: str, reading: Path) -> tuple[str, str]:
+    """Copy the reading into the company archive (once) and return its sha256 and archive path
+    relative to the data folder."""
+    reading_sha = sha256_of(reading)
+    reading_archive = archive_dir(run.root, company) / f"{reading_sha}.reading.csv"
+    if not reading_archive.exists():
+        _copy(reading, reading_archive)
+    return reading_sha, reading_archive.relative_to(run.root).as_posix()
+
+
 def ingest_file(
     run: Run,
     config: Config,
@@ -410,25 +432,13 @@ def ingest_file(
     document: Document | None = None
     try:
         sha256 = sha256_of(path)
-        with connect(company_db_path(run.root, company)) as con:
-            earlier = con.execute(
-                "SELECT doc_id FROM documents WHERE sha256 = ? ORDER BY version DESC", [sha256]
-            ).fetchone()
-        if earlier is not None and not force:
-            raise DuplicateFile(
-                f"{name}: already ingested as doc_id {earlier[0]} (same sha256); "
-                "use --force to load it again as a new version"
-            )
+        _refuse_duplicate(run, company, name, sha256, force)
         archived_reading = None
         if reading is None:
             document = read_document(path, run.root, company, config)
         else:
             document = read_with_reading(run, path, company, config, reading)
-            reading_sha = sha256_of(reading)
-            reading_archive = archive_dir(run.root, company) / f"{reading_sha}.reading.csv"
-            if not reading_archive.exists():
-                _copy(reading, reading_archive)
-            archived_reading = (reading_sha, reading_archive.relative_to(run.root).as_posix())
+            archived_reading = _archive_reading(run, company, reading)
         for notice in document.notices:
             run.event("extract", notice, file=name)
         for warning in document.warnings:

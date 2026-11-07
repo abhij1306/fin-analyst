@@ -176,12 +176,20 @@ def parse_number(value: Any, where: str) -> tuple[str, Decimal]:
     return text, number
 
 
-def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[ExcelValue] | None:
-    """Values of one sheet, or None if it holds no statement."""
+@dataclass
+class _Header:
+    """A sheet's header row: its row number, and per value column the period end and the period
+    length its heading names."""
+
+    row: int
+    periods: dict[int, date]  # column index -> period end
+    lengths: dict[int, int | None]  # column index -> period length its header names
+
+
+def _find_header(sheet: Worksheet) -> tuple[list[str], _Header | None]:
+    """The sheet's title text (sheet name, then the text of every row above the header) and its
+    header row (None when no row holds a period cell)."""
     title_parts = [sheet.title]
-    header_row: int | None = None
-    periods: dict[int, date] = {}  # column index -> period end
-    lengths: dict[int, int | None] = {}  # column index -> period length its header names
     for row in sheet.iter_rows():
         periods = {c.column: p for c in row if (p := parse_period(c.value)) is not None}
         if periods:
@@ -190,42 +198,60 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
                 for c in row
                 if c.column in periods
             }
-            header_row = row[0].row
-            break
+            return title_parts, _Header(row[0].row, periods, lengths)
         title_parts.extend(str(c.value) for c in row if c.value is not None)
+    return title_parts, None
+
+
+def _label_of(row: tuple[Any, ...], first_value_column: int) -> str:
+    """A row's label: the first text cell left of the value columns, or ''."""
+    return next(
+        (
+            str(c.value).strip()
+            for c in row[: first_value_column - 1]
+            if isinstance(c.value, str) and c.value.strip()
+        ),
+        "",
+    )
+
+
+def _filled_cells(
+    row: tuple[Any, ...], periods: dict[int, date], formulas: Worksheet, where: str
+) -> list[Any]:
+    """The row's value-column cells that hold a value. Raises E204 for a formula with no saved
+    value."""
+    cells = [row[column - 1] for column in periods if column <= len(row)]
+    for cell in cells:
+        if cell.value is None and str(formulas[cell.coordinate].value).startswith("="):
+            raise ParseError(
+                f"{where} cell {cell.coordinate}: formula has no saved value; open the file "
+                "in Excel, save it and ingest it again"
+            )
+    return [c for c in cells if c.value is not None and str(c.value).strip() != ""]
+
+
+def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[ExcelValue] | None:
+    """Values of one sheet, or None if it holds no statement."""
+    title_parts, header = _find_header(sheet)
     title = " ".join(title_parts).lower()
     statement = statement_in(title)
     if statement is None:
         return None
     where = f"{path.name} sheet {sheet.title!r}"
-    if header_row is None:
+    if header is None:
         raise PeriodsNotDetected(f"{where}: no header row with period dates such as 31.03.2025")
     units = [(text.strip(), unit) for text in title_parts[1:] if (unit := unit_in(text))]
     if not units:
         raise UnitNotDetected(f"{where}: no unit line such as '(₹ in Lakhs)' above the header")
     unit_text, unit = units[0]
     scope = scope_in(title)
-    first_value_column = min(periods)
+    first_value_column = min(header.periods)
 
     found: list[ExcelValue] = []
     section = ""
-    for row in sheet.iter_rows(min_row=header_row + 1):
-        label = next(
-            (
-                str(c.value).strip()
-                for c in row[: first_value_column - 1]
-                if isinstance(c.value, str) and c.value.strip()
-            ),
-            "",
-        )
-        cells = [row[column - 1] for column in periods if column <= len(row)]
-        for cell in cells:
-            if cell.value is None and str(formulas[cell.coordinate].value).startswith("="):
-                raise ParseError(
-                    f"{where} cell {cell.coordinate}: formula has no saved value; open the file "
-                    "in Excel, save it and ingest it again"
-                )
-        filled = [c for c in cells if c.value is not None and str(c.value).strip() != ""]
+    for row in sheet.iter_rows(min_row=header.row + 1):
+        label = _label_of(row, first_value_column)
+        filled = _filled_cells(row, header.periods, formulas, where)
         if not filled:
             if label:
                 section = label
@@ -245,8 +271,8 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
                     raw=raw,
                     unit_text=unit_text,
                     unit=unit,
-                    period_end=periods[cell.column],
-                    months=lengths[cell.column],
+                    period_end=header.periods[cell.column],
+                    months=header.lengths[cell.column],
                     rupees=to_rupees(number, unit),
                 )
             )

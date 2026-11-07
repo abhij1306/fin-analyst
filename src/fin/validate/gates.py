@@ -41,6 +41,7 @@ document's figure (fin_*) and what it was compared with (other_*), each with its
 """
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -218,6 +219,15 @@ def _missing_reason(missing: list[str], values: dict[str, Decimal]) -> str:
     return reason
 
 
+def _children(tree: dict[str, Account]) -> dict[str, list[str]]:
+    """Each account's child accounts, in dictionary order."""
+    children: dict[str, list[str]] = {}
+    for account, info in tree.items():
+        if info.parent is not None:
+            children.setdefault(info.parent, []).append(account)
+    return children
+
+
 def _in_document(
     run: "Run",
     file: str,
@@ -226,10 +236,7 @@ def _in_document(
     tree: dict[str, Account],
     tolerances: dict[str, Decimal],
 ) -> list[Result]:
-    children: dict[str, list[str]] = {}
-    for account, info in tree.items():
-        if info.parent is not None:
-            children.setdefault(info.parent, []).append(account)
+    children = _children(tree)
 
     def not_run(check: str, key: Key, reason: str) -> None:
         message = f"{check} check not run for {key[0]} {key[1]}: {reason}"
@@ -237,15 +244,7 @@ def _in_document(
 
     results = []
     for key, values in sorted(figures.items()):
-        for check, expected, actual, what in PAIRS:
-            missing = [account for account in (expected, actual) if account not in values]
-            if missing:
-                not_run(check, key, _missing_reason(missing, values))
-                continue
-            pair = (expected, actual)
-            results.append(
-                _compare(check, key, values[expected], values[actual], tolerances, what, pair)
-            )
+        results += _pair_checks(key, values, tolerances, not_run)
         for statement in SUBTOTAL_STATEMENTS:
             lines = unmapped.get((*key, statement), 0)
             if lines:
@@ -255,6 +254,27 @@ def _in_document(
                 result = _subtotal(key, account, values, children, tree, tolerances)
                 if result is not None:
                     results.append(result)
+    return results
+
+
+def _pair_checks(
+    key: Key,
+    values: dict[str, Decimal],
+    tolerances: dict[str, Decimal],
+    not_run: Callable[[str, Key, str], None],
+) -> list[Result]:
+    """The PAIRS checks (two accounts that must agree) for one period and scope; a check whose
+    accounts are not both confirmed is reported through `not_run` instead."""
+    results = []
+    for check, expected, actual, what in PAIRS:
+        missing = [account for account in (expected, actual) if account not in values]
+        if missing:
+            not_run(check, key, _missing_reason(missing, values))
+            continue
+        pair = (expected, actual)
+        results.append(
+            _compare(check, key, values[expected], values[actual], tolerances, what, pair)
+        )
     return results
 
 
@@ -316,7 +336,7 @@ def _reconciled(con: duckdb.DuckDBPyConnection, doc_id: int, result: Result) -> 
     if row is None:
         return result
     message = f"{result.message}; reconciled in the cash flow statement by the line {row[0]!r}"
-    return replace(result, passed=True, message=message)
+    return Result(**{**vars(result), "passed": True, "message": message})
 
 
 def validate_document(

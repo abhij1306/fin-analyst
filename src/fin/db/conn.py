@@ -69,10 +69,11 @@ def transaction(con: duckdb.DuckDBPyConnection) -> Iterator[None]:
     con.execute("BEGIN TRANSACTION")
     try:
         yield
-        con.execute("COMMIT")
     except BaseException:
         con.execute("ROLLBACK")
         raise
+    else:
+        con.execute("COMMIT")
 
 
 def utcnow() -> datetime:

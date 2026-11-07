@@ -75,22 +75,31 @@ def line_chart(
         )
         out.append(f'<text x="{legend_x + 22}" y="20" fill="{INK}">{escape(name)}</text>')
         legend_x += 30 + 7 * len(name)
-        segment: list[str] = []
-        for i, v in enumerate([*line, None]):
-            if v is not None:
-                segment.append(f"{x(i):.1f},{y(v):.1f}")
-                continue
-            if len(segment) > 1:
-                out.append(
-                    f'<polyline points="{" ".join(segment)}" fill="none" stroke="{colour}" '
-                    'stroke-width="2" stroke-linejoin="round"/>'
-                )
-            segment = []
-        for i, v in enumerate(line):
-            if v is not None:
-                out.append(
-                    f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="4" fill="{colour}" '
-                    f'stroke="{SURFACE}" stroke-width="2"/>'
-                )
+        points = [None if v is None else (x(i), y(v)) for i, v in enumerate(line)]
+        out += _series(points, colour)
     out.append("</svg>")
     return "\n".join(out) + "\n"
+
+
+def _series(points: list[tuple[float, float] | None], colour: str) -> list[str]:
+    """One series as SVG: a polyline per run of two or more points (a missing value, None, leaves
+    a gap), then a dot on every point."""
+    out = []
+    segment: list[str] = []
+    for point in [*points, None]:
+        if point is not None:
+            segment.append(f"{point[0]:.1f},{point[1]:.1f}")
+            continue
+        if len(segment) > 1:
+            out.append(
+                f'<polyline points="{" ".join(segment)}" fill="none" stroke="{colour}" '
+                'stroke-width="2" stroke-linejoin="round"/>'
+            )
+        segment = []
+    for point in points:
+        if point is not None:
+            out.append(
+                f'<circle cx="{point[0]:.1f}" cy="{point[1]:.1f}" r="4" fill="{colour}" '
+                f'stroke="{SURFACE}" stroke-width="2"/>'
+            )
+    return out

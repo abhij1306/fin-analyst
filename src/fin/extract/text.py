@@ -7,6 +7,7 @@ other lines are joined into paragraphs (a line ending well short of the right ma
 """
 
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -72,50 +73,70 @@ def _is_bold(line: list[dict[str, Any]]) -> bool:
     return all("bold" in w["fontname"].lower() for w in line)
 
 
+@dataclass
+class _Blocks:
+    """Markdown blocks written so far, and the paragraph and table being built."""
+
+    right_margin: float
+    blocks: list[str] = field(default_factory=list)
+    paragraph: list[str] = field(default_factory=list)
+    table: list[str] = field(default_factory=list)
+
+    def flush(self) -> None:
+        """End the paragraph and the table being built."""
+        if self.paragraph:
+            self.blocks.append(" ".join(self.paragraph))
+            self.paragraph.clear()
+        if self.table:
+            self.blocks.append("\n".join(self.table))
+            self.table.clear()
+
+    def start_table(self, columns: list[Column], header: list[dict[str, Any]]) -> None:
+        """Start a table with a header row: the words left of the columns, then each column."""
+        self.flush()
+        left = line_text([w for w in header if w["x1"] <= columns[0].x0]) or "Particulars"
+        years = [c.label for c in columns]
+        self.table.append("| " + " | ".join([left, *years]) + " |")
+        self.table.append("|" + "---|" * (len(years) + 1))
+
+    def add_row(
+        self, words: list[dict[str, Any]], row: dict[str, Any], columns: list[Column]
+    ) -> None:
+        cells = [row[c.key]["text"] if c.key in row else "" for c in columns]
+        self.table.append("| " + " | ".join([line_text(words), *cells]) + " |")
+
+    def add_text(self, line: list[dict[str, Any]], first: bool) -> None:
+        """A bold line is a heading (top level on the first line); any other line joins the
+        paragraph, and ends it when it stops well short of the right margin."""
+        if _is_bold(line):
+            self.flush()
+            self.blocks.append(("# " if first else "## ") + line_text(line))
+            return
+        if self.table:
+            self.flush()
+        self.paragraph.append(line_text(line))
+        if line[-1]["x1"] < SHORT_LINE * self.right_margin:
+            self.flush()
+
+
 def _markdown_blocks(lines: list[list[dict[str, Any]]]) -> list[str]:
-    blocks: list[str] = []
-    paragraph: list[str] = []
-    table: list[str] = []
+    out = _Blocks(right_margin=max((line[-1]["x1"] for line in lines), default=0.0))
     columns: list[Column] = []
-    right_margin = max((line[-1]["x1"] for line in lines), default=0.0)
-
-    def flush() -> None:
-        if paragraph:
-            blocks.append(" ".join(paragraph))
-            paragraph.clear()
-        if table:
-            blocks.append("\n".join(table))
-            table.clear()
-
     i = 0
     while i < len(lines):
         found = header_starting(lines, i)
         if found is not None:
-            flush()
             columns, end = found
-            block = [w for line in lines[i:end] for w in line]
-            left = line_text([w for w in block if w["x1"] <= columns[0].x0]) or "Particulars"
-            years = [c.label for c in columns]
-            table.append("| " + " | ".join([left, *years]) + " |")
-            table.append("|" + "---|" * (len(years) + 1))
+            out.start_table(columns, [w for line in lines[i:end] for w in line])
             i = end
             continue
         line = lines[i]
         i += 1
         words, row = split_row(line, columns) if columns else ([], {})
-        if row and table:
-            cells = [row[c.key]["text"] if c.key in row else "" for c in columns]
-            table.append("| " + " | ".join([line_text(words), *cells]) + " |")
+        if row and out.table:
+            out.add_row(words, row, columns)
             continue
         columns = []
-        if _is_bold(line):
-            flush()
-            blocks.append(("# " if i == 1 else "## ") + line_text(line))
-            continue
-        if table:
-            flush()
-        paragraph.append(line_text(line))
-        if line[-1]["x1"] < SHORT_LINE * right_margin:
-            flush()
-    flush()
-    return blocks
+        out.add_text(line, first=i == 1)
+    out.flush()
+    return out.blocks
