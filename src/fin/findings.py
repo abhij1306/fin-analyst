@@ -21,6 +21,7 @@ audit table `findings`.
   findings is loaded. `fin verify` resolves its own findings the same way when run again.
 """
 
+from decimal import Decimal
 from typing import Any
 
 import duckdb
@@ -279,6 +280,13 @@ def list_findings(run: Run, company: str) -> list[dict[str, Any]]:
         ]
 
 
+def _shown(printed: str | None, value: Any) -> str:
+    """The figure as the document printed it (in its own unit), else the value in rupees."""
+    if printed:
+        return f"{printed} as printed"
+    return f"₹{Decimal(str(value)):,}" if value is not None else "-"
+
+
 def format_finding(row: dict[str, Any]) -> str:
     """Two lines: what and where, then this document's figure and what it was compared with."""
     document = f"{row['file_name']} (doc_id {row['doc_id']}, {row['document_status']})"
@@ -286,7 +294,7 @@ def format_finding(row: dict[str, Any]) -> str:
         f"#{row['finding_id']} {row['status']} {row['code'] or row['check_name']} "
         f"{row['company']}/{document}: {row['message']}"
     )
-    fin = f"{row['fin_printed'] or row['fin_value'] or '-'} at {row['fin_source'] or '-'}"
+    fin = f"{_shown(row['fin_printed'], row['fin_value'])} at {row['fin_source'] or '-'}"
     other_where = " ".join(x for x in (row["other_file"], row["other_source"]) if x) or "-"
-    other = f"{row['other_printed'] or row['other_value'] or '-'} at {other_where}"
+    other = f"{_shown(row['other_printed'], row['other_value'])} at {other_where}"
     return f"{head}\n    this document: {fin}; compared with: {other}"
