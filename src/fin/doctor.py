@@ -32,8 +32,7 @@ TOOL_MINIMUMS: dict[str, tuple[int, ...]] = {
     "quarto": (1, 7),
 }
 
-# "1.2" or "1.2.3"; starts at a number's first digit, and "++" never gives digits back.
-_VERSION_RE = re.compile(r"(?<!\d)(\d++)\.(\d++)(?:\.(\d++))?")
+_DIGITS_AND_DOTS = re.compile(r"[\d.]+")  # where a version such as "1.2" or "1.2.3" can be
 
 
 @dataclass(frozen=True)
@@ -61,10 +60,16 @@ def tool_version(tool: str) -> str | None:
 
 
 def parse_version(text: str) -> tuple[int, ...] | None:
-    match = _VERSION_RE.search(text)
-    if match is None:
-        return None
-    return tuple(int(part) for part in match.groups() if part is not None)
+    """The first "major.minor" or "major.minor.patch" in `text`, as numbers."""
+    for run in _DIGITS_AND_DOTS.finditer(text):
+        parts = run.group().split(".")
+        for i in range(len(parts) - 1):
+            if parts[i] and parts[i + 1]:
+                version = parts[i : i + 2]
+                if i + 2 < len(parts) and parts[i + 2]:
+                    version.append(parts[i + 2])
+                return tuple(int(part) for part in version)
+    return None
 
 
 def _fmt(version: tuple[int, ...]) -> str:
