@@ -183,7 +183,7 @@ findings included), 1 finished but some files failed, 2 the command could not ru
 | E204 | Parse error while reading the file | Read the reason in `review/<company>/<file>.error.json` and fix the file |
 | E205 | A reading file (`--reading`) cannot be used: missing columns, unknown statement or scope, bad figure, date or source, or nothing fin did not read already | Fix the line named in the message and run again |
 | E301 | A label is not in the dictionary | Loaded as unconfirmed. Run `/review` to confirm a mapping |
-| E302 | A proposed mapping has low confidence (a warning, not an error) | Check it in `/review` |
+| E302 (warning) | A proposed mapping has low confidence; a warning, not an error | Check it in `/review` |
 | E303 | A label maps to conflicting accounts | Same: you decide in `/review` |
 | E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id or label, invalid new account) | Nothing was applied. Check `fin review list` and the account name, then retry |
 | E406 | `fin findings accept` named a finding that does not exist or is not open | Nothing was accepted. Check the ids with `uv run fin findings list <company>` |
