@@ -56,18 +56,23 @@ jobs:
           version: 1.10.19
       - run: uv sync --frozen
       - run: echo "FIN_DATA_DIR=$RUNNER_TEMP/FinAnalysis" >> "$GITHUB_ENV"
-      - name: Ingest Kestrel and render its report from the sample narrative
+      - name: Ingest the synthetic companies and render Kestrel's report (with peers) from the sample narrative
         run: |
           uv run fin init
-          uv run fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
+          for company in kestrel bluepeak tarang; do
+            uv run fin ingest "$company" "tests/fixtures/sample-financials/clean/$company"
+          done
           mkdir -p "$FIN_DATA_DIR/reports/kestrel/standalone"
           cp tests/fixtures/report/kestrel_narrative.md "$FIN_DATA_DIR/reports/kestrel/standalone/narrative.md"
-          uv run fin report kestrel --render
-      - name: All three formats exist
+          uv run fin report kestrel --render --peers bluepeak,tarang
+      - name: All three formats exist, with every section
         run: |
           cd "$FIN_DATA_DIR/reports/kestrel/standalone"
           for file in health.html health.docx health.pdf; do
             test -s "$file" || { echo "missing $file"; exit 1; }
+          done
+          for section in Summary Profitability Solvency "Peer comparison" Findings "Data coverage" "standard statements" "metric definitions"; do
+            grep -q "$section" health.html || { echo "section $section missing"; exit 1; }
           done
           ls -l
       - uses: actions/upload-artifact@v4

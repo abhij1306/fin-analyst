@@ -16,66 +16,36 @@ fin-analyst health report template (fin.report.render fills it; no code runs in 
 Placeholders:
   {{title}}, {{subtitle}}
   {{narrative:<section>}}  the narrative under that section's heading in narrative.md
-  {{table:<section>}}      the section's table (metrics and facts per fiscal year)
-  {{table:unconfirmed}}, {{table:findings}}, {{table:missing_data}}, {{table:facts}}
-Every value in the tables comes from SQL on the company database (metrics, current_facts,
-findings).
+  {{table:<name>}}         summary, findings, coverage, unread, unconfirmed, missing, statements,
+                           definitions, facts
+  {{section:categories}}   one section per metric category with data: heading, narrative, trend
+                           table (latest five fiscal years) and a chart
+  {{section:quarters}}     the latest quarters (empty when no quarters are loaded)
+  {{section:peers}}        the peer comparison (empty without --peers)
+Every value comes from SQL on the company database (metrics, current_facts, standard statements,
+findings, statement_coverage). To add a section, see docs/CUSTOMISING.md "Add a report section".
 -->
 
 Analysis only: this report describes the financial statements. It makes no recommendation or
 rating.
 
-## Growth
+## Summary
 
-{{narrative:growth}}
+{{narrative:summary}}
 
-{{table:growth}}
+Key metrics for the latest fiscal years, for each set of statements loaded.
 
-## Profitability
+{{table:summary}}
 
-{{narrative:profitability}}
+{{section:categories}}
 
-{{table:profitability}}
+{{section:quarters}}
 
-## Cash flow quality
+{{section:peers}}
 
-{{narrative:cash_flow}}
+## Findings
 
-{{table:cash_flow}}
-
-## Working capital
-
-{{narrative:working_capital}}
-
-{{table:working_capital}}
-
-## Leverage and liquidity
-
-{{narrative:leverage}}
-
-{{table:leverage}}
-
-## Earnings quality
-
-{{narrative:earnings_quality}}
-
-{{table:earnings_quality}}
-
-## Observations
-
-{{narrative:observations}}
-
-## Data quality
-
-{{narrative:data_quality}}
-
-### Unconfirmed mappings
-
-Facts whose label mapping is not confirmed. Metrics leave them out until `fin review` confirms them.
-
-{{table:unconfirmed}}
-
-### Findings
+{{narrative:findings}}
 
 Figures in the filed documents that do not agree: a check that does not add up, or a figure that
 differs between documents or from an independent reading. Accepted findings are in this report as
@@ -83,11 +53,43 @@ filed. Open findings wait for a decision; a held document's figures are not in t
 
 {{table:findings}}
 
+## Data coverage
+
+{{narrative:coverage}}
+
+### Mapped figures
+
+How many of the figures read from each statement are mapped to a standard account. Unmapped figures
+(or mappings waiting for review) are left out of every metric. Figures read by Claude from pages fin
+could not read count as unverified until an independent reading agrees (`fin verify`).
+
+{{table:coverage}}
+
+### Pages not read
+
+Statement pages fin could not read in the loaded documents.
+
+{{table:unread}}
+
+### Unconfirmed mappings
+
+{{table:unconfirmed}}
+
 ### Missing data
 
 Metrics with no value, and the inputs they lack.
 
-{{table:missing_data}}
+{{table:missing}}
+
+## Appendix: standard statements
+
+Condensed: the subtotals of each statement, in the standard order.
+
+{{table:statements}}
+
+## Appendix: metric definitions
+
+{{table:definitions}}
 
 ## Appendix: facts behind the metrics
 

@@ -576,12 +576,23 @@ def report_command(
         bool,
         typer.Option("--render", help="Only render: fail (E601) if there is no narrative yet."),
     ] = False,
+    peers: Annotated[
+        str | None,
+        typer.Option(
+            "--peers",
+            help="Other companies to compare with, comma-separated (e.g. bluepeak,tarang): a "
+            "table of key metrics for the latest fiscal year all of them have.",
+        ),
+    ] = None,
 ) -> None:
     """Health report. The first run writes reports/<company>/<scope>/narrative.md (fill it with
     /report); the next run lints it (E602 on hand-typed numbers) and renders HTML, docx and PDF.
     A failed render (E601) keeps the last good report."""
+    peer_list = [_company(p.strip()) for p in peers.split(",") if p.strip()] if peers else None
 
     def body(run: Run) -> None:
-        typer.echo(json.dumps(make_report(run, company, scope, render), indent=2))
+        result = make_report(run, company, scope, render, peer_list)
+        typer.echo(json.dumps(result, indent=2))
 
-    execute("report", {"company": company, "scope": scope, "render": render}, body)
+    args = {"company": company, "scope": scope, "render": render, "peers": peer_list}
+    execute("report", args, body)
