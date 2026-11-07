@@ -9,7 +9,7 @@ A finding lives in the company database's `findings` table with a status (open, 
 superseded; see db/schema/company.sql), and every finding and status change is appended to the
 audit table `findings`.
 
-- Ingest stages each document and runs the checks in `VALIDATORS` (the validation gates). A
+- Ingest stages each document and runs the validation gates (`fin.validate.gates`) on it. A
   document with open findings is HELD (`documents.status = 'held'`): its facts are kept but left out
   of current figures and metrics until the user decides.
 - Save as is: `fin findings accept` marks findings accepted. A held document with no open findings
@@ -21,23 +21,16 @@ audit table `findings`.
   findings is loaded. `fin verify` resolves its own findings the same way when run again.
 """
 
-from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 
 import duckdb
 
 from fin.audit.errors import FindingNotOpen
 from fin.audit.logger import Run
-from fin.db.conn import connect
+from fin.db.conn import connect, transaction, utcnow
 from fin.db.schema import ensure_database
 from fin.paths import company_db_path
 from fin.validate.gates import validate_document
-
-# Checks run on a staged document: f(run, company, connection, doc_id) -> its findings (dicts with
-# the FIELDS below). A document with any is held.
-Validator = Callable[[Run, str, duckdb.DuckDBPyConnection, int], list[dict[str, Any]]]
-VALIDATORS: list[Validator] = [validate_document]
 
 FIELDS = (
     "doc_id",
@@ -77,10 +70,6 @@ SAME = (
 )
 
 
-def _now() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
-
-
 def _audit(run: Run, company: str, con: duckdb.DuckDBPyConnection, ids: list[int]) -> None:
     """Append the findings `ids`, as they are now, to the audit table `findings`."""
     if not ids:
@@ -105,7 +94,7 @@ def set_status(
     con.execute(
         f"UPDATE findings SET status = ?, status_run_id = ?, status_at = ? "
         f"WHERE finding_id IN ({marks})",
-        [status, run.run_id, _now(), *ids],
+        [status, run.run_id, utcnow(), *ids],
     )
     _audit(run, company, con, ids)
 
@@ -138,7 +127,7 @@ def record(
             f"INSERT INTO findings ({', '.join(FIELDS)}, status, run_id, recorded_at, "
             f"status_run_id, status_at) VALUES ({', '.join('?' for _ in FIELDS)}, 'open', ?, "
             "?, ?, ?) RETURNING finding_id",
-            [*values, run.run_id, _now(), run.run_id, _now()],
+            [*values, run.run_id, utcnow(), run.run_id, utcnow()],
         ).fetchone()
         assert new is not None
         existing[key] = new[0]
@@ -148,11 +137,8 @@ def record(
     set_status(run, company, con, [i for i in existing.values() if i not in found], "resolved")
 
 
-def check_document(run: Run, company: str, con: duckdb.DuckDBPyConnection, doc_id: int) -> int:
-    """Run every check in VALIDATORS on a staged or held document, record its findings, and hold
-    the document while it has open ones (else load it). Returns the number of open findings."""
-    rows = [row for validate in VALIDATORS for row in validate(run, company, con, doc_id)]
-    record(run, company, con, rows, "doc_id = ? AND check_name <> 'verify_reading'", [doc_id])
+def _settle(con: duckdb.DuckDBPyConnection, doc_id: int) -> int:
+    """Hold the document while it has open findings, else load it. Returns its open findings."""
     row = con.execute(
         "SELECT count(*) FROM findings WHERE doc_id = ? AND status = 'open'", [doc_id]
     ).fetchone()
@@ -163,6 +149,14 @@ def check_document(run: Run, company: str, con: duckdb.DuckDBPyConnection, doc_i
         ["held" if open_findings else "loaded", doc_id],
     )
     return open_findings
+
+
+def check_document(run: Run, company: str, con: duckdb.DuckDBPyConnection, doc_id: int) -> int:
+    """Run the validation gates on a staged or held document, record its findings, and hold the
+    document while it has open ones (else load it). Returns the number of open findings."""
+    rows = validate_document(run, company, con, doc_id)
+    record(run, company, con, rows, "doc_id = ? AND check_name <> 'verify_reading'", [doc_id])
+    return _settle(con, doc_id)
 
 
 def supersede(
@@ -201,13 +195,8 @@ def recheck_held(run: Run, company: str) -> list[dict[str, Any]]:
         ).fetchall()
         out = []
         for doc_id, file_name in held:
-            con.execute("BEGIN TRANSACTION")
-            try:
+            with transaction(con):
                 open_findings = check_document(run, company, con, doc_id)
-                con.execute("COMMIT")
-            except BaseException:
-                con.execute("ROLLBACK")
-                raise
             status = "held" if open_findings else "loaded"
             out.append(
                 {"doc_id": doc_id, "file": file_name, "open": open_findings, "status": status}
@@ -228,45 +217,38 @@ def accept(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
     if not path.is_file():
         raise FindingNotOpen(f"no database for company {company!r}; nothing accepted")
     ensure_database(path, "company")
-    with connect(path, write=True) as con:
-        con.execute("BEGIN TRANSACTION")
-        try:
-            for finding_id in ids:
-                row = con.execute(
-                    "SELECT status FROM findings WHERE finding_id = ?", [finding_id]
-                ).fetchone()
-                if row is None or row[0] != "open":
-                    state = "no such finding" if row is None else f"it is {row[0]}"
-                    raise FindingNotOpen(
-                        f"finding {finding_id} of {company} is not open ({state}); "
-                        "nothing accepted. Open findings: `fin findings list`"
-                    )
-            set_status(run, company, con, ids, "accepted")
-            marks = ", ".join("?" for _ in ids)
-            docs = con.execute(
-                "SELECT d.doc_id, d.file_name, d.status, "
-                "(SELECT count(*) FROM findings o WHERE o.doc_id = d.doc_id AND o.status = 'open') "
-                f"FROM documents d WHERE d.doc_id IN (SELECT doc_id FROM findings "
-                f"WHERE finding_id IN ({marks})) ORDER BY d.doc_id",
-                ids,
-            ).fetchall()
-            out = []
-            for doc_id, file_name, status, open_findings in docs:
-                if status == "held" and open_findings == 0:
-                    con.execute("UPDATE documents SET status = 'loaded' WHERE doc_id = ?", [doc_id])
-                    status = "loaded"
-                    run.event(
-                        "findings",
-                        f"doc_id {doc_id} loaded as filed: its findings were accepted",
-                        file=f"{company}/{file_name}",
-                    )
-                out.append(
-                    {"doc_id": doc_id, "file": file_name, "open": open_findings, "status": status}
+    with connect(path, write=True) as con, transaction(con):
+        for finding_id in ids:
+            row = con.execute(
+                "SELECT status FROM findings WHERE finding_id = ?", [finding_id]
+            ).fetchone()
+            if row is None or row[0] != "open":
+                state = "no such finding" if row is None else f"it is {row[0]}"
+                raise FindingNotOpen(
+                    f"finding {finding_id} of {company} is not open ({state}); "
+                    "nothing accepted. Open findings: `fin findings list`"
                 )
-            con.execute("COMMIT")
-        except BaseException:
-            con.execute("ROLLBACK")
-            raise
+        set_status(run, company, con, ids, "accepted")
+        marks = ", ".join("?" for _ in ids)
+        docs = con.execute(
+            "SELECT d.doc_id, d.file_name, d.status, "
+            "(SELECT count(*) FROM findings o WHERE o.doc_id = d.doc_id AND o.status = 'open') "
+            f"FROM documents d WHERE d.doc_id IN (SELECT doc_id FROM findings "
+            f"WHERE finding_id IN ({marks})) ORDER BY d.doc_id",
+            ids,
+        ).fetchall()
+        out = []
+        for doc_id, file_name, status, open_findings in docs:
+            if status == "held" and _settle(con, doc_id) == 0:
+                status = "loaded"
+                run.event(
+                    "findings",
+                    f"doc_id {doc_id} loaded as filed: its findings were accepted",
+                    file=f"{company}/{file_name}",
+                )
+            out.append(
+                {"doc_id": doc_id, "file": file_name, "open": open_findings, "status": status}
+            )
     return out
 
 

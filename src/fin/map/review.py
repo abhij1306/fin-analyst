@@ -23,16 +23,20 @@ on_request = true) when the `CLAUDECODE` environment variable is set, else `huma
 import json
 import os
 import re
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import duckdb
-
 from fin.audit.errors import ConflictingMapping, DataFolderNotWritable, InvalidMapping
 from fin.audit.logger import Run
-from fin.db.conn import connect
-from fin.map.dictionary import account_problem
+from fin.db.conn import connect, transaction
+from fin.map.dictionary import (
+    Account,
+    account_problem,
+    insert_account,
+    label_key,
+    load_accounts,
+    upsert_label,
+)
 from fin.map.normalize import normalize_label
 from fin.paths import company_db_path, dictionary_db_path, review_dir
 
@@ -46,19 +50,19 @@ Pending = dict[str, Any]  # {"company", "next_id", "items": [...]}
 Item = dict[str, Any]
 
 
-def current_actor() -> tuple[str, bool]:
+def _current_actor() -> tuple[str, bool]:
     """(actor, on_request) for a mapping decision made by a command run now."""
     if os.environ.get("CLAUDECODE"):
         return "claude", True
     return "human", False
 
 
-def pending_path(root: Path, company: str) -> Path:
+def _pending_path(root: Path, company: str) -> Path:
     return review_dir(root, company) / "pending.json"
 
 
 def read_pending(root: Path, company: str) -> Pending:
-    path = pending_path(root, company)
+    path = _pending_path(root, company)
     if not path.is_file():
         return {"company": company, "next_id": 1, "items": []}
     try:
@@ -68,7 +72,7 @@ def read_pending(root: Path, company: str) -> Pending:
 
 
 def _save(root: Path, company: str, pending: Pending) -> None:
-    path = pending_path(root, company)
+    path = _pending_path(root, company)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(pending, indent=2) + "\n", encoding="utf-8")
@@ -76,12 +80,8 @@ def _save(root: Path, company: str, pending: Pending) -> None:
         raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
 
 
-def _key(statement: str, section: str, label: str) -> tuple[str, str, str]:
-    return statement, normalize_label(section), normalize_label(label)
-
-
 def _item_key(item: Item) -> tuple[str, str, str]:
-    return _key(item["statement"], item["section"], item["label"])
+    return label_key(item["statement"], item["section"], item["label"])
 
 
 def write_pending(run: Run, company: str) -> int:
@@ -98,7 +98,7 @@ def write_pending(run: Run, company: str) -> int:
     found: dict[tuple[str, str, str], Item] = {}
     for statement, section, label, file_name, where in rows:
         item = found.setdefault(
-            _key(statement, section, label),
+            label_key(statement, section, label),
             {"statement": statement, "section": section, "label": label, "facts": 0, "where": []},
         )
         item["facts"] += 1
@@ -128,28 +128,14 @@ def write_pending(run: Run, company: str) -> int:
     return open_items
 
 
-def _accounts(root: Path) -> dict[str, str]:
-    """{account: statement} from the dictionary."""
-    with connect(dictionary_db_path(root)) as con:
-        return dict(con.execute("SELECT account, statement FROM accounts").fetchall())
-
-
-def _per_share(root: Path, account: str) -> bool:
-    with connect(dictionary_db_path(root)) as con:
-        row = con.execute("SELECT unit FROM accounts WHERE account = ?", [account]).fetchone()
-    return row is not None and row[0] == "rupees_per_share"
-
-
 def list_accounts(root: Path, statement: str | None = None) -> list[tuple[str, ...]]:
     """(account, statement, parent, sign, unit, description, source) for every account (or one
     statement's), sorted by statement and account. source is 'seed' or 'review' (user-added)."""
-    with connect(dictionary_db_path(root)) as con:
-        return con.execute(
-            "SELECT account, statement, coalesce(parent, ''), coalesce(CAST(sign AS VARCHAR), ''), "
-            "unit, description, source FROM accounts WHERE ? IS NULL OR statement = ? "
-            "ORDER BY statement, account",
-            [statement, statement],
-        ).fetchall()
+    return [
+        (*account.row(name), account.source)
+        for name, account in load_accounts(root).items()
+        if statement in (None, account.statement)
+    ]
 
 
 def set_mapping(
@@ -159,62 +145,37 @@ def set_mapping(
     `label_map`, or change the account of the one already there. It wins over global mappings
     for documents ingested from now on (`fin.map.dictionary.find`); loaded facts do not change.
     Returns 'added', 'changed' or 'unchanged'."""
-    item = {"statement": statement, "section": section, "label": label}
-    _check_account(_accounts(run.root), account, item)
-    statement, section_key, label_key = _key(statement, section, label)
-    if not label_key:
+    item = {
+        "statement": statement,
+        "section": section,
+        "label": label,
+        "confidence": None,
+        "reason": None,
+    }
+    _check_account(load_accounts(run.root), account, item)
+    key = label_key(statement, section, label)
+    if not key[2]:
         raise InvalidMapping(f"label {label!r} is empty once normalized")
     with connect(dictionary_db_path(run.root), write=True) as con:
-        existing = con.execute(
-            "SELECT mapping_id, account FROM label_map WHERE scope = 'company' AND company = ? "
-            "AND statement = ? AND section = ? AND label = ?",
-            [company, statement, section_key, label_key],
-        ).fetchone()
-        if existing is not None and existing[1] == account:
-            return "unchanged"
-        if existing is not None:
-            con.execute(
-                "UPDATE label_map SET account = ?, source = 'map set', run_id = ? "
-                "WHERE mapping_id = ?",
-                [account, run.run_id, existing[0]],
-            )
-        else:
-            con.execute(
-                "INSERT INTO label_map (label, statement, section, account, scope, company, "
-                "source, created_at, run_id) VALUES (?, ?, ?, ?, 'company', ?, 'map set', ?, ?)",
-                [
-                    label_key,
-                    statement,
-                    section_key,
-                    account,
-                    company,
-                    datetime.now(UTC).replace(tzinfo=None),
-                    run.run_id,
-                ],
-            )
-    _decide(
-        run,
-        company,
-        {**item, "confidence": None, "reason": None},
-        "edited" if existing else "confirmed",
-        account,
-        "company",
-    )
-    return "changed" if existing else "added"
+        _, outcome = upsert_label(con, key, account, company, "map set", run.run_id, "replace")
+    if outcome != "unchanged":
+        decision = "edited" if outcome == "changed" else "confirmed"
+        _decide(run, company, item, decision, account, "company")
+    return outcome
 
 
-def _check_account(accounts: dict[str, str], account: str, item: Item) -> None:
+def _check_account(accounts: dict[str, Account], account: str, item: Item) -> None:
     if account not in accounts:
         raise InvalidMapping(f"unknown account {account!r}")
-    if accounts[account] != item["statement"]:
+    if accounts[account].statement != item["statement"]:
         raise InvalidMapping(
-            f"account {account!r} is a {accounts[account]} account, but {item['label']!r} "
-            f"is on the {item['statement']}"
+            f"account {account!r} is a {accounts[account].statement} account, but "
+            f"{item['label']!r} is on the {item['statement']}"
         )
 
 
 def _new_account(
-    accounts: dict[str, str], name: str, definition: Any, statement: str
+    accounts: dict[str, Account], name: str, definition: Any, statement: str
 ) -> dict[str, str]:
     """Check a new-account proposal for `statement` and return it as a schedule_iii.csv row.
     `definition` is {parent, sign, unit, description}; parent and sign are null for a top line."""
@@ -243,7 +204,7 @@ def _new_account(
         "unit": unit,
         "description": description.strip(),
     }
-    problem = account_problem(row, accounts)
+    problem = account_problem(row, {n: a.statement for n, a in accounts.items()})
     if problem:
         raise InvalidMapping(f"new account {name!r}: {problem}")
     return row
@@ -253,7 +214,7 @@ def _decide(
     run: Run, company: str, item: Item, decision: str, account: str | None, scope: str | None
 ) -> None:
     """Append a mapping_decisions row. Proposals are always Claude's."""
-    actor, on_request = ("claude", False) if decision == "proposed" else current_actor()
+    actor, on_request = ("claude", False) if decision == "proposed" else _current_actor()
     run.record(
         "mapping_decisions",
         {
@@ -279,53 +240,65 @@ def _find_item(pending: Pending, item_id: int) -> Item:
     raise InvalidMapping(f"no item with id {item_id} for {pending['company']}")
 
 
+def _check_proposal(
+    number: int,
+    proposal: Any,
+    pending: Pending,
+    accounts: dict[str, Account],
+    new_rows: dict[str, dict[str, str]],
+) -> Item:
+    """Check proposal `number` and return the pending item it is for (E304 when it is bad). A new
+    account it defines is added to `new_rows`."""
+    company = pending["company"]
+    if not isinstance(proposal, dict):
+        raise InvalidMapping(f"proposal {number}: expected an object")
+    for field in ("label", "account", "confidence", "reason"):
+        if field not in proposal:
+            raise InvalidMapping(f"proposal {number}: missing {field!r}")
+    confidence = proposal["confidence"]
+    if isinstance(confidence, bool) or not isinstance(confidence, int | float):
+        raise InvalidMapping(f"proposal {number}: confidence must be a number from 0 to 1")
+    if not 0 <= confidence <= 1:
+        raise InvalidMapping(f"proposal {number}: confidence must be from 0 to 1")
+    matches = [
+        item
+        for item in pending["items"]
+        if normalize_label(item["label"]) == normalize_label(proposal["label"])
+        and proposal.get("statement", item["statement"]) == item["statement"]
+        and normalize_label(proposal.get("section", item["section"]))
+        == normalize_label(item["section"])
+    ]
+    if len(matches) != 1:
+        raise InvalidMapping(
+            f"proposal {number}: {proposal['label']!r} matches {len(matches)} items in "
+            f"review/{company}/pending.json; give statement and section to pick one"
+            if matches
+            else f"proposal {number}: {proposal['label']!r} is not in review/{company}/pending.json"
+        )
+    item = matches[0]
+    if "new_account" in proposal:
+        row = _new_account(
+            accounts, proposal["account"], proposal["new_account"], item["statement"]
+        )
+        if new_rows.setdefault(row["account"], row) != row:
+            raise InvalidMapping(
+                f"proposal {number}: new account {row['account']!r} is defined twice, differently"
+            )
+    else:
+        _check_account(accounts, proposal["account"], item)
+    return item
+
+
 def propose(run: Run, company: str, proposals: list[dict[str, Any]]) -> int:
     """Store proposals on the matching pending items. All or nothing: any bad proposal (E304) or
     two different accounts for one label (E303) applies none. A proposal with `new_account`
     names an account that is not in the dictionary yet (see `_new_account`)."""
     pending = read_pending(run.root, company)
-    accounts = _accounts(run.root)
+    accounts = load_accounts(run.root)
     chosen: dict[int, tuple[Item, dict[str, Any]]] = {}
     new_rows: dict[str, dict[str, str]] = {}  # new accounts proposed, by name
     for number, proposal in enumerate(proposals, start=1):
-        if not isinstance(proposal, dict):
-            raise InvalidMapping(f"proposal {number}: expected an object")
-        for field in ("label", "account", "confidence", "reason"):
-            if field not in proposal:
-                raise InvalidMapping(f"proposal {number}: missing {field!r}")
-        confidence = proposal["confidence"]
-        if isinstance(confidence, bool) or not isinstance(confidence, int | float):
-            raise InvalidMapping(f"proposal {number}: confidence must be a number from 0 to 1")
-        if not 0 <= confidence <= 1:
-            raise InvalidMapping(f"proposal {number}: confidence must be from 0 to 1")
-        matches = [
-            item
-            for item in pending["items"]
-            if normalize_label(item["label"]) == normalize_label(proposal["label"])
-            and proposal.get("statement", item["statement"]) == item["statement"]
-            and normalize_label(proposal.get("section", item["section"]))
-            == normalize_label(item["section"])
-        ]
-        if len(matches) != 1:
-            raise InvalidMapping(
-                f"proposal {number}: {proposal['label']!r} matches {len(matches)} items in "
-                f"review/{company}/pending.json; give statement and section to pick one"
-                if matches
-                else f"proposal {number}: {proposal['label']!r} is not in "
-                f"review/{company}/pending.json"
-            )
-        item = matches[0]
-        if "new_account" in proposal:
-            row = _new_account(
-                accounts, proposal["account"], proposal["new_account"], item["statement"]
-            )
-            if new_rows.setdefault(row["account"], row) != row:
-                raise InvalidMapping(
-                    f"proposal {number}: new account {row['account']!r} is defined twice, "
-                    "differently"
-                )
-        else:
-            _check_account(accounts, proposal["account"], item)
+        item = _check_proposal(number, proposal, pending, accounts, new_rows)
         if item["id"] in chosen and chosen[item["id"]][1]["account"] != proposal["account"]:
             raise ConflictingMapping(
                 f"{proposal['label']!r} is proposed as both {chosen[item['id']][1]['account']} "
@@ -363,7 +336,7 @@ def propose(run: Run, company: str, proposals: list[dict[str, Any]]) -> int:
 
 
 def _account_to_add(
-    accounts: dict[str, str], item: Item, name: str | None, parent: str | None
+    accounts: dict[str, Account], item: Item, name: str | None, parent: str | None
 ) -> dict[str, str] | None:
     """The new account to add when confirming `item` (its proposal, with `name` and `parent`
     when given), or None when it was already added by confirming another item the same way."""
@@ -373,6 +346,65 @@ def _account_to_add(
     if name in accounts and name == item["account"] and parent is None:
         return None  # another item with the same new account was confirmed first
     return _new_account(accounts, name, definition, item["statement"])
+
+
+def _resolve_account(
+    accounts: dict[str, Account],
+    item: Item,
+    account: str | None,
+    name: str | None,
+    parent: str | None,
+) -> tuple[str, dict[str, str] | None]:
+    """(the account to confirm `item` as, the new account to add first or None)."""
+    if item.get("new_account") and account in (None, item["account"]):
+        new = _account_to_add(accounts, item, name, parent)
+        if new is None:  # added by confirming another item with the same new account
+            _check_account(accounts, item["account"], item)
+            return item["account"], None
+        return new["account"], new
+    if name is not None or parent is not None:
+        raise InvalidMapping(
+            f"item {item['id']}: --name and --parent apply only to a new-account proposal"
+        )
+    account = account or item["account"]
+    if account is None:
+        raise InvalidMapping(f"item {item['id']} has no proposed account; give one with --account")
+    _check_account(accounts, account, item)
+    return account, None
+
+
+def _write_mapping(
+    run: Run, item: Item, account: str, new: dict[str, str] | None, company: str | None
+) -> int:
+    """Add the new account (if any) and the label mapping in one transaction; the mapping_id."""
+    with connect(dictionary_db_path(run.root), write=True) as con, transaction(con):
+        if new is not None:
+            insert_account(con, new, "review", run.run_id)
+        mapping_id, _ = upsert_label(
+            con, _item_key(item), account, company, "review", run.run_id, "refuse"
+        )
+    return mapping_id
+
+
+def _confirm_facts(
+    run: Run, company: str, item: Item, account: str, mapping_id: int, per_share: bool
+) -> int:
+    """Set the account on the company's unmapped facts with the item's label; how many."""
+    with connect(company_db_path(run.root, company), write=True) as con:
+        unmapped = con.execute(
+            "SELECT f.raw_id, r.statement, r.section, r.raw_label FROM facts f "
+            "JOIN raw_values r USING (raw_id) WHERE f.account IS NULL"
+        ).fetchall()
+        raw_ids = [raw_id for raw_id, *key in unmapped if label_key(*key) == _item_key(item)]
+        # An unmapped fact was stored in rupees; a per-share figure (EPS) is kept as printed.
+        con.execute(
+            "UPDATE facts SET account = ?, mapping_id = ?, confirmed = true, value = CASE WHEN ? "
+            "THEN round(value / (SELECT r.rupees_per_unit FROM raw_values r "
+            "WHERE r.raw_id = facts.raw_id), 2) ELSE value END "
+            "WHERE raw_id IN (SELECT unnest(?))",
+            [account, mapping_id, per_share, raw_ids],
+        )
+    return len(raw_ids)
 
 
 def confirm(
@@ -392,67 +424,9 @@ def confirm(
     item = _find_item(pending, item_id)
     if scope not in SCOPES:
         raise InvalidMapping(f"scope must be one of {', '.join(SCOPES)}, not {scope!r}")
-    accounts = _accounts(run.root)
-    new = None
-    if item.get("new_account") and account in (None, item["account"]):
-        new = _account_to_add(accounts, item, name, parent)
-        account = new["account"] if new else item["account"]
-        if new is None:
-            _check_account(accounts, account, item)
-    else:
-        if name is not None or parent is not None:
-            raise InvalidMapping(
-                f"item {item_id}: --name and --parent apply only to a new-account proposal"
-            )
-        account = account or item["account"]
-        if account is None:
-            raise InvalidMapping(f"item {item_id} has no proposed account; give one with --account")
-        _check_account(accounts, account, item)
-    statement, section, label = _item_key(item)
-    owner = company if scope == "company" else None
-    now = datetime.now(UTC).replace(tzinfo=None)
-    with connect(dictionary_db_path(run.root), write=True) as con:
-        existing = con.execute(
-            "SELECT mapping_id, account FROM label_map WHERE label = ? AND statement = ? "
-            "AND section = ? AND scope = ? AND company IS NOT DISTINCT FROM ?",
-            [label, statement, section, scope, owner],
-        ).fetchone()
-        if existing is not None and existing[1] != account:
-            raise ConflictingMapping(
-                f"{item['label']!r} is already mapped to {existing[1]} ({scope} scope); "
-                f"not changed to {account}"
-            )
-        con.execute("BEGIN TRANSACTION")
-        try:
-            if new is not None:
-                con.execute(
-                    "INSERT INTO accounts (account, statement, parent, sign, unit, description, "
-                    "source, run_id) VALUES (?, ?, ?, ?, ?, ?, 'review', ?)",
-                    [
-                        new["account"],
-                        new["statement"],
-                        new["parent"] or None,
-                        int(new["sign"]) if new["sign"] else None,
-                        new["unit"],
-                        new["description"],
-                        run.run_id,
-                    ],
-                )
-            if existing is not None:
-                mapping_id = existing[0]
-            else:
-                row = con.execute(
-                    "INSERT INTO label_map (label, statement, section, account, scope, company, "
-                    "source, created_at, run_id) VALUES (?, ?, ?, ?, ?, ?, 'review', ?, ?) "
-                    "RETURNING mapping_id",
-                    [label, statement, section, account, scope, owner, now, run.run_id],
-                ).fetchone()
-                assert row is not None
-                mapping_id = row[0]
-            con.execute("COMMIT")
-        except duckdb.Error:
-            con.execute("ROLLBACK")
-            raise
+    accounts = load_accounts(run.root)
+    account, new = _resolve_account(accounts, item, account, name, parent)
+    mapping_id = _write_mapping(run, item, account, new, company if scope == "company" else None)
     if new is not None:
         where = f"under {new['parent']}" if new["parent"] else "as a top line"
         run.event(
@@ -460,27 +434,13 @@ def confirm(
             f"account {account} added to the dictionary ({new['statement']}, {where})",
             context={"company": company, "id": item_id, "account": account},
         )
-    with connect(company_db_path(run.root, company), write=True) as con:
-        unmapped = con.execute(
-            "SELECT f.raw_id, r.statement, r.section, r.raw_label FROM facts f "
-            "JOIN raw_values r USING (raw_id) WHERE f.account IS NULL"
-        ).fetchall()
-        raw_ids = [
-            raw_id for raw_id, *fields in unmapped if _key(*fields) == (statement, section, label)
-        ]
-        # An unmapped fact was stored in rupees; a per-share figure (EPS) is kept as printed.
-        con.execute(
-            "UPDATE facts SET account = ?, mapping_id = ?, confirmed = true, value = CASE WHEN ? "
-            "THEN round(value / (SELECT r.rupees_per_unit FROM raw_values r "
-            "WHERE r.raw_id = facts.raw_id), 2) ELSE value END "
-            "WHERE raw_id IN (SELECT unnest(?))",
-            [account, mapping_id, _per_share(run.root, account), raw_ids],
-        )
+    unit = new["unit"] if new is not None else accounts[account].unit
+    facts = _confirm_facts(run, company, item, account, mapping_id, unit == "rupees_per_share")
     decision = "confirmed" if account == item["account"] and parent is None else "edited"
     _decide(run, company, item, decision, account, scope)
     pending["items"].remove(item)
     _save(run.root, company, pending)
-    return len(raw_ids)
+    return facts
 
 
 def reject(run: Run, company: str, item_id: int) -> None:

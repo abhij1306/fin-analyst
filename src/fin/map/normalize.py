@@ -25,16 +25,18 @@ _NOTE_REF = re.compile(
     r"\(?\s*(?:refer\s+)?\bnotes?\b(?:\s*no)?\.?\s*\d+[a-z]?"
     r"(?:\s*(?:,|and|&)\s*\d+[a-z]?)*\s*\)?"
 )
-# A roman numeral up to 39 (the lookahead stops it matching the empty string), one letter a-n, or a
-# number of one or two digits; a numeral or number may carry a letter ("(ia)", "(2a)").
-_NUMBER = r"(?:(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})[a-h]?|[a-n]|\d{1,2}[a-h]?)"
+# A roman numeral up to 39 (the lookahead stops it matching the empty string).
+_ROMAN = r"(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})"
+# A roman numeral, one letter a-n, or a number of one or two digits; a numeral or number may carry a
+# letter ("(ia)", "(2a)").
+_NUMBER = rf"(?:{_ROMAN}[a-h]?|[a-n]|\d{{1,2}}[a-h]?)"
 _BRACKETED_NUMBERING = re.compile(rf"[(\[]\s*{_NUMBER}(?:\s*[+\-–±]\s*{_NUMBER})*\s*[)\]]")
 # "I. ", "a) ", "c. |", "5 |" (a results table's column rule read as a bar), "10 " (a bare number).
 _LEADING_NUMBERING = re.compile(
-    r"^(?:(?:(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})|[a-z]|\d{1,2})\s*[.)|]+\s+"
+    rf"^(?:(?:{_ROMAN}|[a-z]|\d{{1,2}})\s*[.)|]+\s+"
     r"|(?:[a-z]|\d{1,2})\s*\|\s*|\d{1,2}\s+|\|\s*)+"
 )
-_LEADING_ROMAN = re.compile(r"^(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})\s+")
+_LEADING_ROMAN = re.compile(rf"^{_ROMAN}\s+")
 _NOT_WORD = re.compile(r"[^a-z0-9]+")
 _TRAILING_NOTE = re.compile(r"(?<=[a-z]) \d{1,2}(?: [a-z])?$")
 

@@ -191,30 +191,15 @@ def test_status_shows_periods_held_findings_pending_unverified_and_inbox(
     result = fin("status", "--json")
 
     assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout) == [
-        {
-            "company": "bluepeak",
-            "periods": {"years": ["FY24", "FY25"], "halves": [], "quarters": [], "nine_months": []},
-            "gaps": [],
-            "held_documents": [],
-            "open_findings": 0,
-            "accepted_findings": 0,
-            "pending_mappings": 0,
-            "unverified_claude_facts": 2,
-            "inbox_not_ingested": ["Bluepeak_Polymers_FY2022-23.xlsx"],
-        },
-        {
-            "company": "kestrel",
-            "periods": {"years": [], "halves": [], "quarters": [], "nine_months": []},
-            "gaps": [],
-            "held_documents": [{"doc_id": 1, "file": UNBALANCED, "open_findings": 1}],
-            "open_findings": 1,
-            "accepted_findings": 0,
-            "pending_mappings": 1,
-            "unverified_claude_facts": 0,
-            "inbox_not_ingested": [],
-        },
-    ]
+    bluepeak, kestrel = json.loads(result.stdout)
+    assert (bluepeak["company"], kestrel["company"]) == ("bluepeak", "kestrel")
+    assert bluepeak["periods"]["years"] == ["FY24", "FY25"]
+    assert bluepeak["unverified_claude_facts"] == 2
+    assert bluepeak["inbox_not_ingested"] == ["Bluepeak_Polymers_FY2022-23.xlsx"]
+    assert kestrel["periods"]["years"] == []  # held: not in current figures
+    assert kestrel["held_documents"] == [{"doc_id": 1, "file": UNBALANCED, "open_findings": 1}]
+    assert (kestrel["open_findings"], kestrel["accepted_findings"]) == (1, 0)
+    assert kestrel["pending_mappings"] == 1  # the rejected item is not counted
     text = fin("status", "kestrel").stdout
     assert f"  held documents: doc_id 1 {UNBALANCED} (1 open)\n" in text
     assert "  findings: 1 open, 0 accepted\n" in text

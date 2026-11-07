@@ -18,7 +18,7 @@ from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.ingest import COMPANY_NAME, files_in, sha256_of
-from fin.map.review import OPEN, read_pending
+from fin.map.review import open_items, read_pending
 from fin.paths import companies_dir, company_db_path, inbox_dir
 
 PERIOD = re.compile(r"^FY(\d+)(?:-([QH])(\d))?$")
@@ -101,7 +101,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
         "held_documents": held,
         "open_findings": open_findings,
         "accepted_findings": accepted,
-        "pending_mappings": sum(1 for item in pending["items"] if item["status"] in OPEN),
+        "pending_mappings": len(open_items(pending)),
         "unverified_claude_facts": unverified,
         "inbox_not_ingested": waiting,
     }

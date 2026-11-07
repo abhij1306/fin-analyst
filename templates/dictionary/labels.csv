@@ -51,7 +51,6 @@ Net cash from/(used in) financing activities (C),cash_flow,,cff
 Net increase/(decrease) in cash and cash equivalents (A+B+C),cash_flow,,net_change_cash
 Cash and cash equivalents at the beginning of the year,cash_flow,,opening_cash
 Cash and cash equivalents at the end of the year,cash_flow,,closing_cash
-Equity share capital,balance_sheet,,share_capital
 Reserves and surplus,balance_sheet,,other_equity
 Total shareholders' funds,balance_sheet,,total_equity
 Term loans from banks,balance_sheet,,lt_borrowings
@@ -66,7 +65,6 @@ Cash & bank balances,balance_sheet,,cash
 "Loans, advances & other current assets",balance_sheet,,other_current_assets
 TOTAL APPLICATION,balance_sheet,,total_assets
 Sales / Income from operations,profit_and_loss,,revenue
-Other income,profit_and_loss,,other_income
 Total revenue,profit_and_loss,,total_income
 Raw material consumed,profit_and_loss,,cost_of_materials
 Staff costs,profit_and_loss,,employee_expense
@@ -88,9 +86,7 @@ Operating profit before WC changes,cash_flow,,cf_op_profit_before_wc
 Inc/(Dec) in sundry creditors,cash_flow,,cf_change_payables
 Inc/(Dec) in other liabilities,cash_flow,,cf_change_ocl
 Direct taxes paid,cash_flow,,cf_taxes_paid
-Net cash from operating activities,cash_flow,,cfo
 Purchase of fixed assets,cash_flow,,cf_capex
-Net cash used in investing activities,cash_flow,,cfi
 Term loans availed/(repaid) (net),cash_flow,,cf_lt_borrowings_net
 Working capital borrowings (net),cash_flow,,cf_st_borrowings_net
 Interest paid,cash_flow,,cf_finance_cost_paid
@@ -105,18 +101,10 @@ Borrowings,balance_sheet,Non-current liabilities,lt_borrowings
 Borrowings,balance_sheet,Current liabilities,st_borrowings
 Long-term borrowings,balance_sheet,,lt_borrowings
 Short-term borrowings,balance_sheet,,st_borrowings
-Trade payables,balance_sheet,,trade_payables
 Trade receivables,balance_sheet,,trade_receivables
-Inventories,balance_sheet,,inventories
 Cash and cash equivalents,balance_sheet,,cash
-"Property, plant and equipment",balance_sheet,,ppe_net
 Capital work-in-progress,balance_sheet,,capital_work_in_progress
-Revenue from operations,profit_and_loss,,revenue
-Total income,profit_and_loss,,total_income
-Total expenses,profit_and_loss,,total_expenses
-Profit before tax,profit_and_loss,,pbt
 Profit after tax,profit_and_loss,,pat
-Profit for the year,profit_and_loss,,pat
 Right-of-use assets,balance_sheet,,right_of_use_assets
 Other intangible assets,balance_sheet,,intangible_assets
 Investments,balance_sheet,Non-current assets,non_current_investments
@@ -128,9 +116,7 @@ Deferred tax asset (net),balance_sheet,,deferred_tax_assets
 Other non-current assets,balance_sheet,,other_non_current_assets
 Bank balances other than cash and cash equivalents,balance_sheet,,other_bank_balances
 Bank balances other than (iii) above,balance_sheet,,other_bank_balances
-Other current assets,balance_sheet,,other_current_assets
 Share capital,balance_sheet,,share_capital
-Other equity,balance_sheet,,other_equity
 Lease liabilities,balance_sheet,Non-current liabilities,lease_liabilities_non_current
 Lease liabilities,balance_sheet,Current liabilities,lease_liabilities_current
 Other financial liabilities,balance_sheet,Non-current liabilities,other_financial_liabilities_non_current
@@ -142,7 +128,6 @@ Short-term provisions,balance_sheet,,st_provisions
 Deferred tax liabilities (net),balance_sheet,,deferred_tax_liabilities
 Other non-current liabilities,balance_sheet,,other_non_current_liabilities
 Other long-term liabilities,balance_sheet,,other_non_current_liabilities
-Other current liabilities,balance_sheet,,other_current_liabilities
 Current tax liabilities (net),balance_sheet,,current_tax_liabilities
 Income tax liabilities,balance_sheet,,current_tax_liabilities
 Income tax liabilities (net),balance_sheet,,current_tax_liabilities

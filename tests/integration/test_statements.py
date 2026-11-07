@@ -11,8 +11,7 @@ from openpyxl import load_workbook
 from typer.testing import CliRunner
 
 from fin.cli import app
-from tests.integration.test_real_report_mapping import PROFIT_AND_LOSS, WIDTH, statement
-from tests.synthetic_pdf import write_pdf
+from tests.synthetic_pdf import PROFIT_AND_LOSS, WIDTH, statement, write_pdf
 
 runner = CliRunner()
 

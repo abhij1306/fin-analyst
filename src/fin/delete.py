@@ -26,6 +26,8 @@ from fin.paths import (
     backups_dir,
     company_db_path,
     inbox_dir,
+    notes_dir,
+    reports_dir,
     review_dir,
 )
 
@@ -34,14 +36,15 @@ COUNTED_TABLES = ("documents", "raw_values", "facts", "notes")
 
 def company_paths(root: Path, company: str) -> list[Path]:
     """The files and folders that belong to `company`, as they exist now."""
+    db = company_db_path(root, company)
     candidates = [
-        company_db_path(root, company),
-        company_db_path(root, company).with_name(f"{company}.duckdb.wal"),
+        db,
+        db.with_name(f"{db.name}.wal"),
         inbox_dir(root, company),
         archive_dir(root, company),
         review_dir(root, company),
-        root / "notes" / company,
-        root / "reports" / company,
+        notes_dir(root, company),
+        reports_dir(root, company),
     ]
     with connect(audit_db_path(root)) as con:
         evidence = con.execute(

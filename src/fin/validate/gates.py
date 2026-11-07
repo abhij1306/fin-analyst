@@ -48,10 +48,9 @@ from typing import TYPE_CHECKING, Any
 import duckdb
 
 from fin.config import load_config
-from fin.db.conn import connect
 from fin.extract.units import RUPEES_PER_UNIT
+from fin.map.dictionary import Account, load_accounts
 from fin.map.normalize import normalize_label
-from fin.paths import dictionary_db_path
 
 if TYPE_CHECKING:
     from fin.audit.logger import Run
@@ -64,19 +63,25 @@ CODES = {
     "unit_sanity": "E405",
     "cross_document": "E404",
 }
-# Which config.toml tolerance each check uses.
-TOLERANCE = {
-    "balance_sheet": "balance_sheet",
-    "subtotal": "subtotal",
-    "cash_flow": "cash_flow",
-    "unit_sanity": "cross_document",
-    "cross_document": "cross_document",
-}
+# The config.toml tolerance a check uses, when it is not the check's own.
+TOLERANCE = {"unit_sanity": "cross_document"}
 UNIT_FACTORS = sorted(
     {a / b for a in RUPEES_PER_UNIT.values() for b in RUPEES_PER_UNIT.values() if a > b}
 )
 SUBTOTAL_STATEMENTS = ("balance_sheet", "profit_and_loss")
 EITHER_SIGN = frozenset({"exceptional_items", "extraordinary_items"})
+# Checks of one figure against another: (check, expected account, actual account, what).
+# Old-format "cash and bank balances" (cash_and_bank_balances) also holds other bank balances, so
+# it is not compared with closing cash.
+PAIRS = (
+    (
+        "balance_sheet",
+        "total_equity_and_liabilities",
+        "total_assets",
+        "total assets vs total equity and liabilities",
+    ),
+    ("cash_flow", "cash", "closing_cash", "cash flow closing cash vs balance-sheet cash"),
+)
 # An unmapped P&L line whose label or heading matches this is never part of a subtotal.
 OUTSIDE_SUBTOTALS = re.compile(
     r"\bper (?:equity )?share\b|\bbasic\b|\bdiluted\b|\bface value\b|\bnominal value\b"
@@ -101,19 +106,6 @@ class Result:
     accounts: tuple[str, ...] = ()  # the accounts whose lines the check used
     other_doc_id: int | None = None  # cross_document / unit_sanity: the document compared with
     other_file: str | None = None
-
-
-@dataclass(frozen=True)
-class Account:
-    statement: str
-    parent: str | None
-    sign: int | None
-
-
-def _accounts(run: "Run") -> dict[str, Account]:
-    with connect(dictionary_db_path(run.root)) as con:
-        rows = con.execute("SELECT account, statement, parent, sign FROM accounts").fetchall()
-    return {account: Account(statement, parent, sign) for account, statement, parent, sign in rows}
 
 
 def _figures(con: duckdb.DuckDBPyConnection, doc_id: int) -> dict[Key, dict[str, Decimal]]:
@@ -154,7 +146,7 @@ def _compare(
     what: str,
     accounts: tuple[str, ...],
 ) -> Result:
-    tolerance = tolerances[TOLERANCE[check]]
+    tolerance = tolerances[TOLERANCE.get(check, check)]
     difference = actual - expected
     passed = abs(difference) <= tolerance
     period, scope = key
@@ -217,6 +209,15 @@ def _subtotal(
     return alternative if alternative.passed else result
 
 
+def _missing_reason(missing: list[str], values: dict[str, Decimal]) -> str:
+    reason = f"no confirmed {' or '.join(missing)} figure"
+    if "cash" in missing and "cash_and_bank_balances" in values:
+        reason += (
+            " (the balance sheet shows cash and bank balances, which also hold other bank balances)"
+        )
+    return reason
+
+
 def _in_document(
     run: "Run",
     file: str,
@@ -231,51 +232,29 @@ def _in_document(
             children.setdefault(info.parent, []).append(account)
 
     def not_run(check: str, key: Key, reason: str) -> None:
-        run.event(
-            "validate",
-            f"{check} check not run for {key[0]} {key[1]}: {reason}",
-            level="warning",
-            file=file,
-        )
+        message = f"{check} check not run for {key[0]} {key[1]}: {reason}"
+        run.event("validate", message, level="warning", file=file)
 
     results = []
     for key, values in sorted(figures.items()):
-        pairs = [
-            (
-                "balance_sheet",
-                "total_equity_and_liabilities",
-                "total_assets",
-                "total assets vs total equity and liabilities",
-            ),
-            # Old-format "cash and bank balances" (cash_and_bank_balances) also holds other bank
-            # balances, so it is not compared with closing cash.
-            ("cash_flow", "cash", "closing_cash", "cash flow closing cash vs balance-sheet cash"),
-        ]
-        for check, expected, actual, what in pairs:
+        for check, expected, actual, what in PAIRS:
             missing = [account for account in (expected, actual) if account not in values]
             if missing:
-                reason = f"no confirmed {' or '.join(missing)} figure"
-                if "cash" in missing and "cash_and_bank_balances" in values:
-                    reason += (
-                        " (the balance sheet shows cash and bank balances, which also hold other "
-                        "bank balances)"
-                    )
-                not_run(check, key, reason)
-            else:
-                pair = (expected, actual)
-                results.append(
-                    _compare(check, key, values[expected], values[actual], tolerances, what, pair)
-                )
+                not_run(check, key, _missing_reason(missing, values))
+                continue
+            pair = (expected, actual)
+            results.append(
+                _compare(check, key, values[expected], values[actual], tolerances, what, pair)
+            )
         for statement in SUBTOTAL_STATEMENTS:
             lines = unmapped.get((*key, statement), 0)
             if lines:
                 not_run("subtotal", key, f"{lines} {statement} line(s) have no confirmed account")
                 continue
-            for account in sorted(values):
-                if tree[account].statement == statement:
-                    result = _subtotal(key, account, values, children, tree, tolerances)
-                    if result is not None:
-                        results.append(result)
+            for account in sorted(a for a in values if tree[a].statement == statement):
+                result = _subtotal(key, account, values, children, tree, tolerances)
+                if result is not None:
+                    results.append(result)
     return results
 
 
@@ -351,7 +330,9 @@ def validate_document(
     file_name = row[0]
     file = f"{company}/{file_name}"
     figures = _figures(con, doc_id)
-    results = _in_document(run, file, figures, _unmapped(con, doc_id), _accounts(run), tolerances)
+    results = _in_document(
+        run, file, figures, _unmapped(con, doc_id), load_accounts(run.root), tolerances
+    )
     results = [_reconciled(con, doc_id, r) for r in results]
     results += _across_documents(run, file, con, doc_id, figures, tolerances)
 
