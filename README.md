@@ -48,7 +48,7 @@ Start Claude Code in the `fin-analyst` folder with `claude`. Then:
 |---|---|---|
 | 1 | Drop files in `~/FinAnalysis/inbox/<company>/` (lower-case company name, for example `kestrel`) | |
 | 2 | `/ingest <company>` (or `/ingest-batch` for every folder under `inbox/`) | Loads the files, checks them, and proposes accounts for labels it does not know. A file that fails goes to `review/<company>/` with a reason. A file already loaded is skipped (E105). |
-| 3 | `/review [company]` | Lists the proposed mappings. Tell Claude which to confirm or reject; Claude Code asks you to approve a confirm. |
+| 3 | `/review [company]` | Lists the proposed mappings. Tell Claude which to confirm or reject; Claude Code asks you to approve a confirm. When no account fits a line, Claude may propose a new account; it is added only if you confirm it (`fin map accounts --added` prints added accounts to share). |
 | 4 | `/ask <company> <question>` | Answer, calculation, source table (file and sheet!cell or page), the SQL, an evidence page and flags (unconfirmed mappings, missing data). |
 | 5 | `/report <company>` | Writes a narrative that describes the numbers (it never types them) and renders HTML, Word and PDF into `reports/<company>/<scope>/`. |
 | 6 | `/dashboard` (or `uv run fin dashboard`) | Refreshes the dashboard data and starts the Evidence dashboard at http://localhost:3000 (company, compare and data quality pages). It reads a copy of the data, so you can ingest while it is open. `uv run fin dashboard --build` makes a static site instead (kept in `~/FinAnalysis/dashboard/build`; a failed build, E603, keeps the last good one). |
@@ -150,7 +150,7 @@ or checks failed, 2 the command could not run, 3 refused until you confirm. Ever
 | E301 | A label is not in the dictionary | Loaded as unconfirmed. Run `/review` to confirm a mapping |
 | E302 | A proposed mapping has low confidence | Same: check it in `/review` |
 | E303 | A label maps to conflicting accounts | Same: you decide in `/review` |
-| E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id or label) | Nothing was applied. Check `fin review list` and the account name, then retry |
+| E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id or label, invalid new account) | Nothing was applied. Check `fin review list` and the account name, then retry |
 | E401 | Balance sheet does not balance | Nothing from the document was loaded. Compare expected and actual, and the lines used, in `review/<company>/<file>.error.json` with the source. A wrong mapping: see "Fixing a file that failed a check" |
 | E402 | A subtotal does not equal the sum of its lines | Same |
 | E403 | Cash flow closing cash differs from balance sheet cash | Same. Old-format "Cash and bank balances" also holds deposits: map it with `fin map set` to `cash_and_bank_balances` |

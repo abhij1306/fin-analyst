@@ -57,29 +57,31 @@ def _read_csv(name: str, columns: list[str]) -> list[dict[str, str]]:
         return list(reader)
 
 
+def account_problem(row: dict[str, str], statement_of: dict[str, str]) -> str | None:
+    """What is wrong with an account row (the schedule_iii.csv columns, as text), or None.
+    `statement_of` is {account: statement} for the accounts a parent may be."""
+    if row["statement"] not in STATEMENTS:
+        return f"statement must be one of {', '.join(STATEMENTS)}"
+    if row["parent"] and statement_of.get(row["parent"]) != row["statement"]:
+        return f"parent {row['parent']!r} is not an account of the same statement"
+    if (row["parent"] == "") != (row["sign"] == "") or row["sign"] not in ("", "1", "-1"):
+        return "sign must be 1 or -1 with a parent, empty without"
+    if row["unit"] not in UNITS or (row["unit"] != "rupees" and row["parent"]):
+        return (
+            f"unit must be one of {', '.join(UNITS)}, and only a rupees account can have a parent"
+        )
+    return None
+
+
 def read_seed() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """Read and check both seed CSVs. Raises E002 if they are inconsistent."""
     accounts = _read_csv("schedule_iii.csv", ACCOUNT_COLUMNS)
     labels = _read_csv("labels.csv", ["label", "statement", "section", "account"])
     statement_of = {row["account"]: row["statement"] for row in accounts}
     for row in accounts:
-        if row["statement"] not in STATEMENTS:
-            raise DependencyVersionMismatch(f"schedule_iii.csv: {row['account']}: bad statement")
-        if row["parent"] and statement_of.get(row["parent"]) != row["statement"]:
-            raise DependencyVersionMismatch(
-                f"schedule_iii.csv: {row['account']}: parent {row['parent']!r} is not an account "
-                "of the same statement"
-            )
-        if (row["parent"] == "") != (row["sign"] == "") or row["sign"] not in ("", "1", "-1"):
-            raise DependencyVersionMismatch(
-                f"schedule_iii.csv: {row['account']}: sign must be 1 or -1 with a parent, "
-                "empty without"
-            )
-        if row["unit"] not in UNITS or (row["unit"] != "rupees" and row["parent"]):
-            raise DependencyVersionMismatch(
-                f"schedule_iii.csv: {row['account']}: unit must be one of {', '.join(UNITS)}, "
-                "and only a rupees account can have a parent"
-            )
+        problem = account_problem(row, statement_of)
+        if problem:
+            raise DependencyVersionMismatch(f"schedule_iii.csv: {row['account']}: {problem}")
     seen: dict[tuple[str, str, str], str] = {}
     for row in labels:
         if statement_of.get(row["account"]) != row["statement"]:
@@ -144,6 +146,34 @@ def load_seed(root: Path, run: "Run") -> SeedResult:
             con.execute("ROLLBACK")
             raise
     return SeedResult(len(new_accounts), added)
+
+
+def added_rows(root: Path) -> tuple[list[list[str]], list[list[str]]]:
+    """The accounts added in review and the global labels confirmed in review that the seed CSVs
+    do not have yet, as rows in the schedule_iii.csv and labels.csv formats (labels normalized)."""
+    seed_accounts, seed_labels = read_seed()
+    known = {row["account"] for row in seed_accounts}
+    seeded = {
+        (normalize_label(row["label"]), row["statement"], normalize_label(row["section"]))
+        for row in seed_labels
+    }
+    with connect(dictionary_db_path(root)) as con:
+        accounts = con.execute(
+            "SELECT account, statement, coalesce(parent, ''), coalesce(CAST(sign AS VARCHAR), ''), "
+            "unit, description FROM accounts WHERE source = 'review' ORDER BY statement, account"
+        ).fetchall()
+        labels = con.execute(
+            "SELECT label, statement, section, account FROM label_map "
+            "WHERE scope = 'global' AND source <> 'seed' ORDER BY mapping_id"
+        ).fetchall()
+    return (
+        [list(row) for row in accounts if row[0] not in known],
+        [
+            list(row)
+            for row in labels
+            if (normalize_label(row[0]), row[1], normalize_label(row[2])) not in seeded
+        ],
+    )
 
 
 # (company's own mapping?, statement, section, label); section and label normalized.

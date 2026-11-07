@@ -214,3 +214,197 @@ def test_new_label_confirmed_once_is_mapped_on_the_next_ingest(root: Path, sampl
         .read_text(encoding="utf-8")
         .count('"label"')
     )
+
+
+# --- New accounts: proposed in `fin map propose`, added only on `fin review confirm`. ---
+
+
+def new_account(
+    account: str = "long_overdue_debtors",
+    parent: str | None = "total_current_assets",
+    **change: Any,
+) -> dict[str, Any]:
+    definition = {"parent": parent, "sign": 1, "unit": "rupees", "description": "Old debtors"}
+    return {**proposal(account), "new_account": {**definition, **change}}
+
+
+def dictionary(root: Path, sql: str) -> list[tuple[Any, ...]]:
+    with connect(root / "shared" / "dictionary.duckdb") as con:
+        return con.execute(sql).fetchall()
+
+
+def last_run(audit_query: Query, command: str) -> str:
+    return audit_query(
+        "SELECT run_id FROM runs WHERE command = ? ORDER BY started_at DESC LIMIT 1", [command]
+    )[0][0]
+
+
+def test_new_account_is_added_on_confirm_and_validates_under_its_parent(
+    root: Path, audit_query: Query
+) -> None:
+    result = fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+    assert result.exit_code == 0, result.output
+    assert dictionary(root, "SELECT * FROM accounts WHERE account = 'long_overdue_debtors'") == []
+    listed = fin("review", "list", "-c", "bluepeak").stdout
+    assert "NEW ACCOUNT long_overdue_debtors: + total_current_assets, rupees, 'Old debtors'" in (
+        listed
+    )
+
+    result = fin("review", "confirm", "1", "-c", "bluepeak", "--scope", "global")
+
+    assert result.exit_code == 0, result.output
+    assert "#1 confirmed (global scope); 2 facts updated" in result.stdout
+    assert dictionary(
+        root,
+        "SELECT account, statement, parent, sign, unit, description, source, run_id IS NOT NULL "
+        "FROM accounts WHERE account = 'long_overdue_debtors'",
+    ) == [
+        (
+            "long_overdue_debtors",
+            "balance_sheet",
+            "total_current_assets",
+            1,
+            "rupees",
+            "Old debtors",
+            "review",
+            True,
+        )
+    ]
+    assert [(f[1], f[2]) for f in facts(root)] == [("long_overdue_debtors", True)] * 2
+    assert audit_query("SELECT decision, account, scope FROM mapping_decisions")[1:] == [
+        ("confirmed", "long_overdue_debtors", "global")
+    ]
+    accounts = fin("map", "accounts", "-s", "balance_sheet").stdout
+    assert [line.split()[0] for line in accounts.splitlines() if "[added]" in line] == [
+        "long_overdue_debtors"
+    ]
+
+    # Ingested again, the label maps to the new account, so the subtotal check (E402) runs and adds
+    # it into total current assets, which this document does not show, then into total assets.
+    again = fin("ingest", "bluepeak", str(root / "edited.xlsx"), "--force")
+
+    assert again.exit_code == 0, again.output
+    assert "0 unmapped labels" in again.stdout
+    assert audit_query(
+        "SELECT fiscal_year, passed FROM validation_results WHERE run_id = ? "
+        "AND check_name = 'subtotal' AND message LIKE '% standalone: total_assets vs%' ORDER BY 1",
+        [last_run(audit_query, "ingest")],
+    ) == [("FY24", True), ("FY25", True)]
+
+
+def test_new_account_under_the_wrong_parent_fails_e402(root: Path) -> None:
+    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+
+    result = fin(
+        "review",
+        "confirm",
+        "1",
+        "-c",
+        "bluepeak",
+        "--name",
+        "old_debtors",
+        "--parent",
+        "total_equity",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert dictionary(root, "SELECT account, parent FROM accounts WHERE source = 'review'") == [
+        ("old_debtors", "total_equity")
+    ]
+    again = fin("ingest", "bluepeak", str(root / "edited.xlsx"), "--force")
+    assert again.exit_code == 1
+    assert "E402" in again.output
+
+
+def test_rejected_new_account_adds_nothing(root: Path) -> None:
+    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+
+    result = fin("review", "reject", "1", "-c", "bluepeak")
+
+    assert result.exit_code == 0, result.output
+    assert dictionary(root, "SELECT account FROM accounts WHERE source = 'review'") == []
+    assert dictionary(root, "SELECT label FROM label_map WHERE source = 'review'") == []
+    assert [(f[1], f[2]) for f in facts(root)] == [(None, False)] * 2
+
+
+@pytest.mark.parametrize(
+    ("bad", "message"),
+    [
+        (
+            new_account(parent="no_such_total"),
+            "E304: new account 'long_overdue_debtors': parent 'no_such_total' is not an account "
+            "of the same statement",
+        ),
+        (
+            new_account(parent="pat"),
+            "E304: new account 'long_overdue_debtors': parent 'pat' is not an account of the "
+            "same statement",
+        ),
+        (
+            new_account("trade_receivables"),
+            "E304: new account 'trade_receivables' is already in the dictionary; propose it as "
+            "an existing account",
+        ),
+        (
+            new_account("Old Debtors"),
+            "E304: new account 'Old Debtors': use a snake_case name, e.g. loans_to_nbfcs",
+        ),
+        (
+            new_account(sign=None),
+            "E304: new account 'long_overdue_debtors': sign must be 1 or -1 with a parent, "
+            "empty without",
+        ),
+    ],
+)
+def test_invalid_new_account_is_e304_and_nothing_is_stored(
+    root: Path, bad: dict[str, Any], message: str
+) -> None:
+    result = fin("map", "propose", propose_file(root, bad), "-c", "bluepeak")
+
+    assert result.exit_code == 2
+    assert result.stderr.splitlines()[0] == message
+    assert pending(root)[0]["status"] == "pending"
+
+
+def test_confirm_with_an_invalid_parent_adds_nothing(root: Path) -> None:
+    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+
+    result = fin("review", "confirm", "1", "-c", "bluepeak", "--parent", "revenue")
+
+    assert result.exit_code == 2
+    assert result.stderr.splitlines()[0] == (
+        "E304: new account 'long_overdue_debtors': parent 'revenue' is not an account of the "
+        "same statement"
+    )
+    assert dictionary(root, "SELECT account FROM accounts WHERE source = 'review'") == []
+    assert dictionary(root, "SELECT label FROM label_map WHERE source = 'review'") == []
+    assert pending(root)[0]["status"] == "proposed"
+
+
+def test_map_set_can_target_an_added_account(root: Path) -> None:
+    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+    fin("review", "confirm", "1", "-c", "bluepeak")
+
+    result = fin(
+        "map", "set", "-c", "bluepeak", "-s", "balance_sheet", "-l", "Old dues", "-a",
+        "long_overdue_debtors",
+    )  # fmt: skip
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "bluepeak: balance_sheet 'Old dues' -> long_overdue_debtors (added)\n"
+
+
+def test_export_prints_added_accounts_and_global_labels_as_seed_rows(root: Path) -> None:
+    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+    fin("review", "confirm", "1", "-c", "bluepeak", "--scope", "global")
+
+    result = fin("map", "accounts", "--added")
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == [
+        "# rows for templates/dictionary/schedule_iii.csv",
+        "long_overdue_debtors,balance_sheet,total_current_assets,1,rupees,Old debtors",
+        "# rows for templates/dictionary/labels.csv",
+        "debtors outstanding over six months,balance_sheet,current assets loans and advances,"
+        "long_overdue_debtors",
+    ]

@@ -163,6 +163,41 @@ Human follow-ups:
   taken as a heading), RKFL prints the share-of-joint-venture figure twice and the second row is labelled
   "Expenses", and RKFL standalone has a label "(i) Investments_C".
 
+### Propose and accept new accounts through review
+
+When no existing account fits a label (lender lines, new Ind AS items), Claude can now propose a new account, and the
+user decides in review. Before, the only way was editing the seed CSV or writing a dictionary migration.
+
+- `fin map propose`: a proposal may have `new_account: {parent, sign, unit, description}`, with `account` as the new
+  snake_case name. It is checked like a seed row (name unused and snake_case, parent an account of the same
+  statement, sign 1 or -1 with a parent, unit `rupees` or `rupees_per_share`, per-share accounts have no parent);
+  anything wrong is E304 and nothing is stored. The same new name defined twice differently in one file is E304.
+- `fin review confirm`: adds the account to the shared `accounts` table and maps the label (company or global
+  scope) in one dictionary transaction, then confirms the facts, with a run record, a `mapping_decisions` row and an
+  event naming the account and its parent. `--name` and `--parent` change the proposed account (recorded as
+  `edited`); `--account <existing>` uses an existing account instead. Reject adds nothing. Another item proposing
+  the same new account, confirmed later, maps to the account already added.
+- `fin review list` and the interactive `fin review` show a new-account proposal as `NEW ACCOUNT <name>: + <parent>,
+  <unit>, '<description>'`.
+- Added accounts behave like seed accounts: `fin map accounts` marks them `[added]`, `fin map set` can target them,
+  and the subtotal gate (E402) adds them into their parent. Metrics are unchanged unless a metric names them.
+- `fin map accounts --added` prints the added accounts and the global labels confirmed in review that the seed CSVs
+  do not have yet, as rows for `templates/dictionary/schedule_iii.csv` and `labels.csv` (documented in
+  `docs/CUSTOMISING.md`).
+- Dictionary migration 003: `accounts.source` ('seed' or 'review') and `accounts.run_id`. Existing rows become
+  'seed'. The seed row checks moved to `fin.map.dictionary.account_problem`, shared by `fin init` and review.
+- `/review` and `/ingest` tell Claude to propose a new account only when no existing account fits, to say why, and
+  to leave the decision to the user.
+
+Deviations: the dictionary insert (account and label) is one transaction; the company's facts are updated after it in
+the company database, as for any confirm (two DuckDB files cannot share a transaction). No new error code: invalid
+new accounts are E304.
+
+Human follow-ups:
+- Run `uv run fin migrate` once on an existing data folder (dictionary schema 2 to 3).
+- Try it on a real report with lender lines: ingest, `/ingest` proposes, confirm a new account in `/review`, ingest
+  the file again with `--force` and check E402.
+
 ## [1.0.0] - 2026-11-07
 
 First release: Phases 0-12 below. How it was tested:

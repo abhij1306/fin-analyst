@@ -217,7 +217,7 @@ Every `fin` command:
 | E301 | Unmapped label | Loaded as unconfirmed, queued for review |
 | E302 | Low-confidence mapping | Same |
 | E303 | Conflicting mapping | Same; human decides |
-| E304 | Invalid mapping proposal or review request (unknown account, wrong statement, unknown id or label) | Stop; nothing applied |
+| E304 | Invalid mapping proposal or review request (unknown account, wrong statement, unknown id or label, invalid new account: name, parent, sign or unit) | Stop; nothing applied |
 | E401 | Balance sheet doesn't balance | Whole document rolled back, to review with expected vs actual |
 | E402 | Subtotal mismatch | Same |
 | E403 | Cash flow doesn't reconcile to cash balance | Same |
@@ -418,6 +418,12 @@ unmapped labels and the commands); then the `review/` copy is ingested again. `f
 Lookup prefers the company's own mappings, and a row under a sub-heading ("Financial liabilities") is also looked up
 under the balance-sheet part it is in (from the last part heading, or the last total line). Stored keys are
 normalized again when read, so a normalization change does not orphan an existing mapping.
+
+New accounts through review: a proposal may name an account that is not in the dictionary (`new_account`: parent,
+sign, unit, description; checked like a seed row, E304 otherwise). `fin review confirm` adds it to `accounts`
+(dictionary migration 003: `source` 'seed' or 'review', `run_id`) and maps the label in one transaction; `--name`
+and `--parent` change it. `fin map accounts` marks added accounts, and `fin map accounts --added` prints them and the
+global labels confirmed in review as seed CSV rows to commit.
 
 ### Phase 6 — Validation gates
 Build:
