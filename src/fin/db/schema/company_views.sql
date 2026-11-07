@@ -9,7 +9,12 @@
 -- Definitions (tests/fixtures/sample-financials/answer_key.json "conventions"):
 -- - Balance sheet items are closing balances of the year; days use a 365-day year. Metrics named *_avg use the
 --   average of the opening (previous year's closing) and closing balance instead.
--- - EBITDA = PBT + finance cost + depreciation - other income. EBIT = PBT + finance cost.
+-- - EBITDA = PBT before exceptional items + finance cost + depreciation - other income, so a one-off exceptional
+--   or extraordinary item does not move EBITDA, its margin, debt/EBITDA or its growth. PBT before exceptional items
+--   is PBT when the period has no exceptional or extraordinary items (none printed, or printed as nil); otherwise
+--   the printed "Profit before exceptional items and tax" plus any share of associates and joint ventures (which
+--   PBT includes). Exceptional items are stored as printed, with either sign, so their sign is never guessed.
+--   EBIT = PBT + finance cost.
 -- - Debt = long-term borrowings + short-term borrowings. Net debt = debt - cash and cash equivalents.
 -- - Inventory days and payable days are on cost of materials consumed.
 -- - Cash flow outflows are negative, so capex (cf_capex) is negative.
@@ -129,8 +134,11 @@ SELECT * FROM (VALUES
         'Revenue left after cost of materials consumed, as a fraction of revenue.',
         '(revenue - cost_of_materials) / revenue'),
     ('ebitda', 'profitability', 'rupees', 'all', 'null',
-        'Operating profit before depreciation, interest and tax, without other income.',
-        'pbt + finance_cost + depreciation - other_income'),
+        'Operating profit before depreciation, interest and tax, without other income and without exceptional or '
+        || 'extraordinary items.',
+        'pbt before exceptional items + finance_cost + depreciation - other_income; pbt before exceptional items is '
+        || 'profit_before_exceptional_items + share_of_associates_jv when the period has exceptional or '
+        || 'extraordinary items, else pbt'),
     ('ebitda_margin', 'profitability', 'ratio', 'all', 'null',
         'EBITDA as a fraction of revenue.', 'ebitda / revenue'),
     ('ebit', 'profitability', 'rupees', 'all', 'null',
@@ -283,8 +291,11 @@ FROM (VALUES ('revenue', 'revenue'), ('ebitda', 'EBITDA'), ('pat', 'profit after
 -- year before), 'year-3', 'year-5', 'quarter-1' (the quarter before), 'quarter-2', 'quarter-3'.
 -- stands_in_for: when the document does not print that total (total current assets or liabilities, total tax
 -- expense, a bank's total equity), the lines summed in its place. These rows appear in metric_inputs only then.
+-- exceptional: for the EBITDA input "PBT before exceptional items" (conventions): false for pbt, which is used only
+-- when the period has no exceptional or extraordinary items; true for profit_before_exceptional_items and
+-- share_of_associates_jv, used only when it has. NULL for every other input (always used).
 CREATE VIEW metric_input_accounts AS
-WITH ebitda(a) AS (SELECT ['pbt', 'finance_cost', 'depreciation', 'other_income']),
+WITH ebitda(a) AS (SELECT ['pbt_before_exceptional', 'finance_cost', 'depreciation', 'other_income']),
 debt(a) AS (SELECT ['lt_borrowings', 'st_borrowings']),
 ttm(a) AS (SELECT ['same', 'quarter-1', 'quarter-2', 'quarter-3']),
 lender(a) AS (SELECT ['interest_income', 'revenue', 'interest_expended', 'finance_cost']),
@@ -365,22 +376,28 @@ inputs(metric, input_periods, accounts) AS (
         ('ttm_pat_margin', (FROM ttm), ['pat', 'revenue'])
     )
 ),
-by_period AS (SELECT metric, unnest(input_periods) AS input_period, accounts FROM inputs)
-SELECT metric, unnest(accounts) AS account, input_period, NULL::VARCHAR AS stands_in_for
-FROM by_period
+by_period AS (SELECT metric, unnest(input_periods) AS input_period, accounts FROM inputs),
+by_account AS (SELECT metric, unnest(accounts) AS account, input_period FROM by_period),
+pbt_before_exceptional(account, exceptional) AS (
+    VALUES ('pbt', false), ('profit_before_exceptional_items', true), ('share_of_associates_jv', true)
+)
+SELECT a.metric, coalesce(x.account, a.account) AS account, a.input_period, NULL::VARCHAR AS stands_in_for,
+    x.exceptional
+FROM by_account a
+LEFT JOIN pbt_before_exceptional x ON a.account = 'pbt_before_exceptional'
 UNION ALL
 SELECT metric, unnest(['inventories', 'current_investments', 'trade_receivables', 'cash', 'other_bank_balances',
-    'other_current_assets']), 'same', 'total_current_assets'
+    'other_current_assets']), 'same', 'total_current_assets', NULL
 FROM (VALUES ('current_ratio'), ('quick_ratio')) AS m(metric)
 UNION ALL
 SELECT metric, unnest(['st_borrowings', 'lease_liabilities_current', 'trade_payables',
     'other_financial_liabilities_current', 'other_current_liabilities', 'st_provisions',
-    'current_tax_liabilities']), 'same', 'total_current_liabilities'
+    'current_tax_liabilities']), 'same', 'total_current_liabilities', NULL
 FROM (VALUES ('current_ratio'), ('quick_ratio'), ('cash_ratio')) AS m(metric)
 UNION ALL
-SELECT 'effective_tax_rate', unnest(['tax_expense', 'deferred_tax']), 'same', 'total_tax_expense'
+SELECT 'effective_tax_rate', unnest(['tax_expense', 'deferred_tax']), 'same', 'total_tax_expense', NULL
 UNION ALL
-SELECT 'assets_to_equity', unnest(['share_capital', 'other_equity']), 'same', 'total_equity';
+SELECT 'assets_to_equity', unnest(['share_capital', 'other_equity']), 'same', 'total_equity', NULL;
 
 -- Metrics, one row per period, scope and metric (long format). Which periods get a metric, and whether a metric
 -- without a value is a NULL row or no row, is in metric_definitions (periods, when_missing).
@@ -409,7 +426,10 @@ period_inputs AS (
         max(p) FILTER (WHERE account = 'cost_of_materials') AS cost_of_materials,
         max(p) FILTER (WHERE account = 'finance_cost') AS finance_cost,
         max(p) FILTER (WHERE account = 'depreciation') AS depreciation,
+        max(p) FILTER (WHERE account = 'profit_before_exceptional_items') AS profit_before_exceptional_items,
         max(p) FILTER (WHERE account = 'exceptional_items') AS exceptional_items,
+        max(p) FILTER (WHERE account = 'extraordinary_items') AS extraordinary_items,
+        max(p) FILTER (WHERE account = 'share_of_associates_jv') AS share_of_associates_jv,
         max(p) FILTER (WHERE account = 'pbt') AS pbt,
         -- The reported total tax, else the sum of the tax lines reported (see metric_input_accounts).
         coalesce(
@@ -456,7 +476,11 @@ period_inputs AS (
 base AS (
     SELECT
         *,
-        pbt + finance_cost + depreciation - other_income AS ebitda,  -- EBITDA (conventions)
+        -- EBITDA (conventions): from PBT before exceptional and extraordinary items.
+        CASE
+            WHEN coalesce(exceptional_items, 0) = 0 AND coalesce(extraordinary_items, 0) = 0 THEN pbt
+            ELSE profit_before_exceptional_items + coalesce(share_of_associates_jv, 0)
+        END + finance_cost + depreciation - other_income AS ebitda,
         lt_borrowings + st_borrowings AS debt,                       -- Debt (conventions)
         pbt + finance_cost AS ebit,                                  -- EBIT (conventions)
         -- Lenders: an NBFC prints interest income; a bank prints interest expended (its interest earned is
@@ -630,7 +654,8 @@ WHERE CASE d.periods
 -- apply to this company (a lender metric lists both the NBFC and the bank lines). input_period is the period the
 -- input comes from (metric_input_accounts.input_period). When a total that has stand-in lines is not reported, its
 -- row has fact_id NULL and the reported lines summed in its place follow (rows with stands_in_for set appear only
--- then).
+-- then). EBITDA's PBT before exceptional items lists only the lines that period uses (metric_input_accounts
+-- exceptional).
 CREATE VIEW metric_inputs AS
 WITH wanted AS (
     SELECT
@@ -640,6 +665,7 @@ WITH wanted AS (
         m.metric,
         d.account,
         d.stands_in_for,
+        d.exceptional,
         CASE d.input_period
             WHEN 'same' THEN m.period
             WHEN 'year-1' THEN prior_period(m.period)
@@ -667,11 +693,21 @@ SELECT
 FROM wanted w
 LEFT JOIN current_facts f ON f.scope = w.scope AND f.account = w.account AND f.period = w.input_period
 LEFT JOIN facts line ON list_contains(f.fact_ids, line.fact_id)
-WHERE w.stands_in_for IS NULL
-    OR (
-        f.fact_id IS NOT NULL
-        AND NOT EXISTS (
+WHERE (
+        w.stands_in_for IS NULL
+        OR (
+            f.fact_id IS NOT NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM current_facts t
+                WHERE t.account = w.stands_in_for AND t.scope = w.scope AND t.period = w.period
+            )
+        )
+    )
+    AND (
+        w.exceptional IS NULL
+        OR w.exceptional = EXISTS (
             SELECT 1 FROM current_facts t
-            WHERE t.account = w.stands_in_for AND t.scope = w.scope AND t.period = w.period
+            WHERE t.account IN ('exceptional_items', 'extraordinary_items') AND t.value <> 0
+                AND t.scope = w.scope AND t.period = w.input_period
         )
     );

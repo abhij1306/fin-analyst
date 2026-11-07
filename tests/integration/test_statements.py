@@ -211,3 +211,80 @@ def test_metrics_for_per_share_figures_exceptional_items_and_tax(root: Path) -> 
         ("FY25", "exceptional_items_to_pbt", Decimal("0.12")),  # 3 / 25, as printed
         ("FY25", "other_income_to_pbt", Decimal("0.08")),
     ]
+
+
+# Finance costs and depreciation, and exceptional items both ways: FY25 a gain the company adds
+# (22 + 3 = 25), FY24 a charge it subtracts (20 - 2 = 18). Rs. in lakhs.
+PROFIT_AND_LOSS_WITH_EXCEPTIONAL_ITEMS = statement(
+    "STATEMENT OF PROFIT AND LOSS",
+    ("Revenue from operations", "100.00", "90.00"),
+    ("Other income", "2.00", "1.00"),
+    ("Total income", "102.00", "91.00"),
+    ("Cost of materials consumed", "50.00", "45.00"),
+    ("Employee benefits expense", "20.00", "18.00"),
+    ("Finance costs", "4.00", "3.00"),
+    ("Depreciation and amortisation expense", "6.00", "5.00"),
+    ("Total expenses", "80.00", "71.00"),
+    ("Profit before exceptional items and tax", "22.00", "20.00"),
+    ("Exceptional items", "3.00", "2.00"),
+    ("Profit before tax", "25.00", "18.00"),
+    ("Current tax", "6.00", "4.00"),
+    ("Total tax expense", "6.00", "4.00"),
+    ("Profit for the year", "19.00", "14.00"),
+)
+
+
+def test_ebitda_leaves_out_exceptional_items(data_root: Path, tmp_path: Path) -> None:
+    assert runner.invoke(app, ["init"]).exit_code == 0
+    path = write_pdf(
+        tmp_path / "zeta_ar25.pdf",
+        BALANCE_SHEET,
+        PROFIT_AND_LOSS_WITH_EXCEPTIONAL_ITEMS,
+        width=WIDTH,
+    )
+    ingest = runner.invoke(app, ["ingest", "zeta", str(path)])
+    assert ingest.exit_code == 0, ingest.output
+
+    sql = (
+        "SELECT period, metric, value FROM metrics WHERE metric IN "
+        "('ebitda', 'ebitda_margin', 'ebitda_growth', 'interest_cover', 'ebit') "
+        "ORDER BY period, metric"
+    )
+    result = runner.invoke(app, ["query", "zeta", "--question", "EBITDA", "--sql", sql])
+
+    assert result.exit_code == 0, result.output
+    rows = json.loads(result.stdout)["rows"]
+    values = [(r["period"], r["metric"], r["value"] and Decimal(r["value"])) for r in rows]
+    assert values == [
+        ("FY24", "ebit", Decimal("2100000")),  # PBT 18 + finance costs 3 (lakhs)
+        ("FY24", "ebitda", Decimal("2700000")),  # 20 + 3 + 5 - 1, not 18 + 3 + 5 - 1
+        ("FY24", "ebitda_growth", None),  # no FY23
+        ("FY24", "ebitda_margin", Decimal("0.3")),  # 27 / 90
+        ("FY24", "interest_cover", Decimal("9")),  # 27 / 3
+        ("FY25", "ebit", Decimal("2900000")),  # 25 + 4
+        ("FY25", "ebitda", Decimal("3000000")),  # 22 + 4 + 6 - 2, not 25 + 4 + 6 - 2
+        ("FY25", "ebitda_growth", Decimal("0.111111")),  # 30 / 27 - 1
+        ("FY25", "ebitda_margin", Decimal("0.3")),  # 30 / 100
+        ("FY25", "interest_cover", Decimal("7.5")),  # 30 / 4
+    ]
+
+    lineage = runner.invoke(
+        app,
+        [
+            "query",
+            "zeta",
+            "--question",
+            "EBITDA inputs",
+            "--sql",
+            "SELECT account, fact_id IS NOT NULL AS found FROM metric_inputs "
+            "WHERE metric = 'ebitda' AND period = 'FY25' ORDER BY account",
+        ],
+    )
+    assert lineage.exit_code == 0, lineage.output
+    assert json.loads(lineage.stdout)["rows"] == [
+        {"account": "depreciation", "found": True},
+        {"account": "finance_cost", "found": True},
+        {"account": "other_income", "found": True},
+        {"account": "profit_before_exceptional_items", "found": True},
+        {"account": "share_of_associates_jv", "found": False},  # none: PBT has nothing to add
+    ]

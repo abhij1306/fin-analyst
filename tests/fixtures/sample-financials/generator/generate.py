@@ -61,7 +61,8 @@ def main():
     key = {"about": "Expected values for the synthetic test documents. All amounts in rupees (integers).",
            "conventions": {
                "fiscal_year": "April-March; FY25 = year ended 31 March 2025",
-               "metrics": "Closing balances, 365-day year. EBITDA = PBT + finance cost + depreciation - other income. "
+               "metrics": "Closing balances, 365-day year. EBITDA = PBT before exceptional items + finance cost "
+                          "+ depreciation - other income (these companies print no exceptional items, so PBT). "
                           "Debt = long-term + short-term borrowings. Inventory and payable days on cost of materials.",
                "signs": "Cash flow outflows are negative."},
            "companies": {}, "broken_files": []}
