@@ -16,12 +16,11 @@ import typer
 
 from fin.audit.errors import DashboardBuildFailed, DependencyMissing
 from fin.db.conn import connect
-from fin.metrics.export import TABLES as EXPORTED
+from fin.metrics.export import TABLES
 from fin.paths import analytics_db_path
 
 PROJECT_DIR = Path(__file__).resolve().parents[2] / "dashboards"
 DEV_URL = "http://localhost:3000"
-TABLES = tuple(EXPORTED)
 
 
 def dashboard_dir(root: Path) -> Path:

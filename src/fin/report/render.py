@@ -33,29 +33,31 @@ from fin.report.chart import line_chart
 from fin.report.data import (
     CATEGORIES,
     CHARTS,
-    MONEY_UNITS,
-    TIMES,
     TITLES,
     YEARS_SHOWN,
-    category_rows,
     collect,
-    coverage_tables,
     data_hash,
-    definitions_table,
     fact_value,
+    to_json,
+)
+from fin.report.lint import REFERENCE, lint, split_sections, strip_comments
+from fin.report.tables import (
+    MONEY_UNITS,
+    category_rows,
+    coverage_tables,
+    definitions_table,
     facts_table,
     findings_table,
+    is_times,
     label,
-    metric_text,
+    metric_value_text,
     money,
     peers_table,
     quarters_table,
     statements_tables,
     summary_tables,
-    to_json,
     trend_table,
 )
-from fin.report.lint import REFERENCE, lint, split_sections, strip_comments
 
 REPO = Path(__file__).resolve().parents[3]
 TEMPLATE = REPO / "templates" / "report" / "health.qmd"
@@ -136,9 +138,8 @@ def substitute(text: str, data: dict[str, Any], display_unit: str) -> tuple[str,
             elif kind == "fact" and name not in accounts:
                 problems.append(f"line {number}: {match.group()}: no account {name}")
             elif kind == "metric":
-                unit = data["metric_units"][name]
                 value = data["metrics"][name].get(period)
-                values[match.group()] = metric_text(name, unit, value, display_unit)
+                values[match.group()] = metric_value_text(data, name, value, display_unit)
             else:
                 values[match.group()] = money(fact_value(data, name, period), display_unit)
     if problems:
@@ -154,14 +155,14 @@ def _chart(data: dict[str, Any], category: str, display_unit: str) -> str | None
     shown), or None."""
     years = data["years"][-YEARS_SHOWN:]
     names = [m for m in CHARTS.get(category, []) if m in data["metrics"]]
-    series = [(label(m), [data["metrics"][m].get(y) for y in years]) for m in names]
+    series = [(label(data, m), [data["metrics"][m].get(y) for y in years]) for m in names]
     # A line needs two points.
     series = [(n, values) for n, values in series if sum(v is not None for v in values) > 1]
     if len(years) < 2 or not series:
         return None
     unit = data["metric_units"][names[0]]
     per_unit = MONEY_UNITS[display_unit][0] if unit == "rupees" else Decimal(1)
-    scale = Decimal(100) if unit == "ratio" and names[0] not in TIMES else Decimal(1)
+    scale = Decimal(100) if unit == "ratio" and not is_times(data, names[0]) else Decimal(1)
     plotted = [
         (name, [None if v is None else float(v * scale / per_unit) for v in values])
         for name, values in series
@@ -177,22 +178,28 @@ def _chart(data: dict[str, Any], category: str, display_unit: str) -> str | None
     return line_chart(years, plotted, tick)
 
 
+def _section(*parts: str) -> str:
+    """Report blocks joined by blank lines; empty ones (no narrative, no chart) left out."""
+    return "\n\n".join(part for part in parts if part)
+
+
 def category_section(
     data: dict[str, Any], key: str, narrative: str, display_unit: str, charts: dict[str, str]
 ) -> str:
     """Heading, narrative, trend table and chart of one category."""
     years = data["years"][-YEARS_SHOWN:]
-    parts = [
-        f"## {TITLES[key]}",
-        narrative,
-        trend_table(data, category_rows(data, key), years, display_unit),
-    ]
     svg = _chart(data, key, display_unit)
+    picture = ""
     if svg is not None:
         name = f"chart-{key}.svg"
         charts[name] = svg
-        parts.append(f"![{TITLES[key]}, {years[0]} to {years[-1]}]({name}){{width=100%}}")
-    return "\n\n".join(part for part in parts if part)
+        picture = f"![{TITLES[key]}, {years[0]} to {years[-1]}]({name}){{width=100%}}"
+    return _section(
+        f"## {TITLES[key]}",
+        narrative,
+        trend_table(data, category_rows(data, key), years, display_unit),
+        picture,
+    )
 
 
 def build(
@@ -222,27 +229,17 @@ def build(
         ),
     }
     if "quarters" in present:
-        blocks["quarters"] = "\n\n".join(
-            x
-            for x in (
-                f"## {TITLES['quarters']}",
-                texts.get("quarters", ""),
-                "Quarters loaded from results statements (fiscal year April to March: Q1 ends in "
-                "June). Growth is on the same quarter a year before unless it says the previous "
-                "quarter; last four quarters (TTM) need four consecutive quarters.",
-                quarters_table(data, display_unit),
-            )
-            if x
+        blocks["quarters"] = _section(
+            f"## {TITLES['quarters']}",
+            texts.get("quarters", ""),
+            "Quarters loaded from results statements (fiscal year April to March: Q1 ends in "
+            "June). Growth is on the same quarter a year before unless it says the previous "
+            "quarter; last four quarters (TTM) need four consecutive quarters.",
+            quarters_table(data, display_unit),
         )
     if "peers" in present:
-        blocks["peers"] = "\n\n".join(
-            x
-            for x in (
-                f"## {TITLES['peers']}",
-                texts.get("peers", ""),
-                peers_table(data, display_unit),
-            )
-            if x
+        blocks["peers"] = _section(
+            f"## {TITLES['peers']}", texts.get("peers", ""), peers_table(data, display_unit)
         )
     tables = {
         "summary": summary_tables(data, display_unit),
