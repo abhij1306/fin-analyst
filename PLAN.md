@@ -60,6 +60,12 @@ first figure). Such a page is not taken as the previous statement carried on. Ev
 page is listed under the file's outcome on screen (`not read: <statement> page N: <code> <reason>`) and, when the
 file fails, as `unread_pages` in its error.json, so `/ingest` can offer a Claude reading of exactly those pages.
 
+Chart of accounts (after 1.0.0, not a phase): the seed dictionary covers Schedule III Divisions I, II and III
+(NBFCs), the bank Forms A and B, SEBI Reg 33 results and the indirect cash flow. Lines with no current / non-current
+split (NBFCs, banks) add straight into `total_assets` / `total_liabilities`; NBFC subtotals such as "Total financial
+assets" and memo lines are accounts without a parent. Labels that mean different accounts in different formats
+("Loans", "Investments", "Provisions" outside a balance-sheet part) are left to review.
+
 ---
 
 ## 1. What it does
