@@ -203,7 +203,7 @@ def test_batch_killed_midway_resumes_without_duplicates(
     ]
     assert not (root / "companies" / "kestrel.duckdb").exists()
 
-    monkeypatch.undo()
+    monkeypatch.setattr(fin.ingest, "check_document", check_document)
     resumed = runner.invoke(app, ["ingest-batch", str(batch)])
 
     assert resumed.exit_code == 0, resumed.output
