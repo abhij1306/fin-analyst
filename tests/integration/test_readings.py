@@ -241,6 +241,23 @@ def test_verify_marks_agreeing_facts_and_reports_every_outcome(
     assert query(root, "SELECT status, count(*) FROM findings GROUP BY ALL") == [("accepted", 3)]
 
 
+def test_verify_does_not_flag_a_figure_that_differs_only_by_rounding(
+    root: Path, tmp_path: Path, scanned: Path
+) -> None:
+    # 28.50000005 lakh is 2,850,000.005 rupees: half a paisa, loaded and compared as 2,850,000.01.
+    half_paisa = [(*BALANCE_SHEET[0][:5], "28.50000005", 1), *BALANCE_SHEET[1:]]
+    reading = write_reading(tmp_path / "scan.reading.csv", half_paisa)
+    ingested = runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(reading)])
+    assert ingested.exit_code == 0, ingested.output
+    cash = "SELECT value FROM facts WHERE account = 'cash'"
+    assert query(root, cash) == [(Decimal("2850000.01"),)]
+
+    result = verify(str(scanned), "--reading", str(reading))
+
+    assert result.exit_code == 0, result.stderr
+    assert "agree 4, differ 0, missing in fin 0, missing in reading 0" in result.stdout
+
+
 def test_verify_of_a_document_not_loaded_lists_every_line_missing(
     root: Path, tmp_path: Path, scanned: Path
 ) -> None:

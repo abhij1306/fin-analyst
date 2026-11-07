@@ -32,13 +32,13 @@ import csv
 import re
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 
 from fin.audit.errors import ReadingInvalid, UnitNotDetected
 from fin.config import SCOPES
-from fin.extract.periods import fiscal_year_of, period_of, resolve_months
-from fin.extract.units import RUPEES_PER_UNIT, to_rupees, unit_in
+from fin.extract.periods import STATEMENTS, fiscal_year_of, period_of, resolve_months
+from fin.extract.units import parse_figure, to_rupees, unit_in
 
 COLUMNS = (
     "statement",
@@ -51,9 +51,6 @@ COLUMNS = (
     "value_as_printed",
     "source",
 )
-STATEMENTS = ("balance_sheet", "profit_and_loss", "cash_flow")
-_NIL = ("-", "–", "—", "nil")
-_FIGURE = re.compile(r"^([({])?\s*(-)?\s*([\d,]*\d(?:\.\d+)?|\.\d+)\s*(\))?$")
 _PAGE = re.compile(r"^(?:p(?:age)?\.?\s*)?(\d{1,5})$", re.I)
 _CELL = re.compile(r"^(.+)!\$?([A-Z]{1,3})\$?(\d{1,7})$")
 
@@ -85,20 +82,12 @@ class ReadingLine:
 
 
 def printed_value(text: str, where: str) -> Decimal:
-    """A figure as printed -> Decimal in document units: '1,234.56' -> 1234.56, '(56.67)' and
-    '-56.67' -> -56.67, '-' or 'nil' -> 0. Raises E205 for anything else."""
-    text = text.strip()
-    if text.lower() in _NIL:
-        return Decimal(0)
-    match = _FIGURE.match(text)
-    if match is None:
-        raise ReadingInvalid(f"{where}: {text!r} is not a figure as printed")
-    opening, minus, digits, closing = match.groups()
-    try:
-        value = Decimal(digits.replace(",", ""))
-    except InvalidOperation as exc:
-        raise ReadingInvalid(f"{where}: {text!r} is not a figure as printed") from exc
-    return -value if (opening and closing) or minus else value
+    """A figure as printed -> Decimal in document units (`fin.extract.units.parse_figure`).
+    Raises E205 for anything else."""
+    value = parse_figure(text)
+    if value is None:
+        raise ReadingInvalid(f"{where}: {text.strip()!r} is not a figure as printed")
+    return value
 
 
 def _source(text: str, where: str) -> tuple[int | None, str | None, str | None]:
@@ -173,7 +162,3 @@ def _line(name: str, n: int, row: dict[str, str | None], start_month: int) -> Re
         sheet=sheet,
         cell=cell,
     )
-
-
-def rupees_per_unit(unit: str) -> int:
-    return int(RUPEES_PER_UNIT[unit])

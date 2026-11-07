@@ -171,7 +171,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "pdf-inspector" },
     { name = "pytest" },
     { name = "pytest-timeout" },
     { name = "ruff" },
@@ -187,7 +186,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pdf-inspector", specifier = "==1.25.2" },
     { name = "pytest", specifier = "==9.2.0" },
     { name = "pytest-timeout", specifier = "==2.4.0" },
     { name = "ruff", specifier = "==0.17.4" },
@@ -242,19 +240,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz", hash = "sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79", size = 313412, upload-time = "2026-08-04T18:15:28.737Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c", size = 129956, upload-time = "2026-08-04T18:15:27.159Z" },
-]
-
-[[package]]
-name = "pdf-inspector"
-version = "1.25.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b9/93/1c6e6a34084795a9749e091cb847fe94135dc4e1f50ad502d931490a31c5/pdf_inspector-1.25.2.tar.gz", hash = "sha256:227537eb91c8afbcd995c386ff5e10683286f3b44e6d385e143304255f72ee92", size = 2120655, upload-time = "2026-09-28T07:04:12.818Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/47/e89568d0c30e6edb2640490fca6979fc8c8888901aab31a13d8ea22ee634/pdf_inspector-1.25.2-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:9762bb04a82d72667201fe54aaadcf2f4f10ff7e7fd56cbfa09fbf969feedc4b", size = 6349883, upload-time = "2026-09-28T07:04:04.462Z" },
-    { url = "https://files.pythonhosted.org/packages/02/99/866fa4c3c45ee449abda4623283c2e27d60ce565eea98901d9e2131dc36b/pdf_inspector-1.25.2-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:7664d87d400c2b4057b6e5d3897954a21d4a0eec6883062e970fa42d75761da5", size = 6057124, upload-time = "2026-09-28T07:04:06.205Z" },
-    { url = "https://files.pythonhosted.org/packages/9b/b4/59f2e2da96045267960255958bd8c152f8001de7250583bad3f6eb6268a3/pdf_inspector-1.25.2-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:436e620154b0d8f2a3648acb52a1ce169333a5bd0dd4e8988ce159f17d40adc4", size = 6620814, upload-time = "2026-09-28T07:04:07.792Z" },
-    { url = "https://files.pythonhosted.org/packages/29/5c/2009e2183eeb531e5b39e7f9a4684570bed429a6f24cc8140f7129600fd2/pdf_inspector-1.25.2-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0a2596febc67d1177d1dc3e58e2d364be03c33f4e3180c13367d1918cb17d018", size = 6881039, upload-time = "2026-09-28T07:04:09.375Z" },
-    { url = "https://files.pythonhosted.org/packages/d4/6b/657fecf326b738e1ddf9d8779bc70d24fab70aed78f1e43859623760354e/pdf_inspector-1.25.2-cp38-abi3-win_amd64.whl", hash = "sha256:35474ed3d57972a7eac54b63c11901d3561e7723a1c84785ede5d8c15590a64c", size = 6185296, upload-time = "2026-09-28T07:04:11.042Z" },
 ]
 
 [[package]]

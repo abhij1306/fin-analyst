@@ -37,6 +37,7 @@ from fin.config import load_config
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.extract.reading import ReadingLine, printed_value, read_reading
+from fin.extract.units import to_rupees
 from fin.findings import record
 from fin.ingest import sha256_of
 from fin.map.normalize import normalize_label
@@ -76,8 +77,7 @@ def _key(statement: str, scope: str, period: str, label: str) -> tuple[str, str,
 
 def _loaded(row: tuple[Any, ...]) -> Loaded:
     fact_id, read_by, statement, scope, period, section, label, raw, per_unit, source = row
-    value = printed_value(raw, f"fact {fact_id}")
-    rupees = (value * per_unit).quantize(Decimal("0.01"))
+    rupees = to_rupees(printed_value(raw, f"fact {fact_id}"), per_unit)
     return Loaded(fact_id, read_by, statement, scope, period, section, label, raw, rupees, source)
 
 

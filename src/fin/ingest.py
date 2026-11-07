@@ -49,12 +49,12 @@ from fin.audit.errors import (
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect
-from fin.extract.excel import extract_workbook
-from fin.extract.pdf import extract_pdf
+from fin.extract.excel import ExcelValue, extract_workbook
+from fin.extract.pdf import PdfValue, extract_pdf
 from fin.extract.periods import fiscal_year_of, period_of, resolve_months
 from fin.extract.reading import ReadingLine, read_reading
 from fin.extract.text import write_notes_markdown
-from fin.extract.units import RUPEES_PER_UNIT
+from fin.extract.units import rupees_per_unit
 from fin.findings import check_document, supersede
 from fin.map.dictionary import LabelMap, map_rows
 from fin.paths import archive_dir, company_db_path, review_dir
@@ -126,25 +126,17 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
             for v in extraction.values
         }
         rows = [
-            Row(
-                sheet=v.sheet,
-                cell=v.cell,
-                page=None,
-                bbox=None,
-                statement=v.statement,
-                section=v.section,
-                label=v.label,
-                raw=v.raw,
-                unit_text=v.unit_text,
-                rupees_per_unit=int(RUPEES_PER_UNIT[v.unit]),
-                period_end=v.period_end,
-                fiscal_year=fiscal_year_of(v.period_end, start),
+            _row(
+                v,
+                start,
+                months=months[(v.sheet, v.cell)],
                 period=period_of(
                     v.period_end, months[(v.sheet, v.cell)], start, where=f"{path.name} {v.cell}"
                 ),
-                period_months=months[(v.sheet, v.cell)],
                 scope=v.scope or config.default_scope,
-                rupees=v.rupees,
+                unit_text=v.unit_text,
+                sheet=v.sheet,
+                cell=v.cell,
             )
             for v in extraction.values
         ]
@@ -159,25 +151,17 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
             )
         return Document(rows, [], notices)
     if suffix == ".pdf":
-        pdf = extract_pdf(path)
+        pdf = extract_pdf(path, start)
         rows = [
-            Row(
-                sheet=None,
-                cell=None,
+            _row(
+                v,
+                start,
+                months=v.months,
+                period=v.period,
+                scope=v.scope or config.default_scope,
+                unit_text=v.unit,
                 page=v.page,
                 bbox=json.dumps(list(v.bbox)),
-                statement=v.statement,
-                section=v.section,
-                label=v.label,
-                raw=v.raw,
-                unit_text=v.unit,
-                rupees_per_unit=int(RUPEES_PER_UNIT[v.unit]),
-                period_end=v.period_end,
-                fiscal_year=v.fiscal_year,
-                period=v.period,
-                period_months=v.months,
-                scope=v.scope or config.default_scope,
-                rupees=v.rupees,
             )
             for v in pdf.values
             if v.statement != "notes"
@@ -200,24 +184,54 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
     raise UnsupportedFormat(f"{path.name}: {suffix or 'no extension'} files are not supported")
 
 
-def _reading_row(line: ReadingLine) -> Row:
+def _row(
+    value: ExcelValue | PdfValue | ReadingLine,
+    start_month: int,
+    *,
+    months: int,
+    period: str,
+    scope: str,
+    unit_text: str,
+    sheet: str | None = None,
+    cell: str | None = None,
+    page: int | None = None,
+    bbox: str | None = None,
+    read_by: str = "fin",
+) -> Row:
+    """The Row for one extracted value (Excel, PDF or reading); where it was read and what each
+    source names differently are passed in."""
     return Row(
+        sheet=sheet,
+        cell=cell,
+        page=page,
+        bbox=bbox,
+        statement=value.statement,
+        section=value.section,
+        label=value.label,
+        raw=value.raw,
+        unit_text=unit_text,
+        rupees_per_unit=rupees_per_unit(value.unit),
+        period_end=value.period_end,
+        fiscal_year=fiscal_year_of(value.period_end, start_month),
+        period=period,
+        period_months=months,
+        scope=scope,
+        rupees=value.rupees,
+        read_by=read_by,
+    )
+
+
+def _reading_row(line: ReadingLine, start_month: int) -> Row:
+    return _row(
+        line,
+        start_month,
+        months=line.period_months,
+        period=line.period,
+        scope=line.scope,
+        unit_text=line.unit_text,
         sheet=line.sheet,
         cell=line.cell,
         page=line.page,
-        bbox=None,
-        statement=line.statement,
-        section=line.section,
-        label=line.label,
-        raw=line.raw,
-        unit_text=line.unit_text,
-        rupees_per_unit=int(RUPEES_PER_UNIT[line.unit]),
-        period_end=line.period_end,
-        fiscal_year=line.fiscal_year,
-        period=line.period,
-        period_months=line.period_months,
-        scope=line.scope,
-        rupees=line.rupees,
         read_by="claude",
     )
 
@@ -259,7 +273,7 @@ def read_with_reading(
         notices.append(
             f"{len(lines) - len(used)} reading lines not loaded: fin read those statements itself"
         )
-    rows = document.rows + [_reading_row(line) for line in used]
+    rows = document.rows + [_reading_row(line, config.fiscal_year_start_month) for line in used]
     return Document(rows, document.notes, notices, document.warnings, document.unread)
 
 

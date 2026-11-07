@@ -83,7 +83,7 @@ def test_month_first_header_over_three_lines_notes_wrapped_labels_and_subtotals(
 
     result = extract_pdf(path)
 
-    assert result.fiscal_years == ["FY25", "FY24"]
+    assert [*dict.fromkeys(v.period for v in result.values)] == ["FY25", "FY24"]
     assert {(v.scope, v.unit) for v in result.values} == {("standalone", "crore")}
     assert rows(path) == [
         ("(a) Property, plant and equipment", "Non-current assets", "2", "FY25", "635.09"),
@@ -153,7 +153,7 @@ def test_header_dates_split_over_lines_and_headings_printed_with_dashes(tmp_path
 
     result = extract_pdf(path)
 
-    assert result.fiscal_years == ["FY24", "FY23"]
+    assert [*dict.fromkeys(v.period for v in result.values)] == ["FY24", "FY23"]
     assert {v.scope for v in result.values} == {None}  # the title does not say
     assert rows(path) == [
         ("(a) Share Capital", "Shareholders Funds", "2", "FY24", "871.61"),

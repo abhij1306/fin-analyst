@@ -13,8 +13,7 @@ from typing import Any
 from fin.extract.pdf import (
     TITLE_LINES,
     Column,
-    complete_header,
-    header_at,
+    header_starting,
     line_text,
     open_pdf,
     page_parts,
@@ -90,11 +89,10 @@ def _markdown_blocks(lines: list[list[dict[str, Any]]]) -> list[str]:
 
     i = 0
     while i < len(lines):
-        found = header_at(lines, i)
-        later = header_at(lines, i + 1) if found else None
-        if found and (later is None or later[1] != found[1]):
+        found = header_starting(lines, i)
+        if found is not None:
             flush()
-            columns, end = complete_header(lines, i, found[1])
+            columns, end = found
             block = [w for line in lines[i:end] for w in line]
             left = line_text([w for w in block if w["x1"] <= columns[0].x0]) or "Particulars"
             years = [c.label for c in columns]
