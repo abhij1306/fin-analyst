@@ -1,18 +1,19 @@
-"""Error classes with codes from PLAN.md §9, and process exit codes.
+"""Error classes with their codes (the table is in README.md, "Error codes"), and exit codes.
 
-Every failure path raises a subclass of `FinError`. Each class carries its §9 code and the exit code
+Every failure path raises a subclass of `FinError`. Each class carries its code and the exit code
 a command returns when the error ends it:
 
 - E0xx (setup), E5xx (database), E601-E603 (outputs) and E406 (accepting a finding that is not
   open) stop the command: exit 2.
 - E1xx-E3xx are per-document failures and E604 is flagged in the evidence page. The command
   completes and reports them: exit 1.
+- E302 (a low-confidence mapping proposal) is a warning event, not an error: it has no class.
 - E401-E405 are not errors: they are the codes of validation checks whose failures are findings
   (`fin.findings`), shown to the user; the document is held, not rejected.
 - E701 (action needs user confirmation; the CLI refused without it): exit 3.
 """
 
-# Exit codes (PLAN.md §9)
+# Exit codes
 EXIT_OK = 0
 EXIT_FAILURES = 1
 EXIT_COMMAND_ERROR = 2
@@ -20,7 +21,7 @@ EXIT_BLOCKED = 3  # the CLI refused: the action needs the user's confirmation
 
 
 class FinError(Exception):
-    """Base error. Every failure path raises a subclass carrying a §9 code."""
+    """Base error. Every failure path raises a subclass carrying its code."""
 
     code: str = ""
     exit_code: int = EXIT_COMMAND_ERROR
@@ -123,10 +124,6 @@ class UnmappedLabel(DocumentFailure):
     code = "E301"
 
 
-class LowConfidenceMapping(DocumentFailure):
-    code = "E302"
-
-
 class ConflictingMapping(DocumentFailure):
     code = "E303"
 
@@ -157,6 +154,8 @@ class DatabaseLocked(FinError):
 
 
 class ReadOnlyViolation(FinError):
+    """E502. `fin sql` was given something other than one SELECT without --write."""
+
     code = "E502"
 
 
@@ -167,7 +166,7 @@ class SchemaFailed(FinError):
 
 
 class SqlFailed(FinError):
-    """E504. A `fin query` or `fin sql` statement failed (syntax, unknown column, constraint);
+    """E504. A `fin sql` statement failed (syntax, unknown column, constraint);
     nothing was changed."""
 
     code = "E504"

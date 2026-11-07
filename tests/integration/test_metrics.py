@@ -1,5 +1,5 @@
 """Phase 7: metric views on the synthetic documents, checked against the answer key, and the
-analytics export (`fin metrics refresh`, and after every ingest)."""
+analytics export (refreshed after every ingest and data change)."""
 
 import json
 import shutil
@@ -171,20 +171,14 @@ def test_metric_inputs_trace_each_metric_to_its_facts(ingested: Path) -> None:
     ]
 
 
-def test_metrics_refresh_rebuilds_analytics(root: Path) -> None:
+def test_a_data_change_rebuilds_analytics(root: Path) -> None:
     analytics = analytics_db_path(root)
-    # Simulate a label taken back to review: kestrel FY25 revenue no longer confirmed.
-    with connect(company_db_path(root, "kestrel"), write=True) as con:
-        con.execute(
-            "UPDATE facts SET confirmed = false WHERE account = 'revenue' AND fiscal_year = 'FY25'"
-        )
+    # A label taken back to review: kestrel FY25 revenue no longer confirmed.
+    sql = "UPDATE facts SET confirmed = false WHERE account = 'revenue' AND fiscal_year = 'FY25'"
 
-    result = runner.invoke(app, ["metrics", "refresh"])
+    result = runner.invoke(app, ["sql", "kestrel", "--write", "--sql", sql])
 
     assert result.exit_code == 0, result.output
-    assert result.stdout == (
-        "metrics: shared/analytics.duckdb refreshed, 3 companies, 584 metric rows\n"
-    )
     assert query(
         analytics,
         "SELECT company, documents, facts, unconfirmed_facts, failed_validations FROM companies "

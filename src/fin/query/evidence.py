@@ -1,13 +1,13 @@
-"""`fin evidence <query_id>`: an HTML page showing where every fact behind a query result came from.
+"""`fin sql --evidence`: an HTML page showing where every fact behind a query result came from.
 
 For each fact: a highlighted crop of the PDF row, or a small grid of the Excel cells around the
 value (read from the archived workbook). A missing source file is flagged on the page with E604;
-the page is still written. Output: `evidence/<query_id>.html`, with crops in `evidence/<query_id>/`.
+the page is still written. Output: `evidence/<query_id>.html`, with crops in `evidence/<query_id>/`
+(the query_id is the run_id of the `fin sql` run).
 """
 
 import html
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,13 +15,12 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import coordinate_from_string, get_column_letter
 from openpyxl.workbook.workbook import Workbook
 
-from fin.audit.errors import DataFolderNotWritable, EvidenceSourceMissing, SqlFailed
+from fin.audit.errors import DataFolderNotWritable, EvidenceSourceMissing
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
 from fin.extract.pdf import render_crop
-from fin.paths import audit_db_path, company_db_path
-from fin.query.run import result_hash, run_select, to_json_rows
+from fin.paths import company_db_path
 
 GRID_ROWS_AROUND = 2  # rows shown above and below an Excel value
 
@@ -36,33 +35,6 @@ LEFT JOIN facts f ON f.raw_id = r.raw_id
 WHERE {column} = ?
 """
 ID_COLUMN = {"fact_id": "f.fact_id", "raw_id": "r.raw_id"}
-
-
-@dataclass
-class Logged:
-    """The `queries` row a query_id refers to."""
-
-    query_id: str
-    company: str
-    question: str | None
-    sql: str
-    row_count: int | None
-    result_hash: str | None
-
-
-def load_query(root: Path, query_id: str) -> Logged:
-    with connect(audit_db_path(root)) as con:
-        found = con.execute(
-            "SELECT query_id, company, question, sql, row_count, result_hash FROM queries "
-            "WHERE query_id = ? AND mode = 'read' ORDER BY recorded_at LIMIT 1",
-            [query_id],
-        ).fetchone()
-    if found is None:
-        raise SqlFailed(f"no `fin query` with query_id {query_id} in the audit log")
-    logged = Logged(*found)
-    if logged.row_count is None:
-        raise SqlFailed(f"query {query_id} was rejected or failed; there is no result to trace")
-    return logged
 
 
 def _grid(workbook: Workbook, sheet: str, cell: str) -> str:
@@ -125,7 +97,7 @@ def _result_table(rows: list[dict[str, Any]]) -> str:
     head = "".join(f"<th>{html.escape(c)}</th>" for c in columns)
     body = "".join(
         "<tr>" + "".join(f"<td>{html.escape(str(row[c]))}</td>" for c in columns) + "</tr>"
-        for row in to_json_rows(rows)
+        for row in rows
     )
     return f"<table><tr>{head}</tr>{body}</table>"
 
@@ -141,13 +113,13 @@ img { border: 1px solid #ccc; max-width: 100%; }
 """
 
 
-def write_evidence(run: Run, query_id: str) -> Path:
-    """Write the evidence page for a logged query, record its path, and return it."""
-    logged = load_query(run.root, query_id)
-    rows = run_select(run.root, logged.company, logged.sql)
+def write_evidence(
+    run: Run, company: str, question: str | None, sql: str, rows: list[dict[str, Any]]
+) -> str:
+    """Write the evidence page for this run's query result and return its path relative to the
+    data folder. `rows` are JSON rows (`fin.query.run.to_json_rows`)."""
+    query_id = run.run_id
     flags = []
-    if result_hash(rows) != logged.result_hash:
-        flags.append("The data changed since the query ran; this page shows the current result.")
     column = "fact_id" if rows and "fact_id" in rows[0] else "raw_id"
     ids = list(dict.fromkeys(row[column] for row in rows if column in row))
     if not ids:
@@ -159,7 +131,7 @@ def write_evidence(run: Run, query_id: str) -> Path:
         raise DataFolderNotWritable(f"cannot create {folder}: {exc}") from exc
     books: dict[Path, Workbook] = {}
     sections = []
-    with connect(company_db_path(run.root, logged.company)) as con:
+    with connect(company_db_path(run.root, company)) as con:
         for id_ in ids:
             for fact in fetch_dicts(con, FACT_SQL.format(column=ID_COLUMN[column]), [id_]):
                 sections.append(_fact_section(run, fact, folder, books))
@@ -171,9 +143,8 @@ def write_evidence(run: Run, query_id: str) -> Path:
 <html><head><meta charset="utf-8"><title>Evidence {html.escape(query_id)}</title>
 <style>{STYLE}</style></head><body>
 <h1>Evidence for query {html.escape(query_id)}</h1>
-<p>Company: {html.escape(logged.company)}<br>Question: {html.escape(logged.question or "")}<br>
-Evidence run: {html.escape(run.run_id)}</p>
-<h2>SQL</h2><pre>{html.escape(logged.sql)}</pre>
+<p>Company: {html.escape(company)}<br>Question: {html.escape(question or "")}</p>
+<h2>SQL</h2><pre>{html.escape(sql)}</pre>
 {flag_html}
 <h2>Result</h2>{_result_table(rows)}
 <h2>Sources</h2>
@@ -185,18 +156,4 @@ Evidence run: {html.escape(run.run_id)}</p>
         path.write_text(page, encoding="utf-8")
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
-    relative = path.relative_to(run.root).as_posix()
-    run.record(
-        "queries",
-        {
-            "query_id": query_id,
-            "company": logged.company,
-            "question": logged.question,
-            "sql": logged.sql,
-            "mode": "read",
-            "row_count": len(rows),
-            "result_hash": result_hash(rows),
-            "evidence_path": relative,
-        },
-    )
-    return path
+    return path.relative_to(run.root).as_posix()

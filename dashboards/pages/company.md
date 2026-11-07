@@ -4,7 +4,7 @@ title: Company
 
 One company over its fiscal years, by metric category, then its quarters, its standard statements, and
 what is not yet settled in its data. Pick the scope: standalone and consolidated are never combined.
-Percentages are ratios (18% is 0.18 in `fin query`); money metrics are in ₹ crore here; days are days.
+Percentages are ratios (18% is 0.18 in `fin sql`); money metrics are in ₹ crore here; days are days.
 A missing point means an input to that metric is not in the loaded documents.
 
 ```sql company_list

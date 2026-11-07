@@ -2,8 +2,8 @@
 
 Rendering needs Quarto. Most tests put a small stand-in `quarto` first on PATH that writes the three
 output files, so the lint, substitution, data hash, swap-in and audit row are tested everywhere.
-`test_quarto_renders_all_three_formats` uses the real Quarto and is skipped without it; the CI
-`report` job and the macOS workflow have it.
+`test_quarto_renders_all_three_formats` uses the real Quarto (marker `quarto`) and is skipped
+without it; the CI `outputs` job runs it.
 """
 
 import json
@@ -322,7 +322,8 @@ def test_latest_quarters_and_peer_comparison(root: Path, tmp_path: Path, fake_qu
     assert "E601: no database for peer nobody" in result.stderr
 
 
-@pytest.mark.skipif(shutil.which("quarto") is None, reason="needs Quarto (CI `report` job, macOS)")
+@pytest.mark.quarto
+@pytest.mark.skipif(shutil.which("quarto") is None, reason="needs Quarto (CI `outputs` job)")
 def test_quarto_renders_all_three_formats(root: Path, tmp_path: Path) -> None:
     write_narrative(root)
     result = report()

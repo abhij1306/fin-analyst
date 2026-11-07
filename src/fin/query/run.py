@@ -1,4 +1,4 @@
-"""`fin query`: answer a question with one read-only SELECT on a company database (PLAN.md Phase 8).
+"""`fin sql` without --write: answer a question with one read-only SELECT on a company database.
 
 The statement must be a single SELECT (or WITH ... SELECT); anything else is rejected with E502 and
 still logged. When the result has a `fact_id` or `raw_id` column, every row gets provenance columns:
@@ -20,6 +20,7 @@ from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
 from fin.paths import company_db_path
+from fin.query.evidence import write_evidence
 from fin.statements import add_view
 
 PROVENANCE_COLUMNS = (
@@ -52,8 +53,8 @@ def check_select(con: duckdb.DuckDBPyConnection, sql: str) -> None:
     if kinds != [duckdb.StatementType.SELECT]:
         found = ", ".join(kind.name for kind in kinds) or "nothing"
         raise ReadOnlyViolation(
-            f"`fin query` runs one SELECT statement only (found: {found}); "
-            "to change data use `fin sql <company> --write --sql ...`"
+            f"without --write, `fin sql` runs one SELECT statement only (found: {found}); "
+            "add --write only to change data the user asked to change"
         )
 
 
@@ -100,10 +101,13 @@ def result_hash(rows: list[dict[str, Any]]) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def query(run: Run, company: str, question: str, sql: str) -> dict[str, Any]:
-    """Run the question's SQL, log it to the audit `queries` table and return the JSON payload.
-    A rejected or failed statement is logged too, with no row count, before the error is raised."""
-    row = {
+def query(
+    run: Run, company: str, question: str | None, sql: str, evidence: bool = False
+) -> dict[str, Any]:
+    """Run the SQL, write its evidence page if asked, log it to the audit `queries` table and
+    return the JSON payload. A rejected or failed statement is logged too, with no row count,
+    before the error is raised."""
+    row: dict[str, Any] = {
         "query_id": run.run_id,
         "company": company,
         "question": question,
@@ -117,14 +121,8 @@ def query(run: Run, company: str, question: str, sql: str) -> dict[str, Any]:
     except (ReadOnlyViolation, SqlFailed):
         run.record("queries", row)
         raise
-    digest = result_hash(rows)
-    run.record("queries", row | {"row_count": len(rows), "result_hash": digest})
-    return {
-        "query_id": run.run_id,
-        "company": company,
-        "question": question,
-        "sql": sql,
-        "row_count": len(rows),
-        "result_hash": digest,
-        "rows": to_json_rows(rows),
-    }
+    row |= {"row_count": len(rows), "result_hash": result_hash(rows)}
+    if evidence:
+        row["evidence_path"] = write_evidence(run, company, question, sql, to_json_rows(rows))
+    run.record("queries", row)
+    return {**row, "rows": to_json_rows(rows)}

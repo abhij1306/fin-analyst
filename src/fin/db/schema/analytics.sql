@@ -1,5 +1,5 @@
 -- shared/analytics.duckdb (PLAN.md §7): every company's metrics in one file for the dashboards.
--- Rebuilt in full by `fin metrics refresh` and after every ingest (fin.metrics.export), so it never holds
+-- Rebuilt in full after every ingest and data change (fin.metrics.export), so it never holds
 -- anything the company databases do not. A file made by an older fin (different tables or columns) is deleted and
 -- created again at the next refresh: everything in it is derived.
 

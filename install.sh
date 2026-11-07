@@ -53,7 +53,7 @@ fi
 echo "brew: $(brew --version | head -n 1)"
 
 # 3. System dependencies
-step "Installing system dependencies (Brewfile: uv, node, quarto)"
+step "Installing system dependencies (Brewfile: uv, node, quarto, poppler)"
 if brew bundle check --file="$REPO_DIR/Brewfile" >/dev/null; then
   echo "all Brewfile dependencies already installed"
 else

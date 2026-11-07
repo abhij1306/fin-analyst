@@ -8,7 +8,7 @@ from typing import Annotated
 import typer
 
 from fin import __version__
-from fin.audit.errors import EXIT_FAILURES, FileUnreadable, GuardBlocked, ReadOnlyViolation
+from fin.audit.errors import EXIT_FAILURES, FileUnreadable, GuardBlocked
 from fin.audit.logger import Run, execute
 from fin.audit.trace import (
     company_history,
@@ -29,7 +29,7 @@ from fin.ingest import COMPANY_NAME, files_in, ingest_file
 from fin.map.commands import map_app, review_app
 from fin.map.dictionary import load_label_map, load_seed
 from fin.map.review import write_pending
-from fin.metrics.export import Refresh, refresh_analytics
+from fin.metrics.export import refresh_analytics
 from fin.paths import (
     analytics_db_path,
     audit_db_path,
@@ -38,7 +38,6 @@ from fin.paths import (
     ensure_data_folder,
     inbox_dir,
 )
-from fin.query.evidence import write_evidence
 from fin.query.run import query
 from fin.query.write import write_sql
 from fin.report.render import make_report
@@ -169,6 +168,12 @@ def _optional_company(value: str | None) -> str | None:
     return None if value is None else _company(value)
 
 
+def _scope(value: str | None) -> str | None:
+    if value is not None and value not in SCOPES:
+        raise typer.BadParameter(f"use one of: {', '.join(SCOPES)}")
+    return value
+
+
 ForceOption = Annotated[
     bool,
     typer.Option("--force", help="Load files already ingested again, as a new version."),
@@ -194,10 +199,11 @@ def _ingest_files(
         write_pending(run, company)
     if total == 0:
         typer.echo("no files to ingest")
-    _echo_refresh(refresh_analytics(run))
+    _echo_refresh(run)
 
 
-def _echo_refresh(refresh: Refresh) -> None:
+def _echo_refresh(run: Run) -> None:
+    refresh = refresh_analytics(run)
     typer.echo(
         f"metrics: shared/analytics.duckdb refreshed, {refresh.companies} companies, "
         f"{refresh.metric_rows} metric rows"
@@ -236,18 +242,20 @@ def ingest(
 @app.command("ingest-batch")
 def ingest_batch(
     folder: Annotated[
-        Path, typer.Argument(help="A folder with one sub-folder per company, e.g. inbox/.")
-    ],
+        Path | None,
+        typer.Argument(help="A folder with one sub-folder per company. Default: inbox/."),
+    ] = None,
     force: ForceOption = False,
 ) -> None:
     """Load every company sub-folder of FOLDER. Safe to re-run after an interruption: files
     already loaded are skipped (E105), so it resumes where it stopped."""
 
     def body(run: Run) -> None:
-        if not folder.is_dir():
-            raise FileUnreadable(f"{folder} is not a folder")
+        source = folder if folder is not None else run.root / "inbox"
+        if not source.is_dir():
+            raise FileUnreadable(f"{source} is not a folder")
         jobs: list[tuple[str, list[Path]]] = []
-        for entry in sorted(folder.iterdir()):
+        for entry in sorted(source.iterdir()):
             if entry.is_dir() and COMPANY_NAME.match(entry.name):
                 jobs.append((entry.name, files_in(entry)))
             elif not entry.name.startswith("."):
@@ -334,7 +342,7 @@ def findings_accept(
                 f"{company}/{doc['file']} (doc_id {doc['doc_id']}): {doc['status']}, "
                 f"{doc['open']} open findings left"
             )
-        _echo_refresh(refresh_analytics(run))
+        _echo_refresh(run)
 
     execute("findings accept", {"company": company, "ids": ids}, body)
 
@@ -367,7 +375,8 @@ def statements_command(
         typer.Option("--period", help="FY25, FY26-Q1, ... Default: the latest fiscal year."),
     ] = None,
     scope: Annotated[
-        str | None, typer.Option("--scope", help="standalone or consolidated. Default: both.")
+        str | None,
+        typer.Option("--scope", callback=_scope, help="standalone or consolidated. Default: both."),
     ] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON rows.")] = False,
 ) -> None:
@@ -375,8 +384,6 @@ def statements_command(
     an "Unmapped / other" line wherever a printed subtotal is not explained by its mapped lines."""
 
     def body(run: Run) -> None:
-        if scope is not None and scope not in SCOPES:
-            raise typer.BadParameter(f"--scope must be one of {', '.join(SCOPES)}")
         rows = statement_rows(run.root, company, period, scope)
         if period is None:
             latest = latest_annual_period(rows)
@@ -403,57 +410,38 @@ def export_command(
     execute("export", {"company": company}, body)
 
 
-@app.command("query")
-def query_command(
-    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
-    question: Annotated[str, typer.Option("--question", help="The question in words.")],
-    sql: Annotated[str, typer.Option("--sql", help="One SELECT statement.")],
-) -> None:
-    """Answer a question with one read-only SELECT. Prints JSON rows with provenance columns
-    (source_file, source_ref, source_confirmed) when the result has fact_id or raw_id. Anything
-    other than a single SELECT is rejected (E502)."""
-
-    def body(run: Run) -> None:
-        typer.echo(json.dumps(query(run, company, question, sql), indent=2))
-
-    execute("query", {"company": company, "question": question, "sql": sql}, body)
-
-
-@app.command("evidence")
-def evidence_command(
-    query_id: Annotated[str, typer.Argument(help="The query_id printed by `fin query`.")],
-) -> None:
-    """Write an HTML page under evidence/ showing the source of every fact in a query's result.
-    A missing source file is flagged on the page (E604, exit 1)."""
-
-    def body(run: Run) -> None:
-        path = write_evidence(run, query_id)
-        typer.echo(json.dumps({"query_id": query_id, "evidence_path": str(path)}, indent=2))
-        if run.failed:
-            run.exit_code = EXIT_FAILURES
-
-    execute("evidence", {"query_id": query_id}, body)
-
-
 @app.command("sql")
 def sql_command(
     company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
-    sql: Annotated[str, typer.Option("--sql", help="The statement(s) to run.")],
+    sql: Annotated[str, typer.Option("--sql", help="One SELECT, or with --write the change.")],
+    question: Annotated[
+        str | None, typer.Option("--question", help="The question in words (recorded).")
+    ] = None,
+    evidence: Annotated[
+        bool,
+        typer.Option("--evidence", help="Also write evidence/<query_id>.html with every source."),
+    ] = False,
     write: Annotated[
-        bool, typer.Option("--write", help="Required: change data (backup + audit log).")
+        bool, typer.Option("--write", help="Change data the user asked to change (backup + log).")
     ] = False,
 ) -> None:
-    """Apply a data change the user asked for: back up the company database, run the SQL in one
-    transaction, and record the statement, rows affected and backup in the audit log."""
+    """Read: run one SELECT and print JSON rows, with provenance columns (source_file,
+    source_ref, source_confirmed, ...) when the result has fact_id or raw_id. --evidence writes a
+    page showing the source of every fact (a missing source is flagged, E604, exit 1). Anything but
+    one SELECT is rejected (E502) unless --write is given. With --write: back up the company
+    database, run the SQL in one transaction, and log the statement, rows affected and backup."""
 
     def body(run: Run) -> None:
-        if not write:
-            raise ReadOnlyViolation(
-                "`fin sql` changes data only with --write; to read data use `fin query`"
-            )
-        typer.echo(json.dumps(write_sql(run, company, sql), indent=2))
+        if write:
+            result = write_sql(run, company, sql, question)
+        else:
+            result = query(run, company, question, sql, evidence)
+        typer.echo(json.dumps(result, indent=2))
+        if run.failed:
+            run.exit_code = EXIT_FAILURES
 
-    execute("sql", {"company": company, "sql": sql, "write": write}, body)
+    args = {"company": company, "sql": sql, "question": question, "evidence": evidence}
+    execute("sql", args | {"write": write}, body)
 
 
 @app.command()
@@ -471,17 +459,6 @@ def dashboard(
             serve_dashboard(run.root)
 
     execute("dashboard", {"build": build}, body)
-
-
-metrics_app = typer.Typer(no_args_is_help=True, help="Metrics and the analytics export.")
-app.add_typer(metrics_app, name="metrics")
-
-
-@metrics_app.command("refresh")
-def metrics_refresh() -> None:
-    """Rebuild shared/analytics.duckdb from every company's metrics. Also runs after every
-    ingest."""
-    execute("metrics refresh", {}, lambda run: _echo_refresh(refresh_analytics(run)))
 
 
 @app.command("audit")
@@ -557,12 +534,6 @@ def update_command() -> None:
         typer.echo("update finished" if not run.failed else "update finished; fin doctor failed")
 
     execute("update", {}, body)
-
-
-def _scope(value: str | None) -> str | None:
-    if value is not None and value not in SCOPES:
-        raise typer.BadParameter(f"use one of: {', '.join(SCOPES)}")
-    return value
 
 
 @app.command("report")

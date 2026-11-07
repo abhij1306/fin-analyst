@@ -1,6 +1,6 @@
 # Customising fin-analyst with Claude Code
 
-Keep changes small. Every change needs a test, and a line in `CHANGELOG.md` (and `PLAN.md` if it changes behaviour).
+Keep changes small. Every change needs a test, and a `PLAN.md` update if it changes behaviour (`CHANGELOG.md` is written at release).
 Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruff format <files>`,
 `uv run pytest <test files>`.
 
@@ -23,13 +23,13 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
 - `verify.py`: `fin verify`, compares a reading with what is loaded and marks agreeing facts verified.
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
-  cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review`).
+  cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
 - `metrics/export.py`: copies every company's metrics, metric definitions, standard statements, findings,
   coverage, unread pages and unverified facts to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
 - `statements.py`: the `standard_statements` view (made per connection from the dictionary's account tree) and
   `fin statements`. `workbook.py`: `fin export` (the Excel workbook).
-- `query/`: `run.py` (`fin query`), `write.py` (`fin sql --write`), `evidence.py` (evidence pages).
+- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`), `evidence.py` (`fin sql --evidence` pages).
 - `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
   Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).
@@ -73,7 +73,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - Run `uv run fin init`. It adds missing rows to the shared dictionary and never removes or changes existing ones. To
   change an existing row (a new parent or sign), edit the row in `templates/dictionary/schedule_iii.csv` and re-create the data folder, or use `fin sql --write` on
   the dictionary for a one-off change.
-- One company only: `uv run fin map set --company <co> --statement <statement> --label "<label as written>" --account
+- One company only: `uv run fin map set <co> --statement <statement> --label "<label as written>" --account
   <account> [--section "<heading>"]`. It wins over the seed for that company, for files ingested from then on. This
   is also how to fix a wrong mapping behind a held document's findings (`fin findings list`): map it, then
   `fin ingest <co> <file> --force`.
@@ -121,7 +121,7 @@ one value per account, period and scope; ratios use `div6`; nothing is guessed).
    re-create the data folder (`fin init` and ingest again), or run the edited `CREATE OR REPLACE VIEW` statements
    through `fin sql --write` on each company.
 5. The report shows it in its category's table already. Optionally add it to `CHARTS` or `KEY_ROWS` in
-   `src/fin/report/data.py`. Every metric is in `fin query`, the dashboard and the `fin export` workbook already.
+   `src/fin/report/data.py`. Every metric is in `fin sql`, the dashboard and the `fin export` workbook already.
 6. Test: add the expected values to `tests/fixtures/sample-financials/answer_key_analysis.json` (computed by hand
    or with Python's `decimal` from the facts in `answer_key.json`, never by running the SQL) and run
    `tests/integration/test_metrics.py`. A metric the synthetic companies cannot have (lender, quarters, EPS) is
@@ -136,8 +136,8 @@ of dicts with the columns of the company `findings` table (`check_name`, `code`,
 `other_file`, `message`). A document with any finding is held, not rejected: what a company filed that does not add
 up is for the user to see and decide.
 
-1. Pick the next free check code (E4xx) and add a row to the table in `PLAN.md` §9 and a line to the README
-   "Findings" section. Check codes are not error classes.
+1. Pick the next free check code (E4xx) and add a row to the error-code table in `README.md` and a line to
+   its "Findings" section. Check codes are not error classes.
 2. Write the check (see `validate/gates.py` for how a check reads the staged facts, records its result and builds
    its findings), and add the function to `VALIDATORS` in `findings.py`. It runs again on held documents after a fix;
    a finding it no longer returns is resolved.

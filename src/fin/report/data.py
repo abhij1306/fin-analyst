@@ -264,7 +264,7 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
         raise ReportRenderFailed(
             f"{company} has no annual {scope} data to report on: the health report covers fiscal "
             "years (load an annual report, or results with a 'Year ended' column); quarter and "
-            "half-year figures are in `fin query` and the dashboard"
+            "half-year figures are in `fin sql` and the dashboard"
         )
     shown = main["years"][-YEARS_SHOWN:]
     present = set(main["metrics"])

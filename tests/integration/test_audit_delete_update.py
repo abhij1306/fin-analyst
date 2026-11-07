@@ -112,12 +112,12 @@ def test_audit_unknown_metric_is_e504(kestrel: Path) -> None:
 
 def test_audit_history_lists_ingest_and_query(kestrel: Path) -> None:
     sql = "SELECT f.fact_id, f.value FROM facts f WHERE f.account = 'revenue'"
-    assert invoke("query", "kestrel", "--question", "all revenue?", "--sql", sql).exit_code == 0
+    assert invoke("sql", "kestrel", "--question", "all revenue?", "--sql", sql).exit_code == 0
     result = invoke("audit", "kestrel", "--json")
     assert result.exit_code == 0, result.output
     history = json.loads(result.stdout)
 
-    assert [run["command"] for run in history["runs"]] == ["ingest", "query"]
+    assert [run["command"] for run in history["runs"]] == ["ingest", "sql"]
     assert [q["question"] for q in history["queries"]] == ["all revenue?"]
     assert "history of kestrel" in invoke("audit", "kestrel").stdout
 
@@ -132,9 +132,9 @@ def kestrel_with_files(kestrel: Path) -> Path:
     (kestrel / "inbox" / "kestrel" / "new.xlsx").write_text("x")
     (kestrel / "inbox" / "other").mkdir(parents=True)
     sql = "SELECT f.fact_id, f.value FROM facts f WHERE f.account = 'revenue'"
-    query = invoke("query", "kestrel", "--question", "revenue?", "--sql", sql)
+    query = invoke("sql", "kestrel", "--question", "revenue?", "--sql", sql, "--evidence")
+    assert query.exit_code == 0, query.output
     query_id = json.loads(query.stdout)["query_id"]
-    assert invoke("evidence", query_id).exit_code == 0
     assert (kestrel / "evidence" / f"{query_id}.html").is_file()
     return kestrel
 
@@ -217,8 +217,8 @@ def git(cwd: Path, *args: str) -> str:
 @pytest.fixture
 def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     """(clone, other): a clone `fin update` runs in, and a second clone used to push new commits to
-    the shared bare remote. The uv and npm steps are replaced by no-ops; metrics refresh and doctor
-    run through `python -m fin`."""
+    the shared bare remote. The uv and npm steps are replaced by no-ops; doctor runs through
+    `python -m fin`."""
     remote = tmp_path / "remote.git"
     git(tmp_path, "init", "--bare", "-b", "main", str(remote))
     other = tmp_path / "other"
@@ -270,9 +270,9 @@ def test_update_pulls_and_backs_up(
         "git status",
         "git pull",
         "uv sync",
-        "fin metrics refresh",
         "fin doctor",
     ]
+    assert any(s.startswith("metrics refreshed") for s in steps)
 
 
 def test_update_refuses_local_changes(clone: tuple[Path, Path], data_root: Path) -> None:

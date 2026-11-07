@@ -1,4 +1,4 @@
-"""Standard statements: `fin statements`, and the `standard_statements` view (in `fin query` too).
+"""Standard statements: `fin statements`, and the `standard_statements` view (in `fin sql` too).
 
 For each period and scope, the profit and loss, balance sheet and cash flow in the dictionary's
 account tree (`shared/dictionary.duckdb` accounts), whatever labels the filing used:
