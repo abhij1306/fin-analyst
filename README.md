@@ -16,8 +16,8 @@ produces reports and dashboards, all inside [Claude Code](https://claude.com/cla
 **What it does not do**
 
 - It analyses only. It gives no scores, rankings or recommendations; decisions stay with you.
-- It does not read scanned PDFs (no text layer) and does not guess: unknown labels and missing numbers are flagged,
-  never filled in.
+- It does not read scanned PDFs (no text layer) itself and does not guess: unknown labels and missing numbers are
+  flagged, never filled in. When you ask, Claude can read pages fin could not (see "Pages fin could not read").
 - Everything stays on your Mac. The Python code never calls an AI service; Claude Code does the judgement work.
 
 ## Install
@@ -53,6 +53,7 @@ Start Claude Code in the `fin-analyst` folder with `claude`. Then:
 | 5 | `/report <company>` | Writes a narrative that describes the numbers (it never types them) and renders HTML, Word and PDF into `reports/<company>/<scope>/`. |
 | 6 | `/dashboard` (or `uv run fin dashboard`) | Refreshes the dashboard data and starts the Evidence dashboard at http://localhost:3000 (company, compare and data quality pages). It reads a copy of the data, so you can ingest while it is open. `uv run fin dashboard --build` makes a static site instead (kept in `~/FinAnalysis/dashboard/build`; a failed build, E603, keeps the last good one). |
 | 7 | `/audit <company> [metric fiscal-year or --fact id]` | Traces a figure to its source, or lists the company's history. |
+| 8 | `/verify <company> <file>` | On request: Claude reads the pages you name and `fin verify` compares that reading with what is loaded (agree, differ, missing). |
 
 Until you confirm a mapping, the facts it affects are marked unconfirmed and are left out of metrics. Answers say so.
 
@@ -82,6 +83,18 @@ uv run fin ingest enser ~/FinAnalysis/review/enser/enser_ar24.pdf
 files ingested from then on; ingest a loaded file again with `--force` to apply it. Claude Code asks you to confirm it.
 Example: in old-format reports "Cash and bank balances" also holds bank deposits, so the cash flow's closing cash is
 smaller (E403); map the line to `cash_and_bank_balances`, which is not compared with closing cash.
+
+### Pages fin could not read
+
+A scanned PDF (E104), a file with no readable headers (E201-E204), or a statement page fin skipped can be read by
+Claude instead, only when you ask. `/ingest` names the pages and offers it. Claude reads the pages as images and
+copies every figure exactly as printed into a reading file in `review/<company>/`; then
+`uv run fin ingest <company> <file> --reading <reading.csv>` loads it for the statements fin could not read, through
+the same checks. These facts are marked as read by Claude and stay unverified
+until a second, independent reading agrees (`uv run fin verify <company> <file> --reading <second.csv>`).
+Differences are findings, not errors: shown with both values and sources for you to decide, and recorded in the
+audit log. `/ask` flags unverified Claude-read figures,
+and the dashboard's data quality page counts them.
 
 ### Deleting a company
 
@@ -141,12 +154,13 @@ or checks failed, 2 the command could not run, 3 refused until you confirm. Ever
 | E101 | File is unreadable or corrupt | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
 | E102 | File is password protected | Save an unprotected copy and ingest that |
 | E103 | Unsupported file format | Convert it to `.xlsx` or a text PDF |
-| E104 | Scanned PDF (no text layer); not supported | Get an Excel or text-PDF version |
+| E104 | Scanned PDF (no text layer); fin cannot read it | Get an Excel or text-PDF version, or ask Claude to read the pages (see "Pages fin could not read") |
 | E105 | The same file (same sha256) is already loaded | Nothing to do. Use `--force` to load it again as a new version |
 | E201 | No tables found in the file | Check the file has statement tables; read the reason in `review/<company>/` |
 | E202 | Fiscal periods or column headers not detected | Fix the headers in the file, then ingest again |
 | E203 | Unit (crores, lakhs, ...) not detected | Add a unit line such as "Rs. in Crores" to the file, then ingest again |
 | E204 | Parse error while reading the file | Read the reason in `review/<company>/<file>.error.json` and fix the file |
+| E205 | A reading file (`--reading`) cannot be used: missing columns, unknown statement or scope, bad figure, date or source, or nothing fin did not read already | Fix the line named in the message and run again |
 | E301 | A label is not in the dictionary | Loaded as unconfirmed. Run `/review` to confirm a mapping |
 | E302 | A proposed mapping has low confidence | Same: check it in `/review` |
 | E303 | A label maps to conflicting accounts | Same: you decide in `/review` |

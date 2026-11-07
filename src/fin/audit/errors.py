@@ -112,6 +112,14 @@ class ParseError(DocumentFailure):
     code = "E204"
 
 
+class ReadingInvalid(DocumentFailure):
+    """E205. A reading file (figures Claude read from the document, `fin ingest --reading`,
+    `fin verify`) cannot be used: missing columns, an unknown statement or scope, a bad source,
+    or no lines."""
+
+    code = "E205"
+
+
 # E3xx: mapping. Loaded as unconfirmed and queued for review.
 
 

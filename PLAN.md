@@ -26,6 +26,18 @@ annual reports, quarter / half-year / year columns of both scopes land in their 
 compared (E404). Quarterly metrics: revenue, PAT, EBITDA, margins, year-on-year and quarter-on-quarter growth. The
 health report stays annual; the dashboard company page shows quarters.
 
+Claude readings (after 1.0.0, not a phase): fin's deterministic extraction stays the primary path (OCR was tested and
+rejected). Only when the user asks, Claude Code reads pages fin could not read (scanned, E2xx, skipped statement
+pages) as images and writes a reading file (`fin.extract.reading`: one CSV row per figure, as printed, with the
+original page or cell). `fin ingest <co> <file> --reading <csv>` loads it for the statements and scopes fin did not
+read, through the same stage, gates, commit. Facts carry `facts.read_by` (`fin` / `claude`) and `facts.verified`.
+`fin verify <co> <file> --reading <csv>` compares an independent reading with what is loaded (agree / differ /
+missing in fin / missing in reading, exact in rupees) and marks agreeing facts verified (a Claude-read fact only by
+a reading other than the one it was loaded from, in a document whose gates passed). Every disagreement is a finding,
+not a failure: it is shown to the user and recorded in `audit.findings` (check `verify_reading`; the table is
+general so other checks can record findings later), verify exits 0 and never changes a figure. Unverified
+Claude-read facts still feed metrics; `/ask` flags them and the data quality page counts them.
+
 ---
 
 ## 1. What it does
@@ -214,6 +226,7 @@ Every `fin` command:
 | E202 | Periods/headers not detected | Same |
 | E203 | Unit not detected | Same |
 | E204 | Parse error | Same |
+| E205 | Reading file invalid (`fin ingest --reading`, `fin verify`) | Same; nothing loaded or compared |
 | E301 | Unmapped label | Loaded as unconfirmed, queued for review |
 | E302 | Low-confidence mapping | Same |
 | E303 | Conflicting mapping | Same; human decides |
@@ -277,6 +290,8 @@ claude
 |---|---|---|
 | `fin init`, `fin doctor` | — | Human |
 | `fin ingest <co> [path]` | `/ingest` | Either |
+| `fin ingest <co> <file> --reading <csv>` | `/ingest` (offered after a failure or skipped page) | Claude, when the user asks |
+| `fin verify <co> <file> --reading <csv>` | `/verify`, `/ingest` | Either |
 | `fin ingest-batch <folder>` | `/ingest-batch` | Either |
 | `fin map propose <file.json>` | used inside `/ingest`, `/review` | Claude |
 | `fin review` (interactive or flags) | `/review` | Either (asks for confirmation) |
