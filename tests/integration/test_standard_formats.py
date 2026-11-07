@@ -13,8 +13,7 @@ from typer.testing import CliRunner
 from fin.cli import app
 from fin.db.conn import connect
 from fin.paths import company_db_path
-from tests.integration.test_real_report_mapping import WIDTH, statement
-from tests.synthetic_pdf import write_pdf
+from tests.synthetic_pdf import WIDTH, statement, write_pdf
 
 runner = CliRunner()
 

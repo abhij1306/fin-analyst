@@ -13,7 +13,6 @@ import pytest
 from openpyxl import load_workbook
 from typer.testing import CliRunner, Result
 
-import fin.findings
 import fin.ingest
 from fin.audit.logger import Run
 from fin.cli import app
@@ -186,16 +185,17 @@ def test_batch_killed_midway_resumes_without_duplicates(
     shutil.copytree(samples / "clean" / "bluepeak", batch / "bluepeak")
     shutil.copytree(samples / "clean" / "kestrel", batch / "kestrel")
     calls = []
+    check_document = fin.ingest.check_document
 
     def crash_on_second_document(
         run: Run, company: str, con: duckdb.DuckDBPyConnection, doc_id: int
-    ) -> list[dict[str, Any]]:
+    ) -> int:
         calls.append(doc_id)
         if len(calls) == 2:
             raise RuntimeError("simulated kill")
-        return []
+        return check_document(run, company, con, doc_id)
 
-    monkeypatch.setattr(fin.findings, "VALIDATORS", [crash_on_second_document])
+    monkeypatch.setattr(fin.ingest, "check_document", crash_on_second_document)
     killed = runner.invoke(app, ["ingest-batch", str(batch)])
     assert isinstance(killed.exception, RuntimeError)
     assert query(root, "bluepeak", "SELECT file_name FROM documents") == [
@@ -203,7 +203,7 @@ def test_batch_killed_midway_resumes_without_duplicates(
     ]
     assert not (root / "companies" / "kestrel.duckdb").exists()
 
-    monkeypatch.setattr(fin.findings, "VALIDATORS", [])
+    monkeypatch.setattr(fin.ingest, "check_document", check_document)
     resumed = runner.invoke(app, ["ingest-batch", str(batch)])
 
     assert resumed.exit_code == 0, resumed.output
@@ -227,26 +227,16 @@ def test_batch_killed_midway_resumes_without_duplicates(
         ) == [(facts, facts)]
 
 
-def test_a_finding_holds_the_document_with_every_fact(
-    root: Path, samples: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def unbalanced(
-        run: Run, company: str, con: duckdb.DuckDBPyConnection, doc_id: int
-    ) -> list[dict[str, Any]]:
-        message = "FY25 assets exceed liabilities by 5000000.00"
-        return [{"doc_id": doc_id, "check_name": "balance_sheet", "code": "E401"}
-                | {"finding": "differ", "message": message}]  # fmt: skip
-
-    monkeypatch.setattr(fin.findings, "VALIDATORS", [unbalanced])
-    result = ingest("kestrel", str(samples / "clean" / "kestrel"))
+def test_a_finding_holds_the_document_with_every_fact(root: Path, samples: Path) -> None:
+    result = ingest("kestrel", str(samples / "broken" / "Kestrel_UNBALANCED_balance_sheet.xlsx"))
 
     assert result.exit_code == 0, result.output
     assert "held as doc_id 1 version 1: 162 facts, 0 unmapped labels, 1 findings" in result.stdout
     assert "failed 0, pending review 0, held 1" in result.stderr
     assert query(root, "kestrel", "SELECT status FROM documents") == [("held",)]
     assert query(root, "kestrel", "SELECT count(*) FROM facts") == [(162,)]
-    assert query(root, "kestrel", "SELECT code, message, status FROM findings") == [
-        ("E401", "FY25 assets exceed liabilities by 5000000.00", "open")
+    assert query(root, "kestrel", "SELECT code, period, status FROM findings") == [
+        ("E401", "FY25", "open")
     ]
     assert not (root / "review" / "kestrel").exists()
 

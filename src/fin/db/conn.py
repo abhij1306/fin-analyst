@@ -2,13 +2,14 @@
 
 Connections are short-lived (a `with` block) and read-only unless the caller asks for `write=True`.
 Opening a file another process holds is retried with exponential backoff; after the last attempt it
-raises E501.
+raises E501. `transaction` wraps a unit of writes: COMMIT, or ROLLBACK on any exception.
 """
 
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
@@ -60,6 +61,23 @@ def connect(
         raise
     finally:
         con.close()
+
+
+@contextmanager
+def transaction(con: duckdb.DuckDBPyConnection) -> Iterator[None]:
+    """BEGIN; COMMIT when the block ends; ROLLBACK and re-raise on any exception."""
+    con.execute("BEGIN TRANSACTION")
+    try:
+        yield
+        con.execute("COMMIT")
+    except BaseException:
+        con.execute("ROLLBACK")
+        raise
+
+
+def utcnow() -> datetime:
+    """Now in UTC, without a time zone: how every TIMESTAMP column is written."""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _is_lock(exc: duckdb.IOException) -> bool:

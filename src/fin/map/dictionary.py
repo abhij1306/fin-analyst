@@ -3,6 +3,8 @@
 - `load_seed` adds the Schedule III accounts (`templates/dictionary/schedule_iii.csv`) and the seed
   label mappings (`templates/dictionary/labels.csv`) that are not in the dictionary yet. It never
   changes or removes a row, so `fin init` can run it every time.
+- `load_accounts` reads the accounts; `insert_account` and `upsert_label` are the only writers of
+  `accounts` and `label_map`.
 - `load_label_map` reads the mappings that apply to one company; `find` looks a label up in them and
   `map_rows` maps a document's rows in order (it knows which part of the balance sheet a row is in).
 
@@ -13,14 +15,13 @@ Stored keys are normalized again when read, so a mapping saved before a normaliz
 import csv
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import duckdb
 
-from fin.audit.errors import DependencyVersionMismatch
-from fin.db.conn import connect
+from fin.audit.errors import ConflictingMapping, DependencyVersionMismatch
+from fin.db.conn import connect, transaction, utcnow
 from fin.map.normalize import normalize_label
 from fin.paths import dictionary_db_path
 
@@ -41,9 +42,100 @@ class Mapping:
 
 
 @dataclass(frozen=True)
+class Account:
+    statement: str
+    parent: str | None  # the subtotal it adds into; None for a top line
+    sign: int | None  # +1 or -1 into the parent; None for a top line
+    unit: str = "rupees"
+    description: str = ""
+    source: str = "seed"  # 'review' for an account the user added
+
+    def row(self, name: str) -> list[str]:
+        """The account as a schedule_iii.csv row (ACCOUNT_COLUMNS)."""
+        sign = "" if self.sign is None else str(self.sign)
+        return [name, self.statement, self.parent or "", sign, self.unit, self.description]
+
+
+@dataclass(frozen=True)
 class SeedResult:
     accounts_added: int
     labels_added: int
+
+
+def label_key(statement: str, section: str, label: str) -> tuple[str, str, str]:
+    """(statement, section, label) with section and label normalized: how `label_map` is keyed."""
+    return statement, normalize_label(section), normalize_label(label)
+
+
+def load_accounts(root: Path) -> dict[str, Account]:
+    """Every account in the dictionary, sorted by statement and account."""
+    with connect(dictionary_db_path(root)) as con:
+        rows = con.execute(
+            "SELECT account, statement, parent, sign, unit, description, source FROM accounts "
+            "ORDER BY statement, account"
+        ).fetchall()
+    return {row[0]: Account(*row[1:]) for row in rows}
+
+
+def insert_account(
+    con: duckdb.DuckDBPyConnection, row: dict[str, str], source: str, run_id: str | None
+) -> None:
+    """Add an account given as a schedule_iii.csv row (text fields)."""
+    con.execute(
+        "INSERT INTO accounts (account, statement, parent, sign, unit, description, source, "
+        "run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            row["account"],
+            row["statement"],
+            row["parent"] or None,
+            int(row["sign"]) if row["sign"] else None,
+            row["unit"],
+            row["description"],
+            source,
+            run_id,
+        ],
+    )
+
+
+def upsert_label(
+    con: duckdb.DuckDBPyConnection,
+    key: tuple[str, str, str],
+    account: str,
+    company: str | None,
+    source: str,
+    run_id: str,
+    on_conflict: Literal["refuse", "replace"],
+) -> tuple[int, str]:
+    """Map `key` (see `label_key`) to `account`, globally (company None) or for one company.
+    Returns (mapping_id, 'added' | 'unchanged' | 'changed'). When the key is already mapped to
+    another account, 'refuse' raises E303 and 'replace' changes the account."""
+    statement, section, label = key
+    scope = "global" if company is None else "company"
+    existing = con.execute(
+        "SELECT mapping_id, account FROM label_map WHERE label = ? AND statement = ? "
+        "AND section = ? AND scope = ? AND company IS NOT DISTINCT FROM ?",
+        [label, statement, section, scope, company],
+    ).fetchone()
+    if existing is not None:
+        mapping_id, old = existing
+        if old == account:
+            return mapping_id, "unchanged"
+        if on_conflict == "refuse":
+            raise ConflictingMapping(
+                f"{label!r} is already mapped to {old} ({scope} scope); not changed to {account}"
+            )
+        con.execute(
+            "UPDATE label_map SET account = ?, source = ?, run_id = ? WHERE mapping_id = ?",
+            [account, source, run_id, mapping_id],
+        )
+        return mapping_id, "changed"
+    row = con.execute(
+        "INSERT INTO label_map (label, statement, section, account, scope, company, source, "
+        "created_at, run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING mapping_id",
+        [label, statement, section, account, scope, company, source, utcnow(), run_id],
+    ).fetchone()
+    assert row is not None
+    return row[0], "added"
 
 
 def _read_csv(name: str, columns: list[str]) -> list[dict[str, str]]:
@@ -89,7 +181,7 @@ def read_seed() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
                 f"labels.csv: {row['label']!r}: account {row['account']!r} is not a "
                 f"{row['statement']} account in schedule_iii.csv"
             )
-        key = (normalize_label(row["label"]), row["statement"], normalize_label(row["section"]))
+        key = label_key(row["statement"], row["section"], row["label"])
         if seen.setdefault(key, row["account"]) != row["account"]:
             raise DependencyVersionMismatch(
                 f"labels.csv: {row['label']!r} maps to both {seen[key]} and {row['account']}"
@@ -100,51 +192,25 @@ def read_seed() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
 def load_seed(root: Path, run: "Run") -> SeedResult:
     """Add seed accounts and global label mappings that are missing, in one transaction."""
     accounts, labels = read_seed()
-    now = datetime.now(UTC).replace(tzinfo=None)
-    with connect(dictionary_db_path(root), write=True) as con:
-        con.execute("BEGIN TRANSACTION")
-        try:
-            known = {row[0] for row in con.execute("SELECT account FROM accounts").fetchall()}
-            new_accounts = [row for row in accounts if row["account"] not in known]
-            for row in new_accounts:
-                con.execute(
-                    "INSERT INTO accounts (account, statement, parent, sign, description, unit) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                    [
-                        row["account"],
-                        row["statement"],
-                        row["parent"] or None,
-                        int(row["sign"]) if row["sign"] else None,
-                        row["description"],
-                        row["unit"],
-                    ],
-                )
-            mapped = {
-                (normalize_label(label), statement, normalize_label(section))
-                for label, statement, section in con.execute(
-                    "SELECT label, statement, section FROM label_map WHERE scope = 'global'"
-                ).fetchall()
-            }
-            added = 0
-            for row in labels:
-                key = (
-                    normalize_label(row["label"]),
-                    row["statement"],
-                    normalize_label(row["section"]),
-                )
-                if key in mapped:
-                    continue
+    with connect(dictionary_db_path(root), write=True) as con, transaction(con):
+        known = {row[0] for row in con.execute("SELECT account FROM accounts").fetchall()}
+        new_accounts = [row for row in accounts if row["account"] not in known]
+        for row in new_accounts:
+            insert_account(con, row, "seed", None)
+        # Stored keys are normalized again: a key saved before a rule changed still counts.
+        mapped = {
+            label_key(*row)
+            for row in con.execute(
+                "SELECT statement, section, label FROM label_map WHERE scope = 'global'"
+            ).fetchall()
+        }
+        added = 0
+        for row in labels:
+            key = label_key(row["statement"], row["section"], row["label"])
+            if key not in mapped:
                 mapped.add(key)
-                con.execute(
-                    "INSERT INTO label_map (label, statement, section, account, scope, company, "
-                    "source, created_at, run_id) VALUES (?, ?, ?, ?, 'global', NULL, 'seed', ?, ?)",
-                    [*key, row["account"], now, run.run_id],
-                )
+                upsert_label(con, key, row["account"], None, "seed", run.run_id, "refuse")
                 added += 1
-            con.execute("COMMIT")
-        except duckdb.Error:
-            con.execute("ROLLBACK")
-            raise
     return SeedResult(len(new_accounts), added)
 
 
@@ -153,26 +219,20 @@ def added_rows(root: Path) -> tuple[list[list[str]], list[list[str]]]:
     do not have yet, as rows in the schedule_iii.csv and labels.csv formats (labels normalized)."""
     seed_accounts, seed_labels = read_seed()
     known = {row["account"] for row in seed_accounts}
-    seeded = {
-        (normalize_label(row["label"]), row["statement"], normalize_label(row["section"]))
-        for row in seed_labels
-    }
+    seeded = {label_key(row["statement"], row["section"], row["label"]) for row in seed_labels}
+    accounts = [
+        account.row(name)
+        for name, account in load_accounts(root).items()
+        if account.source == "review" and name not in known
+    ]
     with connect(dictionary_db_path(root)) as con:
-        accounts = con.execute(
-            "SELECT account, statement, coalesce(parent, ''), coalesce(CAST(sign AS VARCHAR), ''), "
-            "unit, description FROM accounts WHERE source = 'review' ORDER BY statement, account"
-        ).fetchall()
         labels = con.execute(
             "SELECT label, statement, section, account FROM label_map "
             "WHERE scope = 'global' AND source <> 'seed' ORDER BY mapping_id"
         ).fetchall()
     return (
-        [list(row) for row in accounts if row[0] not in known],
-        [
-            list(row)
-            for row in labels
-            if (normalize_label(row[0]), row[1], normalize_label(row[2])) not in seeded
-        ],
+        accounts,
+        [list(row) for row in labels if label_key(row[1], row[2], row[0]) not in seeded],
     )
 
 
@@ -198,7 +258,7 @@ def load_label_map(root: Path, company: str) -> LabelMap:
             [company],
         ).fetchall()
     return {
-        (own, st, normalize_label(sec), normalize_label(label)): Mapping(mid, account, bool(unit))
+        (own, *label_key(st, sec, label)): Mapping(mid, account, bool(unit))
         for own, st, sec, label, mid, account, unit in rows
     }
 

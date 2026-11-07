@@ -71,6 +71,14 @@ def review_dir(root: Path, company: str) -> Path:
     return root / "review" / company
 
 
+def notes_dir(root: Path, company: str) -> Path:
+    return root / "notes" / company
+
+
+def reports_dir(root: Path, company: str) -> Path:
+    return root / "reports" / company
+
+
 def backups_dir(root: Path) -> Path:
     return root / "backups"
 
