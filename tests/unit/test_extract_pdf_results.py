@@ -37,8 +37,9 @@ def test_period_names(end: date, months: int, expected: str) -> None:
 
 
 def test_a_period_that_does_not_fit_the_fiscal_year_is_e202() -> None:
+    end = date(2025, 5, 31)
     with pytest.raises(PeriodsNotDetected) as caught:
-        period_of(date(2025, 5, 31), 3, where="page 2")
+        period_of(end, 3, where="page 2")
     assert caught.value.message == (
         "page 2: a 3-month period ending 2025-05-31 does not line up with a fiscal year starting "
         "in month 4"

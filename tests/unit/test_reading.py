@@ -87,12 +87,14 @@ def test_lines_get_period_rupees_and_source(tmp_path: Path) -> None:
     ],
 )
 def test_bad_lines_name_the_line_and_code(tmp_path: Path, row: str, error: str) -> None:
+    path = reading(tmp_path, row)
     with pytest.raises(FinError) as raised:
-        read_reading(reading(tmp_path, row), 4)
+        read_reading(path, 4)
     assert str(raised.value).startswith(error)
 
 
 def test_empty_reading_is_e205(tmp_path: Path) -> None:
+    path = reading(tmp_path)
     with pytest.raises(FinError, match="the reading has no lines") as raised:
-        read_reading(reading(tmp_path), 4)
+        read_reading(path, 4)
     assert raised.value.code == "E205"

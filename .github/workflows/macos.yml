@@ -33,13 +33,13 @@ jobs:
       - name: Snapshot state
         run: |
           eval "$(brew shellenv)"
-          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum config.toml); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/before.txt"
+          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum -a 256 config.toml); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/before.txt"
       - name: Second install
         run: ./install.sh
       - name: Second run changed nothing
         run: |
           eval "$(brew shellenv)"
-          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum config.toml); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/after.txt"
+          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum -a 256 config.toml); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/after.txt"
           diff -u "$RUNNER_TEMP/before.txt" "$RUNNER_TEMP/after.txt"
           grep -q "all Brewfile dependencies already installed" "$FIN_DATA_DIR/logs/install.log"
           grep -q "kept     config.toml (already present, not changed)" "$FIN_DATA_DIR/logs/install.log"
@@ -47,9 +47,9 @@ jobs:
       - name: fin doctor passes
         run: |
           eval "$(brew shellenv)"
-          uv run fin doctor
+          uv run --frozen fin doctor
       - name: Smoke ingest and query
         run: |
           eval "$(brew shellenv)"
-          uv run fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
-          uv run fin sql kestrel --sql "SELECT count(*) AS facts FROM facts" | grep -q '"facts": 162'
+          uv run --frozen fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
+          uv run --frozen fin sql kestrel --sql "SELECT count(*) AS facts FROM facts" | grep -q '"facts": 162'

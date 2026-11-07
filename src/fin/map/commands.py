@@ -12,10 +12,10 @@ import typer
 from fin.audit.errors import InvalidMapping
 from fin.audit.logger import Run, execute
 from fin.findings import recheck_held
-from fin.ingest import COMPANY_NAME
 from fin.map import review
 from fin.map.dictionary import STATEMENTS, added_rows
 from fin.metrics.export import refresh_analytics
+from fin.paths import COMPANY_NAME
 
 map_app = typer.Typer(
     no_args_is_help=True, help="Mapping proposals, company mappings and the account list."
@@ -139,11 +139,17 @@ def map_accounts(
         for account, st, parent, sign, unit, description, source in review.list_accounts(
             run.root, statement
         ):
-            into = f"{'+' if sign == '1' else '-'} {parent}" if parent else "(top line)"
+            into = _placement(sign == "1", parent) if parent else "(top line)"
             mark = "[added] " if source == "review" else ""
             typer.echo(f"{account:40} {st:16} {into:42} {unit:16} {mark}{description}")
 
     execute("map accounts", {"statement": statement, "added": added}, body)
+
+
+def _placement(adds: bool, parent: str) -> str:
+    """How an account rolls into its parent: "+ parent" (adds) or "- parent" (subtracts)."""
+    sign = "+" if adds else "-"
+    return f"{sign} {parent}"
 
 
 def _line(item: review.Item) -> str:
@@ -153,9 +159,7 @@ def _line(item: review.Item) -> str:
         line += f" -> {item['account']} (confidence {item['confidence']}): {item['reason']}"
     new = item.get("new_account")
     if new:
-        into = (
-            f"{'+' if new['sign'] == 1 else '-'} {new['parent']}" if new["parent"] else "top line"
-        )
+        into = _placement(new["sign"] == 1, new["parent"]) if new["parent"] else "top line"
         line += f"\n  NEW ACCOUNT {item['account']}: {into}, {new['unit']}, {new['description']!r}"
     return line
 

@@ -3,7 +3,6 @@ analytics export (refreshed after every ingest and data change)."""
 
 import json
 import shutil
-from collections.abc import Iterator
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
@@ -28,7 +27,7 @@ NOT_IN_DOCUMENTS = {
 
 
 @pytest.fixture(scope="module")
-def ingested(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+def ingested(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """A data folder with every clean synthetic document ingested (shared, do not change it)."""
     root = (tmp_path_factory.mktemp("metrics") / "FinAnalysis").resolve()
     with pytest.MonkeyPatch.context() as patch:
@@ -41,7 +40,7 @@ def ingested(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
         assert result.stdout.splitlines()[-1] == (
             "metrics: shared/analytics.duckdb refreshed, 3 companies, 584 metric rows"
         )
-    yield root
+    return root
 
 
 @pytest.fixture

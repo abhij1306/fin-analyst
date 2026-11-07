@@ -245,7 +245,8 @@ def test_excel_grid_shows_the_label_and_value_around_the_cell(ingested: Path) ->
     assert re.search(
         r"<tr><th>7</th><td>[^<]*Revenue[^<]*</td><td>[^<]*</td><td class='hit'>", grid
     )
-    assert "<tr><th>5</th>" in grid and "<tr><th>9</th>" in grid
+    assert "<tr><th>5</th>" in grid
+    assert "<tr><th>9</th>" in grid
 
 
 @pytest.mark.parametrize(

@@ -15,6 +15,8 @@ from fin.paths import audit_db_path
         ("uv 0.11.28 (ebf0f43d7 2026-07-07 x86_64-apple-darwin)", (0, 11, 28)),
         ("v24.11.1", (24, 11, 1)),
         ("1.8.25", (1, 8, 25)),
+        ("Quarto 1.7", (1, 7)),
+        ("build 20260707 then 2.3", (2, 3)),
         ("no digits here", None),
     ],
 )

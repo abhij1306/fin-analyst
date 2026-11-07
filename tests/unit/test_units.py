@@ -15,6 +15,11 @@ from fin.extract.units import parse_figure, to_rupees, unit_in
         ("a: Crores", None),
         ("Crores of shares were issued in the year", None),
         ("Particulars", None),
+        ("(INR crores)", "crore"),
+        ("(Amount in thousands)", "thousand"),
+        ("(in rupees)", "rupees"),
+        ("(in rupee)", None),
+        ("(in lakhss)", None),
     ],
 )
 def test_unit_in(text: str, expected: str | None) -> None:
@@ -52,6 +57,9 @@ def test_to_rupees_rounds_half_up_to_the_paisa(
         ("–", Decimal(0)),
         ("—", Decimal(0)),
         ("Nil", Decimal(0)),
+        ("( - 5 )", Decimal("-5")),
+        ("(1,234)", Decimal("-1234")),
+        ("- -5", None),
         ("abc", None),
         ("", None),
     ],

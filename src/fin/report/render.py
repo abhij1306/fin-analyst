@@ -60,7 +60,8 @@ from fin.report.tables import (
 )
 
 REPO = Path(__file__).resolve().parents[3]
-TEMPLATE = REPO / "templates" / "report" / "health.qmd"
+QMD_FILE = "health.qmd"
+TEMPLATE = REPO / "templates" / "report" / QMD_FILE
 OUTPUTS = ("health.html", "health.docx", "health.pdf")
 DATA_FILE = "report_data.json"
 PLACEHOLDER = re.compile(r"\{\{(\w+)(?::(\w+))?\}\}")
@@ -202,11 +203,9 @@ def category_section(
     )
 
 
-def build(
-    company: str, scope: str, display_unit: str, narrative: str, data: dict[str, Any]
-) -> Built:
-    """Fill the template with the data and the (already linted) narrative."""
-    filled, references = substitute(strip_comments(narrative), data, display_unit)
+def _narrative_sections(filled: str, data: dict[str, Any]) -> dict[str, str]:
+    """The narrative split by section key. Raises when a heading is not a report section, or
+    when a section this report does not have has text."""
     texts, unknown = split_sections(filled, TITLES)
     if unknown:
         raise ReportRenderFailed(
@@ -220,7 +219,15 @@ def build(
             f"the narrative has text under {', '.join(repr(t) for t in absent)}, which this report "
             "does not have (no data for it, or no --peers); remove it or add what it needs"
         )
-    charts: dict[str, str] = {}
+    return texts
+
+
+def _blocks(
+    data: dict[str, Any], texts: dict[str, str], display_unit: str, charts: dict[str, str]
+) -> dict[str, str]:
+    """The report's optional sections (categories, quarters, peers) as text; chart SVGs are
+    added to `charts`."""
+    present = sections(data)
     blocks = {
         "categories": "\n\n".join(
             category_section(data, key, texts.get(key, ""), display_unit, charts)
@@ -241,6 +248,17 @@ def build(
         blocks["peers"] = _section(
             f"## {TITLES['peers']}", texts.get("peers", ""), peers_table(data, display_unit)
         )
+    return blocks
+
+
+def build(
+    company: str, scope: str, display_unit: str, narrative: str, data: dict[str, Any]
+) -> Built:
+    """Fill the template with the data and the (already linted) narrative."""
+    filled, references = substitute(strip_comments(narrative), data, display_unit)
+    texts = _narrative_sections(filled, data)
+    charts: dict[str, str] = {}
+    blocks = _blocks(data, texts, display_unit, charts)
     tables = {
         "summary": summary_tables(data, display_unit),
         "findings": findings_table(data, display_unit),
@@ -363,7 +381,7 @@ def make_report(
     temp = folder / f".render-{run.run_id}"
     temp.mkdir(parents=True)
     try:
-        (temp / "health.qmd").write_text(built.qmd, encoding="utf-8")
+        (temp / QMD_FILE).write_text(built.qmd, encoding="utf-8")
         for name, svg in built.charts.items():
             (temp / name).write_text(svg, encoding="utf-8")
         report_data = {
@@ -375,7 +393,7 @@ def make_report(
             "data": built.data,
         }
         (temp / DATA_FILE).write_text(to_json(report_data) + "\n", encoding="utf-8")
-        quarto_render(temp / "health.qmd")
+        quarto_render(temp / QMD_FILE)
         outputs = []
         for name in (*OUTPUTS, DATA_FILE):
             (temp / name).replace(folder / name)

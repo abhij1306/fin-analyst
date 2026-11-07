@@ -1,9 +1,13 @@
 """Data folder resolution. The data folder lives outside the repo (PLAN.md §6)."""
 
 import os
+import re
 from pathlib import Path
 
 from fin.audit.errors import DataFolderNotWritable
+
+# A company name: also the name of its folders, so it can never point outside them.
+COMPANY_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 DATA_DIR_ENV = "FIN_DATA_DIR"
 DEFAULT_DATA_DIR_NAME = "FinAnalysis"

@@ -10,7 +10,6 @@ import json
 import os
 import shutil
 import sys
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +47,7 @@ for name in ("health.html", "health.docx", "health.pdf"):
 
 
 @pytest.fixture(scope="module")
-def ingested(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+def ingested(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """A data folder with Kestrel ingested (shared, do not change it)."""
     root = (tmp_path_factory.mktemp("report") / "FinAnalysis").resolve()
     with pytest.MonkeyPatch.context() as patch:
@@ -56,7 +55,7 @@ def ingested(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
         assert runner.invoke(app, ["init"]).exit_code == 0
         result = runner.invoke(app, ["ingest", "kestrel", str(SAMPLES / "clean" / "kestrel")])
         assert result.exit_code == 0, result.output
-    yield root
+    return root
 
 
 @pytest.fixture
@@ -166,7 +165,8 @@ def test_render_substitutes_references_and_logs_the_report(root: Path, fake_quar
     assert "| Receivable days | 62.0 days | 78.0 days | 94.0 days |" in html
     assert "![Profitability, FY23 to FY25](chart-profitability.svg){width=100%}" in html
     assert "## Lending" not in html  # no lender metrics for a manufacturer
-    assert "## Latest quarters" not in html and "## Peer comparison" not in html
+    assert "## Latest quarters" not in html
+    assert "## Peer comparison" not in html
     # Findings, coverage and the appendices.
     assert "No open or accepted findings." in html
     assert "| Balance sheet | 54 | 54 | 100.0% | 0 |" in html
@@ -207,7 +207,8 @@ def test_rerender_with_unchanged_data_gives_identical_numbers_and_hash(
     assert report().exit_code == 0
     assert data_file.read_text(encoding="utf-8") == first
     hashes = [row[3] for row in report_rows(root)]
-    assert len(hashes) == 2 and hashes[0] == hashes[1]
+    assert len(hashes) == 2
+    assert hashes[0] == hashes[1]
 
     # A changed value changes the hash.
     sql = (
@@ -339,6 +340,7 @@ def test_quarto_renders_all_three_formats(root: Path, tmp_path: Path) -> None:
     result = runner.invoke(app, ["report", "acme", "--peers", "kestrel"])
     assert result.exit_code == 0, result.output
     html = (acme / "health.html").read_text(encoding="utf-8")
-    assert "Latest quarters" in html and "Peer comparison" in html
+    assert "Latest quarters" in html
+    assert "Peer comparison" in html
     assert "<svg" in html  # the charts are embedded
     assert (acme / "health.pdf").read_bytes().startswith(b"%PDF")

@@ -98,7 +98,8 @@ def test_propose_then_confirm_grows_the_dictionary_and_confirms_the_facts(
     assert result.exit_code == 0, result.output
     assert [(f[1], f[2], f[3]) for f in facts(root)] == [("trade_receivables", True, True)] * 2
     mapping = find(load_label_map(root, "kestrel"), "balance_sheet", section, LABEL)
-    assert mapping is not None and mapping.account == "trade_receivables"  # global: any company
+    assert mapping is not None  # global: any company
+    assert mapping.account == "trade_receivables"
     assert pending(root) == []
     assert audit_query(
         "SELECT company, raw_label, account, scope, decision, actor, on_request "
@@ -120,7 +121,8 @@ def test_confirm_by_a_person_with_another_account_is_an_edit(
     ]
     assert {f[1] for f in facts(root)} == {"trade_receivables"}
     own = find(load_label_map(root, "bluepeak"), "balance_sheet", section, LABEL)
-    assert own is not None and own.account == "trade_receivables"
+    assert own is not None
+    assert own.account == "trade_receivables"
     assert (
         find(load_label_map(root, "kestrel"), "balance_sheet", section, LABEL) is None
     )  # company scope

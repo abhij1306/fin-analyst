@@ -120,7 +120,8 @@ def test_company_mapping_for_any_section_wins_over_a_global_one_for_the_section(
 
     mapping = find(label_map, "balance_sheet", "Current liabilities", "Borrowings")
 
-    assert mapping is not None and mapping.account == "other_non_current_liabilities"
+    assert mapping is not None
+    assert mapping.account == "other_non_current_liabilities"
 
 
 def test_a_key_stored_before_a_normalization_change_still_matches(initialised: Path) -> None:
@@ -129,7 +130,8 @@ def test_a_key_stored_before_a_normalization_change_still_matches(initialised: P
 
     mapping = find(load_label_map(initialised, "acme"), "balance_sheet", "", "III Total assets")
 
-    assert mapping is not None and mapping.account == "total_current_assets"
+    assert mapping is not None
+    assert mapping.account == "total_current_assets"
 
 
 def test_rows_under_a_sub_heading_map_by_the_part_of_the_balance_sheet_they_are_in(

@@ -21,6 +21,8 @@ from fin.db.schema import is_old_format
 from fin.paths import audit_db_path, dictionary_db_path, probe_writable
 
 PYTHON_VERSION = (3, 12)
+DATA_FOLDER = "data folder"  # the name of that check
+RUN_INIT = "run `uv run fin init`"  # the fix when the data folder, config or a schema is missing
 
 # Homebrew cannot pin exact versions, so system tools have minimums.
 # Python dependencies are pinned exactly in uv.lock.
@@ -30,7 +32,7 @@ TOOL_MINIMUMS: dict[str, tuple[int, ...]] = {
     "quarto": (1, 7),
 }
 
-_VERSION_RE = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
+_DIGITS_AND_DOTS = re.compile(r"[\d.]+")  # where a version such as "1.2" or "1.2.3" can be
 
 
 @dataclass(frozen=True)
@@ -58,10 +60,16 @@ def tool_version(tool: str) -> str | None:
 
 
 def parse_version(text: str) -> tuple[int, ...] | None:
-    match = _VERSION_RE.search(text)
-    if match is None:
-        return None
-    return tuple(int(part) for part in match.groups() if part is not None)
+    """The first "major.minor" or "major.minor.patch" in `text`, as numbers."""
+    for run in _DIGITS_AND_DOTS.finditer(text):
+        parts = run.group().split(".")
+        for i in range(len(parts) - 1):
+            if parts[i] and parts[i + 1]:
+                version = parts[i : i + 2]
+                if i + 2 < len(parts) and parts[i + 2]:
+                    version.append(parts[i + 2])
+                return tuple(int(part) for part in version)
+    return None
 
 
 def _fmt(version: tuple[int, ...]) -> str:
@@ -130,30 +138,30 @@ def check_poppler() -> Check:
 def check_data_folder(root: Path) -> Check:
     if not root.is_dir():
         return Check(
-            "data folder",
+            DATA_FOLDER,
             False,
             f"{root} does not exist",
             DataFolderNotWritable.code,
-            "run `uv run fin init`",
+            RUN_INIT,
         )
     try:
         probe_writable(root)
     except DataFolderNotWritable as exc:
         return Check(
-            "data folder",
+            DATA_FOLDER,
             False,
             exc.message,
             exc.code,
             f"fix permissions on {root} or set FIN_DATA_DIR",
         )
-    return Check("data folder", True, str(root))
+    return Check(DATA_FOLDER, True, str(root))
 
 
 def check_config(root: Path) -> Check:
     try:
         config = load_config(root)
     except DependencyMissing as exc:
-        return Check("config", False, exc.message, exc.code, "run `uv run fin init`")
+        return Check("config", False, exc.message, exc.code, RUN_INIT)
     except FinError as exc:
         return Check(
             "config",
@@ -178,7 +186,7 @@ def check_schema(path: Path, kind: str) -> Check:
             False,
             f"{path} does not exist",
             DependencyMissing.code,
-            "run `uv run fin init`",
+            RUN_INIT,
         )
     try:
         with connect(path) as con:
@@ -197,11 +205,13 @@ def check_schema(path: Path, kind: str) -> Check:
 
 
 def run_checks(root: Path) -> list[Check]:
-    checks = [check_python()]
-    checks.extend(check_tool(tool, minimum) for tool, minimum in TOOL_MINIMUMS.items())
-    checks.append(check_poppler())
-    checks.append(check_data_folder(root))
-    checks.append(check_config(root))
-    checks.append(check_audit_schema(root))
-    checks.append(check_schema(dictionary_db_path(root), "dictionary"))
-    return checks
+    tools = [check_tool(tool, minimum) for tool, minimum in TOOL_MINIMUMS.items()]
+    return [
+        check_python(),
+        *tools,
+        check_poppler(),
+        check_data_folder(root),
+        check_config(root),
+        check_audit_schema(root),
+        check_schema(dictionary_db_path(root), "dictionary"),
+    ]

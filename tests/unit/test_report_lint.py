@@ -3,7 +3,7 @@
 import pytest
 
 from fin.audit.errors import NarrativeHasTypedNumbers
-from fin.report.lint import lint, typed_number_lines
+from fin.report.lint import lint, strip_comments, typed_number_lines
 
 PLANTED = """\
 ## Growth
@@ -64,3 +64,17 @@ def test_quarter_and_half_year_periods_pass() -> None:
 )
 def test_other_digits_are_typed_numbers(line: str) -> None:
     assert typed_number_lines(f"## Growth\n{line}\n") == [(2, line)]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("a <!-- 12 --> b", "a  b"),
+        ("a <!--\n12\n--> b <!-- 3 --> c", "a \n\n b  c"),
+        ("<!---->x", "x"),
+        ("<!-->x", "<!-->x"),  # "-->" must come after the opening "<!--"
+        ("a <!-- unclosed 5", "a <!-- unclosed 5"),
+    ],
+)
+def test_strip_comments_keeps_line_breaks(text: str, expected: str) -> None:
+    assert strip_comments(text) == expected

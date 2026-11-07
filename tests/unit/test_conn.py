@@ -42,7 +42,8 @@ def holder(db: Path) -> Iterator[subprocess.Popen[str]]:
         stdout=subprocess.PIPE,
         text=True,
     )
-    assert proc.stdout is not None and proc.stdout.readline() == "locked\n"
+    assert proc.stdout is not None
+    assert proc.stdout.readline() == "locked\n"
     yield proc
     if proc.poll() is None:
         assert proc.stdin is not None

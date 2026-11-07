@@ -14,7 +14,7 @@ RUPEES_PER_UNIT = {
     "crore": Decimal(10_000_000),
 }
 _UNIT = re.compile(
-    r"(?:\bin\s+|₹\s*|\brs\.?\s*|\binr\s+)(rupees|thousands?|lakhs?|lacs?|millions?|crores?)\b",
+    r"(?:\binr?\s+|₹\s*|\brs\.?\s*)(rupees|(?:thousand|lakh|lac|million|crore)s?)\b",
     re.I,
 )
 _PAISE = Decimal("0.01")
@@ -22,7 +22,7 @@ _PAISE = Decimal("0.01")
 # A figure printed as nil: a lone dash or the word "nil" (any case).
 NIL = ("-", "–", "—", "nil")
 # '1,234.56', '(56.67)', '-56.67', '.82'; paired brackets or a minus mean negative.
-_FIGURE = re.compile(r"^([({])?\s*(-)?\s*([\d,]*\d(?:\.\d+)?|\.\d+)\s*(\))?$")
+_FIGURE = re.compile(r"^([({])?\s*(?:(-)\s*)?([\d,]*\d(?:\.\d+)?|\.\d+)\s*(\))?$")
 
 
 def unit_in(text: str) -> str | None:

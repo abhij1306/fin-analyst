@@ -21,14 +21,23 @@ from fin.audit.errors import NarrativeHasTypedNumbers
 PERIOD = r"FY\d{2}(?:-(?:Q[1-4]|H[12]|9M))?"
 REFERENCE = re.compile(r"\{\{(metric|fact):([a-z][a-z0-9_]*):(" + PERIOD + r")\}\}")
 FISCAL_YEAR = re.compile(r"\b" + PERIOD + r"\b")
-COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 DIGIT = re.compile(r"\d")  # any Unicode digit
 HEADING = re.compile(r"^## (.+?)\s*$")
 
 
 def strip_comments(text: str) -> str:
     """Remove HTML comments, keeping their line breaks so line numbers stay the same."""
-    return COMMENT.sub(lambda match: "\n" * match.group().count("\n"), text)
+    parts = []
+    start = 0
+    while (opening := text.find("<!--", start)) != -1:
+        closing = text.find("-->", opening + 4)
+        if closing == -1:
+            break  # an unclosed comment is left as it is
+        parts.append(text[start:opening])
+        parts.append("\n" * text.count("\n", opening, closing + 3))
+        start = closing + 3
+    parts.append(text[start:])
+    return "".join(parts)
 
 
 def typed_number_lines(text: str) -> list[tuple[int, str]]:
