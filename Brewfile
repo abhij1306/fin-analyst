@@ -2,3 +2,4 @@
 brew "uv"
 brew "node"
 cask "quarto"
+brew "poppler"  # pdftoppm: Claude Code reads PDF pages as images for readings

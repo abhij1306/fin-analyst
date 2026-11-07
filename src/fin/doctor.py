@@ -40,6 +40,7 @@ class Check:
     detail: str
     code: str | None = None
     fix: str | None = None
+    warning: bool = False  # ok (not a failure), but something is worth fixing
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -108,6 +109,22 @@ def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
             f"run `brew upgrade {tool}`",
         )
     return Check(tool, True, _fmt(found))
+
+
+def check_poppler() -> Check:
+    """poppler's pdftoppm lets Claude Code read PDF pages as images for readings (`fin ingest
+    --reading`). fin itself does not need it, so a missing poppler is a warning."""
+    output = tool_version("pdftoppm")
+    if output is None:
+        return Check(
+            "poppler",
+            True,
+            "pdftoppm not found on PATH: Claude cannot read PDF pages as images for readings",
+            fix="run ./install.sh (installs it with `brew bundle --file=Brewfile`)",
+            warning=True,
+        )
+    found = parse_version(output)
+    return Check("poppler", True, _fmt(found) if found else "found")
 
 
 def check_data_folder(root: Path) -> Check:
@@ -190,6 +207,7 @@ def check_schema(path: Path, kind: str) -> Check:
 def run_checks(root: Path) -> list[Check]:
     checks = [check_python()]
     checks.extend(check_tool(tool, minimum) for tool, minimum in TOOL_MINIMUMS.items())
+    checks.append(check_poppler())
     checks.append(check_data_folder(root))
     checks.append(check_config(root))
     checks.append(check_audit_schema(root))

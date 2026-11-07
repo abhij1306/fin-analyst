@@ -292,7 +292,7 @@ def test_new_account_is_added_on_confirm_and_validates_under_its_parent(
     ) == [("FY24", True), ("FY25", True)]
 
 
-def test_new_account_under_the_wrong_parent_fails_e402(root: Path) -> None:
+def test_new_account_under_the_wrong_parent_is_an_e402_finding(root: Path) -> None:
     fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
 
     result = fin(
@@ -312,8 +312,9 @@ def test_new_account_under_the_wrong_parent_fails_e402(root: Path) -> None:
         ("old_debtors", "total_equity")
     ]
     again = fin("ingest", "bluepeak", str(root / "edited.xlsx"), "--force")
-    assert again.exit_code == 1
-    assert "E402" in again.output
+    assert again.exit_code == 0, again.output
+    assert "held as doc_id 2 version 2" in again.output
+    assert {f["code"] for f in json.loads(fin("findings", "list", "--json").stdout)} == {"E402"}
 
 
 def test_rejected_new_account_adds_nothing(root: Path) -> None:

@@ -43,20 +43,20 @@ def test_tool_at_or_above_minimum_passes(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_audit_schema_check_names_the_fix(data_root: Path, migrations_dir: Path) -> None:
     CliRunner().invoke(app, ["init"])
-    assert check_audit_schema(data_root) == Check("audit schema", True, "version 3")
+    assert check_audit_schema(data_root) == Check("audit schema", True, "version 4")
 
-    (migrations_dir / "audit" / "004_next.sql").write_text("SELECT 1;\n", encoding="utf-8")
+    (migrations_dir / "audit" / "005_next.sql").write_text("SELECT 1;\n", encoding="utf-8")
     assert check_audit_schema(data_root) == Check(
-        "audit schema", False, "version 3, expected 4", "E002", "run `uv run fin migrate`"
+        "audit schema", False, "version 4, expected 5", "E002", "run `uv run fin migrate`"
     )
 
-    (migrations_dir / "audit" / "004_next.sql").unlink()
+    (migrations_dir / "audit" / "005_next.sql").unlink()
     with connect(audit_db_path(data_root), write=True) as con:
-        con.execute("INSERT INTO schema_version VALUES (4, '004_future', now(), 'x')")
+        con.execute("INSERT INTO schema_version VALUES (5, '005_future', now(), 'x')")
     assert check_audit_schema(data_root) == Check(
         "audit schema",
         False,
-        "version 4 is newer than this fin (3)",
+        "version 5 is newer than this fin (4)",
         "E004",
         "update fin: `git pull`, then `uv sync --frozen`",
     )

@@ -3,9 +3,9 @@
 `collect` reads one company and scope. The health report is annual: it reads fiscal years only
 (period_months = 12); quarter and half-year periods are for `fin query` and the dashboard.
 - metrics (the `metrics` view) and every current fact (`current_facts`) with its cell or page;
-- data quality: unconfirmed mappings and NULL metrics with their missing inputs (company database),
-  and failed validations (audit `validation_results`; failed documents were rolled back, so they are
-  only there).
+- data quality: unconfirmed mappings, NULL metrics with their missing inputs, and findings
+  (`fin.findings`) open or accepted: accepted ones are in the figures as filed; a held document
+  (with open findings) is not.
 
 `data_hash` is the SHA-256 of all of it as sorted JSON, so the same data always gives the same hash.
 Ratios and days are computed in SQL; Python only formats them for display.
@@ -19,7 +19,7 @@ from typing import Any
 
 from fin.audit.errors import ReportRenderFailed
 from fin.db.conn import connect
-from fin.paths import audit_db_path, company_db_path
+from fin.paths import company_db_path
 
 # (key, title, rows). A row is ("metric", name) or ("fact", account).
 SECTIONS: list[tuple[str, str, list[tuple[str, str]]]] = [
@@ -163,12 +163,13 @@ GROUP BY m.metric, m.fiscal_year
 ORDER BY m.fiscal_year, m.metric
 """
 
-_FAILED_VALIDATIONS_SQL = """
-SELECT CAST(recorded_at AS DATE) AS checked_on, file_name, check_name, fiscal_year, expected,
-       actual, error_code
-FROM validation_results
-WHERE company = ? AND NOT passed AND (scope = ? OR scope IS NULL)
-ORDER BY recorded_at, file_name, check_name, fiscal_year
+_FINDINGS_SQL = """
+SELECT f.status, d.status AS document_status, f.file_name, coalesce(f.code, f.check_name) AS code,
+       f.period, f.label, f.fin_value, f.other_value
+FROM findings f
+JOIN documents d ON d.doc_id = f.doc_id
+WHERE f.status IN ('open', 'accepted') AND f.scope = ?
+ORDER BY f.status, f.file_name, f.period, f.finding_id
 """
 
 
@@ -186,8 +187,7 @@ def collect(root: Path, company: str, scope: str) -> dict[str, Any]:
         metric_accounts = [row[0] for row in con.execute(_METRIC_ACCOUNTS_SQL).fetchall()]
         unconfirmed = _rows(con, _UNCONFIRMED_SQL, [scope])
         missing = _rows(con, _MISSING_SQL, [scope])
-    with connect(audit_db_path(root)) as con:
-        failed = _rows(con, _FAILED_VALIDATIONS_SQL, [company, scope])
+        findings = _rows(con, _FINDINGS_SQL, [scope])
     if not metric_rows:
         raise ReportRenderFailed(
             f"{company} has no annual {scope} data to report on: the health report covers fiscal "
@@ -209,7 +209,7 @@ def collect(root: Path, company: str, scope: str) -> dict[str, Any]:
         "metric_accounts": metric_accounts,
         "unconfirmed": unconfirmed,
         "missing": missing,
-        "failed_validations": failed,
+        "findings": findings,
     }
 
 
@@ -284,21 +284,31 @@ def data_quality_tables(data: dict[str, Any], display_unit: str) -> dict[str, st
         [[row["file_name"], row["raw_label"], row["years"]] for row in data["unconfirmed"]],
         "No unconfirmed mappings.",
     )
-    failed = table(
-        ["Checked", "File", "Check", "Year", "Expected", "Actual", "Code"],
+    findings = table(
+        [
+            "Finding",
+            "Document",
+            "File",
+            "Check",
+            "Period",
+            "Line",
+            "This document",
+            "Compared with",
+        ],
         [
             [
-                str(row["checked_on"]),
+                row["status"],
+                row["document_status"],
                 row["file_name"] or "",
-                row["check_name"],
-                row["fiscal_year"] or "",
-                money(row["expected"], display_unit),
-                money(row["actual"], display_unit),
-                row["error_code"] or "",
+                row["code"],
+                row["period"] or "",
+                row["label"] or "",
+                money(row["fin_value"], display_unit),
+                money(row["other_value"], display_unit),
             ]
-            for row in data["failed_validations"]
+            for row in data["findings"]
         ],
-        "No failed validations.",
+        "No findings.",
     )
     missing = table(
         ["Year", "Metric", "Missing inputs"],
@@ -326,7 +336,7 @@ def data_quality_tables(data: dict[str, Any], display_unit: str) -> dict[str, st
     )
     return {
         "unconfirmed": unconfirmed,
-        "failed_validations": failed,
+        "findings": findings,
         "missing_data": missing,
         "facts": facts,
     }

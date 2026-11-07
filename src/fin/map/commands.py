@@ -15,9 +15,11 @@ import typer
 
 from fin.audit.errors import FinError, InvalidMapping
 from fin.audit.logger import Run, execute
+from fin.findings import recheck_held
 from fin.ingest import COMPANY_NAME
 from fin.map import review
 from fin.map.dictionary import STATEMENTS, added_rows
+from fin.metrics.export import refresh_analytics
 
 map_app = typer.Typer(
     no_args_is_help=True, help="Mapping proposals, company mappings and the account list."
@@ -85,9 +87,9 @@ def map_set(
         str, typer.Option(help="Only under this heading (as written); default: any heading.")
     ] = "",
 ) -> None:
-    """Map a label to an account for this company only. Use it to fix the mapping behind a file a
-    validation gate rejected (see review/<company>/<file>.error.json), then ingest the file again.
-    Loaded facts do not change; ingest again (--force for a loaded file) to apply it."""
+    """Map a label to an account for this company only. Use it to fix the mapping behind a held
+    document's findings (`fin findings list`). Loaded and held facts do not change: ingest the
+    file again with --force to apply it (the new version is checked; the old one is superseded)."""
 
     def body(run: Run) -> None:
         if statement not in STATEMENTS:
@@ -262,12 +264,21 @@ def review_confirm(
     """Confirm items: the label joins the dictionary and the company's matching facts are
     confirmed. The item must have a proposed account, or pass --account. A proposed new account
     is added to the dictionary first (--name and --parent change it; --account uses an existing
-    account instead)."""
+    account instead). Held documents are then checked again (a fix that clears their findings
+    loads them)."""
 
     def body(run: Run) -> None:
         for item_id in ids:
             facts = review.confirm(run, company, item_id, account, scope, name, parent)
             typer.echo(f"#{item_id} confirmed ({scope} scope); {facts} facts updated")
+        rechecked = recheck_held(run, company)
+        for doc in rechecked:
+            typer.echo(
+                f"held doc_id {doc['doc_id']} {doc['file']} checked again: {doc['open']} open "
+                f"findings, {doc['status']}"
+            )
+        if any(doc["status"] == "loaded" for doc in rechecked):
+            refresh_analytics(run)
 
     execute(
         "review confirm",

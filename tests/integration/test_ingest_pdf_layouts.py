@@ -96,11 +96,14 @@ def test_scopes_stay_apart_and_a_reconciled_overdraft_passes_e403(
     )
 
 
-def test_closing_cash_that_does_not_reconcile_still_fails_e403(root: Path, tmp_path: Path) -> None:
+def test_closing_cash_that_does_not_reconcile_is_an_e403_finding(
+    root: Path, tmp_path: Path
+) -> None:
     path = report(tmp_path / "acme_ar25.pdf")
 
     result = runner.invoke(app, ["ingest", "acme", str(path)])
 
-    assert result.exit_code == 1
-    assert "E403: FY25 standalone: cash flow closing cash vs balance-sheet cash" in result.stdout
-    assert query(root, "SELECT count(*) FROM facts") == [(0,)]
+    assert result.exit_code == 0, result.output
+    assert "held as doc_id 1" in result.stdout
+    assert query(root, "SELECT code, period, status FROM findings") == [("E403", "FY25", "open")]
+    assert query(root, "SELECT count(*) FROM current_facts") == [(0,)]

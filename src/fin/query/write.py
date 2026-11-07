@@ -2,7 +2,8 @@
 
 The company database is copied to `backups/<run_id>/companies/<company>.duckdb` first. The
 statements then run in one transaction: all of them apply, or none. The audit `queries` table gets
-the statement, the rows affected and the backup path (mode 'write').
+the statement, the rows affected and the backup path (mode 'write'). Then every held document of the
+company is checked again (`fin.findings.recheck_held`): a fix that clears its findings loads it.
 """
 
 import shutil
@@ -14,6 +15,7 @@ import duckdb
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
+from fin.findings import recheck_held
 from fin.metrics.export import refresh_analytics
 from fin.paths import backups_dir, company_db_path
 
@@ -78,6 +80,7 @@ def write_sql(run: Run, company: str, sql: str) -> dict[str, Any]:
             "backup_path": backup_path,
         },
     )
+    held = recheck_held(run, company)
     refresh_metrics(run, company)
     return {
         "query_id": run.run_id,
@@ -85,4 +88,5 @@ def write_sql(run: Run, company: str, sql: str) -> dict[str, Any]:
         "sql": sql,
         "rows_affected": rows_affected,
         "backup_path": backup_path,
+        "held_documents_rechecked": held,
     }

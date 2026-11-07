@@ -1,8 +1,8 @@
 """`fin ingest` of quarterly and half-year results next to annual reports: periods stay apart,
-like periods are compared (E404), half-year balance sheets are checked (E401), quarterly metrics,
+like periods are compared (E404 finding), half-year balance sheets are checked (E401 finding),
+quarterly metrics,
 and an account printed on several lines counts once."""
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -116,9 +116,8 @@ def query(root: Path, sql: str, company: str = "acme") -> list[Any]:
         return con.execute(sql).fetchall()
 
 
-def review_error(root: Path, name: str, company: str = "acme") -> dict[str, Any]:
-    text = (root / "review" / company / f"{name}.error.json").read_text(encoding="utf-8")
-    return json.loads(text)
+def findings(root: Path, company: str = "acme") -> list[Any]:
+    return query(root, "SELECT code, period, message FROM findings ORDER BY finding_id", company)
 
 
 def test_quarters_half_years_and_years_load_as_separate_periods(root: Path, tmp_path: Path) -> None:
@@ -203,30 +202,37 @@ def test_quarterly_metrics_year_on_year_and_quarter_on_quarter(root: Path, tmp_p
     ) == [("revenue_growth",)]
 
 
-def test_a_different_q1_column_in_the_q2_filing_fails_e404(root: Path, tmp_path: Path) -> None:
+def test_a_different_q1_column_in_the_q2_filing_is_an_e404_finding(
+    root: Path, tmp_path: Path
+) -> None:
     assert ingest(q1_results(tmp_path / "q1.pdf")).exit_code == 0
 
     result = ingest(q2_results(tmp_path / "q2.pdf", q1_column_revenue=1110))
 
-    assert result.exit_code == 1
-    error = review_error(root, "q2.pdf")
-    assert error["code"] == "E404"
+    assert result.exit_code == 0, result.output
+    assert "q2.pdf: held as doc_id 2" in result.stdout
     # Only the Q1 period is compared with the Q1 filing (revenue, and the PBT and tax it moves).
-    assert {check["fiscal_year"] for check in error["checks"]} == {"FY26-Q1"}
-    assert error["checks"][0]["message"].startswith(
-        "FY26-Q1 standalone: pbt vs q1.pdf: expected 105000000.00, actual 106000000.00"
+    rows = findings(root)
+    assert {(code, period) for code, period, _ in rows} == {("E404", "FY26-Q1")}
+    assert any(
+        message.startswith(
+            "FY26-Q1 standalone: pbt vs q1.pdf: expected 105000000.00, actual 106000000.00"
+        )
+        for _, _, message in rows
     )
 
 
-def test_an_unbalanced_half_year_balance_sheet_fails_e401(root: Path, tmp_path: Path) -> None:
+def test_an_unbalanced_half_year_balance_sheet_is_an_e401_finding(
+    root: Path, tmp_path: Path
+) -> None:
     result = ingest(q2_results(tmp_path / "q2.pdf", h1_total_assets="505.00"))
 
-    assert result.exit_code == 1
-    error = review_error(root, "q2.pdf")
-    assert error["code"] == "E401"
-    assert error["message"] == (
+    assert result.exit_code == 0, result.output
+    assert findings(root)[0] == (
+        "E401",
+        "FY26-H1",
         "FY26-H1 standalone: total assets vs total equity and liabilities: expected 50000000.00, "
-        "actual 50500000.00, difference 500000.00, tolerance 100000.00"
+        "actual 50500000.00, difference 500000.00, tolerance 100000.00",
     )
 
 

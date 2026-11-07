@@ -38,6 +38,19 @@ not a failure: it is shown to the user and recorded in `audit.findings` (check `
 general so other checks can record findings later), verify exits 0 and never changes a figure. Unverified
 Claude-read facts still feed metrics; `/ask` flags them and the data quality page counts them.
 
+Findings instead of failures (after 1.0.0, not a phase; owner decision 2026-11-07): fin is an analysis tool, not an
+opinionated one. Conflicting data in what a company filed (balance sheet not tying, subtotals not adding up, cash
+not reconciling, a figure differing between documents such as a restatement or a quarter vs its year, fin vs a
+Claude reading) is a finding to show, never a failure that rejects data. A failed check (E401-E405) is stored in
+the company `findings` table (and appended to `audit.findings`); the document is committed but held
+(`documents.status = 'held'`, out of `current_facts` and metrics) until the user decides through Claude: save as
+is (`fin findings accept`: loaded as filed, findings kept as accepted) or have Claude fix it with the existing tools
+(`fin map set` + `fin ingest --force`, `fin review confirm`, `fin sql --write`; held documents are checked again
+after each, and a finding no longer found is resolved). Only nothing readable (E1xx/E2xx) fails a document. Claude
+works without approval prompts: the guard hook is removed; `fin`'s backup and audit log are the safety net.
+`fin status` shows per company the periods loaded and gaps, held documents, findings, pending mappings,
+unverified Claude-read facts and inbox files not yet ingested.
+
 ---
 
 ## 1. What it does
@@ -92,7 +105,8 @@ Where Claude fits:
 
 - Claude reads CLI output (JSON) and writes back only through CLI commands. Data changes go through `fin`, so they are backed up and audit-logged.
 - Claude proposes mappings; the human reviews them (`fin review`). Claude may confirm them when the user asks.
-- Guardrails prevent accidents only; they never stop Claude doing what the user asked. Risky actions trigger a Claude Code confirmation prompt (PreToolUse guard hook in `.claude/settings.json`, decision `ask`).
+- Guardrails prevent accidents only; they never stop Claude doing what the user asked. No approval prompts on Claude: data changes go through `fin`, which backs up and audit-logs every one.
+- Conflicting data in what a company filed is a finding to show, never a failure: the document is held until the user accepts it as filed or has Claude fix it.
 - Claude may run any `fin` command, including `fin delete` and `fin review confirm`, when the user asks.
 
 ## 5. Repo layout
@@ -106,7 +120,7 @@ fin-analyst/
   .claude/
     settings.json        # hooks
     commands/            # ingest, ingest-batch, review, ask, report, dashboard, audit
-    hooks/               # log_action.py, guard.py
+    hooks/               # log_action.py
   src/fin/
     cli.py  config.py  paths.py  ingest.py
     audit/     logger.py  errors.py
@@ -180,7 +194,7 @@ Every `fin` command:
 
 - Gets a `run_id`; writes a `runs` row at start and end.
 - Writes structured events to `audit.events` and to `logs/<date>/<run_id>.jsonl`.
-- Ends with a summary: loaded, skipped, failed, pending review, run_id.
+- Ends with a summary: loaded, skipped, failed, pending review, held, run_id.
 
 **Tables in `shared/audit.duckdb`** (append-only; rows never updated or deleted)
 
@@ -190,6 +204,7 @@ Every `fin` command:
 | `events` | run_id, stage, file, level, error code, message, context JSON |
 | `mapping_decisions` | raw label → account, actor (dictionary/claude/human), confidence, reason, timestamp |
 | `validation_results` | doc_id, check, expected, actual, tolerance, pass/fail |
+| `findings` | every finding and every status change (open, accepted, resolved, superseded): check, code, both values and sources |
 | `queries` | query_id, question, SQL, row count, result hash, evidence path |
 | `reports` | company, output paths, template commit, data hash, narrative path |
 | `deletions` | company, files removed, row counts, backup path, timestamp |
@@ -198,10 +213,8 @@ Every `fin` command:
 **Claude Code actions**
 
 - `PostToolUse` hook (`log_action.py`): every tool call → `logs/claude_actions.jsonl` (timestamp, session id, tool, command).
-- `PreToolUse` hook (`guard.py`) asks the user to confirm, with code E701, before:
-  - opening any `.duckdb` file in the data folder except through `fin`
-  - `rm`, `mv`, or redirects writing into the data folder
-  - `fin review confirm`, `fin delete`
+- No approval prompts (the `PreToolUse` guard hook was removed on 2026-11-07): data changes go through `fin`, which
+  backs up and records them.
 
 **Traceability**
 
@@ -231,11 +244,12 @@ Every `fin` command:
 | E302 | Low-confidence mapping | Same |
 | E303 | Conflicting mapping | Same; human decides |
 | E304 | Invalid mapping proposal or review request (unknown account, wrong statement, unknown id or label, invalid new account: name, parent, sign or unit) | Stop; nothing applied |
-| E401 | Balance sheet doesn't balance | Whole document rolled back, to review with expected vs actual |
+| E401 | Balance sheet doesn't balance | Finding, not an error: document held (out of current figures) until accepted or fixed; both values and sources shown |
 | E402 | Subtotal mismatch | Same |
 | E403 | Cash flow doesn't reconcile to cash balance | Same |
 | E404 | Same figure differs across documents | Same |
 | E405 | Unit sanity check failed | Same |
+| E406 | `fin findings accept` names a finding that is not open | Stop; nothing accepted |
 | E501 | Database locked after retries | Retry with backoff (5 tries), then stop |
 | E502 | Write attempted on read-only path | Reject, log |
 | E503 | Migration failed | Restore from backup, stop |
@@ -244,13 +258,15 @@ Every `fin` command:
 | E602 | Narrative contains hand-typed numbers | Block render, list offending lines |
 | E603 | Dashboard build failed | Keep last good build |
 | E604 | Evidence source file missing | Flag in evidence page |
-| E701 | Action needs confirmation | Guard asks the user; logged |
+| E701 | Action needs confirmation | `fin delete` without `--yes` and a wrong typed name; exit 3 |
 
 **Rules**
 
 - No silent failures, no bare `except`, no default values filling gaps.
 - One bad file never stops a batch.
-- Each document loads in one transaction: stage → validate → commit, or roll back entirely.
+- Each document loads in one transaction: stage → validate → commit (held when a check finds something), or roll
+  back entirely on an error.
+- What a company filed that does not add up is a finding, never a failure. Only nothing readable (E1xx/E2xx) fails.
 - Tolerances live in `config.toml`, never hard-coded.
 - Exit codes: 0 success, 1 completed with failures, 2 command error, 3 refused (needs confirmation).
 
@@ -294,7 +310,9 @@ claude
 | `fin verify <co> <file> --reading <csv>` | `/verify`, `/ingest` | Either |
 | `fin ingest-batch <folder>` | `/ingest-batch` | Either |
 | `fin map propose <file.json>` | used inside `/ingest`, `/review` | Claude |
-| `fin review` (interactive or flags) | `/review` | Either (asks for confirmation) |
+| `fin review` (interactive or flags) | `/review` | Either |
+| `fin findings list [co]`, `fin findings accept <co> <ids>` | `/ingest`, `/verify` | Either (accept when the user says save as is) |
+| `fin status [co]` | `/status` | Either |
 | `fin query --question --sql` | `/ask` | Either |
 | `fin sql --write <co> --sql "…"` | `/ask` | Either (on user request; backup + audit) |
 | `fin evidence <query_id>` | used inside `/ask` | Either |
@@ -302,7 +320,7 @@ claude
 | `fin report <co>` | `/report` | Either |
 | `fin dashboard` | `/dashboard` | Either |
 | `fin audit <co> [metric fy]` | `/audit` | Either |
-| `fin delete <co>` | — | Either (asks for confirmation) |
+| `fin delete <co>` | — | Either (typed confirmation, or `--yes` when the user asked) |
 | `fin update`, `fin migrate` | — | Human |
 
 ## 12. Testing and CI

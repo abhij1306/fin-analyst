@@ -28,7 +28,10 @@ SELECT
     count(f.fact_id),
     count(f.fact_id) FILTER (WHERE NOT f.confirmed),
     count(f.fact_id) FILTER (WHERE f.read_by = 'claude' AND NOT f.verified),
-    (SELECT max(ingested_at) FROM documents WHERE status = 'loaded')
+    (SELECT max(ingested_at) FROM documents WHERE status = 'loaded'),
+    (SELECT count(*) FROM documents WHERE status = 'held'),
+    (SELECT count(*) FROM findings WHERE status = 'open'),
+    (SELECT count(*) FROM findings WHERE status = 'accepted')
 FROM facts f
 JOIN documents d ON d.doc_id = f.doc_id AND d.status = 'loaded'
 """
@@ -63,10 +66,10 @@ def refresh_analytics(run: Run) -> Refresh:
             summary = con.execute(_COMPANY_SUMMARY).fetchone()
         assert summary is not None
         metrics.extend([company, *row, now, run.run_id] for row in rows)
-        documents, facts, unconfirmed, unverified_claude, last_ingested = summary
+        documents, facts, unconfirmed, unverified_claude, last_ingested, *findings = summary
         companies.append(
             [company, documents, facts, unconfirmed, failed.get(company, 0), last_ingested]
-            + [now, run.run_id, unverified_claude]
+            + [now, run.run_id, unverified_claude, *findings]
         )
 
     with connect(analytics, write=True) as con:
@@ -80,7 +83,7 @@ def refresh_analytics(run: Run) -> Refresh:
                 )
             if companies:
                 con.executemany(
-                    "INSERT INTO companies VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", companies
+                    "INSERT INTO companies VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", companies
                 )
             con.execute("COMMIT")
         except BaseException:
