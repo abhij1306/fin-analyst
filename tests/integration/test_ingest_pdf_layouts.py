@@ -130,6 +130,16 @@ def test_a_statement_page_fin_cannot_read_is_listed_on_screen(root: Path, tmp_pa
         "; 1 statement page(s) not read:\n  not read: balance_sheet page 2: E202 page 2: no "
         "period column headers (such as 'As at 31 March 2025')\n"
     ) in result.stdout
+    # Kept with the document, for the report's data coverage and the dashboard.
+    [(unread,)] = query(root, "SELECT unread_pages FROM documents")
+    assert json.loads(unread) == [
+        {
+            "page": 2,
+            "statement": "balance_sheet",
+            "code": "E202",
+            "reason": "page 2: no period column headers (such as 'As at 31 March 2025')",
+        }
+    ]
 
 
 def test_a_pdf_with_no_readable_statement_lists_its_pages_in_error_json(

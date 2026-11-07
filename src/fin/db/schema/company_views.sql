@@ -118,6 +118,24 @@ QUALIFY row_number() OVER (
     ORDER BY d.period_end = x.period_end DESC, d.period_end DESC, d.doc_id DESC
 ) = 1;
 
+-- How much of what the loaded documents print is mapped, per scope and statement (report "Data coverage", the
+-- dashboard quality page). figures: values read (one per line and period); mapped: of those, confirmed to an
+-- account (the rest are unmapped or waiting for review, and left out of every metric); claude_unverified: read
+-- by Claude (`fin ingest --reading`) and not yet verified by an independent reading (`fin verify`).
+CREATE VIEW statement_coverage AS
+SELECT
+    f.scope,
+    r.statement,
+    count(*) AS figures,
+    count(*) FILTER (WHERE f.confirmed) AS mapped,
+    div6(count(*) FILTER (WHERE f.confirmed), count(*)) AS mapped_share,
+    count(*) FILTER (WHERE f.read_by = 'claude' AND NOT f.verified) AS claude_unverified
+FROM facts f
+JOIN raw_values r ON r.raw_id = f.raw_id
+JOIN documents d ON d.doc_id = f.doc_id
+WHERE d.status = 'loaded'
+GROUP BY f.scope, r.statement;
+
 -- One row per metric: what it is, for people and for Claude. category groups metrics in `/ask`, the Excel export
 -- and the dashboard. periods: 'annual' (fiscal years only), 'all' (years, quarters, half years and nine months),
 -- 'interim' (every period but years: for a year the figure is a fact), 'quarter' (quarters only). when_missing:

@@ -321,8 +321,9 @@ def _load(
             latest = max(rows, key=lambda r: r.period_end)
             doc = con.execute(
                 "INSERT INTO documents (file_name, sha256, version, fiscal_year, period_end, "
-                "scope, status, archive_path, run_id, ingested_at, reading_sha256, reading_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?, ?, ?) RETURNING doc_id",
+                "scope, status, archive_path, run_id, ingested_at, reading_sha256, reading_path, "
+                "unread_pages) VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?, ?, ?, ?) "
+                "RETURNING doc_id",
                 [
                     path.name,
                     sha256,
@@ -334,6 +335,7 @@ def _load(
                     run.run_id,
                     _now(),
                     *(reading or (None, None)),
+                    json.dumps(document.unread) if document.unread else None,
                 ],
             ).fetchone()
             assert doc is not None
