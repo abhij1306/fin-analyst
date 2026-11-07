@@ -76,7 +76,7 @@ Profit before tax                                                    2,500,000.0
   Deferred tax expense                                                 100,000.00
 Total tax expense                                                      600,000.00
 Profit for the year                                                  1,900,000.00
-  One line of other comprehensive income                               -75,000.00
+  Other comprehensive income items                                     -75,000.00
 Other comprehensive income for the year                                -75,000.00
 Total comprehensive income for the year                              1,825,000.00
 Basic earnings per share                                                    12.34

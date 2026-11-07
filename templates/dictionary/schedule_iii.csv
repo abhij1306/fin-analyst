@@ -1,5 +1,5 @@
 account,statement,parent,sign,unit,description
-fixed_assets,balance_sheet,total_non_current_assets,1,rupees,"Fixed assets: property, plant and equipment, intangibles and work in progress (old and bank formats)"
+fixed_assets,balance_sheet,total_non_current_assets,1,rupees,"Fixed assets; property, plant and equipment, intangibles and work in progress (old and bank formats)"
 ppe_net,balance_sheet,fixed_assets,1,rupees,"Property, plant and equipment, net block"
 capital_work_in_progress,balance_sheet,fixed_assets,1,rupees,Capital work-in-progress
 goodwill,balance_sheet,total_non_current_assets,1,rupees,Goodwill
@@ -27,16 +27,16 @@ loans_current,balance_sheet,total_current_assets,1,rupees,Current loans (short-t
 other_financial_assets_current,balance_sheet,total_current_assets,1,rupees,Other current financial assets
 tax_assets_current,balance_sheet,total_current_assets,1,rupees,Current tax assets (net)
 other_current_assets,balance_sheet,total_current_assets,1,rupees,"Other current assets (loans, advances)"
-assets_held_for_sale,balance_sheet,total_current_assets,1,rupees,Assets (or disposal groups) classified as held for sale
+assets_held_for_sale,balance_sheet,total_current_assets,1,rupees,Assets held for sale; assets (or disposal groups) classified as held for sale
 total_current_assets,balance_sheet,total_assets,1,rupees,Total current assets
 total_assets,balance_sheet,,,rupees,Total assets (total application of funds)
-investments,balance_sheet,total_assets,1,rupees,"Investments not split into current and non-current (NBFCs, banks)"
-loans,balance_sheet,total_assets,1,rupees,"Loans or advances not split into current and non-current (NBFCs, banks)"
+investments,balance_sheet,total_assets,1,rupees,"Investments; not split into current and non-current (NBFCs, banks)"
+loans,balance_sheet,total_assets,1,rupees,"Loans; loans or advances not split into current and non-current (NBFCs, banks)"
 balances_with_rbi,balance_sheet,total_assets,1,rupees,Cash and balances with the Reserve Bank of India (bank format)
 balances_with_banks,balance_sheet,total_assets,1,rupees,Balances with banks and money at call and short notice (bank format)
-derivative_financial_assets,balance_sheet,total_assets,1,rupees,Derivative financial instruments shown as assets (NBFC format)
-other_receivables,balance_sheet,total_assets,1,rupees,Receivables other than trade receivables (NBFC format)
-other_financial_assets,balance_sheet,total_assets,1,rupees,"Other financial assets not split into current and non-current (NBFCs)"
+derivative_financial_assets,balance_sheet,total_assets,1,rupees,Derivative financial assets; derivative financial instruments shown as assets (NBFC format)
+other_receivables,balance_sheet,total_assets,1,rupees,Other receivables; receivables other than trade receivables (NBFC format)
+other_financial_assets,balance_sheet,total_assets,1,rupees,Other financial assets; not split into current and non-current (NBFCs)
 other_non_financial_assets,balance_sheet,total_assets,1,rupees,Other non-financial assets (NBFC format)
 other_assets,balance_sheet,total_assets,1,rupees,Other assets (bank format)
 total_financial_assets,balance_sheet,,,rupees,"Total financial assets (NBFC format); a memo line, its lines add into total assets directly"
@@ -57,7 +57,7 @@ trade_payables_non_current,balance_sheet,total_non_current_liabilities,1,rupees,
 total_non_current_liabilities,balance_sheet,total_liabilities,1,rupees,Total non-current liabilities
 st_borrowings,balance_sheet,total_current_liabilities,1,rupees,Current borrowings (working capital loans)
 lease_liabilities_current,balance_sheet,total_current_liabilities,1,rupees,Current lease liabilities
-trade_payables,balance_sheet,total_current_liabilities,1,rupees,"Trade payables (sundry creditors); the MSME and other-creditor lines both map here"
+trade_payables,balance_sheet,total_current_liabilities,1,rupees,Trade payables (sundry creditors); the MSME and other-creditor lines both map here
 other_financial_liabilities_current,balance_sheet,total_current_liabilities,1,rupees,Other current financial liabilities
 other_current_liabilities,balance_sheet,total_current_liabilities,1,rupees,Other current liabilities
 st_provisions,balance_sheet,total_current_liabilities,1,rupees,Short-term provisions
@@ -65,28 +65,28 @@ current_tax_liabilities,balance_sheet,total_current_liabilities,1,rupees,Current
 liabilities_held_for_sale,balance_sheet,total_current_liabilities,1,rupees,Liabilities directly associated with assets classified as held for sale
 total_current_liabilities,balance_sheet,total_liabilities,1,rupees,Total current liabilities
 total_liabilities,balance_sheet,total_equity_and_liabilities,1,rupees,Total liabilities (non-current plus current)
-borrowings,balance_sheet,total_liabilities,1,rupees,"Borrowings not split into current and non-current (NBFCs, banks)"
-debt_securities,balance_sheet,total_liabilities,1,rupees,"Debt securities such as bonds, debentures and commercial paper (NBFC format)"
-deposits,balance_sheet,total_liabilities,1,rupees,Deposits taken from customers (banks and deposit-taking NBFCs)
+borrowings,balance_sheet,total_liabilities,1,rupees,"Borrowings; not split into current and non-current (NBFCs, banks)"
+debt_securities,balance_sheet,total_liabilities,1,rupees,"Debt securities; bonds, debentures and commercial paper (NBFC format)"
+deposits,balance_sheet,total_liabilities,1,rupees,Deposits; taken from customers (banks and deposit-taking NBFCs)
 subordinated_liabilities,balance_sheet,total_liabilities,1,rupees,Subordinated liabilities (NBFC format)
-derivative_financial_liabilities,balance_sheet,total_liabilities,1,rupees,Derivative financial instruments shown as liabilities (NBFC format)
-other_payables,balance_sheet,total_liabilities,1,rupees,Payables other than trade payables (NBFC format)
-lease_liabilities,balance_sheet,total_liabilities,1,rupees,"Lease liabilities not split into current and non-current (NBFCs)"
-other_financial_liabilities,balance_sheet,total_liabilities,1,rupees,"Other financial liabilities not split into current and non-current (NBFCs)"
-provisions,balance_sheet,total_liabilities,1,rupees,"Provisions not split into current and non-current (NBFCs)"
+derivative_financial_liabilities,balance_sheet,total_liabilities,1,rupees,Derivative financial liabilities; derivative financial instruments shown as liabilities (NBFC format)
+other_payables,balance_sheet,total_liabilities,1,rupees,Other payables; payables other than trade payables (NBFC format)
+lease_liabilities,balance_sheet,total_liabilities,1,rupees,Lease liabilities; not split into current and non-current (NBFCs)
+other_financial_liabilities,balance_sheet,total_liabilities,1,rupees,Other financial liabilities; not split into current and non-current (NBFCs)
+provisions,balance_sheet,total_liabilities,1,rupees,Provisions; not split into current and non-current (NBFCs)
 other_non_financial_liabilities,balance_sheet,total_liabilities,1,rupees,Other non-financial liabilities (NBFC format)
 other_liabilities_and_provisions,balance_sheet,total_liabilities,1,rupees,Other liabilities and provisions (bank format)
 total_financial_liabilities,balance_sheet,,,rupees,"Total financial liabilities (NBFC format); a memo line, its lines add into total liabilities directly"
 total_non_financial_liabilities,balance_sheet,,,rupees,"Total non-financial liabilities (NBFC format); a memo line, its lines add into total liabilities directly"
 total_equity_and_liabilities,balance_sheet,,,rupees,Total equity and liabilities (total sources of funds)
-contingent_liabilities,balance_sheet,,,rupees,Contingent liabilities shown below a bank balance sheet (memo)
-bills_for_collection,balance_sheet,,,rupees,Bills for collection shown below a bank balance sheet (memo)
+contingent_liabilities,balance_sheet,,,rupees,Contingent liabilities; shown below a bank balance sheet (memo)
+bills_for_collection,balance_sheet,,,rupees,Bills for collection; shown below a bank balance sheet (memo)
 revenue,profit_and_loss,total_income,1,rupees,Revenue from operations (sales)
-interest_income,profit_and_loss,revenue,1,rupees,Interest income in revenue from operations (NBFC format)
-dividend_income,profit_and_loss,revenue,1,rupees,Dividend income in revenue from operations (NBFC format)
-rental_income,profit_and_loss,revenue,1,rupees,Rental income in revenue from operations (NBFC format)
-fee_and_commission_income,profit_and_loss,revenue,1,rupees,Fees and commission income in revenue from operations (NBFC format)
-net_gain_fair_value_changes,profit_and_loss,revenue,1,rupees,Net gain on fair value changes in revenue from operations (NBFC format)
+interest_income,profit_and_loss,revenue,1,rupees,Interest income; part of revenue from operations (NBFC format)
+dividend_income,profit_and_loss,revenue,1,rupees,Dividend income; part of revenue from operations (NBFC format)
+rental_income,profit_and_loss,revenue,1,rupees,Rental income; part of revenue from operations (NBFC format)
+fee_and_commission_income,profit_and_loss,revenue,1,rupees,Fees and commission income; part of revenue from operations (NBFC format)
+net_gain_fair_value_changes,profit_and_loss,revenue,1,rupees,Net gain on fair value changes; part of revenue from operations (NBFC format)
 net_gain_derecognition,profit_and_loss,revenue,1,rupees,Net gain on derecognition of financial instruments at amortised cost (NBFC format)
 other_income,profit_and_loss,total_income,1,rupees,Other income
 total_income,profit_and_loss,profit_before_exceptional_items,1,rupees,Total income
@@ -110,7 +110,7 @@ profit_before_exceptional_items,profit_and_loss,profit_before_extraordinary_item
 exceptional_items,profit_and_loss,profit_before_extraordinary_items,-1,rupees,"Exceptional items, as printed: a charge is positive in Schedule III, but some companies print a gain as positive (the subtotal check accepts either and says which)"
 profit_before_extraordinary_items,profit_and_loss,pbt,1,rupees,Profit before extraordinary items and tax (old format)
 extraordinary_items,profit_and_loss,pbt,-1,rupees,"Extraordinary items (old format), as printed; the subtotal check accepts either sign, like exceptional items"
-share_of_associates_jv,profit_and_loss,pbt,1,rupees,"Share of profit/(loss) of associates and joint ventures (a loss is negative)"
+share_of_associates_jv,profit_and_loss,pbt,1,rupees,Share of profit/(loss) of associates and joint ventures (a loss is negative)
 pbt,profit_and_loss,profit_continuing_operations,1,rupees,Profit before tax
 tax_expense,profit_and_loss,total_tax_expense,1,rupees,"Current tax, including tax of earlier years and MAT"
 deferred_tax,profit_and_loss,total_tax_expense,1,rupees,Deferred tax expense
@@ -120,34 +120,34 @@ discontinued_operations_pbt,profit_and_loss,profit_discontinued_operations,1,rup
 discontinued_operations_tax,profit_and_loss,profit_discontinued_operations,-1,rupees,Tax expense of discontinued operations
 profit_discontinued_operations,profit_and_loss,pat,1,rupees,Profit/(loss) from discontinued operations after tax
 pat,profit_and_loss,total_comprehensive_income,1,rupees,Profit for the year (profit after tax)
-oci_items,profit_and_loss,oci,1,rupees,"One line of other comprehensive income, as printed, including the income tax on it"
-oci_group_total,profit_and_loss,,,rupees,"Subtotal of one OCI group (items that will, or will not, be reclassified); its lines add into oci"
+oci_items,profit_and_loss,oci,1,rupees,"Other comprehensive income items; one line of other comprehensive income as printed, including the income tax on it"
+oci_group_total,profit_and_loss,,,rupees,"OCI group subtotal; items that will, or will not, be reclassified (its lines add into oci)"
 oci,profit_and_loss,total_comprehensive_income,1,rupees,"Other comprehensive income for the year, net of tax"
 total_comprehensive_income,profit_and_loss,,,rupees,Total comprehensive income for the year
 eps_basic,profit_and_loss,,,rupees_per_share,"Basic earnings per share, in rupees per share as printed (not scaled by the statement unit)"
 eps_diluted,profit_and_loss,,,rupees_per_share,"Diluted earnings per share, in rupees per share as printed (not scaled by the statement unit)"
-paid_up_share_capital,profit_and_loss,,,rupees,Paid-up equity share capital printed below a results statement (memo)
-reserves_memo,profit_and_loss,,,rupees,Other equity (reserves) printed below a results statement (memo)
-face_value_per_share,profit_and_loss,,,rupees_per_share,"Face value of one equity share, in rupees as printed (memo)"
+paid_up_share_capital,profit_and_loss,,,rupees,Paid-up equity share capital; printed below a results statement (memo)
+reserves_memo,profit_and_loss,,,rupees,Other equity; reserves printed below a results statement (memo)
+face_value_per_share,profit_and_loss,,,rupees_per_share,"Face value per share; of one equity share, in rupees as printed (memo)"
 profit_brought_forward,profit_and_loss,,,rupees,Profit brought forward from the previous year (bank format memo)
 profit_for_appropriation,profit_and_loss,,,rupees,Profit available for appropriation (bank format memo)
-appropriations,profit_and_loss,,,rupees,"One appropriation of profit, such as a transfer to reserves or the balance carried over (bank format memo)"
-total_appropriations,profit_and_loss,,,rupees,Total of the appropriations of profit (bank format memo)
-cf_pbt,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow: profit before tax
-cf_pat,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow: profit for the year (when the statement starts from profit after tax)
-cf_add_tax_expense,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: income tax expense added back
-cf_add_depreciation,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: depreciation and amortisation
-cf_add_finance_cost,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: finance costs
-cf_less_interest_income,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: interest income (negative)
-cf_add_impairment,cash_flow,cf_op_profit_before_wc,1,rupees,"Cash flow adjustment: impairment, allowance for doubtful debts and bad debts written off"
-cf_gain_on_sale_of_ppe,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: (profit)/loss on sale or disposal of property and equipment
-cf_gain_on_investments,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: (gain)/loss on sale or fair value of investments
-cf_unrealised_fx,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: unrealised foreign exchange (gain)/loss
-cf_less_dividend_income,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: dividend income (negative)
-cf_share_based_payments,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: share-based payment expense
-cf_liabilities_written_back,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: liabilities and provisions no longer required written back
-cf_exceptional_items,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: exceptional items
-cf_share_of_associates,cash_flow,cf_op_profit_before_wc,1,rupees,Cash flow adjustment: share of (profit)/loss of associates and joint ventures
+appropriations,profit_and_loss,,,rupees,"Appropriations of profit; one line, such as a transfer to reserves or the balance carried over (bank format memo)"
+total_appropriations,profit_and_loss,,,rupees,Total appropriations; of profit (bank format memo)
+cf_pbt,cash_flow,cf_op_profit_before_wc,1,rupees,Profit before tax; the cash flow statement's starting line
+cf_pat,cash_flow,cf_op_profit_before_wc,1,rupees,Profit for the year; the cash flow statement's starting line when it starts from profit after tax
+cf_add_tax_expense,cash_flow,cf_op_profit_before_wc,1,rupees,"Income tax expense; cash flow adjustment, added back"
+cf_add_depreciation,cash_flow,cf_op_profit_before_wc,1,rupees,Depreciation and amortisation; cash flow adjustment
+cf_add_finance_cost,cash_flow,cf_op_profit_before_wc,1,rupees,Finance costs; cash flow adjustment
+cf_less_interest_income,cash_flow,cf_op_profit_before_wc,1,rupees,Interest income; cash flow adjustment (negative)
+cf_add_impairment,cash_flow,cf_op_profit_before_wc,1,rupees,"Impairment and bad debts; cash flow adjustment for impairment, allowance for doubtful debts and bad debts written off"
+cf_gain_on_sale_of_ppe,cash_flow,cf_op_profit_before_wc,1,rupees,"(Profit)/loss on sale of property and equipment; cash flow adjustment, sale or disposal"
+cf_gain_on_investments,cash_flow,cf_op_profit_before_wc,1,rupees,"(Gain)/loss on investments; cash flow adjustment, sale or fair value"
+cf_unrealised_fx,cash_flow,cf_op_profit_before_wc,1,rupees,Unrealised foreign exchange gain or loss; cash flow adjustment
+cf_less_dividend_income,cash_flow,cf_op_profit_before_wc,1,rupees,Dividend income; cash flow adjustment (negative)
+cf_share_based_payments,cash_flow,cf_op_profit_before_wc,1,rupees,Share-based payment expense; cash flow adjustment
+cf_liabilities_written_back,cash_flow,cf_op_profit_before_wc,1,rupees,Liabilities and provisions written back; cash flow adjustment for those no longer required
+cf_exceptional_items,cash_flow,cf_op_profit_before_wc,1,rupees,Exceptional items; cash flow adjustment
+cf_share_of_associates,cash_flow,cf_op_profit_before_wc,1,rupees,Share of associates and joint ventures; cash flow adjustment for their (profit)/loss
 cf_op_profit_before_wc,cash_flow,cf_cash_generated,1,rupees,Operating profit before working capital changes
 cf_change_inventories,cash_flow,cf_cash_generated,1,rupees,(Increase)/decrease in inventories
 cf_change_receivables,cash_flow,cf_cash_generated,1,rupees,(Increase)/decrease in trade receivables
