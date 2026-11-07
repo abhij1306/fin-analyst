@@ -38,8 +38,9 @@ Answer this question with `fin`: $ARGUMENTS
 
    **Evidence:** the evidence page path and query_id.
 
-   **Flags:** every row with `source_confirmed` false (unconfirmed mapping), missing data, an
-   E604 on the evidence page, or "none".
+   **Flags:** every row with `source_confirmed` false (unconfirmed mapping), every row with
+   `source_read_by` = `claude` and `source_verified` false (read by Claude from a page fin could not read, not yet
+   confirmed by an independent reading), missing data, an E604 on the evidence page, or "none".
 
 Describe, don't judge: no recommendations or ratings. If the user asks to change data, use
 `uv run fin sql <company> --write --sql "<statement>"` (it backs up the database and asks the user to

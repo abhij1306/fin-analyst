@@ -35,6 +35,7 @@ from fin.query.run import query
 from fin.query.write import write_sql
 from fin.report.render import make_report
 from fin.update import update as run_update
+from fin.verify import format_result, verify
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -177,7 +178,9 @@ ForceOption = Annotated[
 ]
 
 
-def _ingest_files(run: Run, jobs: list[tuple[str, list[Path]]], force: bool) -> None:
+def _ingest_files(
+    run: Run, jobs: list[tuple[str, list[Path]]], force: bool, reading: Path | None = None
+) -> None:
     """Ingest each company's files, printing progress as `[i/N] company/file: outcome`."""
     config = load_config(run.root)
     total = sum(len(files) for _, files in jobs)
@@ -189,7 +192,9 @@ def _ingest_files(run: Run, jobs: list[tuple[str, list[Path]]], force: bool) -> 
         label_map = load_label_map(run.root, company)
         for path in files:
             done += 1
-            outcome = ingest_file(run, config, company, path, label_map, force=force)
+            outcome = ingest_file(
+                run, config, company, path, label_map, force=force, reading=reading
+            )
             typer.echo(f"[{done}/{total}] {company}/{path.name}: {outcome}")
         write_pending(run, company)
     if total == 0:
@@ -212,14 +217,25 @@ def ingest(
         typer.Argument(help="A file or folder. Default: inbox/<company>/ in the data folder."),
     ] = None,
     force: ForceOption = False,
+    reading: Annotated[
+        Path | None,
+        typer.Option(
+            "--reading",
+            help="A reading file (CSV of figures Claude read from PATH's pages or cells): loaded "
+            "for the statements fin cannot read. PATH must be one file.",
+        ),
+    ] = None,
 ) -> None:
     """Load Excel and PDF documents for one company. Files already loaded are skipped (E105)."""
 
     def body(run: Run) -> None:
+        if reading is not None and (path is None or not path.is_file()):
+            raise typer.BadParameter("--reading needs PATH to be the one file it was read from")
         source = path if path is not None else inbox_dir(run.root, company)
-        _ingest_files(run, [(company, files_in(source))], force)
+        _ingest_files(run, [(company, files_in(source))], force, reading)
 
-    execute("ingest", {"company": company, "path": path, "force": force}, body)
+    args = {"company": company, "path": path, "force": force, "reading": reading}
+    execute("ingest", args, body)
 
 
 @app.command("ingest-batch")
@@ -250,6 +266,34 @@ def ingest_batch(
         _ingest_files(run, jobs, force)
 
     execute("ingest-batch", {"folder": folder, "force": force}, body)
+
+
+@app.command("verify")
+def verify_command(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    path: Annotated[Path, typer.Argument(help="The original document the reading was read from.")],
+    reading: Annotated[
+        Path, typer.Option("--reading", help="An independent reading of the document (CSV).")
+    ],
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+) -> None:
+    """Compare an independent reading with what is loaded for a document: agree, differ,
+    missing in fin, missing in reading. Lines that do not agree are findings (shown, and recorded
+    in the audit log), not errors. Agreeing facts are marked verified (a fact read by Claude only by
+    a reading other than the one it was loaded from); no figure is changed."""
+
+    def body(run: Run) -> None:
+        result = verify(run, company, path, reading)
+        if json_output:
+            typer.echo(json.dumps(result, indent=2, default=str))
+        else:
+            typer.echo(format_result(result))
+
+    execute(
+        "verify",
+        {"company": company, "path": path, "reading": reading, "json": json_output},
+        body,
+    )
 
 
 @app.command("query")

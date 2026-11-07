@@ -14,7 +14,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   the schema (`audit`, `dictionary`, `analytics`, `company`).
 - `ingest.py`: loads one document in one transaction (stage, validate, commit or roll back). `VALIDATORS` lives here.
 - `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
-  `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read).
+  `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read),
+  `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
+- `verify.py`: `fin verify`, compares a reading with what is loaded and marks agreeing facts verified.
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405).

@@ -16,6 +16,12 @@ and is logged with E301. A file that fails (E1xx-E4xx) is copied to `review/<com
 `.error.json` file giving the code and reason; the next file goes on. For a failed check (E4xx) it
 also lists the lines the check used, the labels no mapping matched, and the commands to map a label
 for the company (`fin map set`) and load the file again.
+
+With a reading (`--reading`, `fin.extract.reading`): figures Claude read from the document's pages
+or cells are loaded for each statement and scope fin's own extraction did not read (all of them when
+fin could not read the file at all), through the same stage -> validate -> commit. Their facts have
+`read_by = 'claude'` and point at the original document's page or cell; they stay unverified until
+`fin verify` finds an independent reading that agrees.
 """
 
 import hashlib
@@ -37,6 +43,7 @@ from fin.audit.errors import (
     DocumentFailure,
     DuplicateFile,
     FileUnreadable,
+    ReadingInvalid,
     UnmappedLabel,
     UnsupportedFormat,
 )
@@ -46,6 +53,7 @@ from fin.db.conn import connect
 from fin.extract.excel import extract_workbook
 from fin.extract.pdf import extract_pdf
 from fin.extract.periods import fiscal_year_of, period_of, resolve_months
+from fin.extract.reading import ReadingLine, read_reading
 from fin.extract.text import write_notes_markdown
 from fin.extract.units import RUPEES_PER_UNIT
 from fin.map.dictionary import LabelMap, map_rows
@@ -81,6 +89,7 @@ class Row:
     period_months: int
     scope: str
     rupees: Decimal
+    read_by: str = "fin"  # or "claude": from a reading file
 
 
 @dataclass(frozen=True)
@@ -195,6 +204,69 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
     raise UnsupportedFormat(f"{path.name}: {suffix or 'no extension'} files are not supported")
 
 
+def _reading_row(line: ReadingLine) -> Row:
+    return Row(
+        sheet=line.sheet,
+        cell=line.cell,
+        page=line.page,
+        bbox=None,
+        statement=line.statement,
+        section=line.section,
+        label=line.label,
+        raw=line.raw,
+        unit_text=line.unit_text,
+        rupees_per_unit=int(RUPEES_PER_UNIT[line.unit]),
+        period_end=line.period_end,
+        fiscal_year=line.fiscal_year,
+        period=line.period,
+        period_months=line.period_months,
+        scope=line.scope,
+        rupees=line.rupees,
+        read_by="claude",
+    )
+
+
+def read_with_reading(
+    run: Run, path: Path, company: str, config: Config, reading: Path
+) -> Document:
+    """fin's own extraction, plus the reading's lines for every statement and scope it did not
+    read. When fin cannot read the file at all (E1xx/E2xx), every statement comes from the
+    reading. E205 when the reading has nothing fin did not read."""
+    name = f"{company}/{path.name}"
+    lines = read_reading(reading, config.fiscal_year_start_month)
+    try:
+        document = read_document(path, run.root, company, config)
+    except DocumentFailure as exc:
+        run.event(
+            "extract",
+            f"fin could not read the file ({exc}); every statement comes from reading "
+            f"{reading.name}",
+            level="warning",
+            code=exc.code,
+            file=name,
+        )
+        document = Document([], [], [])
+    read = {(r.statement, r.scope) for r in document.rows}
+    used = [line for line in lines if (line.statement, line.scope) not in read]
+    if not used:
+        raise ReadingInvalid(
+            f"{reading.name}: fin read every statement and scope the reading has; nothing to load "
+            f"from it (compare them with `fin verify {company} <file> --reading <reading>`)"
+        )
+    notices = list(document.notices)
+    parts = sorted({f"{line.scope} {line.statement}" for line in used})
+    notices.append(
+        f"{len(used)} figures read by Claude from reading {reading.name} ({', '.join(parts)}); "
+        "unverified until `fin verify` with a second, independent reading agrees"
+    )
+    if len(used) < len(lines):
+        notices.append(
+            f"{len(lines) - len(used)} reading lines not loaded: fin read those statements itself"
+        )
+    rows = document.rows + [_reading_row(line) for line in used]
+    return Document(rows, document.notes, notices, document.warnings)
+
+
 def _copy(source: Path, target: Path) -> None:
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -213,7 +285,7 @@ RAW_VALUE_COLUMNS = (
 )
 FACT_COLUMNS = (
     "raw_id, doc_id, account, fiscal_year, period, period_months, period_end, scope, value, "
-    "mapping_id, confirmed, run_id"
+    "mapping_id, confirmed, run_id, read_by"
 )
 
 
@@ -237,6 +309,7 @@ def _load(
     archive: str,
     document: Document,
     label_map: LabelMap,
+    reading: tuple[str, str] | None = None,
 ) -> tuple[int, int, list[tuple[str, str]]]:
     """Stage, validate and commit one document. Returns (doc_id, version, unmapped labels)."""
     unmapped: dict[tuple[str, str], None] = {}
@@ -252,8 +325,8 @@ def _load(
             latest = max(rows, key=lambda r: r.period_end)
             doc = con.execute(
                 "INSERT INTO documents (file_name, sha256, version, fiscal_year, period_end, "
-                "scope, status, archive_path, run_id, ingested_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?) RETURNING doc_id",
+                "scope, status, archive_path, run_id, ingested_at, reading_sha256, reading_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?, ?, ?) RETURNING doc_id",
                 [
                     path.name,
                     sha256,
@@ -264,6 +337,7 @@ def _load(
                     archive,
                     run.run_id,
                     _now(),
+                    *(reading or (None, None)),
                 ],
             ).fetchone()
             assert doc is not None
@@ -290,7 +364,7 @@ def _load(
                     [raw_id, doc_id, mapping and mapping.account, r.fiscal_year, r.period]
                     + [r.period_months, r.period_end]
                     + [r.scope, value, mapping and mapping.mapping_id, mapping is not None]
-                    + [run.run_id]
+                    + [run.run_id, r.read_by]
                 )
             _insert_many(con, "raw_values", RAW_VALUE_COLUMNS, raw_values)
             _insert_many(con, "facts", FACT_COLUMNS, facts)
@@ -319,10 +393,17 @@ def _load(
 
 
 def ingest_file(
-    run: Run, config: Config, company: str, path: Path, label_map: LabelMap, *, force: bool
+    run: Run,
+    config: Config,
+    company: str,
+    path: Path,
+    label_map: LabelMap,
+    *,
+    force: bool,
+    reading: Path | None = None,
 ) -> str:
-    """Ingest one file and return a one-line outcome. Per-document failures are logged, counted on
-    `run` and sent to review; they do not raise."""
+    """Ingest one file (with a reading: see the module docstring) and return a one-line outcome.
+    Per-document failures are logged, counted on `run` and sent to review; they do not raise."""
     name = f"{company}/{path.name}"
     try:
         sha256 = sha256_of(path)
@@ -335,7 +416,16 @@ def ingest_file(
                 f"{name}: already ingested as doc_id {earlier[0]} (same sha256); "
                 "use --force to load it again as a new version"
             )
-        document = read_document(path, run.root, company, config)
+        archived_reading = None
+        if reading is None:
+            document = read_document(path, run.root, company, config)
+        else:
+            document = read_with_reading(run, path, company, config, reading)
+            reading_sha = sha256_of(reading)
+            reading_archive = archive_dir(run.root, company) / f"{reading_sha}.reading.csv"
+            if not reading_archive.exists():
+                _copy(reading, reading_archive)
+            archived_reading = (reading_sha, reading_archive.relative_to(run.root).as_posix())
         for notice in document.notices:
             run.event("extract", notice, file=name)
         for warning in document.warnings:
@@ -345,7 +435,7 @@ def ingest_file(
             _copy(path, archive)
         archive_rel = archive.relative_to(run.root).as_posix()
         doc_id, version, unmapped = _load(
-            run, company, path, sha256, archive_rel, document, label_map
+            run, company, path, sha256, archive_rel, document, label_map, archived_reading
         )
     except DuplicateFile as exc:
         run.skipped += 1
@@ -356,7 +446,7 @@ def ingest_file(
         run.failure_codes.append(exc.code)
         run.exit_code = EXIT_FAILURES
         run.event("ingest", exc.message, level="error", code=exc.code, file=name)
-        _to_review(run, company, path, exc)
+        _to_review(run, company, path, exc, reading)
         return (
             f"failed ({exc}); copied to review/{company}/, reason and how to fix in "
             f"review/{company}/{path.name}.error.json"
@@ -372,15 +462,19 @@ def ingest_file(
         )
     run.loaded += 1
     run.pending_review += len(unmapped)
+    claude = sum(1 for r in document.rows if r.read_by == "claude")
     message = (
         f"loaded as doc_id {doc_id} version {version}: {len(document.rows)} facts, "
         f"{len(unmapped)} unmapped labels"
+        + (f", {claude} read by Claude (unverified)" if claude else "")
     )
     run.event("ingest", message, file=name, context={"doc_id": doc_id, "archive": archive_rel})
     return message
 
 
-def _to_review(run: Run, company: str, path: Path, error: DocumentFailure) -> None:
+def _to_review(
+    run: Run, company: str, path: Path, error: DocumentFailure, reading: Path | None = None
+) -> None:
     folder = review_dir(run.root, company)
     copy = folder / path.name
     if path.is_file() and path.resolve() != copy.resolve():  # not when ingesting the review/ copy
@@ -391,10 +485,12 @@ def _to_review(run: Run, company: str, path: Path, error: DocumentFailure) -> No
         "message": error.message,
         "run_id": run.run_id,
     }
+    if reading is not None:
+        reason["reading"] = str(reading)
     if error.details:
         reason["checks"] = list(error.details)
         reason["unmapped"] = list(error.unmapped)
-        reason["to_fix"] = _to_fix(company, copy, error)
+        reason["to_fix"] = _to_fix(company, copy, error, reading)
     try:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{path.name}.error.json").write_text(
@@ -404,7 +500,9 @@ def _to_review(run: Run, company: str, path: Path, error: DocumentFailure) -> No
         raise DataFolderNotWritable(f"cannot write to {folder}: {exc}") from exc
 
 
-def _to_fix(company: str, copy: Path, error: DocumentFailure) -> list[str]:
+def _to_fix(
+    company: str, copy: Path, error: DocumentFailure, reading: Path | None = None
+) -> list[str]:
     """The steps, with commands, to fix a mapping behind a failed check and load the file again.
     The example command uses the first line of the first failed check (else an unmapped label)."""
     lines: list[dict[str, str]] = [
@@ -429,5 +527,6 @@ def _to_fix(company: str, copy: Path, error: DocumentFailure) -> list[str]:
         "--account ACCOUNT",
         f"   The accounts: uv run fin map accounts --statement {statement}",
         *hints,
-        f'3. Load the file again: uv run fin ingest {company} "{copy}"',
+        f'3. Load the file again: uv run fin ingest {company} "{copy}"'
+        + (f' --reading "{reading}"' if reading is not None else ""),
     ]

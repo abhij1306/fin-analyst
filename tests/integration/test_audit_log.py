@@ -81,7 +81,7 @@ def test_doctor_writes_runs_events_and_jsonl(
         (4, "check", "info", None, "quarto: 1.8.25"),
         (5, "check", "info", None, f"data folder: {data_root}"),
         (6, "check", "info", None, "config: display unit crores"),
-        (7, "check", "info", None, "audit schema: version 2"),
+        (7, "check", "info", None, "audit schema: version 3"),
         (8, "check", "info", None, "dictionary schema: version 3"),
     ]
 
@@ -109,9 +109,9 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
     ) == [
         ("folders", "11 created, 0 already present"),
         ("config", "wrote default config.toml"),
-        ("migrate", "shared/audit.duckdb: schema version 0 -> 2 (backup: none, new file)"),
+        ("migrate", "shared/audit.duckdb: schema version 0 -> 3 (backup: none, new file)"),
         ("migrate", "shared/dictionary.duckdb: schema version 0 -> 3 (backup: none, new file)"),
-        ("migrate", "shared/analytics.duckdb: schema version 0 -> 2 (backup: none, new file)"),
+        ("migrate", "shared/analytics.duckdb: schema version 0 -> 3 (backup: none, new file)"),
         (
             "dictionary",
             "dictionary: 104 accounts and 362 label mappings added from templates/dictionary",
@@ -122,9 +122,9 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         "WHERE run_id = ?",
         [run_id],
     ) == [
-        ("shared/audit.duckdb", 0, 2, None, "applied"),
+        ("shared/audit.duckdb", 0, 3, None, "applied"),
         ("shared/dictionary.duckdb", 0, 3, None, "applied"),
-        ("shared/analytics.duckdb", 0, 2, None, "applied"),
+        ("shared/analytics.duckdb", 0, 3, None, "applied"),
     ]
     assert len(jsonl_records(data_root, run_id)) == 11
 
@@ -154,7 +154,7 @@ def test_forced_error_logs_its_code_and_exits_2(data_root: Path, audit_query: Qu
 
     assert result.exit_code == 2
     message = (
-        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 3; "
+        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 4; "
         "update fin (`git pull`, then `uv sync --frozen`)"
     )
     assert result.stderr.splitlines()[0] == f"E004: {message}"

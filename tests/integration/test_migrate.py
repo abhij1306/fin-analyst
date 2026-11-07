@@ -56,7 +56,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     without_company_migrations(migrations_dir)
     runner.invoke(app, ["init"])
     company = make_company(data_root)
-    (migrations_dir / "audit" / "003_probe.sql").write_text(
+    (migrations_dir / "audit" / "004_probe.sql").write_text(
         "CREATE TABLE probe (x INTEGER);\nINSERT INTO probe VALUES (42);\n", encoding="utf-8"
     )
     (migrations_dir / "company" / "001_facts.sql").write_text(
@@ -72,19 +72,19 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     run_id = run_id_of(result.stderr)
     backup = data_root / "backups" / run_id
     assert result.stdout.splitlines() == [
-        f"shared/audit.duckdb: schema version 2 -> 3 "
+        f"shared/audit.duckdb: schema version 3 -> 4 "
         f"(backup: backups/{run_id}/shared/audit.duckdb)",
         "shared/dictionary.duckdb: up to date at schema version 3",
-        "shared/analytics.duckdb: up to date at schema version 2",
+        "shared/analytics.duckdb: up to date at schema version 3",
         f"companies/acme.duckdb: schema version 0 -> 2 "
         f"(backup: backups/{run_id}/companies/acme.duckdb)",
     ]
     # Backups hold the files as they were before migrating.
-    assert current_version(backup / "shared" / "audit.duckdb") == 2
+    assert current_version(backup / "shared" / "audit.duckdb") == 3
     assert tables(backup / "companies" / "acme.duckdb") == ["seed"]
     assert query(backup / "companies" / "acme.duckdb", "SELECT v FROM seed")[0][0] == 1234.5
     # Live files are migrated, data kept.
-    assert current_version(data_root / "shared" / "audit.duckdb") == 3
+    assert current_version(data_root / "shared" / "audit.duckdb") == 4
     assert audit_query("SELECT x FROM probe") == [(42,)]
     assert tables(company) == ["facts", "schema_version", "seed"]
     assert query(company, "SELECT version, name, run_id FROM schema_version ORDER BY 1") == [
@@ -97,16 +97,16 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
         [run_id],
     ) == [
         ("companies/acme.duckdb", 0, 2, f"backups/{run_id}/companies/acme.duckdb", "applied", None),
-        ("shared/audit.duckdb", 2, 3, f"backups/{run_id}/shared/audit.duckdb", "applied", None),
+        ("shared/audit.duckdb", 3, 4, f"backups/{run_id}/shared/audit.duckdb", "applied", None),
     ]
 
     again = runner.invoke(app, ["migrate"])
 
     assert again.exit_code == 0
     assert again.stdout.splitlines() == [
-        "shared/audit.duckdb: up to date at schema version 3",
+        "shared/audit.duckdb: up to date at schema version 4",
         "shared/dictionary.duckdb: up to date at schema version 3",
-        "shared/analytics.duckdb: up to date at schema version 2",
+        "shared/analytics.duckdb: up to date at schema version 3",
         "companies/acme.duckdb: up to date at schema version 2",
     ]
     assert [p.name for p in (data_root / "backups").iterdir()] == [run_id]
@@ -228,10 +228,12 @@ def test_migrate_before_init_is_e003(data_root: Path) -> None:
 
 
 def test_periods_migration_keeps_annual_data_working(data_root: Path, migrations_dir: Path) -> None:
-    # A company database at schema version 2 (before periods), holding one annual document.
-    periods = migrations_dir / "company" / "003_periods.sql"
-    sql = periods.read_text(encoding="utf-8")
-    periods.unlink()
+    # A company database at schema version 2 (before periods and readings), holding one annual
+    # document.
+    later = sorted((migrations_dir / "company").glob("00[34]_*.sql"))
+    sqls = [path.read_text(encoding="utf-8") for path in later]
+    for path in later:
+        path.unlink()
     runner.invoke(app, ["init"])
     company = make_company(data_root)
     assert runner.invoke(app, ["migrate"]).exit_code == 0
@@ -256,16 +258,20 @@ def test_periods_migration_keeps_annual_data_working(data_root: Path, migrations
                 "1, true, 'r1')",
                 [raw_id, account, year, end, value],
             )
-    periods.write_text(sql, encoding="utf-8")
+    for path, sql in zip(later, sqls, strict=True):
+        path.write_text(sql, encoding="utf-8")
 
     result = runner.invoke(app, ["migrate"])
 
     assert result.exit_code == 0, result.stderr
-    assert "companies/acme.duckdb: schema version 2 -> 3" in result.stdout
-    assert query(company, "SELECT account, period, period_months FROM facts ORDER BY fact_id") == [
-        ("revenue", "FY25", 12),
-        ("revenue", "FY24", 12),
-        ("pat", "FY25", 12),
+    assert "companies/acme.duckdb: schema version 2 -> 4" in result.stdout
+    assert query(
+        company,
+        "SELECT account, period, period_months, read_by, verified FROM facts ORDER BY fact_id",
+    ) == [
+        ("revenue", "FY25", 12, "fin", False),
+        ("revenue", "FY24", 12, "fin", False),
+        ("pat", "FY25", 12, "fin", False),
     ]
     assert query(company, "SELECT CAST(period_end AS VARCHAR) FROM documents") == [("2025-03-31",)]
     assert query(

@@ -4,9 +4,12 @@ title: Data quality
 
 What is not yet trustworthy, per company. Unconfirmed facts (unmapped labels or mappings still pending
 review) are left out of every metric. Failed validations are all-time counts from the audit log.
+Unverified Claude-read facts were read by Claude from pages fin could not read (`fin ingest --reading`)
+and no second, independent reading has agreed with them yet (`fin verify`).
 
 ```sql quality
-select company, documents, facts, unconfirmed_facts, failed_validations, last_ingested_at, refreshed_at
+select company, documents, facts, unconfirmed_facts, unverified_claude_facts, failed_validations,
+    last_ingested_at, refreshed_at
 from analytics.companies
 order by company
 ```

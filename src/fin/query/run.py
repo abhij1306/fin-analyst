@@ -2,7 +2,8 @@
 
 The statement must be a single SELECT (or WITH ... SELECT); anything else is rejected with E502 and
 still logged. When the result has a `fact_id` or `raw_id` column, every row gets provenance columns:
-the source file, `sheet!cell` or `page N`, and whether the fact's mapping is confirmed.
+the source file, `sheet!cell` or `page N`, whether the fact's mapping is confirmed, who read the
+figure (`fin`, or `claude` from a reading file) and whether `fin verify` verified it.
 """
 
 import hashlib
@@ -19,13 +20,20 @@ from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.paths import company_db_path
 
-PROVENANCE_COLUMNS = ("source_file", "source_ref", "source_confirmed")
+PROVENANCE_COLUMNS = (
+    "source_file",
+    "source_ref",
+    "source_confirmed",
+    "source_read_by",
+    "source_verified",
+)
 
 # Where each raw value came from. `source_ref` is `sheet!cell` for Excel and `page N` for PDF.
 SOURCE_SQL = """
 SELECT r.raw_id, f.fact_id, d.file_name AS source_file,
        coalesce(r.sheet || '!' || r.cell, 'page ' || r.page) AS source_ref,
-       f.confirmed AS source_confirmed
+       f.confirmed AS source_confirmed, f.read_by AS source_read_by,
+       f.verified AS source_verified
 FROM raw_values r
 JOIN documents d ON d.doc_id = r.doc_id
 LEFT JOIN facts f ON f.raw_id = r.raw_id
