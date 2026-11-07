@@ -131,6 +131,17 @@ A section is a heading in `templates/report/health.qmd` plus an entry in `SECTIO
 4. Test: extend `tests/integration/test_report.py`. The narrative never contains typed numbers; it uses
    `{{metric:name:FY25}}` and `{{fact:account:FY25}}` (the lint in `report/lint.py` enforces it).
 
+## Change the PDF parser
+
+`extract/pdf.py` reads clean digital statements. A page it cannot read safely is skipped and listed as not read
+(E201-E204), and a Claude reading (`fin ingest --reading`) fills it; nothing is guessed. Keep it that way:
+
+- Add a parsing rule only when it reads a statement correctly in a document it was not written for. A rule that
+  helps one document only is a workaround: leave that page to a Claude reading.
+- A rule must never load a wrong figure. When a page looks misread, raise an `E2xx` error for the page
+  (`read_page`), so it is listed as not read.
+- Test the rule with a tiny synthetic PDF (`tests/synthetic_pdf.py`), asserting the rows read or the page reported.
+
 ## Schema
 
 Each database has one schema file with its final tables and views, in `src/fin/db/schema/`: `audit.sql`,
