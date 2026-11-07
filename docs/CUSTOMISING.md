@@ -42,6 +42,15 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - One company only: `uv run fin map set --company <co> --statement <statement> --label "<label as written>" --account
   <account> [--section "<heading>"]`. It wins over the seed for that company, for files ingested from then on. This
   is also how to fix a file a check rejected: its `review/<co>/<file>.error.json` lists the lines and the commands.
+- From review: when no account fits a label, Claude proposes a new one in `fin map propose` (`account` is the new
+  name, `new_account` is `{parent, sign, unit, description}`). `fin review confirm` adds it to the shared dictionary
+  (`accounts.source = 'review'`, with the run_id) and maps the label, in one transaction; `--name` and `--parent`
+  change it, `--account` uses an existing account instead, and reject adds nothing. It then behaves like a seed
+  account: `fin map accounts` marks it `[added]`, `fin map set` can target it, and the gates add it into its parent.
+- Share what review added: `uv run fin map accounts --added` prints the added accounts and the global labels
+  confirmed in review that the seed does not have yet, as rows for `schedule_iii.csv` and `labels.csv`. Paste them
+  at the end of each file, run the tests, and commit; `fin init` then adds them on any other machine. Labels print
+  normalized, which matches the same way.
 - Changing `normalize.py` is safe for stored mappings: their keys are normalized again when read.
 - Test: add the label to a case in `tests/unit/test_dictionary.py` or `tests/unit/test_normalize.py`.
 

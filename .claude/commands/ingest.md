@@ -9,6 +9,7 @@ Ingest documents for the company in `$ARGUMENTS`.
 2. If anything is pending review, run `uv run fin review list --company <company> --json`.
 3. For each pending item, choose an account from `templates/dictionary/schedule_iii.csv`. The account must belong to the item's statement. Write a JSON list to a scratch file with one object per item: `label`, `statement`, `section`, `account`, `confidence` (0 to 1), `reason`.
    - Propose only what the label's wording supports. If you are unsure, use a low confidence (below 0.7 is flagged E302) and say so in `reason`. Never guess to fill a gap.
+   - Only when no existing account fits (check `uv run fin map accounts --statement <statement>`), propose a new account: `account` is a new snake_case name and `new_account` is `{"parent": <subtotal it adds into, same statement>, "sign": 1 or -1, "unit": "rupees" or "rupees_per_share", "description": ...}` (`parent` and `sign` null for a top line or a per-share figure). Say in `reason` why no existing account fits. Nothing is added until the user confirms it in review.
 4. Run `uv run fin map propose <file.json> --company <company>`. Proposals are stored as pending and change no data.
 5. Show the user the proposals (label, account, confidence, reason) and tell them to run `/review` or `uv run fin review` to confirm. Do not run `fin review confirm` unless the user has asked you to.
 6. Flag failed files and unmapped or unconfirmed labels. Do not state numbers that did not come from `fin` output.

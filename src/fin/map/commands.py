@@ -5,6 +5,8 @@
 same actions with flags, so Claude can run them when the user asks.
 """
 
+import csv
+import io
 import json
 from pathlib import Path
 from typing import Annotated
@@ -15,7 +17,7 @@ from fin.audit.errors import FinError, InvalidMapping
 from fin.audit.logger import Run, execute
 from fin.ingest import COMPANY_NAME
 from fin.map import review
-from fin.map.dictionary import STATEMENTS
+from fin.map.dictionary import STATEMENTS, added_rows
 
 map_app = typer.Typer(
     no_args_is_help=True, help="Mapping proposals, company mappings and the account list."
@@ -47,7 +49,8 @@ def map_propose(
 ) -> None:
     """Store mapping proposals as pending; nothing is applied. Each proposal is an object with
     label, account, confidence (0 to 1) and reason, plus statement and section if the label is not
-    unique in review/<company>/pending.json."""
+    unique in review/<company>/pending.json. When no account fits, account is a new snake_case
+    name and new_account is {parent, sign, unit, description}; it is added only on confirm."""
 
     def body(run: Run) -> None:
         try:
@@ -111,17 +114,37 @@ def map_accounts(
     statement: Annotated[
         str | None, typer.Option("--statement", "-s", help="Only this statement.")
     ] = None,
+    added: Annotated[
+        bool,
+        typer.Option(
+            "--added",
+            help="Print the accounts and global labels added in review as rows for "
+            "templates/dictionary/schedule_iii.csv and labels.csv, to share them.",
+        ),
+    ] = False,
 ) -> None:
-    """List the dictionary's accounts: account, statement, parent and sign, unit, description."""
+    """List the dictionary's accounts: account, statement, parent and sign, unit, description.
+    Accounts added in review are marked [added]."""
 
     def body(run: Run) -> None:
-        for account, st, parent, sign, unit, description in review.list_accounts(
+        if added:
+            accounts, labels = added_rows(run.root)
+            text = io.StringIO()
+            out = csv.writer(text, lineterminator="\n")
+            text.write("# rows for templates/dictionary/schedule_iii.csv\n")
+            out.writerows(accounts)
+            text.write("# rows for templates/dictionary/labels.csv\n")
+            out.writerows(labels)
+            typer.echo(text.getvalue(), nl=False)
+            return
+        for account, st, parent, sign, unit, description, source in review.list_accounts(
             run.root, statement
         ):
             into = f"{'+' if sign == '1' else '-'} {parent}" if parent else "(top line)"
-            typer.echo(f"{account:40} {st:16} {into:42} {unit:16} {description}")
+            mark = "[added] " if source == "review" else ""
+            typer.echo(f"{account:40} {st:16} {into:42} {unit:16} {mark}{description}")
 
-    execute("map accounts", {"statement": statement}, body)
+    execute("map accounts", {"statement": statement, "added": added}, body)
 
 
 def _line(item: review.Item) -> str:
@@ -129,6 +152,12 @@ def _line(item: review.Item) -> str:
     line += f"{item['section']!r} {item['label']!r} ({item['facts']} facts)"
     if item["account"]:
         line += f" -> {item['account']} (confidence {item['confidence']}): {item['reason']}"
+    new = item.get("new_account")
+    if new:
+        into = (
+            f"{'+' if new['sign'] == 1 else '-'} {new['parent']}" if new["parent"] else "top line"
+        )
+        line += f"\n  NEW ACCOUNT {item['account']}: {into}, {new['unit']}, {new['description']!r}"
     return line
 
 
@@ -166,7 +195,7 @@ def _ask(run: Run, item: review.Item) -> bool:
         choice = typer.prompt("[c]onfirm, [r]eject, [e]dit account, [s]kip, [q]uit", default="s")
         try:
             if choice == "c":
-                account = item["account"] or typer.prompt("account")
+                account = None if item["account"] else typer.prompt("account")
             elif choice == "e":
                 account = typer.prompt("account")
             elif choice == "r":
@@ -181,7 +210,9 @@ def _ask(run: Run, item: review.Item) -> bool:
                 continue
             scope = typer.prompt("scope (global or company)", default="company")
             facts = review.confirm(run, company, item["id"], account, scope)
-            typer.echo(f"confirmed as {account} ({scope}); {facts} facts updated")
+            typer.echo(
+                f"confirmed as {account or item['account']} ({scope}); {facts} facts updated"
+            )
             return True
         except FinError as exc:
             typer.echo(str(exc), err=True)
@@ -221,18 +252,33 @@ def review_confirm(
     scope: Annotated[
         str, typer.Option(help="global: every company; company: this company only.")
     ] = "company",
+    name: Annotated[
+        str | None, typer.Option(help="New-account proposal: add it under this name instead.")
+    ] = None,
+    parent: Annotated[
+        str | None, typer.Option(help="New-account proposal: add it under this parent instead.")
+    ] = None,
 ) -> None:
     """Confirm items: the label joins the dictionary and the company's matching facts are
-    confirmed. The item must have a proposed account, or pass --account."""
+    confirmed. The item must have a proposed account, or pass --account. A proposed new account
+    is added to the dictionary first (--name and --parent change it; --account uses an existing
+    account instead)."""
 
     def body(run: Run) -> None:
         for item_id in ids:
-            facts = review.confirm(run, company, item_id, account, scope)
+            facts = review.confirm(run, company, item_id, account, scope, name, parent)
             typer.echo(f"#{item_id} confirmed ({scope} scope); {facts} facts updated")
 
     execute(
         "review confirm",
-        {"ids": ids, "company": company, "account": account, "scope": scope},
+        {
+            "ids": ids,
+            "company": company,
+            "account": account,
+            "scope": scope,
+            "name": name,
+            "parent": parent,
+        },
         body,
     )
 

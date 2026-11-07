@@ -74,7 +74,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     assert result.stdout.splitlines() == [
         f"shared/audit.duckdb: schema version 2 -> 3 "
         f"(backup: backups/{run_id}/shared/audit.duckdb)",
-        "shared/dictionary.duckdb: up to date at schema version 2",
+        "shared/dictionary.duckdb: up to date at schema version 3",
         "shared/analytics.duckdb: up to date at schema version 2",
         f"companies/acme.duckdb: schema version 0 -> 2 "
         f"(backup: backups/{run_id}/companies/acme.duckdb)",
@@ -105,7 +105,7 @@ def test_migrate_backs_up_first_applies_and_is_idempotent(
     assert again.exit_code == 0
     assert again.stdout.splitlines() == [
         "shared/audit.duckdb: up to date at schema version 3",
-        "shared/dictionary.duckdb: up to date at schema version 2",
+        "shared/dictionary.duckdb: up to date at schema version 3",
         "shared/analytics.duckdb: up to date at schema version 2",
         "companies/acme.duckdb: up to date at schema version 2",
     ]
@@ -189,6 +189,9 @@ def test_dictionary_migration_2_moves_existing_accounts_into_the_new_tree(data_r
     # Put the dictionary back as version 1 left it: no unit column, the old parents and signs.
     with connect(dictionary, write=True) as con:
         con.execute("ALTER TABLE accounts DROP COLUMN unit")
+        con.execute("ALTER TABLE accounts DROP COLUMN source")
+        con.execute("ALTER TABLE accounts DROP COLUMN run_id")
+        con.execute("DELETE FROM schema_version WHERE version = 3")
         con.execute("UPDATE accounts SET parent = NULL, sign = NULL WHERE account = 'pat'")
         con.execute(
             "UPDATE accounts SET parent = 'pat', sign = -1 "
@@ -206,13 +209,13 @@ def test_dictionary_migration_2_moves_existing_accounts_into_the_new_tree(data_r
     assert result.exit_code == 0, result.stderr
     assert query(
         dictionary,
-        "SELECT account, parent, sign, unit FROM accounts WHERE account IN ('pat', 'pbt', "
+        "SELECT account, parent, sign, unit, source FROM accounts WHERE account IN ('pat', 'pbt', "
         "'tax_expense', 'total_current_liabilities') ORDER BY 1",
     ) == [
-        ("pat", "total_comprehensive_income", 1, "rupees"),
-        ("pbt", "profit_continuing_operations", 1, "rupees"),
-        ("tax_expense", "total_tax_expense", 1, "rupees"),
-        ("total_current_liabilities", "total_liabilities", 1, "rupees"),
+        ("pat", "total_comprehensive_income", 1, "rupees", "seed"),
+        ("pbt", "profit_continuing_operations", 1, "rupees", "seed"),
+        ("tax_expense", "total_tax_expense", 1, "rupees", "seed"),
+        ("total_current_liabilities", "total_liabilities", 1, "rupees", "seed"),
     ]
 
 
