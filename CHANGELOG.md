@@ -198,6 +198,47 @@ Human follow-ups:
 - Try it on a real report with lender lines: ingest, `/ingest` proposes, confirm a new account in `/review`, ingest
   the file again with `--force` and check E402.
 
+### Claude readings: fallback for unreadable pages and fin verify
+
+fin's deterministic extraction stays the primary path (OCR was tested and rejected). Only when the user asks, Claude
+Code reads pages fin could not read, as images or cells, and fin loads or checks that reading.
+
+- Reading file (`fin.extract.reading`): a UTF-8 CSV, one row per figure, columns `statement, scope, period_end,
+  period_months, unit, section, label, value_as_printed, source`. Periods, units and figures use fin's own rules
+  (`fin.extract.periods`, `fin.extract.units`); `source` is the original document's page or `Sheet!Cell`. Bad lines
+  raise E205 (new, reading file invalid), E203 or E202, naming the CSV line.
+- `fin ingest <co> <file> --reading <csv>`: fin's own extraction, plus the reading's lines for every statement and
+  scope fin did not read (all of them when the file fails extraction, e.g. E104 or E201). Same stage, gates, commit
+  or roll back. The reading is archived next to the original (`archive/<co>/<sha256>.reading.csv`).
+- Company migration 004: `facts.read_by` (`fin` / `claude`), `facts.verified`, `documents.reading_sha256` /
+  `reading_path`. Existing facts become `read_by = 'fin'`, unverified.
+- `fin verify <co> <file> --reading <csv> [--json]`: compares an independent reading with the loaded document,
+  matching statement, scope, period and normalized label (repeated labels in printed order), exact in rupees after
+  unit scaling. Outcomes: agree, differ, missing in fin, missing in reading. Agreeing facts are marked verified; a
+  Claude-read fact only by a reading other than the one it was loaded from (the document is loaded, so its gates
+  passed). A differing fact goes back to unverified. Everything else that does not agree is a finding, not an error:
+  shown, recorded in the new audit table `findings` (audit migration 003; check `verify_reading`, both values, both
+  sources, difference; general columns so other checks can record findings later), exit 0. verify never changes a
+  figure.
+- `fin query` provenance adds `source_read_by` and `source_verified`; `/ask` flags unverified Claude-read facts.
+  `analytics.companies.unverified_claude_facts` (analytics migration 003) is shown on the data quality page.
+- Slash commands: `/ingest` names the pages fin could not read and offers a Claude reading (never unasked), with the
+  rules: read the source first, before any fin output; copy figures exactly as printed with the unit line; never
+  compute or infer; then a second independent reading and `fin verify`. New `/verify` for the on-demand check.
+- No guard rule for `--reading` (the owner is removing approval prompts on data-changing commands). No new
+  dependencies.
+
+Real-document check (Linux test box): a scanned annual report (no usable text layer, E201) loaded from a Claude
+reading of its standalone balance sheet and P&L pages (2 pages, 114 figures): balance sheet and subtotal gates
+passed for both years (after four company mappings for misspelt labels). A second reading verified all 114. A reading
+of a digital report's balance sheet page agreed with fin on all 80 figures.
+
+Human follow-ups:
+- Unverified Claude-read facts feed metrics today (flagged in answers and on the data quality page). Decide whether
+  metrics should wait for verification.
+- The independence of the second reading rests on the slash-command instructions; fin only refuses the same file.
+- Run `uv run fin migrate` once on an existing data folder (audit 2 to 3, analytics 2 to 3, company 3 to 4).
+
 ## [1.0.0] - 2026-11-07
 
 First release: Phases 0-12 below. How it was tested:
