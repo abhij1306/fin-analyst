@@ -379,6 +379,56 @@ Human follow-ups:
   (right for annual reports); and a "Current assets" subtotal printed before held-for-sale assets is read as total
   current assets.
 
+### Simplify the PDF parser
+
+The product is the analysis, not the parsing. fin now reads clean, standard digital statements and lists every
+other statement page as not read, for a Claude reading (`fin ingest --reading`). Every parsing rule was judged by
+ablation on 33 real PDFs (annual reports and results; the documents each rule was written for, a second batch, and
+an unseen holdout set): each rule was switched off (rules on `main`) or on (13 candidate rules from an unmerged
+branch) and the statements, unread pages, balance-sheet ties and figures compared. A rule was kept if it reads a
+statement correctly in a document it was not written for, or if removing it loads a wrong or silently incomplete
+statement. Otherwise it was removed with its tests.
+
+| Rules | Kept | Removed |
+|---|---|---|
+| On `main` (35 judged) | 22: two-up spreads, touching figure pieces, dash-only heading rows, untitled pages and pages without a header or unit carrying on the statement before, note references, two-digit years, multi-line headers, column bands at midpoints, period-length labels over columns, numbered statements in results, "Notes:" ending the table, labels wrapped above or below their figures, headings wrapped onto two lines, margin text, sub-headings, ordinals (`31st`), "Audited" title words, a results column must name its length, `2023-24` | 13: pieces a little apart joined into a figure, a brace read as a bracket, a garbled-rupee unit line, split-digit dates, a header growing above or below, scope from a running header, scope labels over column groups and a repeated header keeping them, the unit carried from the results page, dropping a figure printed twice, a later unreadable table ending the statement, a title date above a column, a column's own words naming its length |
+| Candidates (13) | 0 | 13: each helped only the document it was written for, or loaded figures that do not tie |
+
+Safety (new, general): a page is listed as not read (E204) when a row label holds a figure (the figures do not line
+up with their labels, as on a skewed scan) or a figure has an unpaired bracket (its sign is unknown); an untitled
+page with five or more figure lines carrying on a page that was not read is listed too. On `main`, six
+results PDFs with an OCR text layer loaded such pages with figures under the wrong labels or an unknown sign.
+
+What changes for users:
+- Standalone and consolidated columns printed side by side on one results page are not read (E202, listed).
+- A balance sheet whose title does not say standalone or consolidated takes `defaults.scope` even when a running
+  header names the scope (with the existing notice).
+- A unit line must say "in", "Rs", "INR" or carry a rupee sign before the unit word; a results page without its
+  own unit line is not read (E203, listed). A figure with a brace for a bracket is not a figure.
+- A figure printed twice in one statement is loaded twice; the account-level view counts it once.
+- `pdf.py` 1,021 to 957 lines; `fin/extract` 1,730 to 1,661 lines. No new dependencies.
+
+Real documents (Linux test box; company names kept off the repo), statement-periods loaded / pages listed as not
+read / balance sheets that tie:
+
+| | `main` | This change |
+|---|---|---|
+| Statement-periods loaded | 226 | 154 |
+| Statement pages listed as not read | 56 | 79 |
+| Balance sheets that tie | 53 | 42 |
+| Balance sheets that do not tie | 3 | 0 |
+| Statements loaded that differ from `main` | | 0 (beyond a repeated nil or net-change line in two) |
+| Statement pages lost without being listed | | 0 |
+
+The loss is in nine documents: seven results PDFs with an OCR text layer, one text results PDF with both scopes side
+by side, and one annual report. In six of them `main` loaded figures under the wrong labels or with an unknown sign.
+
+Human follow-ups:
+- Offer a Claude reading for the pages now listed as not read in documents already loaded (`fin status`), notably
+  results PDFs with both scopes side by side.
+- No candidate rule fixed the "two columns hold the same period" pages of the annual reports in the holdout set; a
+  Claude reading covers them.
+
 ## [1.0.0] - 2026-11-07
 
 First release: Phases 0-12 below. How it was tested:

@@ -9,9 +9,8 @@ from fin.extract.units import unit_in
         ("(₹ in Lakhs)", "lakh"),
         ("(Rs. in Millions, except per equity share data)", "million"),
         ("Rs. In Lacs except for per share data", "lac"),
-        # A line that is only a unit, after a rupee sign the text layer garbled.
-        ("a: Crores", "crore"),
-        ('"Crores', "crore"),
+        # A unit word without "in", a rupee sign or "Rs" before it is not read as a unit.
+        ("a: Crores", None),
         ("Crores of shares were issued in the year", None),
         ("Particulars", None),
     ],

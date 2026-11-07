@@ -29,7 +29,6 @@ def rows(path: Path) -> list[tuple[str, str, str | None, str, str]]:
         ("2023-24", date(2024, 3, 31)),
         ("Quarter ended 30.06.2025", date(2025, 6, 30)),
         ("30-Sep-25", date(2025, 9, 30)),
-        ("3 0-06-2025", date(2025, 6, 30)),  # a date printed in two pieces
         ("April 1, 2023", None),  # an opening balance date, not a period end
         ("2023-25", None),
         ("Particulars", None),

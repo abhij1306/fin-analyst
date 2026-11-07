@@ -22,8 +22,8 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 
 After 1.0.0 (not phases): real annual-report PDFs, then quarterly and half-year results. Every fact now has a
 period (`FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`; see §7). Results statements (SEBI Reg 33) ingest from PDF next to
-annual reports, quarter / half-year / year columns of both scopes land in their own periods, and like periods are
-compared (E404). Quarterly metrics: revenue, PAT, EBITDA, margins, year-on-year and quarter-on-quarter growth. The
+annual reports, quarter / half-year / year columns land in their own periods, and like periods are compared
+(E404). Quarterly metrics: revenue, PAT, EBITDA, margins, year-on-year and quarter-on-quarter growth. The
 health report stays annual; the dashboard company page shows quarters.
 
 Claude readings (after 1.0.0, not a phase): fin's deterministic extraction stays the primary path (OCR was tested and
@@ -65,6 +65,14 @@ Chart of accounts (after 1.0.0, not a phase): the seed dictionary covers Schedul
 split (NBFCs, banks) add straight into `total_assets` / `total_liabilities`; NBFC subtotals such as "Total financial
 assets" and memo lines are accounts without a parent. Labels that mean different accounts in different formats
 ("Loans", "Investments", "Provisions" outside a balance-sheet part) are left to review.
+
+Simpler PDF parser (after 1.0.0, not a phase; owner decision): the product is the analysis, not the parsing. The
+parser reads clean, standard digital statements; a page it cannot read is listed as not read and a Claude reading
+fills it. Each parsing rule was kept only if it reads a statement correctly in a document it was not written for, or
+if removing it would load a wrong figure; document-specific workarounds were removed (CHANGELOG "Simplify the PDF
+parser"). A page whose figures look misread (a row label holding a figure, a figure with an unpaired bracket) is
+not read (E204), and so is an untitled page carrying on a page that was not read. Standalone and consolidated
+columns printed side by side are not read (E202).
 
 ---
 
