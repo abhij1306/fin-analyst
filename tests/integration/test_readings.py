@@ -113,7 +113,7 @@ def test_reading_loads_a_scanned_pdf_when_the_gates_pass(
         assert con.execute("SELECT unverified_claude_facts FROM companies").fetchall() == [(4,)]
 
 
-def test_reading_that_fails_a_gate_is_rolled_back(
+def test_reading_that_fails_a_gate_is_held_with_a_finding(
     root: Path, tmp_path: Path, scanned: Path
 ) -> None:
     unbalanced = [*BALANCE_SHEET[:3], (*BALANCE_SHEET[3][:5], "90.00", 1)]
@@ -121,13 +121,11 @@ def test_reading_that_fails_a_gate_is_rolled_back(
 
     result = runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(reading)])
 
-    assert result.exit_code == 1
-    assert "E401" in result.stdout
-    assert query(root, "SELECT count(*) FROM facts") == [(0,)]
-    assert query(root, "SELECT count(*) FROM documents") == [(0,)]
-    error = json.loads((root / "review" / "acme" / "scan.pdf.error.json").read_text("utf-8"))
-    assert (error["code"], error["reading"]) == ("E401", str(reading))
-    assert error["to_fix"][-1].endswith(f'--reading "{reading}"')
+    assert result.exit_code == 0, result.output
+    assert "scan.pdf: held as doc_id 1 version 1: 4 facts" in result.stdout
+    assert query(root, "SELECT file_name, status FROM documents") == [("scan.pdf", "held")]
+    assert query(root, "SELECT code, status FROM findings") == [("E401", "open")]
+    assert query(root, "SELECT count(*) FROM current_facts") == [(0,)]
 
 
 def test_reading_fills_only_the_statement_fin_skipped(root: Path, tmp_path: Path) -> None:
@@ -227,6 +225,20 @@ def test_verify_marks_agreeing_facts_and_reports_every_outcome(
     ]
     # Earlier verifies agreed throughout, so they recorded no findings.
     assert audit_query("SELECT count(*) FROM findings WHERE other_file <> 'r3.csv'") == [(0,)]
+
+    # The findings are kept with the document; the same reading again adds none.
+    assert verify(str(pdf), "--reading", str(third)).exit_code == 0
+    listed = runner.invoke(app, ["findings", "list", "acme", "--json"])
+    assert [(f["finding_id"], f["status"], f["finding"]) for f in json.loads(listed.stdout)] == [
+        (1, "open", "differ"),
+        (2, "open", "missing_in_fin"),
+        (3, "open", "missing_in_reading"),
+    ]
+    # Save as is: accepted, still listed. The document stays loaded.
+    accepted = runner.invoke(app, ["findings", "accept", "acme", "1", "2", "3"])
+    assert accepted.exit_code == 0, accepted.output
+    assert "acme/ar25.pdf (doc_id 1): loaded, 0 open findings left" in accepted.stdout
+    assert query(root, "SELECT status, count(*) FROM findings GROUP BY ALL") == [("accepted", 3)]
 
 
 def test_verify_of_a_document_not_loaded_lists_every_line_missing(

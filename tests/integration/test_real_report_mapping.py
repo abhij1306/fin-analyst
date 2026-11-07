@@ -1,6 +1,6 @@
 """Mapping and validation of real annual-report layouts (synthetic PDFs): balance-sheet parts under
 sub-headings, OCI, exceptional items printed as a gain, per-share figures, and the fix path for a
-document a validation gate rejected (`fin map set`, then ingest the review/ copy again)."""
+document held with a finding (`fin map set`, then ingest it again with --force)."""
 
 import json
 from decimal import Decimal
@@ -151,7 +151,7 @@ def test_a_real_layout_maps_fully_and_every_subtotal_check_runs(
     ) == [("FY24", False), ("FY25", True)]
 
 
-def test_a_subtotal_that_does_not_add_up_with_either_sign_still_fails(
+def test_a_subtotal_that_does_not_add_up_with_either_sign_is_a_finding(
     root: Path, tmp_path: Path, audit_query: Any
 ) -> None:
     broken: Page = [
@@ -162,8 +162,9 @@ def test_a_subtotal_that_does_not_add_up_with_either_sign_still_fails(
 
     result = runner.invoke(app, ["ingest", "acme", str(path)])
 
-    assert result.exit_code == 1
-    assert "failed (E402: " in result.stdout
+    assert result.exit_code == 0, result.output
+    assert "held as doc_id 1" in result.stdout
+    assert query(root, "acme", "SELECT DISTINCT code, status FROM findings") == [("E402", "open")]
     assert audit_query(
         "SELECT CAST(expected AS VARCHAR), CAST(actual AS VARCHAR), passed FROM validation_results "
         "WHERE fiscal_year = 'FY25' AND message LIKE '%pbt vs the sum of its lines%'"
@@ -188,31 +189,24 @@ OLD_FORMAT = (
 )
 
 
-def test_a_rejected_document_loads_after_a_company_mapping_fix(
+def test_a_held_document_loads_after_a_company_mapping_fix(
     root: Path, tmp_path: Path, audit_query: Any
 ) -> None:
     path = write_pdf(tmp_path / "acme_ar24.pdf", *OLD_FORMAT, width=WIDTH)
 
-    rejected = runner.invoke(app, ["ingest", "acme", str(path)])
+    held = runner.invoke(app, ["ingest", "acme", str(path)])
 
-    assert rejected.exit_code == 1
-    assert "reason and how to fix in review/acme/acme_ar24.pdf.error.json" in rejected.stdout
-    review_copy = root / "review" / "acme" / "acme_ar24.pdf"
-    reason = json.loads((root / "review" / "acme" / "acme_ar24.pdf.error.json").read_text())
-    assert reason["code"] == "E403"
+    assert held.exit_code == 0, held.output
+    assert "acme/acme_ar24.pdf: held as doc_id 1 version 1" in held.stdout
+    rows = json.loads(runner.invoke(app, ["findings", "list", "acme", "--json"]).stdout)
     assert [
-        (line["account"], line["label"], line["value_as_printed"], line["where"])
-        for line in reason["checks"][0]["lines"]
+        (f["code"], f["period"], f["fin_printed"], f["fin_source"])
+        + (f["other_printed"], f["other_source"])
+        for f in rows
     ] == [
-        ("cash", "Cash & bank balances", "20.00", "page 1"),
-        ("closing_cash", "Closing cash & bank balances", "6.00", "page 2"),
+        ("E403", "FY24", "6.00", "page 2", "20.00", "page 1"),
+        ("E403", "FY25", "8.00", "page 2", "30.00", "page 1"),
     ]
-    command = (
-        'uv run fin map set --company acme --statement balance_sheet --label "Cash & bank '
-        'balances" --account ACCOUNT'
-    )
-    assert command in reason["to_fix"]
-    assert f'3. Load the file again: uv run fin ingest acme "{review_copy}"' in reason["to_fix"]
 
     mapped = runner.invoke(
         app,
@@ -229,17 +223,24 @@ def test_a_rejected_document_loads_after_a_company_mapping_fix(
             "cash_and_bank_balances",
         ],
     )
-    loaded = runner.invoke(app, ["ingest", "acme", str(review_copy)])
+    loaded = runner.invoke(app, ["ingest", "acme", str(path), "--force"])
 
     assert mapped.exit_code == 0, mapped.stdout
     assert "acme: balance_sheet 'Cash & bank balances' -> cash_and_bank_balances (added)" in (
         mapped.stdout
     )
     assert loaded.exit_code == 0, loaded.stdout
+    assert "acme/acme_ar24.pdf: loaded as doc_id 2 version 2" in loaded.stdout
+    # The earlier version and its findings are superseded.
+    assert query(root, "acme", "SELECT doc_id, status FROM documents ORDER BY 1") == [
+        (1, "superseded"),
+        (2, "loaded"),
+    ]
+    assert query(root, "acme", "SELECT DISTINCT status FROM findings") == [("superseded",)]
     assert query(
         root,
         "acme",
-        "SELECT account, value FROM facts WHERE raw_id IN (SELECT raw_id FROM "
+        "SELECT account, value FROM facts WHERE doc_id = 2 AND raw_id IN (SELECT raw_id FROM "
         "raw_values WHERE raw_label = 'Cash & bank balances') ORDER BY value",
     ) == [
         ("cash_and_bank_balances", Decimal("2000000.00")),
@@ -258,7 +259,7 @@ def test_a_rejected_document_loads_after_a_company_mapping_fix(
     ) == [("acme", "Cash & bank balances", "cash_and_bank_balances", "company", "confirmed")]
     # Other companies keep the global mapping.
     other = runner.invoke(app, ["ingest", "other", str(path)])
-    assert "failed (E403" in other.stdout
+    assert "held as doc_id 1" in other.stdout
 
 
 def test_map_set_rejects_an_account_of_another_statement(root: Path) -> None:

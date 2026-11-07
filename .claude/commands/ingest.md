@@ -5,7 +5,9 @@ argument-hint: <company> [path]
 
 Ingest documents for the company in `$ARGUMENTS`.
 
-1. Run `uv run fin ingest $ARGUMENTS`. Report the per-file outcomes and the summary line (loaded, skipped, failed, pending review, run_id). If a command fails, report its error code and run_id and stop. Do not work around it.
+1. Run `uv run fin ingest $ARGUMENTS`. Report the per-file outcomes and the summary line (loaded, skipped, failed,
+   pending review, held, run_id). If a command fails, report its error code and run_id and stop. Do not work around
+   it.
 2. If anything is pending review, run `uv run fin review list --company <company> --json`.
 3. For each pending item, choose an account from `templates/dictionary/schedule_iii.csv`. The account must belong to the item's statement. Write a JSON list to a scratch file with one object per item: `label`, `statement`, `section`, `account`, `confidence` (0 to 1), `reason`.
    - Propose only what the label's wording supports. If you are unsure, use a low confidence (below 0.7 is flagged E302) and say so in `reason`. Never guess to fill a gap.
@@ -13,10 +15,28 @@ Ingest documents for the company in `$ARGUMENTS`.
 4. Run `uv run fin map propose <file.json> --company <company>`. Proposals are stored as pending and change no data.
 5. Show the user the proposals (label, account, confidence, reason) and tell them to run `/review` or `uv run fin review` to confirm. Do not run `fin review confirm` unless the user has asked you to.
 6. Flag failed files and unmapped or unconfirmed labels. Do not state numbers that did not come from `fin` output.
-7. For a file that failed a check (E401-E405), read `review/<company>/<file>.error.json`: show each failed check's
-   `lines` and the `unmapped` labels. If a line looks mapped to the wrong account (for example old-format "Cash and
-   bank balances", which also holds deposits), suggest the `fin map set` command from `to_fix` with the account you
-   propose, and why. Run it, then `uv run fin ingest <company> <review copy>`, only when the user asks.
+7. **Findings.** A file reported as `held as doc_id N ... K findings` loaded, but something in it does not add up
+   (E401 balance sheet, E402 subtotal, E403 cash flow, E404 a figure differs from another document, E405 a unit
+   factor). This is a finding about what the company filed, not an error. A held document is not in current figures
+   or metrics.
+   1. Run `uv run fin findings list <company>`. Show the user each open finding: the finding id, the code, the
+      period, this document's figure and where it is, and what it was compared with and where. Describe it
+      neutrally; do not say which side is right.
+   2. Ask the user, for each held document: **save as is, or have Claude fix it?**
+   3. Save as is: run `uv run fin findings accept <company> <finding ids>`. The document is loaded exactly as filed;
+      the findings stay attached, marked accepted.
+   4. Fix: first look at the source page or cells and tell the user what you found. Then use one of these, as the
+      user agrees:
+      - a label mapped to the wrong account (for example old-format "Cash and bank balances", which also holds
+        deposits: map it to `cash_and_bank_balances`): `uv run fin map set --company <company> --statement
+        <statement> --label "<label>" --account <account>`, then `uv run fin ingest <company> <file> --force`;
+      - an unmapped label that is part of the total: confirm its mapping with `/review`;
+      - a figure fin read wrongly: `uv run fin sql <company> --write --sql "UPDATE facts SET value = ... WHERE
+        fact_id = ..."` (backed up and audit-logged).
+      Every held document is checked again after `fin sql --write` and `fin review confirm`, and `fin ingest
+      --force` checks the new version. Report the result: a finding that no longer appears is resolved; a document
+      with no open findings is loaded. Never change data to make a check pass when the source itself shows the
+      figure: that is the user's call to save as is.
 8. **Pages fin could not read.** A file can fail extraction (E104 scanned, E201, E202, E203, E204), or load with a
    warning that a balance sheet, profit and loss or cash flow page was skipped (`... page N skipped: E20x ...`), or
    load without one of those statements. Tell the user which file, which statements and which pages (from the
@@ -28,9 +48,10 @@ Ingest documents for the company in `$ARGUMENTS`.
 fin stays the primary path. A reading fills in only what fin could not read, and nothing from it is trusted until a
 second, independent reading agrees and the document's validation gates pass.
 
-1. Read the source FIRST, before looking at any fin output for the document (no `fin query`, no error.json
+1. Read the source FIRST, before looking at any fin output for the document (no `fin query`, no `fin findings`
    figures), so the reading is independent. PDF: use the Read tool with the `pages` parameter on the original file
-   (`review/<company>/<file>` after a failure) to see the pages as images. Excel: read the cells.
+   (`review/<company>/<file>` after a failure) to see the pages as images (this needs poppler, installed by
+   `./install.sh`; `uv run fin doctor` warns when it is missing). Excel: read the cells.
 2. Write the reading file at `review/<company>/<file stem>.reading1.csv` in the data folder (never in the repo).
    UTF-8 CSV with this header, one row per figure (one line in one period column):
 
@@ -49,13 +70,13 @@ second, independent reading agrees and the document's validation gates pass.
      round, convert units or infer a figure. If a figure is unreadable, leave the line out and tell the user;
      do not guess it.
 3. Load it: `uv run fin ingest <company> <original file> --reading <reading1.csv>`. fin loads the reading only for the statements it could not read itself, through the same validation
-   gates. Report the outcome. If a gate fails (E401-E405), show the error.json lines; do not edit the reading to
-   make it pass. Re-read the page and fix only a figure you misread, and say which.
+   gates. Report the outcome. If the document is held with findings, follow step 7; do not edit the reading to
+   make a check pass. Re-read the page and fix only a figure you misread, and say which.
 4. Second, independent reading: read the same pages again from scratch, without opening `reading1.csv`, and write
    `review/<company>/<file stem>.reading2.csv` the same way.
 5. Run `uv run fin verify <company> <original file> --reading <reading2.csv>`. Report the counts and every line
-   that does not agree (a finding, not an error), with both values and their sources. Findings are never resolved
-   automatically: show them, re-check the page if the user asks, and change data only when the user asks (`fin sql --write`, or a
-   corrected reading and `fin ingest --force`).
+   that does not agree (a finding, not an error), with both values and their sources. Then ask the user, as in step
+   7: save as is (`uv run fin findings accept <company> <finding ids>`), or have Claude re-check the page and fix it
+   (`fin sql --write`, or a corrected reading and `fin ingest --force`).
 6. Say how many facts were read by Claude and how many are verified. Unverified Claude-read facts must be flagged
    in every answer that uses them.

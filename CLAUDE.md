@@ -4,10 +4,12 @@ Local financial health analysis tool. Ingests company financial documents into D
 
 ## Using the tool
 
-- Use `fin` (`uv run fin ...`) for all data access. Change data only when the user asks, and through `fin` (`fin sql --write`, `fin review`, `fin delete`), which backs up and logs. If the guard asks for confirmation, that is the user's call.
+- Use `fin` (`uv run fin ...`) for all data access. Change data only when the user asks, and through `fin` (`fin sql --write`, `fin review`, `fin delete`), which backs up and logs.
 - Every number you state must come from `fin` output. Never do arithmetic in prose; ratios and growth are computed in SQL.
 - Answers to questions use this format: answer, calculation, source table (file + sheet!cell or page), SQL, flags.
-- Flag unconfirmed mappings, failed validations, and missing data. Never fill gaps with assumptions.
+- Flag unconfirmed mappings, findings (open and accepted), and missing data. Never fill gaps with assumptions.
+- What a company filed that does not add up is a finding, not a failure. Show it neutrally and ask the user: save
+  as is (`fin findings accept`) or have Claude fix it.
 - Mappings: you propose (`fin map propose`); the user reviews them.
 - Report narrative: describe, don't judge. No recommendations, ratings, or buy/don't-buy language. Numbers in narrative only as inline references, never typed.
 - If a command fails, report the error code and run_id. Don't work around a failure.
@@ -33,5 +35,6 @@ This app is meant to be modified with Claude Code. Keep modules small and readab
 
 - Data folder: `~/FinAnalysis` (override `FIN_DATA_DIR`)
 - Health check: `uv run fin doctor`
+- What is loaded and waiting per company: `uv run fin status`; findings: `uv run fin findings list`
 - Tests: `uv run pytest` (add `--golden` for the private real-data set)
 - Lint: `uv run ruff check .`

@@ -34,27 +34,19 @@ charge as positive and subtracts it ("V - VI"), but some companies print a gain 
 it ("iii + iv"). The subtotal check tries the dictionary sign (-1) first, then +1, and the message
 says when the document adds them.
 
-Every check that runs is appended to the audit table `validation_results`, pass or fail. If any
-fails, `validate_document` raises the first failure's error (in the order above, unit_sanity before
-cross_document), so the document is rolled back and sent to review/ with expected vs actual and the
-lines each failed check used (label, section, page or cell, account).
+Every check that runs is appended to the audit table `validation_results`, pass or fail.
+`validate_document` returns each failed check as a finding (`fin.findings`): what the company filed
+does not add up, which is for the user to see and decide, not a failure. The finding has this
+document's figure (fin_*) and what it was compared with (other_*), each with its page or cell.
 """
 
 import re
 from dataclasses import dataclass, replace
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import duckdb
 
-from fin.audit.errors import (
-    BalanceSheetMismatch,
-    CashFlowMismatch,
-    CrossDocumentMismatch,
-    DocumentFailure,
-    SubtotalMismatch,
-    UnitSanityFailed,
-)
 from fin.config import load_config
 from fin.db.conn import connect
 from fin.extract.units import RUPEES_PER_UNIT
@@ -64,12 +56,13 @@ from fin.paths import dictionary_db_path
 if TYPE_CHECKING:
     from fin.audit.logger import Run
 
-ERRORS: dict[str, type[DocumentFailure]] = {
-    "balance_sheet": BalanceSheetMismatch,
-    "subtotal": SubtotalMismatch,
-    "cash_flow": CashFlowMismatch,
-    "unit_sanity": UnitSanityFailed,
-    "cross_document": CrossDocumentMismatch,
+# Each check's PLAN.md §9 code, in the order findings are listed.
+CODES = {
+    "balance_sheet": "E401",
+    "subtotal": "E402",
+    "cash_flow": "E403",
+    "unit_sanity": "E405",
+    "cross_document": "E404",
 }
 # Which config.toml tolerance each check uses.
 TOLERANCE = {
@@ -106,6 +99,8 @@ class Result:
     passed: bool
     message: str
     accounts: tuple[str, ...] = ()  # the accounts whose lines the check used
+    other_doc_id: int | None = None  # cross_document / unit_sanity: the document compared with
+    other_file: str | None = None
 
 
 @dataclass(frozen=True)
@@ -293,13 +288,13 @@ def _across_documents(
     tolerances: dict[str, Decimal],
 ) -> list[Result]:
     others = con.execute(
-        "SELECT d.file_name, x.period, x.scope, x.account, x.value FROM document_facts x "
-        "JOIN documents d USING (doc_id) WHERE d.status = 'loaded' AND x.doc_id <> ? "
-        "ORDER BY ALL",
+        "SELECT d.doc_id, d.file_name, x.period, x.scope, x.account, x.value "
+        "FROM document_facts x JOIN documents d USING (doc_id) "
+        "WHERE d.status = 'loaded' AND x.doc_id <> ? ORDER BY ALL",
         [doc_id],
     ).fetchall()
     results = []
-    for other_file, year, scope, account, expected in others:
+    for other_doc, other_file, year, scope, account, expected in others:
         actual = figures.get((year, scope), {}).get(account)
         if actual is None:
             continue
@@ -308,7 +303,7 @@ def _across_documents(
         if not result.passed and _unit_factor(expected, actual, result.tolerance):
             what = f"{account} vs {other_file} differs by a unit factor"
             result = _compare("unit_sanity", key, expected, actual, tolerances, what, (account,))
-        results.append(result)
+        results.append(replace(result, other_doc_id=other_doc, other_file=other_file))
     if not results:
         run.event(
             "validate",
@@ -347,9 +342,9 @@ def _reconciled(con: duckdb.DuckDBPyConnection, doc_id: int, result: Result) -> 
 
 def validate_document(
     run: "Run", company: str, con: duckdb.DuckDBPyConnection, doc_id: int
-) -> None:
-    """Run every gate on the staged document `doc_id`, record each result, and raise the first
-    failure (E401-E405)."""
+) -> list[dict[str, Any]]:
+    """Run every gate on the staged document `doc_id`, record each result, and return the failed
+    checks as findings (see `_finding`)."""
     tolerances = load_config(run.root).tolerances
     row = con.execute("SELECT file_name FROM documents WHERE doc_id = ?", [doc_id]).fetchone()
     assert row is not None
@@ -362,7 +357,7 @@ def validate_document(
 
     failures = []
     for result in results:
-        code = None if result.passed else ERRORS[result.check_name].code
+        code = None if result.passed else CODES[result.check_name]
         run.record(
             "validation_results",
             {
@@ -382,39 +377,64 @@ def validate_document(
         )
         if not result.passed:
             failures.append(result)
-            run.event("validate", result.message, level="error", code=code, file=file)
-    if not failures:
-        return
-    failures.sort(key=lambda r: list(ERRORS).index(r.check_name))
-    first = failures[0]
-    more = len(failures) - 1
-    message = first.message + (f" (and {more} more failed check(s))" if more else "")
-    error = ERRORS[first.check_name](message)
-    error.details = tuple(
-        {
-            "check": r.check_name,
-            "code": ERRORS[r.check_name].code,
-            "fiscal_year": r.period,
-            "scope": r.scope,
-            "expected": str(r.expected),
-            "actual": str(r.actual),
-            "tolerance": str(r.tolerance),
-            "message": r.message,
-            "lines": _lines(con, doc_id, r),
-        }
-        for r in failures
-    )
-    raise error
+            run.event("validate", result.message, level="warning", code=code, file=file)
+    failures.sort(key=lambda r: list(CODES).index(r.check_name))
+    return [_finding(con, doc_id, file_name, r) for r in failures]
 
 
-def _lines(con: duckdb.DuckDBPyConnection, doc_id: int, result: Result) -> list[dict[str, str]]:
-    """The document's lines behind a check's accounts, for that year and scope, as written."""
+def _printed(
+    con: duckdb.DuckDBPyConnection, doc_id: int, period: str, scope: str, account: str
+) -> tuple[str | None, str | None, str | None]:
+    """(statement, value as printed, page or sheet!cell) of the document's lines behind an account
+    in a period and scope; lines summed into one figure are joined with ' + ' and ', '."""
     rows = con.execute(
-        "SELECT f.account, r.statement, r.section, r.raw_label, r.raw_value_text, "
+        "SELECT r.statement, r.raw_value_text, "
         "coalesce(r.sheet || '!' || r.cell, 'page ' || CAST(r.page AS VARCHAR)) "
-        "FROM facts f JOIN raw_values r USING (raw_id) WHERE f.doc_id = ? AND f.period = ? "
-        "AND f.scope = ? AND f.account IN (SELECT unnest(?)) ORDER BY f.raw_id",
-        [doc_id, result.period, result.scope, list(result.accounts)],
+        "FROM document_facts x JOIN facts f ON list_contains(x.fact_ids, f.fact_id) "
+        "JOIN raw_values r ON r.raw_id = f.raw_id "
+        "WHERE x.doc_id = ? AND x.period = ? AND x.scope = ? AND x.account = ? ORDER BY f.raw_id",
+        [doc_id, period, scope, account],
     ).fetchall()
-    fields = ("account", "statement", "section", "label", "value_as_printed", "where")
-    return [dict(zip(fields, row, strict=True)) for row in rows]
+    if not rows:
+        return None, None, None
+    return rows[0][0], " + ".join(r[1] for r in rows), ", ".join(r[2] for r in rows)
+
+
+def _finding(
+    con: duckdb.DuckDBPyConnection, doc_id: int, file_name: str, r: Result
+) -> dict[str, Any]:
+    """A failed check as a finding (columns of the `findings` tables). fin_* is the figure in this
+    document; other_* what it was compared with: the other side of the balance sheet, the
+    balance-sheet cash, the sum of a subtotal's lines, or another document's figure."""
+    if r.check_name in ("balance_sheet", "cash_flow"):
+        other_account, account = r.accounts
+        other_doc, other_file = doc_id, None
+    else:
+        account, other_account = r.accounts[0], r.accounts[0]
+        other_doc, other_file = r.other_doc_id, r.other_file
+    statement, fin_printed, fin_source = _printed(con, doc_id, r.period, r.scope, account)
+    other_printed, other_source = None, None
+    if r.check_name == "subtotal":
+        other_source = "sum of its lines"
+    elif other_doc is not None:
+        _, other_printed, other_source = _printed(con, other_doc, r.period, r.scope, other_account)
+    return {
+        "doc_id": doc_id,
+        "file_name": file_name,
+        "check_name": r.check_name,
+        "code": CODES[r.check_name],
+        "finding": "differ",
+        "statement": statement,
+        "scope": r.scope,
+        "period": r.period,
+        "label": account if account == other_account else f"{account} vs {other_account}",
+        "fin_value": r.actual,
+        "other_value": r.expected,
+        "difference": r.expected - r.actual,
+        "fin_printed": fin_printed,
+        "other_printed": other_printed,
+        "fin_source": fin_source,
+        "other_source": other_source,
+        "other_file": other_file,
+        "message": r.message,
+    }

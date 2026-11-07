@@ -1,7 +1,6 @@
-"""Validation gates (Phase 6) on the synthetic documents: each broken file fails with its code and
-loads nothing; every clean file passes every gate."""
+"""Validation gates (Phase 6) on the synthetic documents: each broken file is held with a finding
+carrying its code (not rejected); every clean file passes every gate."""
 
-import json
 import re
 from pathlib import Path
 from typing import Any
@@ -27,15 +26,18 @@ def ingest(company: str, path: Path) -> Result:
     return runner.invoke(app, ["ingest", company, str(path)])
 
 
-def documents(root: Path, company: str) -> list[str]:
+def documents(root: Path, company: str) -> list[tuple[str, str]]:
     with connect(company_db_path(root, company)) as con:
-        rows = con.execute("SELECT file_name FROM documents ORDER BY doc_id").fetchall()
-    return [name for (name,) in rows]
+        rows = con.execute("SELECT file_name, status FROM documents ORDER BY doc_id").fetchall()
+    return [(name, status) for name, status in rows]
 
 
-def review(root: Path, company: str, file_name: str) -> dict[str, Any]:
-    path = root / "review" / company / f"{file_name}.error.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+def findings(root: Path, company: str) -> list[tuple[Any, ...]]:
+    with connect(company_db_path(root, company)) as con:
+        return con.execute(
+            "SELECT file_name, code, check_name, period, CAST(other_value AS VARCHAR), "
+            "CAST(fin_value AS VARCHAR), status FROM findings ORDER BY finding_id LIMIT 1"
+        ).fetchall()
 
 
 def run_id_of(result: Result) -> str:
@@ -89,7 +91,7 @@ def run_id_of(result: Result) -> str:
         ),
     ],
 )
-def test_broken_file_fails_with_its_code_and_loads_nothing(
+def test_broken_file_is_held_with_a_finding(
     root: Path,
     samples: Path,
     audit_query: Any,
@@ -105,30 +107,27 @@ def test_broken_file_fails_with_its_code_and_loads_nothing(
     before = []
     if loaded_first is not None:
         assert ingest(company, samples / "clean" / loaded_first).exit_code == 0
-        before = [Path(loaded_first).name]
+        before = [(Path(loaded_first).name, "loaded")]
 
     result = ingest(company, samples / "broken" / broken)
 
-    assert result.exit_code == 1
-    assert f"failed ({code}: " in result.stdout
-    assert f"failed 1 ({code})" in result.stderr
-    assert documents(root, company) == before
-    reason = review(root, company, broken)
-    assert reason["code"] == code
-    first = reason["checks"][0]
-    assert (first["check"], first["fiscal_year"], first["expected"], first["actual"]) == (
-        check,
-        year,
-        expected,
-        actual,
-    )
-    assert (root / "review" / company / broken).is_file()
+    assert result.exit_code == 0, result.output
+    assert f"{broken}: held as doc_id " in result.stdout
+    assert "failed 0, pending review 0, held 1" in result.stderr
+    assert documents(root, company) == [*before, (broken, "held")]
+    assert findings(root, company) == [(broken, code, check, year, expected, actual, "open")]
+    assert not (root / "review" / company / broken).exists()
     assert audit_query(
         "SELECT file_name, check_name, fiscal_year, CAST(expected AS VARCHAR), "
         "CAST(actual AS VARCHAR) FROM validation_results WHERE run_id = ? AND error_code = ? "
         "ORDER BY recorded_at LIMIT 1",
         [run_id_of(result), code],
     ) == [(broken, check, year, expected, actual)]
+    assert audit_query(
+        "SELECT file_name, code, status FROM findings WHERE run_id = ? "
+        "ORDER BY recorded_at LIMIT 1",
+        [run_id_of(result)],
+    ) == [(broken, code, "open")]
 
 
 def test_clean_fixtures_pass_every_gate(root: Path, samples: Path, audit_query: Any) -> None:
@@ -165,7 +164,7 @@ def test_clean_fixtures_pass_every_gate(root: Path, samples: Path, audit_query: 
     ]
 
 
-def test_figures_off_by_a_unit_factor_fail_unit_sanity(
+def test_figures_off_by_a_unit_factor_are_a_unit_sanity_finding(
     root: Path, samples: Path, audit_query: Any
 ) -> None:
     clean = samples / "clean" / "bluepeak"
@@ -179,10 +178,12 @@ def test_figures_off_by_a_unit_factor_fail_unit_sanity(
 
     result = ingest("bluepeak", path)
 
-    assert result.exit_code == 1
-    assert "failed 1 (E405)" in result.stderr
-    assert documents(root, "bluepeak") == ["Bluepeak_Polymers_FY2022-23.xlsx"]
-    assert review(root, "bluepeak", path.name)["code"] == "E405"
+    assert result.exit_code == 0, result.output
+    assert documents(root, "bluepeak") == [
+        ("Bluepeak_Polymers_FY2022-23.xlsx", "loaded"),
+        (path.name, "held"),
+    ]
+    assert findings(root, "bluepeak")[0][1:3] == ("E405", "unit_sanity")
     assert audit_query(
         "SELECT DISTINCT check_name, passed FROM validation_results "
         "WHERE run_id = ? AND file_name = ? AND NOT passed",

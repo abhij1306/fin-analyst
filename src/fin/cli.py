@@ -24,6 +24,7 @@ from fin.dashboard import serve as serve_dashboard
 from fin.db.migrate import MigrationResult, ensure_current, migrate_all
 from fin.delete import delete_company
 from fin.doctor import run_checks
+from fin.findings import accept, format_finding, list_findings
 from fin.ingest import COMPANY_NAME, files_in, ingest_file
 from fin.map.commands import map_app, review_app
 from fin.map.dictionary import load_label_map, load_seed
@@ -34,6 +35,7 @@ from fin.query.evidence import write_evidence
 from fin.query.run import query
 from fin.query.write import write_sql
 from fin.report.render import make_report
+from fin.status import companies, format_status, status
 from fin.update import update as run_update
 from fin.verify import format_result, verify
 
@@ -143,7 +145,7 @@ def doctor(
             run.event(
                 "check",
                 f"{check.name}: {check.detail}",
-                level="info" if check.ok else "error",
+                level="error" if not check.ok else "warning" if check.warning else "info",
                 code=check.code,
                 context=None if check.fix is None else {"fix": check.fix},
             )
@@ -152,7 +154,9 @@ def doctor(
             typer.echo(json.dumps(payload, indent=2))
         else:
             for check in checks:
-                if check.ok:
+                if check.warning:
+                    typer.echo(f"warn  {check.name}: {check.detail}; fix: {check.fix}")
+                elif check.ok:
                     typer.echo(f"ok    {check.name}: {check.detail}")
                 else:
                     typer.echo(
@@ -170,6 +174,10 @@ def _company(value: str) -> str:
     if not COMPANY_NAME.match(value):
         raise typer.BadParameter("use lower-case letters, digits, '-' and '_' (e.g. kestrel)")
     return value
+
+
+def _optional_company(value: str | None) -> str | None:
+    return None if value is None else _company(value)
 
 
 ForceOption = Annotated[
@@ -294,6 +302,74 @@ def verify_command(
         {"company": company, "path": path, "reading": reading, "json": json_output},
         body,
     )
+
+
+findings_app = typer.Typer(
+    no_args_is_help=True,
+    help="Findings: figures in what a company filed that do not add up. Show them; save as is.",
+)
+app.add_typer(findings_app, name="findings")
+
+
+@findings_app.command("list")
+def findings_list(
+    company: Annotated[
+        str | None, typer.Argument(callback=_optional_company, help="Only this company.")
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+) -> None:
+    """Open findings, then accepted ones: this document's figure and what it was compared with,
+    each with its file and page or cell. A document with open findings is held: not in current
+    figures and metrics."""
+
+    def body(run: Run) -> None:
+        names = [company] if company is not None else companies(run.root)
+        rows = [row for name in names for row in list_findings(run, name)]
+        if json_output:
+            typer.echo(json.dumps(rows, indent=2, default=str))
+        else:
+            typer.echo("\n".join(map(format_finding, rows)) if rows else "no findings")
+
+    execute("findings list", {"company": company, "json": json_output}, body)
+
+
+@findings_app.command("accept")
+def findings_accept(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    ids: Annotated[list[int], typer.Argument(help="Finding ids from `fin findings list`.")],
+) -> None:
+    """Save as is: accept open findings. A held document with no open findings left is loaded
+    exactly as filed; its findings stay attached, marked accepted."""
+
+    def body(run: Run) -> None:
+        for doc in accept(run, company, ids):
+            typer.echo(
+                f"{company}/{doc['file']} (doc_id {doc['doc_id']}): {doc['status']}, "
+                f"{doc['open']} open findings left"
+            )
+        _echo_refresh(refresh_analytics(run))
+
+    execute("findings accept", {"company": company, "ids": ids}, body)
+
+
+@app.command("status")
+def status_command(
+    company: Annotated[
+        str | None, typer.Argument(callback=_optional_company, help="Only this company.")
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+) -> None:
+    """Per company: periods loaded and gaps, held documents, open and accepted findings, mappings
+    waiting for review, unverified figures read by Claude, and inbox files not yet ingested."""
+
+    def body(run: Run) -> None:
+        result = status(run, company)
+        if json_output:
+            typer.echo(json.dumps(result, indent=2, default=str))
+        else:
+            typer.echo(format_status(result))
+
+    execute("status", {"company": company, "json": json_output}, body)
 
 
 @app.command("query")

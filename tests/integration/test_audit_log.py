@@ -23,7 +23,8 @@ Query = Callable[..., list[tuple[Any, ...]]]
 
 def run_id_of(stderr: str) -> str:
     match = re.search(
-        r"^summary: loaded \d+, skipped \d+, failed \d+, pending review \d+, run_id (\S+)$",
+        r"^summary: loaded \d+, skipped \d+, failed \d+, pending review \d+, held \d+, "
+        r"run_id (\S+)$",
         stderr,
         re.MULTILINE,
     )
@@ -52,7 +53,7 @@ def test_doctor_writes_runs_events_and_jsonl(
     assert result.exit_code == 0
     run_id = run_id_of(result.stderr)
     assert result.stderr == (
-        f"summary: loaded 0, skipped 0, failed 0, pending review 0, run_id {run_id}\n"
+        f"summary: loaded 0, skipped 0, failed 0, pending review 0, held 0, run_id {run_id}\n"
     )
 
     runs = audit_query(

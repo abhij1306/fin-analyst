@@ -14,13 +14,15 @@ paisa, so there is no tolerance. Outcomes per line and column:
 - missing_in_reading: a loaded line of a statement, scope and period the reading covers that the
   reading does not have.
 
-Every outcome other than agree is a finding, shown to the user and recorded in the audit table
-`findings` (check `verify_reading`): it is not a failure, and the command exits 0 when it ran.
-fin is an analysis tool: differences are for the user to decide, and to fix through
-`fin sql --write` or a new ingest; verify never changes a figure.
+Every outcome other than agree is a finding (check `verify_reading`, `fin.findings`): shown to the
+user, stored with the document (open until accepted with `fin findings accept`, or resolved when a
+later verify with the same reading no longer finds it) and appended to the audit table `findings`.
+It is not a failure, and the command exits 0 when it ran. fin is an analysis tool: differences are
+for the user to decide, and to fix through `fin sql --write` or a new ingest; verify never changes
+a figure. A document that is not loaded has its findings in the audit log only.
 
 The only thing verify writes to the company database is the `facts.verified` flag. A fact that
-agrees becomes verified: the document is loaded, so its validation gates passed. A fact read by
+agrees becomes verified (in a loaded or a held document). A fact read by
 Claude is verified only by a reading other than the one it was loaded from (a different file; the
 same file again verifies nothing). A fact that differs is set back to unverified.
 """
@@ -35,6 +37,7 @@ from fin.config import load_config
 from fin.db.conn import connect
 from fin.db.migrate import ensure_current
 from fin.extract.reading import ReadingLine, printed_value, read_reading
+from fin.findings import record
 from fin.ingest import sha256_of
 from fin.map.normalize import normalize_label
 from fin.paths import company_db_path
@@ -152,8 +155,8 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
         ensure_current(run.root, db, "company", run)
         with connect(db) as con:
             doc = con.execute(
-                "SELECT doc_id, reading_sha256 FROM documents WHERE sha256 = ? AND status = "
-                "'loaded' ORDER BY version DESC LIMIT 1",
+                "SELECT doc_id, reading_sha256 FROM documents WHERE sha256 = ? AND status IN "
+                "('loaded', 'held') ORDER BY version DESC LIMIT 1",
                 [sha256],
             ).fetchone()
             if doc is not None:
@@ -170,19 +173,9 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
             verified.append(fact.fact_id)
         elif outcome == "differ":
             unverified.append(fact.fact_id)
-    if verified or unverified:
-        with connect(db, write=True) as con:
-            con.execute("BEGIN TRANSACTION")
-            for ids, flag in ((verified, True), (unverified, False)):
-                if ids:
-                    marks = ", ".join("?" for _ in ids)
-                    con.execute(
-                        f"UPDATE facts SET verified = ? WHERE fact_id IN ({marks})", [flag, *ids]
-                    )
-            con.execute("COMMIT")
 
     name = f"{company}/{path.name}"
-    rows = []
+    rows, findings = [], []
     for outcome, line, fact in results:
         either = line if line is not None else fact
         assert either is not None
@@ -204,7 +197,27 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
         }
         rows.append(row)
         if outcome != "agree":
-            run.record("findings", _finding(company, doc_id, path, reading, reading_sha, row))
+            findings.append(_finding(company, doc_id, path, reading, reading_sha, row))
+    if doc_id is None:  # nothing loaded to attach them to: the audit log only
+        for finding in findings:
+            run.record("findings", finding)
+    else:
+        with connect(db, write=True) as con:
+            con.execute("BEGIN TRANSACTION")
+            try:
+                for ids, flag in ((verified, True), (unverified, False)):
+                    if ids:
+                        marks = ", ".join("?" for _ in ids)
+                        con.execute(
+                            f"UPDATE facts SET verified = ? WHERE fact_id IN ({marks})",
+                            [flag, *ids],
+                        )
+                where = "doc_id = ? AND check_name = 'verify_reading' AND other_sha256 = ?"
+                record(run, company, con, findings, where, [doc_id, reading_sha])
+                con.execute("COMMIT")
+            except BaseException:
+                con.execute("ROLLBACK")
+                raise
     counts = {outcome: sum(1 for r in rows if r["outcome"] == outcome) for outcome in OUTCOMES}
     notes = []
     if doc_id is None:

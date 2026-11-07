@@ -17,9 +17,9 @@ Placeholders:
   {{title}}, {{subtitle}}
   {{narrative:<section>}}  the narrative under that section's heading in narrative.md
   {{table:<section>}}      the section's table (metrics and facts per fiscal year)
-  {{table:unconfirmed}}, {{table:failed_validations}}, {{table:missing_data}}, {{table:facts}}
-Every value in the tables comes from SQL on the company database (metrics, current_facts) and,
-for failed validations, the audit database.
+  {{table:unconfirmed}}, {{table:findings}}, {{table:missing_data}}, {{table:facts}}
+Every value in the tables comes from SQL on the company database (metrics, current_facts,
+findings).
 -->
 
 Analysis only: this report describes the financial statements. It makes no recommendation or
@@ -75,11 +75,13 @@ Facts whose label mapping is not confirmed. Metrics leave them out until `fin re
 
 {{table:unconfirmed}}
 
-### Failed validations
+### Findings
 
-Documents rolled back because a validation check failed; their values are not in this report.
+Figures in the filed documents that do not agree: a check that does not add up, or a figure that
+differs between documents or from an independent reading. Accepted findings are in this report as
+filed. Open findings wait for a decision; a held document's figures are not in this report.
 
-{{table:failed_validations}}
+{{table:findings}}
 
 ### Missing data
 

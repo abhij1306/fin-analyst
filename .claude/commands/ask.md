@@ -40,8 +40,12 @@ Answer this question with `fin`: $ARGUMENTS
 
    **Flags:** every row with `source_confirmed` false (unconfirmed mapping), every row with
    `source_read_by` = `claude` and `source_verified` false (read by Claude from a page fin could not read, not yet
-   confirmed by an independent reading), missing data, an E604 on the evidence page, or "none".
+   confirmed by an independent reading), missing data, an E604 on the evidence page, or "none". Also flag
+   accepted findings that touch the figures used: run `uv run fin findings list <company> --json` and name each
+   accepted finding with the same file, period and scope as a row (or the same label), with its code and both
+   values, neutrally (the figure is used as filed). If the company has held documents, say their figures are not
+   in the answer.
 
 Describe, don't judge: no recommendations or ratings. If the user asks to change data, use
-`uv run fin sql <company> --write --sql "<statement>"` (it backs up the database and asks the user to
-confirm), never `fin query`.
+`uv run fin sql <company> --write --sql "<statement>"` (it backs up the database and logs the change), never
+`fin query`.

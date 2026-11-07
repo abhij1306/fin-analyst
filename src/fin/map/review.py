@@ -13,8 +13,8 @@ existing account fits. It is stored on the item like any proposal; only `confirm
 to the shared `accounts` table (source 'review'), in the same transaction as the label.
 
 `set_mapping` (`fin map set`) maps a label straight to an account for one company, without a pending
-item: the way to fix the mapping behind a document that a validation gate rejected (it never
-loaded, so it has no pending items), before ingesting it again.
+item: the way to fix a wrong mapping behind a held document's findings, before ingesting it again
+with --force. Unmapped labels of held documents are pending items like those of loaded ones.
 
 Every step appends a row to the audit table `mapping_decisions`. The actor is `claude` (with
 on_request = true) when the `CLAUDECODE` environment variable is set, else `human`.
@@ -93,7 +93,7 @@ def write_pending(run: Run, company: str) -> int:
             "SELECT r.statement, r.section, r.raw_label, d.file_name, "
             "coalesce(r.sheet || '!' || r.cell, 'page ' || CAST(r.page AS VARCHAR)) "
             "FROM facts f JOIN raw_values r USING (raw_id) JOIN documents d ON d.doc_id = f.doc_id "
-            "WHERE f.account IS NULL AND d.status = 'loaded' ORDER BY f.raw_id"
+            "WHERE f.account IS NULL AND d.status IN ('loaded', 'held') ORDER BY f.raw_id"
         ).fetchall()
     found: dict[tuple[str, str, str], Item] = {}
     for statement, section, label, file_name, where in rows:

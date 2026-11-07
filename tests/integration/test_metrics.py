@@ -205,12 +205,13 @@ def test_superseded_documents_are_left_out(root: Path) -> None:
     ) == [(Decimal("74.999878"),)]
 
 
-def test_failed_validations_are_counted(root: Path) -> None:
+def test_held_documents_and_findings_are_counted(root: Path) -> None:
     broken = SAMPLES / "broken" / "Kestrel_UNBALANCED_balance_sheet.xlsx"
     result = runner.invoke(app, ["ingest", "kestrel", str(broken)])
 
-    assert result.exit_code == 1, result.output
+    assert result.exit_code == 0, result.output
     assert query(
         analytics_db_path(root),
-        "SELECT company, documents, failed_validations FROM companies ORDER BY company",
-    ) == [("bluepeak", 3, 0), ("kestrel", 1, 4), ("tarang", 2, 0)]
+        "SELECT company, documents, held_documents, open_findings, accepted_findings, "
+        "failed_validations FROM companies ORDER BY company",
+    ) == [("bluepeak", 3, 0, 0, 0, 0), ("kestrel", 1, 1, 1, 0, 1), ("tarang", 2, 0, 0, 0, 0)]

@@ -102,6 +102,7 @@ class Run:
         self.failed = 0
         self.failure_codes: list[str] = []  # one error code per failed file
         self.pending_review = 0
+        self.held = 0  # documents held with open findings (fin.findings)
         self._seq = 0
         self._records: list[tuple[str, dict[str, Any]]] = []
         self._jsonl_done = 0
@@ -247,7 +248,7 @@ class Run:
         failed = f"{self.failed} ({by_code})" if by_code else str(self.failed)
         typer.echo(
             f"summary: loaded {self.loaded}, skipped {self.skipped}, failed {failed}, "
-            f"pending review {self.pending_review}, run_id {self.run_id}",
+            f"pending review {self.pending_review}, held {self.held}, run_id {self.run_id}",
             err=True,
         )
         return exit_code

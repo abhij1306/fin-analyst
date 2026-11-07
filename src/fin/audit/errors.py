@@ -3,9 +3,12 @@
 Every failure path raises a subclass of `FinError`. Each class carries its §9 code and the exit code
 a command returns when the error ends it:
 
-- E0xx (setup), E5xx (database) and E601-E603 (outputs) stop the command: exit 2.
-- E1xx-E4xx are per-document failures and E604 is flagged in the evidence page. The command
+- E0xx (setup), E5xx (database), E601-E603 (outputs) and E406 (accepting a finding that is not
+  open) stop the command: exit 2.
+- E1xx-E3xx are per-document failures and E604 is flagged in the evidence page. The command
   completes and reports them: exit 1.
+- E401-E405 are not errors: they are the codes of validation checks whose failures are findings
+  (`fin.findings`), shown to the user; the document is held, not rejected.
 - E701 (action needs user confirmation; the CLI refused without it): exit 3.
 """
 
@@ -63,14 +66,9 @@ class UpdateFailed(FinError):
 
 
 class DocumentFailure(FinError):
-    """Base for per-document failures (E1xx-E4xx): the command completes with failures."""
+    """Base for per-document failures (E1xx-E3xx): the command completes with failures."""
 
     exit_code = EXIT_FAILURES
-    # Validation failures (E4xx) set this to every failed check, with expected vs actual and the
-    # lines it used; it is written to review/<company>/<file>.error.json.
-    details: tuple[dict[str, object], ...] = ()
-    # The labels of the rolled-back document that no mapping matched (statement, section, label).
-    unmapped: tuple[dict[str, str], ...] = ()
 
 
 class FileUnreadable(DocumentFailure):
@@ -142,27 +140,15 @@ class InvalidMapping(FinError):
     code = "E304"
 
 
-# E4xx: validation. The whole document is rolled back and sent to review with expected vs actual.
+# E4xx: validation. E401-E405 are the codes of the checks (fin.validate.gates); a failed check is a
+# finding, not an error.
 
 
-class BalanceSheetMismatch(DocumentFailure):
-    code = "E401"
+class FindingNotOpen(FinError):
+    """E406: `fin findings accept` named a finding that does not exist or is not open. Nothing is
+    accepted."""
 
-
-class SubtotalMismatch(DocumentFailure):
-    code = "E402"
-
-
-class CashFlowMismatch(DocumentFailure):
-    code = "E403"
-
-
-class CrossDocumentMismatch(DocumentFailure):
-    code = "E404"
-
-
-class UnitSanityFailed(DocumentFailure):
-    code = "E405"
+    code = "E406"
 
 
 # E5xx: database. Stop the command.

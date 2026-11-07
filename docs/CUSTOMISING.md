@@ -12,20 +12,23 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database. `db/migrate.py`: runs migrations. `db/migrations/<kind>/NNN_*.sql`:
   the schema (`audit`, `dictionary`, `analytics`, `company`).
-- `ingest.py`: loads one document in one transaction (stage, validate, commit or roll back). `VALIDATORS` lives here.
+- `ingest.py`: loads one document in one transaction (stage, check, commit, or roll back on an error).
+- `findings.py`: findings (what does not add up in a filing): `VALIDATORS` (the checks run on every staged
+  document), holding a document with open findings, `fin findings list|accept`, and the re-check of held documents
+  after a fix. `status.py`: `fin status`.
 - `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
   `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read),
   `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
 - `verify.py`: `fin verify`, compares a reading with what is loaded and marks agreeing facts verified.
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review`).
-- `validate/gates.py`: the checks that run on a staged document (E401 to E405).
+- `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
 - `metrics/export.py`: copies every company's `metrics` view to `shared/analytics.duckdb`.
 - `query/`: `run.py` (`fin query`), `write.py` (`fin sql --write`), `evidence.py` (evidence pages).
 - `report/`: `data.py` (sections and labels), `lint.py` (the no-typed-numbers rule), `render.py` (Quarto).
 - `delete.py`, `update.py`, `doctor.py`: `fin delete`, `fin update`, `fin doctor`.
 - Outside `src/`: `templates/dictionary/` (seed CSVs), `templates/report/health.qmd`, `.claude/commands/` (slash
-  commands), `.claude/hooks/` (guard and action log), `dashboards/` (Evidence project).
+  commands), `.claude/hooks/` (action log), `dashboards/` (Evidence project).
 
 ## Add an account or a label to the dictionary seed
 
@@ -43,7 +46,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `db/migrations/dictionary/002_account_unit_and_pl_tree.sql`), or use `fin sql` on the dictionary.
 - One company only: `uv run fin map set --company <co> --statement <statement> --label "<label as written>" --account
   <account> [--section "<heading>"]`. It wins over the seed for that company, for files ingested from then on. This
-  is also how to fix a file a check rejected: its `review/<co>/<file>.error.json` lists the lines and the commands.
+  is also how to fix a wrong mapping behind a held document's findings (`fin findings list`): map it, then
+  `fin ingest <co> <file> --force`.
 - From review: when no account fits a label, Claude proposes a new one in `fin map propose` (`account` is the new
   name, `new_account` is `{parent, sign, unit, description}`). `fin review confirm` adds it to the shared dictionary
   (`accounts.source = 'review'`, with the run_id) and maps the label, in one transaction; `--name` and `--parent`
@@ -86,16 +90,20 @@ Metrics are SQL views in each company database, so they are always current.
 
 ## Add a validation gate
 
-A validator is a function `f(run, company, con, doc_id)` that raises a `DocumentFailure` subclass (error code in
-`audit/errors.py`) when the staged document is wrong.
+A validator is a function `f(run, company, con, doc_id)` that returns the findings for the staged document: a list
+of dicts with the columns of the company `findings` table (`check_name`, `code`, `finding`, `statement`, `scope`,
+`period`, `label`, `fin_value`/`other_value`, `fin_printed`/`other_printed`, `fin_source`/`other_source`,
+`other_file`, `message`). A document with any finding is held, not rejected: what a company filed that does not add
+up is for the user to see and decide.
 
-1. Add the error class, with the next free code, to `audit/errors.py`, and a row to the table in `PLAN.md` §9 and in
-   the README Troubleshooting table (a test fails if the README misses a code).
-2. Write the check (see `validate/gates.py` for how a check reads the staged facts and records its result), and add
-   the function to `VALIDATORS` in `ingest.py`. The document is rolled back and sent to `review/` when it raises.
+1. Pick the next free check code (E4xx) and add a row to the table in `PLAN.md` §9 and a line to the README
+   "Findings" section. Check codes are not error classes.
+2. Write the check (see `validate/gates.py` for how a check reads the staged facts, records its result and builds
+   its findings), and add the function to `VALIDATORS` in `findings.py`. It runs again on held documents after a fix;
+   a finding it no longer returns is resolved.
 3. Test: add a broken file to `tests/fixtures/sample-financials/` (see the generator in `generator/`) and a test in
-   `tests/integration/test_validate.py` that ingests it and asserts the exit code, the error code and that nothing
-   was loaded.
+   `tests/integration/test_validate.py` that ingests it and asserts that the document is held with a finding carrying
+   the code.
 
 ## Add a report section
 

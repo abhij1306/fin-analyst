@@ -7,15 +7,16 @@ For each file, `ingest_file`:
 2. Extracts its values: Excel (`fin.extract.excel`) or PDF (`fin.extract.pdf`; notes and the
    auditor's report also go to `notes/<company>/` as Markdown).
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
-4. In ONE transaction: inserts the document, its raw values and their facts in rupees, runs every
-   function in `VALIDATORS` (the validation gates, `fin.validate.gates`), then commits. Any failure
-   rolls the whole document back.
+4. In ONE transaction: inserts the document, its raw values and their facts in rupees, marks
+   earlier versions of the same file superseded, runs the checks (`fin.findings.check_document`:
+   the validation gates), then commits. Any error rolls the whole document back.
 
-A label the dictionary does not map still loads, as a fact with no account and confirmed = false,
-and is logged with E301. A file that fails (E1xx-E4xx) is copied to `review/<company>/` with a
-`.error.json` file giving the code and reason; the next file goes on. For a failed check (E4xx) it
-also lists the lines the check used, the labels no mapping matched, and the commands to map a label
-for the company (`fin map set`) and load the file again.
+A failed check is a finding, not a failure: the document is committed but HELD (status 'held',
+left out of current figures and metrics) until the user accepts its findings or a fix clears them
+(`fin.findings`). A label the dictionary does not map still loads, as a fact with no account and
+confirmed = false, and is logged with E301. Only a file with nothing readable fails (E1xx/E2xx): it
+is copied to `review/<company>/` with a `.error.json` file giving the code and reason; the next
+file goes on.
 
 With a reading (`--reading`, `fin.extract.reading`): figures Claude read from the document's pages
 or cells are loaded for each statement and scope fin's own extraction did not read (all of them when
@@ -28,12 +29,10 @@ import hashlib
 import json
 import re
 import shutil
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
 
 import duckdb
 
@@ -56,17 +55,12 @@ from fin.extract.periods import fiscal_year_of, period_of, resolve_months
 from fin.extract.reading import ReadingLine, read_reading
 from fin.extract.text import write_notes_markdown
 from fin.extract.units import RUPEES_PER_UNIT
+from fin.findings import check_document, supersede
 from fin.map.dictionary import LabelMap, map_rows
 from fin.paths import archive_dir, company_db_path, review_dir
-from fin.validate.gates import validate_document
 
 COMPANY_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 EXCEL_SUFFIXES = (".xlsx", ".xlsm")
-
-# Checks run on a staged document before commit: f(run, company, connection, doc_id). Raise a
-# DocumentFailure (E4xx) to roll the document back.
-Validator = Callable[[Run, str, duckdb.DuckDBPyConnection, int], None]
-VALIDATORS: list[Validator] = [validate_document]
 
 
 @dataclass(frozen=True)
@@ -310,10 +304,10 @@ def _load(
     document: Document,
     label_map: LabelMap,
     reading: tuple[str, str] | None = None,
-) -> tuple[int, int, list[tuple[str, str]]]:
-    """Stage, validate and commit one document. Returns (doc_id, version, unmapped labels)."""
+) -> tuple[int, int, list[tuple[str, str]], int]:
+    """Stage, check and commit one document. Returns (doc_id, version, unmapped labels, open
+    findings); with open findings the document is held."""
     unmapped: dict[tuple[str, str], None] = {}
-    unmapped_lines: dict[tuple[str, str, str], None] = {}  # (statement, section, label)
     rows = document.rows
     with connect(company_db_path(run.root, company), write=True) as con:
         con.execute("BEGIN TRANSACTION")
@@ -353,7 +347,6 @@ def _load(
             for raw_id, r, mapping in zip(raw_ids, rows, map_rows(label_map, keys), strict=True):
                 if mapping is None:
                     unmapped[(r.statement, r.label)] = None
-                    unmapped_lines.setdefault((r.statement, r.section, r.label), None)
                 # A per-share figure (EPS) is stored as printed: the statement unit is not its unit.
                 value = r.rupees / r.rupees_per_unit if mapping and mapping.per_share else r.rupees
                 raw_values.append(
@@ -373,23 +366,13 @@ def _load(
                     "INSERT INTO notes VALUES (?, ?, ?)",
                     [doc_id, section, note.relative_to(run.root).as_posix()],
                 )
-            con.execute(
-                "UPDATE documents SET status = 'superseded', superseded_by = ? "
-                "WHERE sha256 = ? AND doc_id <> ? AND status = 'loaded'",
-                [doc_id, sha256, doc_id],
-            )
-            for validate in VALIDATORS:
-                validate(run, company, con, doc_id)
+            supersede(run, company, con, doc_id, sha256)
+            open_findings = check_document(run, company, con, doc_id)
             con.execute("COMMIT")
-        except BaseException as exc:
+        except BaseException:
             con.execute("ROLLBACK")
-            if isinstance(exc, DocumentFailure):
-                exc.unmapped = tuple(
-                    {"statement": statement, "section": section, "label": label}
-                    for statement, section, label in unmapped_lines
-                )
             raise
-    return doc_id, version, list(unmapped)
+    return doc_id, version, list(unmapped), open_findings
 
 
 def ingest_file(
@@ -403,7 +386,8 @@ def ingest_file(
     reading: Path | None = None,
 ) -> str:
     """Ingest one file (with a reading: see the module docstring) and return a one-line outcome.
-    Per-document failures are logged, counted on `run` and sent to review; they do not raise."""
+    Per-document failures are logged, counted on `run` and sent to review; they do not raise. A
+    document with findings is held (counted in `run.held`), not failed."""
     name = f"{company}/{path.name}"
     try:
         sha256 = sha256_of(path)
@@ -434,7 +418,7 @@ def ingest_file(
         if not archive.exists():
             _copy(path, archive)
         archive_rel = archive.relative_to(run.root).as_posix()
-        doc_id, version, unmapped = _load(
+        doc_id, version, unmapped, open_findings = _load(
             run, company, path, sha256, archive_rel, document, label_map, archived_reading
         )
     except DuplicateFile as exc:
@@ -448,7 +432,7 @@ def ingest_file(
         run.event("ingest", exc.message, level="error", code=exc.code, file=name)
         _to_review(run, company, path, exc, reading)
         return (
-            f"failed ({exc}); copied to review/{company}/, reason and how to fix in "
+            f"failed ({exc}); copied to review/{company}/, reason in "
             f"review/{company}/{path.name}.error.json"
         )
     for statement, label in unmapped:
@@ -460,14 +444,22 @@ def ingest_file(
             file=name,
             context={"doc_id": doc_id, "statement": statement, "label": label},
         )
-    run.loaded += 1
     run.pending_review += len(unmapped)
     claude = sum(1 for r in document.rows if r.read_by == "claude")
-    message = (
-        f"loaded as doc_id {doc_id} version {version}: {len(document.rows)} facts, "
+    details = (
+        f"doc_id {doc_id} version {version}: {len(document.rows)} facts, "
         f"{len(unmapped)} unmapped labels"
         + (f", {claude} read by Claude (unverified)" if claude else "")
     )
+    if open_findings:
+        run.held += 1
+        message = (
+            f"held as {details}, {open_findings} findings; not in current figures until they "
+            f"are accepted or fixed (fin findings list {company})"
+        )
+    else:
+        run.loaded += 1
+        message = f"loaded as {details}"
     run.event("ingest", message, file=name, context={"doc_id": doc_id, "archive": archive_rel})
     return message
 
@@ -487,10 +479,6 @@ def _to_review(
     }
     if reading is not None:
         reason["reading"] = str(reading)
-    if error.details:
-        reason["checks"] = list(error.details)
-        reason["unmapped"] = list(error.unmapped)
-        reason["to_fix"] = _to_fix(company, copy, error, reading)
     try:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{path.name}.error.json").write_text(
@@ -498,35 +486,3 @@ def _to_review(
         )
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write to {folder}: {exc}") from exc
-
-
-def _to_fix(
-    company: str, copy: Path, error: DocumentFailure, reading: Path | None = None
-) -> list[str]:
-    """The steps, with commands, to fix a mapping behind a failed check and load the file again.
-    The example command uses the first line of the first failed check (else an unmapped label)."""
-    lines: list[dict[str, str]] = [
-        line for check in error.details for line in cast(list, check.get("lines", []))
-    ]
-    example = (lines or list(error.unmapped) or [{"statement": "STATEMENT", "label": "LABEL"}])[0]
-    statement, label = example["statement"], example["label"].replace('"', '\\"')
-    hints = []
-    if error.code == "E403":
-        hints.append(
-            "   E403: an old-format balance-sheet line 'Cash and bank balances' also holds other "
-            "bank balances (deposits). If so, map it to cash_and_bank_balances, which is not "
-            "compared with closing cash."
-        )
-    return [
-        "1. Compare each failed check's lines, and the unmapped labels, with the source document. "
-        "If the source itself does not add up, the file cannot load as it is.",
-        "2. If a label is mapped to the wrong account, or an unmapped label is part of a failed "
-        "total, map it for this company only (repeat for each label; add --section to limit it "
-        "to one heading). For example:",
-        f'uv run fin map set --company {company} --statement {statement} --label "{label}" '
-        "--account ACCOUNT",
-        f"   The accounts: uv run fin map accounts --statement {statement}",
-        *hints,
-        f'3. Load the file again: uv run fin ingest {company} "{copy}"'
-        + (f' --reading "{reading}"' if reading is not None else ""),
-    ]

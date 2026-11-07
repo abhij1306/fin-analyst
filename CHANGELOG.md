@@ -239,6 +239,55 @@ Human follow-ups:
 - The independence of the second reading rests on the slash-command instructions; fin only refuses the same file.
 - Run `uv run fin migrate` once on an existing data folder (audit 2 to 3, analytics 2 to 3, company 3 to 4).
 
+### Findings instead of failures; fin status
+
+Owner decision (2026-11-07): fin is an analysis tool, not an opinionated one. What a company filed that does not add
+up is a finding to show, never a failure that rejects data. Claude works without approval prompts; fin's backup and
+audit log are the safety net.
+
+- Validation gates (E401 balance sheet, E402 subtotal, E403 cash flow, E404 cross-document, E405 unit factor) no
+  longer roll a document back. Each failed check becomes a finding (`fin.findings`): this document's figure and what
+  it was compared with (the other side of the balance sheet, the sum of the lines, balance-sheet cash, or another
+  document's figure), each with its page or cell, plus check, code, period, scope and message. The document is
+  committed but **held** (`documents.status = 'held'`): out of `current_facts`, metrics, reports and the
+  cross-document check until the user decides. Only nothing readable (E1xx/E2xx) still fails a document and goes to
+  `review/` with `.error.json` (which no longer has `checks`/`to_fix`).
+- Findings live in the company `findings` table with a status (open, accepted, resolved, superseded) and every
+  finding and status change is appended to the audit `findings` table (new columns `finding_id`, `code`, `status`).
+  `fin verify` disagreements are stored the same way (for a loaded or held document); running verify again with the
+  same reading resolves lines that now agree and adds no duplicates.
+- `fin findings list [company] [--json]`: open findings, then accepted ones, with both values and sources.
+  `fin findings accept <company> <finding ids>` (save as is): the findings are accepted and a held document with no
+  open findings left is loaded exactly as filed; accepted findings stay listed. E406 (new) for an id that is not an
+  open finding; nothing is accepted.
+- Fixing uses the existing tools; there is no recheck command. Every held document of the company is checked again
+  after `fin sql --write` (its JSON lists `held_documents_rechecked`) and `fin review confirm`; `fin ingest --force`
+  checks the new version and supersedes the earlier one (and its findings). A finding a check no longer finds is
+  resolved; a held document with no open findings is loaded.
+- `fin status [company] [--json]`: per company, periods in current figures (years, halves, quarters, nine months),
+  gaps between the first and last of each kind, held documents, open and accepted findings, mappings waiting for
+  review, unverified Claude-read facts, and `inbox/` files not yet ingested (by sha256). New `/status` command.
+- Run summary adds `held N`. Ingest exits 0 when documents are held.
+- Report: the "Failed validations" table is now "Findings" (open and accepted, from the company database); `/report`
+  describes accepted findings neutrally. `/ask` flags accepted findings that touch the figures used. Data quality
+  dashboard: `held_documents`, `open_findings`, `accepted_findings` (analytics migration 004); the Evidence source
+  query now also selects `unverified_claude_facts`, which the page already showed.
+- `/ingest`, `/ingest-batch` and `/verify` show the findings and ask the user: save as is, or have Claude fix it.
+- Guard hook removed (`.claude/hooks/guard.py`, its `PreToolUse` entry and tests): every rule it had was an approval
+  prompt (data-changing `fin` commands, and also `rm`/`mv`/redirects into the data folder and opening a database
+  outside `fin`). The action log hook stays. `fin delete` keeps its typed confirmation (`--yes` for Claude).
+- `Brewfile` adds `poppler` (pdftoppm: Claude Code reads PDF pages as images for readings); `fin doctor` reports it
+  as `warn` when missing, never as a failure (`Check.warning`).
+- Migrations: company 005 (rebuilds `documents` to allow status `held`, since DuckDB cannot change a CHECK
+  constraint; adds `findings`), audit 004, analytics 004. Error classes for E401-E405 removed: they are check codes.
+- No new Python dependencies.
+
+Human follow-ups:
+- Run `uv run fin migrate` once on an existing data folder (audit 3 to 4, analytics 3 to 4, company 4 to 5), and
+  `brew bundle --file=Brewfile` (or `./install.sh`) for poppler.
+- With the guard gone, nothing prompts before `rm` in the data folder or a direct `.duckdb` open; confirm that is
+  wanted.
+
 ## [1.0.0] - 2026-11-07
 
 First release: Phases 0-12 below. How it was tested:

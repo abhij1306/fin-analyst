@@ -14,10 +14,14 @@ Produce the health report for: $ARGUMENTS
    - `SELECT fiscal_year, metric, value, unit FROM metrics WHERE scope = '<scope>' ORDER BY metric, fiscal_year`
    - `SELECT account, fiscal_year, value FROM current_facts WHERE scope = '<scope>' ORDER BY account, fiscal_year`
    - Unconfirmed facts: `SELECT f.fact_id, f.fiscal_year, f.value FROM facts f JOIN documents d USING (doc_id) WHERE d.status = 'loaded' AND NOT f.confirmed AND f.scope = '<scope>'`
+   - Findings: `uv run fin findings list <company> --json` (accepted ones are in the figures as filed; a held
+     document's figures are not in the report)
 3. Fill in `narrative.md` under each `## ` heading (keep the headings; use `###` below them):
    - Describe what the numbers show, section by section. In Observations, point out trends and how
-     the sections relate. In Data quality, mention unconfirmed mappings, failed validations and
-     missing values (NULL metrics) if there are any.
+     the sections relate. In Data quality, mention unconfirmed mappings, findings and missing values
+     (NULL metrics) if there are any. Describe each accepted finding neutrally: which document, which
+     line and period, and that the figure is used as filed; never say which side is right. Mention held
+     documents as not included.
    - Describe, don't judge: no recommendations, ratings, scores, or buy/sell language.
    - **Never type a number.** Write a reference and the renderer fills in the value from the
      database, in the display unit from config:

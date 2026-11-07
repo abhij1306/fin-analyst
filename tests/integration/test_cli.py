@@ -41,9 +41,9 @@ def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -
     ]
     assert result.stdout.splitlines()[-6:] == [
         "created  config.toml",
-        "shared/audit.duckdb: schema version 0 -> 3 (backup: none, new file)",
+        "shared/audit.duckdb: schema version 0 -> 4 (backup: none, new file)",
         "shared/dictionary.duckdb: schema version 0 -> 3 (backup: none, new file)",
-        "shared/analytics.duckdb: schema version 0 -> 3 (backup: none, new file)",
+        "shared/analytics.duckdb: schema version 0 -> 4 (backup: none, new file)",
         "dictionary: 104 accounts and 362 label mappings added from templates/dictionary",
         f"data folder {data_root}: 11 created, 0 already present",
     ]
@@ -58,9 +58,9 @@ def test_init_twice_creates_nothing_and_overwrites_nothing(data_root: Path) -> N
     assert result.exit_code == 0
     assert result.stdout.splitlines() == [
         "kept     config.toml (already present, not changed)",
-        "shared/audit.duckdb: up to date at schema version 3",
+        "shared/audit.duckdb: up to date at schema version 4",
         "shared/dictionary.duckdb: up to date at schema version 3",
-        "shared/analytics.duckdb: up to date at schema version 3",
+        "shared/analytics.duckdb: up to date at schema version 4",
         "dictionary: 0 accounts and 0 label mappings added from templates/dictionary",
         f"data folder {data_root}: 0 created, 11 already present",
     ]
@@ -79,7 +79,12 @@ def test_init_unwritable_location_is_e003(tmp_path: Path, monkeypatch: pytest.Mo
 
 
 def _all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
-    versions = {"uv": "uv 0.11.28", "node": "v24.11.1", "quarto": "1.8.25"}
+    versions = {
+        "uv": "uv 0.11.28",
+        "node": "v24.11.1",
+        "quarto": "1.8.25",
+        "pdftoppm": "pdftoppm version 24.02.0",
+    }
     monkeypatch.setattr("fin.doctor.tool_version", versions.get)
     monkeypatch.setattr("fin.doctor.sys.version_info", (3, 12, 13, "final", 0))
 
@@ -94,9 +99,10 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
         "ok    uv: 0.11.28",
         "ok    node: 24.11.1",
         "ok    quarto: 1.8.25",
+        "ok    poppler: 24.2.0",
         f"ok    data folder: {data_root}",
         "ok    config: display unit crores",
-        "ok    audit schema: version 3",
+        "ok    audit schema: version 4",
         "ok    dictionary schema: version 3",
         "all checks passed",
     ]
@@ -117,6 +123,7 @@ def test_doctor_json_reports_missing_data_folder(
             "detail": f"{data_root} does not exist",
             "code": "E003",
             "fix": "run `uv run fin init`",
+            "warning": False,
         },
         {
             "name": "config",
@@ -124,6 +131,7 @@ def test_doctor_json_reports_missing_data_folder(
             "detail": f"{data_root / 'config.toml'} is missing; run `uv run fin init` to create it",
             "code": "E001",
             "fix": "run `uv run fin init`",
+            "warning": False,
         },
         {
             "name": "audit schema",
@@ -131,6 +139,7 @@ def test_doctor_json_reports_missing_data_folder(
             "detail": f"{data_root / 'shared' / 'audit.duckdb'} does not exist",
             "code": "E001",
             "fix": "run `uv run fin init`",
+            "warning": False,
         },
         {
             "name": "dictionary schema",
@@ -138,6 +147,7 @@ def test_doctor_json_reports_missing_data_folder(
             "detail": f"{data_root / 'shared' / 'dictionary.duckdb'} does not exist",
             "code": "E001",
             "fix": "run `uv run fin init`",
+            "warning": False,
         },
     ]
     assert not data_root.exists()
@@ -169,3 +179,20 @@ def test_doctor_wrong_python_is_e002(data_root: Path, monkeypatch: pytest.Monkey
     assert result.stdout.splitlines()[0].startswith(
         "FAIL  python: found 3.13.1, need 3.12.x [E002]"
     )
+
+
+def test_doctor_warns_without_failing_when_poppler_is_missing(
+    data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _all_tools_present(monkeypatch)
+    monkeypatch.setattr(
+        "fin.doctor.tool_version", {"uv": "uv 0.11.28", "node": "v24.11.1", "quarto": "1.8.25"}.get
+    )
+    runner.invoke(app, ["init"])
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 0
+    assert (
+        "warn  poppler: pdftoppm not found on PATH: Claude cannot read PDF pages as images for "
+        "readings; fix: run ./install.sh (installs it with `brew bundle --file=Brewfile`)"
+    ) in result.stdout.splitlines()
+    assert result.stdout.splitlines()[-1] == "all checks passed"
