@@ -1,25 +1,38 @@
--- Periods (quarterly and half-year results): every fact belongs to one period of its fiscal year.
+-- Metrics (PLAN.md Phase 7): macros and plain views over facts, so they are always current and never stored twice.
+-- THIS FILE IS WHERE A METRIC IS ADDED OR CHANGED: edit `metric_definitions` (inputs), the `metrics` view (formula) and
+-- the CASE for its unit. See docs/CUSTOMISING.md.
 --
--- facts.period: 'FY25' for the year ended 31 March 2025, 'FY26-Q1' ... 'FY26-Q4' for quarters, 'FY26-H1' /
--- 'FY26-H2' for half years, 'FY26-9M' for nine months (fin.extract.periods). facts.period_months is its length
--- (3, 6, 9 or 12). A balance sheet is a point in time: 30 Sep 2025 is 'FY26-H1' (6), 31 Mar 2025 is 'FY25' (12).
--- facts.fiscal_year stays the fiscal year the period falls in ('FY26' for 'FY26-Q1').
--- documents.period_end is the latest period end in the document; its facts that end then are its own periods.
+-- Inputs: current_facts holds the facts a metric may use (see below). Queries should use current_facts too.
 --
--- Existing rows are annual: period = fiscal_year, period_months = 12. (The new columns stay nullable: DuckDB cannot
--- add NOT NULL in the transaction that fills them. Ingest always sets them.)
+-- Definitions (tests/fixtures/sample-financials/answer_key.json "conventions"):
+-- - Balance sheet items are closing balances of the year; days use a 365-day year.
+-- - EBITDA = PBT + finance cost + depreciation - other income.
+-- - Debt = long-term borrowings + short-term borrowings.
+-- - Inventory days and payable days are on cost of materials consumed.
+-- - Cash flow outflows are negative, so capex (cf_capex) is negative.
+-- - Each metric is per period and scope. Standalone and consolidated are never mixed.
+--
+-- Rules:
+-- - A metric whose inputs are missing, or whose denominator is zero, is NULL. Nothing is guessed.
+-- - Money metrics (ebitda, free_cash_flow) are exact sums in rupees.
+-- - Ratios and days are computed exactly on integer paise and rounded once, half away from zero, to 6
+--   decimal places (div6 below). DuckDB divides DECIMALs as DOUBLE, so div6 uses integer arithmetic instead.
+--   A ratio is a fraction: 0.180000 means 18%.
+-- - metrics.value is DECIMAL(38, 6) for every metric; metrics.unit says rupees, ratio or days.
 
-DROP VIEW metric_inputs;
-DROP VIEW metrics;
-DROP VIEW metric_definitions;
-DROP VIEW current_facts;
+-- round(n / d, 6), half away from zero, exactly. n and d are HUGEINT; NULL when d is 0 or either is NULL.
+CREATE MACRO div6(n, d) AS
+    CASE WHEN d <> 0 THEN CAST(
+        CAST(sign(n) * sign(d) * ((2 * abs(n) * 1000000 + abs(d)) // (2 * abs(d))) AS DECIMAL(38, 0))
+            * CAST(0.000001 AS DECIMAL(7, 6))
+        AS DECIMAL(38, 6))
+    END;
 
-ALTER TABLE facts ADD COLUMN period VARCHAR;
-ALTER TABLE facts ADD COLUMN period_months INTEGER;
-UPDATE facts SET period = fiscal_year, period_months = 12;
+-- Integer paise -> rupees, exactly.
+CREATE MACRO rupees(p) AS CAST(CAST(p AS DECIMAL(38, 0)) * CAST(0.01 AS DECIMAL(3, 2)) AS DECIMAL(38, 6));
 
-ALTER TABLE documents ADD COLUMN period_end DATE;
-UPDATE documents SET period_end = (SELECT max(f.period_end) FROM facts f WHERE f.doc_id = documents.doc_id);
+-- The fiscal year before fy: 'FY25' -> 'FY24'.
+CREATE MACRO prior_fy(fy) AS printf('FY%02d', (CAST(substr(fy, 3) AS INTEGER) + 99) % 100);
 
 -- The same period a year before: 'FY26' -> 'FY25', 'FY26-Q1' -> 'FY25-Q1'.
 CREATE MACRO prior_period(p) AS
@@ -134,9 +147,8 @@ SELECT 'current_ratio', unnest(['st_borrowings', 'lease_liabilities_current', 't
 
 -- Metrics, one row per period, scope and metric (long format), with value NULL when an input is missing.
 --
--- Annual periods (period_months = 12) get the annual metrics, exactly as before periods existed (002_metrics.sql
--- has the definitions and rules). Every annual metric appears for every fiscal year and scope with any current
--- fact.
+-- Annual periods (period_months = 12) get the annual metrics, by the definitions and rules above. Every annual
+-- metric appears for every fiscal year and scope with any current fact.
 --
 -- Quarter, half-year and nine-month periods get the metrics that make sense on one period's flows: revenue, PAT,
 -- EBITDA, gross / EBITDA / PAT margin, revenue_growth (year on year: against the same period a year before) and,

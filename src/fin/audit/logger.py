@@ -4,7 +4,7 @@ A run gets a `run_id` and appends records:
 - `runs`: a 'start' row when it begins and an 'end' row when it finishes (status, exit code, summary
   counts);
 - `events`: structured events (stage, file, level, error code, message, context);
-- any other audit table a command records into (for example `migrations`).
+- any other audit table a command records into.
 
 Each record is written at once to `logs/<date>/<run_id>.jsonl`, and appended to
 `shared/audit.duckdb` when the run starts and when it ends (`Run.flush` writes earlier). The audit
@@ -12,8 +12,8 @@ database is append-only: this module only INSERTs.
 
 Before `fin init` has created the data folder and the audit database, records wait in memory and are
 written as soon as their destination exists. A run that still cannot be recorded says so on stderr.
-Commands that need the audit database (`audit_required=True`, the default) stop with E001, E002 or
-E004 when it is missing, outdated or newer.
+Commands that need the audit database (`audit_required=True`, the default) stop with E001 or E002
+when it is missing or was made by an older fin.
 """
 
 import json
@@ -39,12 +39,10 @@ from fin.audit.errors import (
     EXIT_OK,
     DataFolderNotWritable,
     DependencyMissing,
-    DependencyVersionMismatch,
     FinError,
-    SchemaNewerThanCode,
 )
 from fin.db.conn import connect
-from fin.db.migrate import latest_version, schema_version
+from fin.db.schema import is_old_format, old_format_error
 from fin.paths import audit_db_path, data_dir
 
 STATUS_BY_EXIT = {
@@ -181,32 +179,20 @@ class Run:
         self._jsonl_done = len(self._records)
 
     def flush(self, *, required: bool = False) -> None:
-        """Append every record not yet in the audit database. If the database is missing or not at
-        the current schema version, keep the records for later; raise E001/E002/E004 instead when
-        `required`."""
+        """Append every record not yet in the audit database. If the database is missing or was made
+        by an older fin, keep the records for later; raise E001/E002 instead when `required`."""
         path = audit_db_path(self.root)
-        latest = latest_version("audit")
         if not path.is_file():
             self._db_problem = DependencyMissing(
                 f"audit database {path} does not exist; run `uv run fin init`"
             )
         else:
             with connect(path, write=True) as con:
-                version = schema_version(con)
-                if version == latest:
+                if not is_old_format(con):
                     self._insert(con)
                     self._db_problem = None
                     return
-            if version > latest:
-                self._db_problem = SchemaNewerThanCode(
-                    f"audit database {path} is at schema version {version}, newer than this fin "
-                    f"({latest}); update fin (`git pull`, then `uv sync --frozen`)"
-                )
-            else:
-                self._db_problem = DependencyVersionMismatch(
-                    f"audit database {path} is at schema version {version}, expected {latest}; "
-                    "run `uv run fin migrate`"
-                )
+            self._db_problem = old_format_error(path)
         if required:
             raise self._db_problem
 

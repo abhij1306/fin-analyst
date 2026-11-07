@@ -10,8 +10,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
 - `audit/errors.py`: error classes and codes (E001 to E701). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
-- `db/conn.py`: the only way to open a database. `db/migrate.py`: runs migrations. `db/migrations/<kind>/NNN_*.sql`:
-  the schema (`audit`, `dictionary`, `analytics`, `company`).
+- `db/conn.py`: the only way to open a database. `db/schema.py`: creates a database from its schema file.
+  `db/schema/<kind>.sql`: the schema (`audit`, `dictionary`, `analytics`, `company`; the company metric views are
+  in `company_views.sql`).
 - `ingest.py`: loads one document in one transaction (stage, check, commit, or roll back on an error).
 - `findings.py`: findings (what does not add up in a filing): `VALIDATORS` (the checks run on every staged
   document), holding a document with open findings, `fin findings list|accept`, and the re-check of held documents
@@ -55,8 +56,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   instruments" or assets held for sale: in a Division II statement whose part heading was not read they would land
   in the wrong subtotal and a correct document would be held on an E402 finding. Map them per company (`fin map set`) instead.
 - Run `uv run fin init`. It adds missing rows to the shared dictionary and never removes or changes existing ones. To
-  change an existing row (a new parent or sign), add a `dictionary` migration (see
-  `db/migrations/dictionary/002_account_unit_and_pl_tree.sql`), or use `fin sql` on the dictionary.
+  change an existing row (a new parent or sign), edit the row in `templates/dictionary/schedule_iii.csv` and re-create the data folder, or use `fin sql --write` on
+  the dictionary for a one-off change.
 - One company only: `uv run fin map set --company <co> --statement <statement> --label "<label as written>" --account
   <account> [--section "<heading>"]`. It wins over the seed for that company, for files ingested from then on. This
   is also how to fix a wrong mapping behind a held document's findings (`fin findings list`): map it, then
@@ -86,14 +87,15 @@ and the next one shown), not the sign of `exceptional_items` alone.
 
 Metrics are SQL views in each company database, so they are always current.
 
-1. Add a new file `src/fin/db/migrations/company/NNN_<name>.sql` (next free number; never edit an applied one). It
-   redefines the `metrics` view with `CREATE OR REPLACE VIEW`, copying the latest one (`003_periods.sql`) and adding
-   your metric. Do the same for `metric_definitions` (the accounts the metric uses), so `fin audit <co> <metric>
-   <period>` can trace it. Read the rules at the top of `002_metrics.sql` and `003_periods.sql`: facts come from
-   `current_facts` (one value per account, period and scope), a missing input gives NULL, ratios use `div6`. The
-   final `WHERE` of the view says which metrics a year gets and which a quarter or half year gets; a metric that
-   needs a full year of flows or balance-sheet averages belongs to years only.
-2. Run `uv run fin migrate`. Migrations back up, run in a transaction, and roll back on failure (E503).
+1. Edit `src/fin/db/schema/company_views.sql`, the one place the metrics live. Add your metric to the `metrics` view
+   (the formula, the `UNPIVOT` list, the unit `CASE` and the final `WHERE`) and to `metric_definitions` (the accounts
+   the metric uses), so `fin audit <co> <metric> <period>` can trace it. Read the rules at the top of the file: facts
+   come from `current_facts` (one value per account, period and scope), a missing input gives NULL, ratios use
+   `div6`. The final `WHERE` of the view says which metrics a year gets and which a quarter or half year gets; a
+   metric that needs a full year of flows or balance-sheet averages belongs to years only.
+2. The views only exist in a company database when it is created, so apply the change to existing ones too: re-create
+   the data folder (`fin init` and ingest again), or run the edited `CREATE OR REPLACE VIEW` through `fin sql --write`
+   on each company.
 3. Optionally show it in the report: add it to `SECTIONS`, `LABELS` (and `PERCENT` if it is a percentage) in
    `src/fin/report/data.py`.
 4. Test: add the metric's expected values to the key's `metrics` for each company (in
@@ -129,13 +131,17 @@ A section is a heading in `templates/report/health.qmd` plus an entry in `SECTIO
 4. Test: extend `tests/integration/test_report.py`. The narrative never contains typed numbers; it uses
    `{{metric:name:FY25}}` and `{{fact:account:FY25}}` (the lint in `report/lint.py` enforces it).
 
-## Migrations
+## Schema
 
-SQL files in `src/fin/db/migrations/<kind>/NNN_name.sql`, numbered 001, 002, ... with no gaps. Each file's version is
-recorded in its database's `schema_version` table. `fin migrate` (also run by `fin update` and `fin init`) backs up
-every database that has pending migrations to `backups/<run_id>/`, applies each migration in its own transaction, and
-restores the backup on failure (E503). A database newer than the code stops with E004. Never edit a migration that has
-been released; add a new one.
+Each database has one schema file with its final tables and views, in `src/fin/db/schema/`: `audit.sql`,
+`dictionary.sql`, `analytics.sql`, `company.sql` (tables) and `company_views.sql` (metric macros and views). `fin init`
+creates the shared databases from them, and a company database is created from `company.sql` and `company_views.sql`
+the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
+numbers.
+
+To change a schema, edit its file. Then either re-create the data folder (move `~/FinAnalysis` away, run `fin init` and
+ingest again), or make the same change to the existing databases with `fin sql --write` (it backs up and logs). A data
+folder made by an older fin that had migrations is detected (E002) and has to be re-created.
 
 ## Tests and fixtures
 

@@ -16,7 +16,7 @@ from typing import Any
 
 from fin.audit.logger import Run
 from fin.db.conn import connect
-from fin.db.migrate import ensure_current
+from fin.db.schema import ensure_database
 from fin.ingest import COMPANY_NAME, files_in, sha256_of
 from fin.map.review import OPEN, read_pending
 from fin.paths import companies_dir, company_db_path, inbox_dir
@@ -74,7 +74,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
     open_findings = accepted = unverified = 0
     known: set[str] = set()
     if db.is_file():
-        ensure_current(run.root, db, "company", run)
+        ensure_database(db, "company")
         with connect(db) as con:
             for period, months in con.execute(
                 "SELECT DISTINCT period, period_months FROM current_facts ORDER BY period_months "

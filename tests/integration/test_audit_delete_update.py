@@ -14,6 +14,7 @@ from typer.testing import CliRunner, Result
 import fin.update
 from fin.cli import app
 from fin.db.conn import connect
+from fin.db.schema import ensure_database
 from fin.paths import analytics_db_path, company_db_path
 
 runner = CliRunner()
@@ -216,8 +217,8 @@ def git(cwd: Path, *args: str) -> str:
 @pytest.fixture
 def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     """(clone, other): a clone `fin update` runs in, and a second clone used to push new commits to
-    the shared bare remote. The uv and npm steps are replaced by no-ops; migrate and doctor run
-    through `python -m fin`."""
+    the shared bare remote. The uv and npm steps are replaced by no-ops; metrics refresh and doctor
+    run through `python -m fin`."""
     remote = tmp_path / "remote.git"
     git(tmp_path, "init", "--bare", "-b", "main", str(remote))
     other = tmp_path / "other"
@@ -236,16 +237,14 @@ def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     return work, other
 
 
-def test_update_pulls_backs_up_and_migrates(
+def test_update_pulls_and_backs_up(
     clone: tuple[Path, Path],
     data_root: Path,
     audit_query: Callable[..., list[tuple[Any, ...]]],
 ) -> None:
     work, other = clone
     assert invoke("init").exit_code == 0
-    # An empty company file is at schema version 0, so `fin migrate` has work to do on it.
-    with connect(data_root / "companies" / "old.duckdb", write=True):
-        pass
+    ensure_database(data_root / "companies" / "old.duckdb", "company")
     (other / "b.txt").write_text("two")
     git(other, "add", ".")
     git(other, "commit", "-m", "second")
@@ -255,12 +254,6 @@ def test_update_pulls_backs_up_and_migrates(
 
     assert result.exit_code in (0, 1), result.output  # 1 only if fin doctor finds a missing tool
     assert (work / "b.txt").read_text() == "two"
-    ((db_file, to_version, backup_path, status),) = audit_query(
-        "SELECT db_file, to_version, backup_path, status FROM migrations "
-        "WHERE db_file = 'companies/old.duckdb'"
-    )
-    assert (to_version, status) == (5, "applied")
-    assert (data_root / backup_path).is_file()
     run_id = audit_query("SELECT run_id FROM runs WHERE command = 'update' AND record = 'start'")[
         0
     ][0]
@@ -277,7 +270,6 @@ def test_update_pulls_backs_up_and_migrates(
         "git status",
         "git pull",
         "uv sync",
-        "fin migrate",
         "fin metrics refresh",
         "fin doctor",
     ]

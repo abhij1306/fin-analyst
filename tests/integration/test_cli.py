@@ -41,9 +41,9 @@ def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -
     ]
     assert result.stdout.splitlines()[-6:] == [
         "created  config.toml",
-        "shared/audit.duckdb: schema version 0 -> 4 (backup: none, new file)",
-        "shared/dictionary.duckdb: schema version 0 -> 3 (backup: none, new file)",
-        "shared/analytics.duckdb: schema version 0 -> 4 (backup: none, new file)",
+        "created  shared/audit.duckdb",
+        "created  shared/dictionary.duckdb",
+        "created  shared/analytics.duckdb",
         "dictionary: 182 accounts and 680 label mappings added from templates/dictionary",
         f"data folder {data_root}: 11 created, 0 already present",
     ]
@@ -58,9 +58,9 @@ def test_init_twice_creates_nothing_and_overwrites_nothing(data_root: Path) -> N
     assert result.exit_code == 0
     assert result.stdout.splitlines() == [
         "kept     config.toml (already present, not changed)",
-        "shared/audit.duckdb: up to date at schema version 4",
-        "shared/dictionary.duckdb: up to date at schema version 3",
-        "shared/analytics.duckdb: up to date at schema version 4",
+        "kept     shared/audit.duckdb",
+        "kept     shared/dictionary.duckdb",
+        "kept     shared/analytics.duckdb",
         "dictionary: 0 accounts and 0 label mappings added from templates/dictionary",
         f"data folder {data_root}: 0 created, 11 already present",
     ]
@@ -102,8 +102,8 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
         "ok    poppler: 24.2.0",
         f"ok    data folder: {data_root}",
         "ok    config: display unit crores",
-        "ok    audit schema: version 4",
-        "ok    dictionary schema: version 3",
+        "ok    audit schema: present",
+        "ok    dictionary schema: present",
         "all checks passed",
     ]
 

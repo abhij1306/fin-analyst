@@ -211,7 +211,6 @@ def test_batch_killed_midway_resumes_without_duplicates(
         "[1/4] bluepeak/Bluepeak_Polymers_FY2022-23.xlsx",
         "[2/4] bluepeak/Bluepeak_Polymers_FY2023-24.xlsx",
         "[3/4] bluepeak/Bluepeak_Polymers_FY2024-25.xlsx",
-        "companies/kestrel.duckdb",
         "[4/4] kestrel/Kestrel_Forgings_Financials_FY23-FY25.xlsx",
         "metrics",
     ]

@@ -21,7 +21,7 @@ from fin.audit.trace import (
 from fin.config import SCOPES, load_config, write_default_config
 from fin.dashboard import build as build_dashboard
 from fin.dashboard import serve as serve_dashboard
-from fin.db.migrate import MigrationResult, ensure_current, migrate_all
+from fin.db.schema import ensure_database
 from fin.delete import delete_company
 from fin.doctor import run_checks
 from fin.findings import accept, format_finding, list_findings
@@ -30,7 +30,14 @@ from fin.map.commands import map_app, review_app
 from fin.map.dictionary import load_label_map, load_seed
 from fin.map.review import write_pending
 from fin.metrics.export import Refresh, refresh_analytics
-from fin.paths import company_db_path, ensure_data_folder, inbox_dir
+from fin.paths import (
+    analytics_db_path,
+    audit_db_path,
+    company_db_path,
+    dictionary_db_path,
+    ensure_data_folder,
+    inbox_dir,
+)
 from fin.query.evidence import write_evidence
 from fin.query.run import query
 from fin.query.write import write_sql
@@ -64,27 +71,17 @@ def main(
     """Local financial health analysis."""
 
 
-def _report_migrations(run: Run, results: list[MigrationResult]) -> None:
-    for result in results:
-        if result.from_version == result.to_version:
-            line = f"{result.db_file}: up to date at schema version {result.to_version}"
-        else:
-            backup = result.backup or "none, new file"
-            line = (
-                f"{result.db_file}: schema version {result.from_version} -> {result.to_version} "
-                f"(backup: {backup})"
-            )
+def _create_shared_databases(run: Run) -> None:
+    for kind, path in (
+        ("audit", audit_db_path(run.root)),
+        ("dictionary", dictionary_db_path(run.root)),
+        ("analytics", analytics_db_path(run.root)),
+    ):
+        created = ensure_database(path, kind)
+        rel = path.relative_to(run.root).as_posix()
+        line = f"{'created ' if created else 'kept    '} {rel}"
         typer.echo(line)
-        run.event(
-            "migrate",
-            line,
-            file=result.db_file,
-            context={
-                "from_version": result.from_version,
-                "to_version": result.to_version,
-                "backup": result.backup,
-            },
-        )
+        run.event("database", line, file=rel, context={"created": created})
 
 
 @app.command()
@@ -107,7 +104,7 @@ def init() -> None:
         else:
             typer.echo("kept     config.toml (already present, not changed)")
             run.event("config", "config.toml already present, not changed")
-        _report_migrations(run, migrate_all(run.root, run))
+        _create_shared_databases(run)
         seed = load_seed(run.root, run)
         line = (
             f"dictionary: {seed.accounts_added} accounts and {seed.labels_added} label mappings "
@@ -120,16 +117,6 @@ def init() -> None:
         )
 
     execute("init", {}, body, audit_required=False)
-
-
-@app.command()
-def migrate() -> None:
-    """Apply pending database migrations, backing up each file first. Safe to run again."""
-
-    def body(run: Run) -> None:
-        _report_migrations(run, migrate_all(run.root, run))
-
-    execute("migrate", {}, body, audit_required=False)
 
 
 @app.command()
@@ -194,9 +181,7 @@ def _ingest_files(
     total = sum(len(files) for _, files in jobs)
     done = 0
     for company, files in jobs:
-        result = ensure_current(run.root, company_db_path(run.root, company), "company", run)
-        if result is not None:
-            _report_migrations(run, [result])
+        ensure_database(company_db_path(run.root, company), "company")
         label_map = load_label_map(run.root, company)
         for path in files:
             done += 1
@@ -519,7 +504,7 @@ def delete_command(
 
 @app.command("update")
 def update_command() -> None:
-    """Update fin: back up all databases, git pull, uv sync, npm ci, fin migrate, fin doctor."""
+    """Update fin: back up databases, git pull, uv sync, npm ci, refresh metrics, run fin doctor."""
 
     def body(run: Run) -> None:
         run_update(run)

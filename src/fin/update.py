@@ -4,7 +4,7 @@
 2. Back up every database to `backups/<run_id>/`.
 3. `git pull --ff-only`, `uv sync --frozen`, and `npm ci` (only if `dashboards/package-lock.json`
    exists).
-4. `fin migrate`, `fin metrics refresh`, then `fin doctor`, run as new processes so they use the
+4. `fin metrics refresh`, then `fin doctor`, run as new processes so they use the
    freshly pulled code.
 
 Each step is logged as an event. A failing step stops the update with E005.
@@ -16,7 +16,7 @@ from pathlib import Path
 
 from fin.audit.errors import EXIT_FAILURES, UpdateFailed
 from fin.audit.logger import Run
-from fin.db.migrate import targets
+from fin.db.schema import all_databases
 from fin.query.write import backup
 
 REPO = Path(__file__).resolve().parents[2]
@@ -56,7 +56,7 @@ def update(run: Run) -> None:
     if changes:
         raise UpdateFailed(f"the repo has local changes; commit or discard them first:\n{changes}")
 
-    saved = [backup(run.root, t.path, run) for t in targets(run.root) if t.path.is_file()]
+    saved = [backup(run.root, path, run) for path in all_databases(run.root)]
     run.event("update", f"backed up {len(saved)} databases to backups/{run.run_id}/")
 
     _run(run, "git pull", [GIT, "pull", "--ff-only"], repo)
@@ -64,7 +64,6 @@ def update(run: Run) -> None:
     if (repo / "dashboards" / "package-lock.json").is_file():
         _run(run, "npm ci", NPM_CI, repo)
 
-    _run(run, "fin migrate", [*FIN, "migrate"], repo)
     _run(run, "fin metrics refresh", [*FIN, "metrics", "refresh"], repo)
     doctor = _run(run, "fin doctor", [*FIN, "doctor"], repo, must_succeed=False)
     if doctor.returncode != 0:

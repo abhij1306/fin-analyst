@@ -139,7 +139,7 @@ fin-analyst/
   src/fin/
     cli.py  config.py  paths.py  ingest.py
     audit/     logger.py  errors.py
-    db/        conn.py  migrate.py  migrations/NNN_*.sql
+    db/        conn.py  schema.py  schema/{audit,dictionary,analytics,company,company_views}.sql
     extract/   excel.py  pdf.py  text.py  units.py
     map/       dictionary.py  normalize.py  review.py
     validate/  gates.py
@@ -185,7 +185,6 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `document_facts` and `current_facts` (views): one value per account, period and scope (lines a document maps to the same account are summed, a total line is not added to its parts)
 - `notes` — doc_id, section, markdown_path
 - `metrics` (views) and `metric_inputs` (metric → fact_ids lineage)
-- `schema_version`
 
 **Shared**
 
@@ -223,7 +222,6 @@ Every `fin` command:
 | `queries` | query_id, question, SQL, row count, result hash, evidence path |
 | `reports` | company, output paths, template commit, data hash, narrative path |
 | `deletions` | company, files removed, row counts, backup path, timestamp |
-| `migrations` | db file, from/to version, backup path, status |
 
 **Claude Code actions**
 
@@ -241,9 +239,8 @@ Every `fin` command:
 | Code | Meaning | Behaviour |
 |---|---|---|
 | E001 | Dependency missing | `fin doctor` names it and the fix |
-| E002 | Dependency version mismatch | Same |
+| E002 | Dependency version mismatch, or a database made by an older fin | Same (for a database: re-create the data folder) |
 | E003 | Data folder not writable | Stop |
-| E004 | Database schema newer than code | Stop; tell user to update |
 | E005 | `fin update` stopped (local changes, or a git, uv or npm step failed) | Stop; backup is in `backups/<run_id>/` |
 | E101 | File unreadable or corrupt | Skip file, move to review/ with reason |
 | E102 | Encrypted file | Same |
@@ -267,7 +264,7 @@ Every `fin` command:
 | E406 | `fin findings accept` names a finding that is not open | Stop; nothing accepted |
 | E501 | Database locked after retries | Retry with backoff (5 tries), then stop |
 | E502 | Write attempted on read-only path | Reject, log |
-| E503 | Migration failed | Restore from backup, stop |
+| E503 | Database could not be created from its schema file | Remove the half-made file, stop |
 | E504 | SQL statement failed (`fin query`, `fin sql`) | Reject, log; nothing changed |
 | E601 | Report render failed | Keep last good report |
 | E602 | Narrative contains hand-typed numbers | Block render, list offending lines |
@@ -302,15 +299,15 @@ claude
 3. `brew bundle --file=Brewfile` (uv, node, quarto).
 4. `uv sync --frozen`
 5. `npm ci --prefix dashboards`
-6. `uv run fin init` — creates data folder, config, databases at current schema.
-7. `uv run fin doctor` — checks every dependency, version, folder permission, schema version.
+6. `uv run fin init` — creates data folder, config, databases from the schema files.
+7. `uv run fin doctor` — checks every dependency, version, folder permission, that the databases exist and are not from an older fin.
 
 **Update:** `fin update`
 
 1. Refuse if repo has local changes.
 2. Back up all databases to `backups/<timestamp>/`.
 3. `git pull`, `uv sync --frozen`, `npm ci`.
-4. `fin migrate` (numbered SQL migrations, each in a transaction, logged).
+4. `fin metrics refresh`.
 5. `fin doctor`.
 
 **Uninstall:** delete the repo. The data folder is never touched by uninstall.
@@ -336,7 +333,7 @@ claude
 | `fin dashboard` | `/dashboard` | Either |
 | `fin audit <co> [metric fy]` | `/audit` | Either |
 | `fin delete <co>` | — | Either (typed confirmation, or `--yes` when the user asked) |
-| `fin update`, `fin migrate` | — | Human |
+| `fin update` | — | Human |
 
 ## 12. Testing and CI
 
@@ -370,22 +367,22 @@ Build:
 - `config.py`, `paths.py` (data folder resolution)
 - Audit logger (runs, events, JSONL), error classes with codes from §9, exit codes
 - `db/conn.py`: short-lived connections, read-only by default, retry with backoff on lock
-- Migration framework with backup-before-migrate
+- One schema file per database, created by `fin init` (no migrations)
 
 Done when:
 - A test command writes `runs`, `events`, and JSONL
 - A forced error logs its code and returns the right exit code
 - Lock test retries then raises E501
-- `fin migrate` applies, is idempotent, and backs up first
+- `fin init` is idempotent and never alters an existing database
 
 ### Phase 2 — Schema and dictionary
 Build:
-- Migrations for company and shared schemas (§7)
+- Schema files for company and shared databases (§7), in `src/fin/db/schema/`
 - Schedule III seed CSV and loader
 - Label normalization (case, punctuation, "Rs."/"₹", whitespace, note references)
 
 Done when:
-- `fin init` creates every database at current schema version
+- `fin init` creates every shared database from its schema file
 - Synthetic fixture labels map through the dictionary
 
 ### Phase 3 — Synthetic fixtures, Excel ingestion, batch
@@ -469,7 +466,7 @@ normalized again when read, so a normalization change does not orphan an existin
 
 New accounts through review: a proposal may name an account that is not in the dictionary (`new_account`: parent,
 sign, unit, description; checked like a seed row, E304 otherwise). `fin review confirm` adds it to `accounts`
-(dictionary migration 003: `source` 'seed' or 'review', `run_id`) and maps the label in one transaction; `--name`
+(`accounts.source` 'seed' or 'review', `run_id`) and maps the label in one transaction; `--name`
 and `--parent` change it. `fin map accounts` marks added accounts, and `fin map accounts --added` prints them and the
 global labels confirmed in review as seed CSV rows to commit.
 
@@ -549,7 +546,7 @@ Build:
 Done when:
 - A figure in a report traces back to its cell or page
 - After delete, company file is gone and audit trail remains
-- Update on a test clone runs migrations with backup
+- Update on a test clone backs up the databases
 
 ### Phase 12 — Release
 Build:

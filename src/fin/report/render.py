@@ -21,7 +21,7 @@ from typing import Any
 from fin.audit.errors import DependencyMissing, ReportRenderFailed
 from fin.audit.logger import Run
 from fin.config import load_config
-from fin.db.migrate import ensure_current
+from fin.db.schema import ensure_database
 from fin.paths import company_db_path
 from fin.report.data import (
     SECTIONS,
@@ -202,7 +202,7 @@ def make_report(run: Run, company: str, scope: str | None, render_only: bool) ->
     db = company_db_path(root, company)
     if not db.is_file():
         raise ReportRenderFailed(f"no database for {company}; ingest its documents first")
-    ensure_current(root, db, "company", run)
+    ensure_database(db, "company")
     folder = report_dir(root, company, scope)
     narrative_path = folder / "narrative.md"
     data = collect(root, company, scope)
