@@ -35,6 +35,7 @@ import duckdb
 
 from fin.audit.errors import ReportRenderFailed
 from fin.db.conn import connect
+from fin.db.rows import fetch_dicts
 from fin.extract.units import RUPEES_PER_UNIT
 from fin.map.dictionary import read_seed
 from fin.paths import company_db_path, dictionary_db_path
@@ -208,7 +209,8 @@ def statement_rows(
     with connect(db) as con:
         add_view(con, root)
         unit = document_unit(con)
-        result = con.execute(
+        rows = fetch_dicts(
+            con,
             "SELECT s.*, CASE WHEN a.unit = ? THEN a.unit ELSE ? END AS unit "
             "FROM standard_statements s LEFT JOIN statement_accounts a USING (account) "
             "WHERE (? IS NULL OR s.period = ?) AND (? IS NULL OR s.scope = ?) "
@@ -216,8 +218,6 @@ def statement_rows(
             "array_position(?, s.statement), s.line_no",
             [PER_SHARE, unit, period, period, scope, scope, list(STATEMENTS)],
         )
-        columns = [column[0] for column in result.description or []]
-        rows = [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
     if not rows:
         wanted = " ".join(x for x in (scope, period) if x)
         raise ReportRenderFailed(
@@ -252,9 +252,11 @@ def latest_annual_period(rows: list[dict[str, Any]]) -> str:
     return max(annual, key=lambda r: (r["period_end"], r["period_months"]))["period"]
 
 
-def _amount(value: Decimal) -> str:
+def amount(value: Decimal, symbol: str = "") -> str:
+    """An amount with thousands separators and two decimals, the sign before `symbol`: "-₹1,234.50".
+    The statements and the report format money with it."""
     sign = "-" if value < 0 else ""
-    return f"{sign}{abs(value):,.2f}"
+    return f"{sign}{symbol}{abs(value):,.2f}"
 
 
 def format_statements(company: str, rows: list[dict[str, Any]]) -> str:
@@ -274,9 +276,9 @@ def format_statements(company: str, rows: list[dict[str, Any]]) -> str:
                 f"{TITLES[row['statement']].lower()} ({unit_title(money_unit)})"
             )
         label = "  " * row["depth"] + row["label"]
-        line = f"{label:<60} {_amount(in_unit(row['value'], row['unit'])):>20}"
+        line = f"{label:<60} {amount(in_unit(row['value'], row['unit'])):>20}"
         if row["coverage"] is not None and row["coverage"] != 1:
-            explained = _amount(in_unit(row["explained"], row["unit"]))
+            explained = amount(in_unit(row["explained"], row["unit"]))
             line += f"  (lines explain {explained}, {row['coverage']:.2%})"
         out.append(line.rstrip())
     return "\n".join(out)

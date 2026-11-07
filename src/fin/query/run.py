@@ -18,6 +18,7 @@ import duckdb
 from fin.audit.errors import ReadOnlyViolation, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
+from fin.db.rows import fetch_dicts
 from fin.paths import company_db_path
 from fin.statements import add_view
 
@@ -32,7 +33,7 @@ PROVENANCE_COLUMNS = (
 # Where each raw value came from. `source_ref` is `sheet!cell` for Excel and `page N` for PDF.
 SOURCE_SQL = """
 SELECT r.raw_id, f.fact_id, d.file_name AS source_file,
-       coalesce(r.sheet || '!' || r.cell, 'page ' || r.page) AS source_ref,
+       source_ref(r.sheet, r.cell, r.page) AS source_ref,
        f.confirmed AS source_confirmed, f.read_by AS source_read_by,
        f.verified AS source_verified
 FROM raw_values r
@@ -64,11 +65,10 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
         check_select(con, sql)
         add_view(con, root)  # standard_statements
         try:
-            result = con.execute(sql)
-            columns = [column[0] for column in result.description or []]
-            rows = [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+            rows = fetch_dicts(con, sql)
         except duckdb.Error as exc:
             raise SqlFailed(f"the query failed: {' '.join(str(exc).split())}") from exc
+        columns = rows[0] if rows else {}
         key = "fact_id" if "fact_id" in columns else "raw_id" if "raw_id" in columns else None
         if key is None:
             return rows

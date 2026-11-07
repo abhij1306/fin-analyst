@@ -27,7 +27,7 @@ from fin.statements import PER_SHARE, in_unit, statement_rows, unit_title
 TABLES: dict[str, list[str]] = {
     "metrics": [
         "company", "fiscal_year", "period", "period_months", "period_end", "scope", "metric",
-        "value", "unit", "refreshed_at", "run_id", "category",
+        "value", "unit", "category",
     ],
     "companies": [
         "company", "documents", "facts", "unconfirmed_facts", "failed_validations",
@@ -102,7 +102,7 @@ _QUERIES = {
     """,
     "unverified_facts": """
         SELECT d.file_name, f.scope, f.period, r.statement, r.raw_label, f.account, f.value,
-               coalesce(r.sheet || '!' || r.cell, 'page ' || r.page)
+               source_ref(r.sheet, r.cell, r.page)
         FROM facts f
         JOIN documents d ON d.doc_id = f.doc_id
         JOIN raw_values r ON r.raw_id = f.raw_id
@@ -130,11 +130,16 @@ def _statements(root: Path, company: str) -> list[list[Any]]:
 
 
 def _ensure_analytics(path: Path) -> None:
-    """Create analytics.duckdb, or create it again when it lacks a table (an older fin made it)."""
+    """Create analytics.duckdb, or create it again when its tables or columns are not those of
+    TABLES (an older fin made it)."""
     if path.exists():
         with connect(path) as con:
-            found = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
-        if not set(TABLES) <= found:
+            found = set(
+                con.execute(
+                    "SELECT table_name, column_name FROM information_schema.columns"
+                ).fetchall()
+            )
+        if found != {(table, column) for table, columns in TABLES.items() for column in columns}:
             for stale in (path, path.with_name(path.name + ".wal")):
                 stale.unlink(missing_ok=True)
     ensure_database(path, "analytics")
@@ -165,9 +170,7 @@ def refresh_analytics(run: Run) -> Refresh:
             fetched = {name: con.execute(sql).fetchall() for name, sql in _QUERIES.items()}
             summary = con.execute(_COMPANY_SUMMARY).fetchone()
         assert summary is not None
-        for row in fetched["metrics"]:
-            *fields, category = row
-            rows["metrics"].append([company, *fields, now, run.run_id, category])
+        rows["metrics"].extend([company, *row] for row in fetched["metrics"])
         documents, facts, unconfirmed, unverified_claude, last_ingested, *findings = summary
         rows["companies"].append(
             [company, documents, facts, unconfirmed, failed.get(company, 0), last_ingested]
