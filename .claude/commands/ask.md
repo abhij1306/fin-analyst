@@ -35,10 +35,10 @@ Answer this question with `fin`: $ARGUMENTS
      `FY26-H1` period. For quarter-on-quarter or year-on-year questions, compare like periods (`FY26-Q2` with
      `FY26-Q1` or `FY25-Q2`); the `metrics` view has `revenue_growth` (year on year) and `revenue_growth_qoq`.
 2. Run it:
-   `uv run fin query <company> --question "<question>" --sql "<sql>"`
+   `uv run fin sql <company> --question "<question>" --sql "<sql>" --evidence`
+   It prints the rows, the query_id and `evidence_path` (a page showing the source of every fact).
    On an error, report the code (E502, E504, ...) and the run_id, and stop. Don't work around it.
-3. Run `uv run fin evidence <query_id>` and give the path of the evidence page.
-4. Reply in exactly this format, using only numbers from the `fin` output:
+3. Reply in exactly this format, using only numbers from the `fin` output:
 
    **Answer:** one or two sentences.
 
@@ -62,6 +62,5 @@ Answer this question with `fin`: $ARGUMENTS
    values, neutrally (the figure is used as filed). If the company has held documents, say their figures are not
    in the answer.
 
-Describe, don't judge: no recommendations or ratings. If the user asks to change data, use
-`uv run fin sql <company> --write --sql "<statement>"` (it backs up the database and logs the change), never
-`fin query`.
+Describe, don't judge: no recommendations or ratings. If the user asks to change data, add `--write`:
+`uv run fin sql <company> --write --sql "<statement>"` (it backs up the database and logs the change).

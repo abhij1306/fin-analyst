@@ -10,7 +10,7 @@ Use this only when the user asks for it. It is an on-demand check; fin's own ext
 1. Find the original file: the path the user gave, or `review/<company>/<file>` / `inbox/<company>/<file>` in the
    data folder. Agree with the user which pages to read (for example the standalone balance sheet page). If they did
    not say, ask.
-2. Read the source FIRST, before looking at any fin output for the document (no `fin query`, no `fin audit`, no
+2. Read the source FIRST, before looking at any fin output for the document (no `fin sql`, no `fin audit`, no
    `fin findings` figures), so the reading is independent. PDF: use the Read tool with the `pages` parameter to see
    the pages as images (needs poppler; `uv run fin doctor` warns when it is missing). Excel: read the cells.
 3. Write the reading at `review/<company>/<file stem>.verify-<n>.csv` in the data folder (never in the repo), in the

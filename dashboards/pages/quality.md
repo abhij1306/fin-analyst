@@ -78,5 +78,5 @@ order by company, file_name, period
 
 <DataTable data={unverified} rows=all emptySet=pass emptyMessage="None loaded." />
 
-Resolve unconfirmed items with `fin review`; see each finding with `fin findings list`; verify Claude-read
+Resolve unconfirmed items with `/review`; see each finding with `fin findings list`; verify Claude-read
 figures with `fin verify`.

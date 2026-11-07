@@ -1,9 +1,5 @@
-"""`fin map propose|set|accounts` and `fin review` (PLAN.md Phase 5). The logic is in
-`fin.map.review`.
-
-`fin review` with no subcommand is the interactive loop; `list`, `confirm` and `reject` are the
-same actions with flags, so Claude can run them when the user asks.
-"""
+"""`fin map propose|set|accounts` and `fin review list|confirm|reject`. The logic is in
+`fin.map.review`."""
 
 import csv
 import io
@@ -13,7 +9,7 @@ from typing import Annotated
 
 import typer
 
-from fin.audit.errors import FinError, InvalidMapping
+from fin.audit.errors import InvalidMapping
 from fin.audit.logger import Run, execute
 from fin.findings import recheck_held
 from fin.ingest import COMPANY_NAME
@@ -25,8 +21,7 @@ map_app = typer.Typer(
     no_args_is_help=True, help="Mapping proposals, company mappings and the account list."
 )
 review_app = typer.Typer(
-    invoke_without_command=True,
-    help="Review unmapped labels: interactive without a subcommand, or use list/confirm/reject.",
+    no_args_is_help=True, help="Review mapping proposals: list, confirm or reject them."
 )
 
 
@@ -36,18 +31,18 @@ def _company(value: str | None) -> str | None:
     return value
 
 
-CompanyOption = Annotated[
-    str, typer.Option("--company", "-c", callback=_company, help="Company name, e.g. kestrel.")
+CompanyArg = Annotated[
+    str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.", show_default=False)
 ]
 OptionalCompany = Annotated[
-    str | None, typer.Option("--company", "-c", callback=_company, help="Only this company.")
+    str | None, typer.Argument(callback=_company, help="Only this company.")
 ]
 
 
 @map_app.command("propose")
 def map_propose(
+    company: CompanyArg,
     file: Annotated[Path, typer.Argument(help="JSON list of proposals.")],
-    company: CompanyOption,
 ) -> None:
     """Store mapping proposals as pending; nothing is applied. Each proposal is an object with
     label, account, confidence (0 to 1) and reason, plus statement and section if the label is not
@@ -62,7 +57,9 @@ def map_propose(
         if not isinstance(proposals, list):
             raise InvalidMapping(f"{file}: expected a JSON list of proposals")
         count = review.propose(run, company, proposals)
-        typer.echo(f"{count} proposals stored as pending for {company}; run `fin review list`")
+        typer.echo(
+            f"{count} proposals stored as pending for {company}; run `fin review list {company}`"
+        )
 
     execute("map propose", {"file": file, "company": company}, body)
 
@@ -77,7 +74,7 @@ StatementOption = Annotated[
 
 @map_app.command("set")
 def map_set(
-    company: CompanyOption,
+    company: CompanyArg,
     statement: StatementOption,
     label: Annotated[str, typer.Option("--label", "-l", help="The label as written.")],
     account: Annotated[
@@ -173,55 +170,6 @@ def _items(run: Run, company: str | None, include_rejected: bool = False) -> lis
     return found
 
 
-@review_app.callback()
-def review_main(ctx: typer.Context, company: OptionalCompany = None) -> None:
-    """Without a subcommand: go through the open items one by one."""
-    if ctx.invoked_subcommand is not None:
-        return
-
-    def body(run: Run) -> None:
-        items = _items(run, company)
-        typer.echo(f"{len(items)} items to review")
-        for item in items:
-            if not _ask(run, item):
-                break
-
-    execute("review", {"company": company}, body)
-
-
-def _ask(run: Run, item: review.Item) -> bool:
-    """Prompt for one item until it is decided or skipped. False when the user quits."""
-    company = item["company"]
-    typer.echo(f"\n{_line(item)}\n  e.g. {'; '.join(item['where'])}")
-    while True:
-        choice = typer.prompt("[c]onfirm, [r]eject, [e]dit account, [s]kip, [q]uit", default="s")
-        try:
-            if choice == "c":
-                account = None if item["account"] else typer.prompt("account")
-            elif choice == "e":
-                account = typer.prompt("account")
-            elif choice == "r":
-                review.reject(run, company, item["id"])
-                typer.echo("rejected")
-                return True
-            elif choice == "s":
-                return True
-            elif choice == "q":
-                return False
-            else:
-                continue
-            scope = typer.prompt("scope (global or company)", default="company")
-            facts = review.confirm(run, company, item["id"], account, scope)
-            typer.echo(
-                f"confirmed as {account or item['account']} ({scope}); {facts} facts updated"
-            )
-            return True
-        except FinError as exc:
-            typer.echo(str(exc), err=True)
-            run.event("review", exc.message, level="error", code=exc.code)
-            run.failed += 1
-
-
 @review_app.command("list")
 def review_list(
     company: OptionalCompany = None,
@@ -246,8 +194,8 @@ def review_list(
 
 @review_app.command("confirm")
 def review_confirm(
+    company: CompanyArg,
     ids: Annotated[list[int], typer.Argument(help="Item ids from `fin review list`.")],
-    company: CompanyOption,
     account: Annotated[
         str | None, typer.Option(help="Account to use instead of the proposed one.")
     ] = None,
@@ -296,8 +244,8 @@ def review_confirm(
 
 @review_app.command("reject")
 def review_reject(
+    company: CompanyArg,
     ids: Annotated[list[int], typer.Argument(help="Item ids from `fin review list`.")],
-    company: CompanyOption,
 ) -> None:
     """Reject items: their facts stay unconfirmed."""
 

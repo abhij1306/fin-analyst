@@ -1,6 +1,6 @@
 <!--
 Sample narrative for the synthetic company Kestrel Forgings (standalone). Used by the report tests and
-the CI `report` job. Every number is a reference; fiscal years are plain FYnn labels.
+the CI `outputs` job. Every number is a reference; fiscal years are plain FYnn labels.
 -->
 
 ## Summary

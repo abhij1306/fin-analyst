@@ -60,39 +60,21 @@ Start Claude Code in the `fin-analyst` folder with `claude`. Then:
 
 Until you confirm a mapping, the facts it affects are marked unconfirmed and are left out of metrics. Answers say so.
 
-Metrics (`/ask` uses them; definitions in the `metric_definitions` view and the export's Metrics sheet):
-profitability (gross, EBITDA, EBIT, PBT and PAT margins), returns (ROE, ROCE, ROA, on closing and on average
-balances), liquidity (current, quick, cash ratio), solvency (debt/equity, net debt, net debt/EBITDA, interest cover,
-debt/assets), efficiency (asset turnovers, receivable, inventory and payable days, cash conversion cycle), cash flow
-(CFO, free cash flow, CFO/EBITDA, CFO/PAT, capex/revenue, capex/depreciation), growth (year on year, 3- and 5-year
-CAGR), earnings quality (other income and exceptional items over PBT, effective tax rate), EPS as reported, lender
-metrics for NBFCs and banks (net interest income, cost to income, credit cost, assets/equity), and trailing twelve
-months from four consecutive quarters. A metric whose inputs are missing has no value; nothing is guessed.
-EBITDA is computed from profit before exceptional items, so a one-off exceptional item does not move it.
+Ask Claude which metrics exist (`/ask`), or see the `metric_definitions` view (`uv run fin sql <company> --sql
+"SELECT * FROM metric_definitions"`) and the export's Metrics sheet. A metric whose inputs are missing has no
+value; nothing is guessed.
 
 ### Reports and dashboards
 
-The health report (`/report`) is organised by metric category:
-- **Summary:** key metrics (revenue, growth, EBITDA and margins, PAT, ROCE, ROE, debt/equity, current ratio, cash
-  from operations, free cash flow) for the latest five fiscal years, standalone and consolidated where both exist.
-- **One section per category** with data (profitability, returns, liquidity, solvency, efficiency and working
-  capital, cash flow, growth, earnings quality, per share, lending): a trend table and a chart.
-- **Latest quarters** (when quarterly results are loaded): revenue, EBITDA, PAT, margins, growth on the year
-  before and on the previous quarter, and the last four quarters (TTM).
-- **Peer comparison** (`fin report <company> --peers a,b`): key metrics side by side for the latest fiscal year
-  every company has.
-- **Findings** (open and accepted, with their sources) and **data coverage**: the mapped share of each statement,
-  figures read by Claude not yet verified, pages fin could not read, unconfirmed mappings and missing data.
-- **Appendices:** the condensed standard statements (subtotals), metric definitions and formulas, and every fact
-  behind the metrics with its file and cell or page.
+The health report (`/report`) has a summary of key metrics over the latest five fiscal years, one section per
+metric category (trend table and chart), the latest quarters when they are loaded, an optional peer comparison
+(`--peers a,b`), findings and data coverage, and appendices (statements, metric definitions, the facts behind the
+metrics). The narrative is Claude's; every number in it is a reference filled in from the database, and it
+describes without judging.
 
-The narrative is Claude's; every number in it is a reference filled in from the database, and it describes
-without judging.
-
-The dashboards (`/dashboard`): **Company** shows one company by category (trend charts per category, any metric,
-quarters, the standard statements for a chosen period, its findings and coverage); **Compare** picks a category
-and a metric and shows it across companies per fiscal year, with its definition; **Data quality** shows findings,
-held documents, coverage, unread pages and unverified Claude-read figures for every company.
+The dashboards (`/dashboard`) have a **Company** page (one company by category), a **Compare** page (one metric
+across companies) and a **Data quality** page (findings, held documents, coverage, unread pages, unverified
+figures). To add a metric, report section or page, see [docs/CUSTOMISING.md](docs/CUSTOMISING.md).
 
 The slash commands call `fin` for you. You can also run `uv run fin --help` and use the commands directly.
 
@@ -100,8 +82,8 @@ The slash commands call `fin` for you. You can also run `uv run fin --help` and 
 
 Ask Claude in plain words, for example "set the FY24 revenue of kestrel to ...". Claude uses
 `uv run fin sql <company> --write --sql "..."`, which backs up the company database to `backups/<run_id>/`, runs the
-statement in one transaction and records it in the audit log.
-`fin query` is read-only and refuses anything but one SELECT.
+statement in one transaction and records it in the audit log. Without `--write`, `fin sql` only reads: it refuses
+anything but one SELECT.
 
 ### Findings
 
@@ -178,7 +160,7 @@ up the database first to `backups/<run_id>/` and is recorded in the audit log. E
 
 To modify the app with Claude Code, see [docs/CUSTOMISING.md](docs/CUSTOMISING.md).
 
-## Troubleshooting
+## Troubleshooting and error codes
 
 When a command fails, note the error code and the run id it prints. Exit codes: 0 success (held documents and
 findings included), 1 finished but some files failed, 2 the command could not run, 3 refused until you confirm. Every run is in
@@ -201,12 +183,12 @@ findings included), 1 finished but some files failed, 2 the command could not ru
 | E204 | Parse error while reading the file | Read the reason in `review/<company>/<file>.error.json` and fix the file |
 | E205 | A reading file (`--reading`) cannot be used: missing columns, unknown statement or scope, bad figure, date or source, or nothing fin did not read already | Fix the line named in the message and run again |
 | E301 | A label is not in the dictionary | Loaded as unconfirmed. Run `/review` to confirm a mapping |
-| E302 | A proposed mapping has low confidence | Same: check it in `/review` |
+| E302 | A proposed mapping has low confidence (a warning, not an error) | Check it in `/review` |
 | E303 | A label maps to conflicting accounts | Same: you decide in `/review` |
 | E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id or label, invalid new account) | Nothing was applied. Check `fin review list` and the account name, then retry |
 | E406 | `fin findings accept` named a finding that does not exist or is not open | Nothing was accepted. Check the ids with `uv run fin findings list <company>` |
 | E501 | A database is in use by another `fin` command | Wait for it to finish and run again |
-| E502 | `fin query` was given something other than one SELECT | Use `fin sql --write` for changes you want made |
+| E502 | `fin sql` without `--write` was given something other than one SELECT | Add `--write` only for a change you asked for |
 | E503 | A database could not be created from its schema file | Report the error |
 | E504 | A SQL statement failed (syntax, unknown column, constraint) | Nothing changed. Fix the statement |
 | E601 | Report render failed | The last good report is kept. Run `uv run fin doctor` (Quarto) and try again |
@@ -215,5 +197,6 @@ findings included), 1 finished but some files failed, 2 the command could not ru
 | E604 | An evidence source file is missing from the archive | The page is still produced and flags it. Restore the original into `archive/` |
 | E701 | The action needs your confirmation | `fin delete` run by you exits 3 when the typed name does not match; Claude uses `--yes` when you asked |
 
-E401-E405 are not errors but finding codes (see "Findings"): the document is held, not rejected, and the command
-exits 0.
+| E401-E405 | Findings, not errors: balance sheet (E401), subtotal (E402), cash flow (E403), a figure differs between documents (E404), unit factor (E405) | The document is held, not rejected, and the command exits 0. See "Findings" |
+
+This is the one list of error codes; the code that raises each is in `src/fin/audit/errors.py`.

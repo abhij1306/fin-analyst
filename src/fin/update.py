@@ -4,8 +4,8 @@
 2. Back up every database to `backups/<run_id>/`.
 3. `git pull --ff-only`, `uv sync --frozen`, and `npm ci` (only if `dashboards/package-lock.json`
    exists).
-4. `fin metrics refresh`, then `fin doctor`, run as new processes so they use the
-   freshly pulled code.
+4. Refresh the metrics export (`shared/analytics.duckdb`), then run `fin doctor` as a new process
+   so it uses the freshly pulled code.
 
 Each step is logged as an event. A failing step stops the update with E005.
 """
@@ -17,6 +17,7 @@ from pathlib import Path
 from fin.audit.errors import EXIT_FAILURES, UpdateFailed
 from fin.audit.logger import Run
 from fin.db.schema import all_databases
+from fin.metrics.export import refresh_analytics
 from fin.query.write import backup
 
 REPO = Path(__file__).resolve().parents[2]
@@ -64,7 +65,8 @@ def update(run: Run) -> None:
     if (repo / "dashboards" / "package-lock.json").is_file():
         _run(run, "npm ci", NPM_CI, repo)
 
-    _run(run, "fin metrics refresh", [*FIN, "metrics", "refresh"], repo)
+    refresh = refresh_analytics(run)
+    run.event("update", f"metrics refreshed: {refresh.companies} companies")
     doctor = _run(run, "fin doctor", [*FIN, "doctor"], repo, must_succeed=False)
     if doctor.returncode != 0:
         run.failed += 1

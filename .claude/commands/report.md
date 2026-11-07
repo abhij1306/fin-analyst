@@ -19,7 +19,7 @@ the facts behind the metrics. fin builds every table and chart; you write the na
    - If it prints `"status": "rendered"`, a narrative already exists and the report is rendered.
      Ask the user whether to rewrite the narrative before changing it.
    - On an error, report the code (E001, E601, E602, ...) and the run_id, and stop.
-2. Read the data the report is built from, with `fin query` only (never open `.duckdb` files):
+2. Read the data the report is built from, with `uv run fin sql <company> --sql "..."` only (never open `.duckdb` files):
    - Metrics by category: `SELECT category, metric, period, value, unit FROM metrics WHERE scope = '<scope>' ORDER BY category, metric, period`
    - What each metric means: `SELECT metric, category, definition, formula FROM metric_definitions`
    - Facts: `SELECT account, period, value FROM current_facts WHERE scope = '<scope>' ORDER BY account, period`

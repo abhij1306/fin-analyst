@@ -1,4 +1,4 @@
-"""`fin query`, `fin evidence` and `fin sql --write` on the ingested synthetic documents.
+"""`fin sql` (read, --evidence) and `fin sql --write` on the ingested synthetic documents.
 
 Expected values come from answer_key.json; every answer gets a working evidence page.
 """
@@ -183,7 +183,7 @@ def test_question_answers_from_the_key_with_an_evidence_page(
     pages: dict[str, int],
 ) -> None:
     sql = facts_sql(file, scope, year, accounts, extra)
-    result = invoke("query", company, "--question", question, "--sql", sql)
+    result = invoke("sql", company, "--question", question, "--sql", sql, "--evidence")
     assert result.exit_code == 0, result.output
     answer = json.loads(result.stdout)
 
@@ -214,10 +214,8 @@ def test_question_answers_from_the_key_with_an_evidence_page(
     )
     assert (row_count, result_hash, mode) == (len(accounts), answer["result_hash"], "read")
 
-    shown = invoke("evidence", answer["query_id"])
-    assert shown.exit_code == 0, shown.output
     page_path = ingested / "evidence" / f"{answer['query_id']}.html"
-    assert json.loads(shown.stdout)["evidence_path"] == str(page_path)
+    assert answer["evidence_path"] == f"evidence/{answer['query_id']}.html"
     page = page_path.read_text(encoding="utf-8")
     assert question in page
     for row in answer["rows"]:
@@ -240,8 +238,7 @@ def test_question_answers_from_the_key_with_an_evidence_page(
 
 def test_excel_grid_shows_the_label_and_value_around_the_cell(ingested: Path) -> None:
     sql = facts_sql(KESTREL, "standalone", "FY25", ["revenue"])
-    answer = json.loads(invoke("query", "kestrel", "--question", "q", "--sql", sql).stdout)
-    invoke("evidence", answer["query_id"])
+    answer = json.loads(invoke("sql", "kestrel", "--sql", sql, "--evidence").stdout)
     page = (ingested / "evidence" / f"{answer['query_id']}.html").read_text(encoding="utf-8")
     grid = page[page.index("<table class='grid'>") :]
     # Profit and Loss!C7 in lakhs, with its row label in column A and the rows around it.
@@ -262,9 +259,9 @@ def test_excel_grid_shows_the_label_and_value_around_the_cell(ingested: Path) ->
     ],
 )
 def test_query_rejects_anything_but_one_select_and_logs_it(ingested: Path, sql: str) -> None:
-    result = invoke("query", "kestrel", "--question", "Zero all values", "--sql", sql)
+    result = invoke("sql", "kestrel", "--question", "Zero all values", "--sql", sql)
     assert result.exit_code == 2
-    assert result.stderr.startswith("E502: `fin query` runs one SELECT statement only")
+    assert result.stderr.startswith("E502: without --write, `fin sql` runs one SELECT statement")
     run_id = re.search(r"run_id (\S+)$", result.stderr, re.MULTILINE).group(1)  # type: ignore[union-attr]
     assert audit_rows(
         ingested,
@@ -283,7 +280,7 @@ def test_query_rejects_anything_but_one_select_and_logs_it(ingested: Path, sql: 
 
 
 def test_query_with_a_bad_column_fails_with_e504(ingested: Path) -> None:
-    result = invoke("query", "kestrel", "--question", "q", "--sql", "SELECT nope FROM facts")
+    result = invoke("sql", "kestrel", "--sql", "SELECT nope FROM facts")
     assert result.exit_code == 2
     assert result.stderr.startswith("E504: the query failed")
 
@@ -296,13 +293,13 @@ def test_evidence_flags_a_missing_source_file_with_e604(
     invoke("init")
     invoke("ingest", "tarang", str(SAMPLES / "clean" / "tarang" / TARANG_25))
     sql = facts_sql(TARANG_25, "standalone", "FY25", ["revenue"])
-    answer = json.loads(invoke("query", "tarang", "--question", "q", "--sql", sql).stdout)
     for archived in (root / "archive" / "tarang").iterdir():
         archived.unlink()
 
-    result = invoke("evidence", answer["query_id"])
+    result = invoke("sql", "tarang", "--sql", sql, "--evidence")
 
     assert result.exit_code == 1
+    answer = json.loads(result.stdout)
     page = (root / "evidence" / f"{answer['query_id']}.html").read_text(encoding="utf-8")
     assert f"<p class='flag'>E604: {TARANG_25}: archived source archive/tarang/" in page
     assert f"{TARANG_25}, page 4" in page
@@ -357,7 +354,9 @@ def test_sql_write_rolls_back_every_statement_when_one_fails(kestrel: Path) -> N
         assert con.execute("SELECT count(*) FROM facts WHERE value = 999").fetchone() == (0,)
 
 
-def test_sql_without_write_refuses_with_guidance(kestrel: Path) -> None:
-    result = invoke("sql", "kestrel", "--sql", "UPDATE facts SET value = 0")
-    assert result.exit_code == 2
-    assert result.stderr.startswith("E502: `fin sql` changes data only with --write")
+def test_sql_write_records_the_question(kestrel: Path) -> None:
+    sql = "UPDATE facts SET value = 1.00 WHERE account = 'revenue' AND fiscal_year = 'FY25'"
+    out = json.loads(invoke("sql", "kestrel", "--write", "--question", "fix", "--sql", sql).stdout)
+    assert audit_rows(
+        kestrel, "SELECT question FROM queries WHERE query_id = ?", [out["query_id"]]
+    ) == [("fix",)]

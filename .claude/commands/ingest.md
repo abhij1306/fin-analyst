@@ -8,12 +8,12 @@ Ingest documents for the company in `$ARGUMENTS`.
 1. Run `uv run fin ingest $ARGUMENTS`. Report the per-file outcomes and the summary line (loaded, skipped, failed,
    pending review, held, run_id). If a command fails, report its error code and run_id and stop. Do not work around
    it.
-2. If anything is pending review, run `uv run fin review list --company <company> --json`.
+2. If anything is pending review, run `uv run fin review list <company> --json`.
 3. For each pending item, choose an account from `templates/dictionary/schedule_iii.csv`. The account must belong to the item's statement. Write a JSON list to a scratch file with one object per item: `label`, `statement`, `section`, `account`, `confidence` (0 to 1), `reason`.
    - Propose only what the label's wording supports. If you are unsure, use a low confidence (below 0.7 is flagged E302) and say so in `reason`. Never guess to fill a gap.
    - Only when no existing account fits (check `uv run fin map accounts --statement <statement>`), propose a new account: `account` is a new snake_case name and `new_account` is `{"parent": <subtotal it adds into, same statement>, "sign": 1 or -1, "unit": "rupees" or "rupees_per_share", "description": ...}` (`parent` and `sign` null for a top line or a per-share figure). Say in `reason` why no existing account fits. Nothing is added until the user confirms it in review.
-4. Run `uv run fin map propose <file.json> --company <company>`. Proposals are stored as pending and change no data.
-5. Show the user the proposals (label, account, confidence, reason) and tell them to run `/review` or `uv run fin review` to confirm. Do not run `fin review confirm` unless the user has asked you to.
+4. Run `uv run fin map propose <company> <file.json>`. Proposals are stored as pending and change no data.
+5. Show the user the proposals (label, account, confidence, reason) and tell them to run `/review` to confirm. Do not run `fin review confirm` unless the user has asked you to.
 6. Flag failed files and unmapped or unconfirmed labels. Do not state numbers that did not come from `fin` output.
 7. **Findings.** A file reported as `held as doc_id N ... K findings` loaded, but something in it does not add up
    (E401 balance sheet, E402 subtotal, E403 cash flow, E404 a figure differs from another document, E405 a unit
@@ -28,8 +28,8 @@ Ingest documents for the company in `$ARGUMENTS`.
    4. Fix: first look at the source page or cells and tell the user what you found. Then use one of these, as the
       user agrees:
       - a label mapped to the wrong account (for example old-format "Cash and bank balances", which also holds
-        deposits: map it to `cash_and_bank_balances`): `uv run fin map set --company <company> --statement
-        <statement> --label "<label>" --account <account>`, then `uv run fin ingest <company> <file> --force`;
+        deposits: map it to `cash_and_bank_balances`): `uv run fin map set <company> --statement <statement>
+        --label "<label>" --account <account>`, then `uv run fin ingest <company> <file> --force`;
       - an unmapped label that is part of the total: confirm its mapping with `/review`;
       - a figure fin read wrongly: `uv run fin sql <company> --write --sql "UPDATE facts SET value = ... WHERE
         fact_id = ..."` (backed up and audit-logged).
@@ -49,7 +49,7 @@ Ingest documents for the company in `$ARGUMENTS`.
 fin stays the primary path. A reading fills in only what fin could not read, and nothing from it is trusted until a
 second, independent reading agrees and the document's validation gates pass.
 
-1. Read the source FIRST, before looking at any fin output for the document (no `fin query`, no `fin findings`
+1. Read the source FIRST, before looking at any fin output for the document (no `fin sql`, no `fin findings`
    figures), so the reading is independent. PDF: use the Read tool with the `pages` parameter on the original file
    (`review/<company>/<file>` after a failure) to see the pages as images (this needs poppler, installed by
    `./install.sh`; `uv run fin doctor` warns when it is missing). Excel: read the cells.

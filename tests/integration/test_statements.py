@@ -135,7 +135,7 @@ def test_standard_statements_view_is_in_fin_query(root: Path) -> None:
     result = runner.invoke(
         app,
         [
-            "query",
+            "sql",
             "acme",
             "--question",
             "What is not explained?",
@@ -192,7 +192,7 @@ def test_metrics_for_per_share_figures_exceptional_items_and_tax(root: Path) -> 
     result = runner.invoke(
         app,
         [
-            "query",
+            "sql",
             "acme",
             "--question",
             "Per share and earnings quality",
@@ -255,7 +255,7 @@ def test_ebitda_leaves_out_exceptional_items(data_root: Path, tmp_path: Path) ->
         "('ebitda', 'ebitda_margin', 'ebitda_growth', 'interest_cover', 'ebit') "
         "ORDER BY period, metric"
     )
-    result = runner.invoke(app, ["query", "zeta", "--question", "EBITDA", "--sql", sql])
+    result = runner.invoke(app, ["sql", "zeta", "--question", "EBITDA", "--sql", sql])
 
     assert result.exit_code == 0, result.output
     rows = json.loads(result.stdout)["rows"]
@@ -276,7 +276,7 @@ def test_ebitda_leaves_out_exceptional_items(data_root: Path, tmp_path: Path) ->
     lineage = runner.invoke(
         app,
         [
-            "query",
+            "sql",
             "zeta",
             "--question",
             "EBITDA inputs",

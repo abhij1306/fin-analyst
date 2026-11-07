@@ -1,4 +1,5 @@
-# macOS checks (the product's only target): install.sh twice, fin doctor, pytest.
+# macOS checks (the product's only target): install.sh twice, fin doctor, a smoke ingest.
+# The test suite runs on Linux in ci.yml.
 # macOS runners can queue for a long time, so this runs after merges to main and on demand; PRs use ci.yml.
 name: macOS
 
@@ -16,7 +17,7 @@ permissions:
 
 jobs:
   install-and-test:
-    # Fresh clone -> ./install.sh -> fin doctor passes; a second run changes nothing; pytest on macOS.
+    # Fresh clone -> ./install.sh -> fin doctor passes; a second run changes nothing; one company loads.
     runs-on: macos-latest
     timeout-minutes: 30
     env:
@@ -47,7 +48,8 @@ jobs:
         run: |
           eval "$(brew shellenv)"
           uv run fin doctor
-      - name: pytest on macOS
+      - name: Smoke ingest and query
         run: |
           eval "$(brew shellenv)"
-          uv run pytest --durations=10
+          uv run fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
+          uv run fin sql kestrel --sql "SELECT count(*) AS facts FROM facts" | grep -q '"facts": 162'

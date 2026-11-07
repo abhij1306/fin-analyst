@@ -1,6 +1,6 @@
 """Phase 10: `fin dashboard` data snapshot, ingest-while-open, and build failure handling.
 
-The Evidence pages themselves are built and checked in the CI `dashboard` job."""
+The Evidence pages themselves are built and checked in the CI `outputs` job."""
 
 import shutil
 import subprocess

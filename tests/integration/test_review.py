@@ -33,8 +33,8 @@ def root(data_root: Path, samples: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     return data_root
 
 
-def fin(*args: str, input: str | None = None) -> Result:
-    return runner.invoke(app, list(args), input=input)
+def fin(*args: str) -> Result:
+    return runner.invoke(app, list(args))
 
 
 def pending(root: Path) -> list[dict[str, Any]]:
@@ -83,7 +83,7 @@ def test_ingest_writes_the_pending_list(root: Path) -> None:
 def test_propose_then_confirm_grows_the_dictionary_and_confirms_the_facts(
     root: Path, audit_query: Query, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    result = fin("map", "propose", propose_file(root, proposal()), "--company", "bluepeak")
+    result = fin("map", "propose", "bluepeak", propose_file(root, proposal()))
     assert result.exit_code == 0, result.output
     assert pending(root)[0]["status"] == "proposed"
     assert [(f[1], f[2]) for f in facts(root)] == [(None, False), (None, False)]  # not applied
@@ -93,7 +93,7 @@ def test_propose_then_confirm_grows_the_dictionary_and_confirms_the_facts(
 
     section = pending(root)[0]["section"]
     monkeypatch.setenv("CLAUDECODE", "1")
-    result = fin("review", "confirm", "1", "--company", "bluepeak", "--scope", "global")
+    result = fin("review", "confirm", "bluepeak", "1", "--scope", "global")
 
     assert result.exit_code == 0, result.output
     assert [(f[1], f[2], f[3]) for f in facts(root)] == [("trade_receivables", True, True)] * 2
@@ -110,9 +110,9 @@ def test_confirm_by_a_person_with_another_account_is_an_edit(
     root: Path, audit_query: Query
 ) -> None:
     section = pending(root)[0]["section"]
-    fin("map", "propose", propose_file(root, proposal("other_current_assets")), "-c", "bluepeak")
+    fin("map", "propose", "bluepeak", propose_file(root, proposal("other_current_assets")))
 
-    result = fin("review", "confirm", "1", "-c", "bluepeak", "--account", "trade_receivables")
+    result = fin("review", "confirm", "bluepeak", "1", "--account", "trade_receivables")
 
     assert result.exit_code == 0, result.output
     assert audit_query("SELECT decision, scope, actor, on_request FROM mapping_decisions")[1:] == [
@@ -127,9 +127,9 @@ def test_confirm_by_a_person_with_another_account_is_an_edit(
 
 
 def test_reject_leaves_the_facts_unconfirmed(root: Path, audit_query: Query) -> None:
-    fin("map", "propose", propose_file(root, proposal()), "-c", "bluepeak")
+    fin("map", "propose", "bluepeak", propose_file(root, proposal()))
 
-    result = fin("review", "reject", "1", "-c", "bluepeak")
+    result = fin("review", "reject", "bluepeak", "1")
 
     assert result.exit_code == 0, result.output
     assert [(f[1], f[2], f[3]) for f in facts(root)] == [(None, False, False)] * 2
@@ -141,7 +141,7 @@ def test_reject_leaves_the_facts_unconfirmed(root: Path, audit_query: Query) -> 
 
 
 def test_unknown_account_is_rejected_and_nothing_is_stored(root: Path) -> None:
-    result = fin("map", "propose", propose_file(root, proposal("made_up")), "-c", "bluepeak")
+    result = fin("map", "propose", "bluepeak", propose_file(root, proposal("made_up")))
 
     assert result.exit_code == 2
     assert "E304: unknown account 'made_up'" in result.stderr
@@ -149,7 +149,7 @@ def test_unknown_account_is_rejected_and_nothing_is_stored(root: Path) -> None:
 
 
 def test_account_of_another_statement_is_rejected(root: Path) -> None:
-    result = fin("map", "propose", propose_file(root, proposal("revenue")), "-c", "bluepeak")
+    result = fin("map", "propose", "bluepeak", propose_file(root, proposal("revenue")))
 
     assert result.exit_code == 2
     assert "E304" in result.stderr
@@ -158,7 +158,7 @@ def test_account_of_another_statement_is_rejected(root: Path) -> None:
 def test_two_accounts_for_one_label_conflict(root: Path) -> None:
     both = propose_file(root, proposal("trade_receivables"), proposal("other_current_assets"))
 
-    result = fin("map", "propose", both, "-c", "bluepeak")
+    result = fin("map", "propose", "bluepeak", both)
 
     assert result.exit_code == 1
     assert "E303" in result.stderr
@@ -166,7 +166,7 @@ def test_two_accounts_for_one_label_conflict(root: Path) -> None:
 
 
 def test_low_confidence_proposal_is_logged_as_e302(root: Path, audit_query: Query) -> None:
-    result = fin("map", "propose", propose_file(root, proposal(confidence=0.4)), "-c", "bluepeak")
+    result = fin("map", "propose", "bluepeak", propose_file(root, proposal(confidence=0.4)))
 
     assert result.exit_code == 0
     assert audit_query("SELECT level, error_code FROM events WHERE error_code = 'E302'") == [
@@ -175,32 +175,16 @@ def test_low_confidence_proposal_is_logged_as_e302(root: Path, audit_query: Quer
 
 
 def test_confirm_without_any_account_is_an_error(root: Path) -> None:
-    result = fin("review", "confirm", "1", "-c", "bluepeak")
+    result = fin("review", "confirm", "bluepeak", "1")
 
     assert result.exit_code == 2
     assert "E304" in result.stderr
     assert facts(root)[0][1] is None
 
 
-def test_interactive_review_confirms_with_an_edited_account(root: Path) -> None:
-    # edit -> account -> scope; then the list is empty
-    result = fin("review", input="e\ntrade_receivables\nglobal\n")
-
-    assert result.exit_code == 0, result.output
-    assert "confirmed as trade_receivables (global); 2 facts updated" in result.stdout
-    assert {f[1] for f in facts(root)} == {"trade_receivables"}
-
-
-def test_interactive_review_can_skip_and_reject(root: Path) -> None:
-    assert fin("review", input="s\n").exit_code == 0
-    assert pending(root)[0]["status"] == "pending"
-    assert fin("review", input="r\n").exit_code == 0
-    assert pending(root)[0]["status"] == "rejected"
-
-
 def test_new_label_confirmed_once_is_mapped_on_the_next_ingest(root: Path, samples: Path) -> None:
-    fin("map", "propose", propose_file(root, proposal()), "-c", "bluepeak")
-    fin("review", "confirm", "1", "-c", "bluepeak")
+    fin("map", "propose", "bluepeak", propose_file(root, proposal()))
+    fin("review", "confirm", "bluepeak", "1")
     book = load_workbook(samples / "clean" / "bluepeak" / "Bluepeak_Polymers_FY2023-24.xlsx")
     book["Standalone BS"]["A23"] = LABEL
     path = root / "edited2.xlsx"
@@ -242,15 +226,15 @@ def last_run(audit_query: Query, command: str) -> str:
 def test_new_account_is_added_on_confirm_and_validates_under_its_parent(
     root: Path, audit_query: Query
 ) -> None:
-    result = fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+    result = fin("map", "propose", "bluepeak", propose_file(root, new_account()))
     assert result.exit_code == 0, result.output
     assert dictionary(root, "SELECT * FROM accounts WHERE account = 'long_overdue_debtors'") == []
-    listed = fin("review", "list", "-c", "bluepeak").stdout
+    listed = fin("review", "list", "bluepeak").stdout
     assert "NEW ACCOUNT long_overdue_debtors: + total_current_assets, rupees, 'Old debtors'" in (
         listed
     )
 
-    result = fin("review", "confirm", "1", "-c", "bluepeak", "--scope", "global")
+    result = fin("review", "confirm", "bluepeak", "1", "--scope", "global")
 
     assert result.exit_code == 0, result.output
     assert "#1 confirmed (global scope); 2 facts updated" in result.stdout
@@ -293,14 +277,13 @@ def test_new_account_is_added_on_confirm_and_validates_under_its_parent(
 
 
 def test_new_account_under_the_wrong_parent_is_an_e402_finding(root: Path) -> None:
-    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+    fin("map", "propose", "bluepeak", propose_file(root, new_account()))
 
     result = fin(
         "review",
         "confirm",
-        "1",
-        "-c",
         "bluepeak",
+        "1",
         "--name",
         "old_debtors",
         "--parent",
@@ -318,9 +301,9 @@ def test_new_account_under_the_wrong_parent_is_an_e402_finding(root: Path) -> No
 
 
 def test_rejected_new_account_adds_nothing(root: Path) -> None:
-    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+    fin("map", "propose", "bluepeak", propose_file(root, new_account()))
 
-    result = fin("review", "reject", "1", "-c", "bluepeak")
+    result = fin("review", "reject", "bluepeak", "1")
 
     assert result.exit_code == 0, result.output
     assert dictionary(root, "SELECT account FROM accounts WHERE source = 'review'") == []
@@ -360,7 +343,7 @@ def test_rejected_new_account_adds_nothing(root: Path) -> None:
 def test_invalid_new_account_is_e304_and_nothing_is_stored(
     root: Path, bad: dict[str, Any], message: str
 ) -> None:
-    result = fin("map", "propose", propose_file(root, bad), "-c", "bluepeak")
+    result = fin("map", "propose", "bluepeak", propose_file(root, bad))
 
     assert result.exit_code == 2
     assert result.stderr.splitlines()[0] == message
@@ -368,9 +351,9 @@ def test_invalid_new_account_is_e304_and_nothing_is_stored(
 
 
 def test_confirm_with_an_invalid_parent_adds_nothing(root: Path) -> None:
-    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
+    fin("map", "propose", "bluepeak", propose_file(root, new_account()))
 
-    result = fin("review", "confirm", "1", "-c", "bluepeak", "--parent", "revenue")
+    result = fin("review", "confirm", "bluepeak", "1", "--parent", "revenue")
 
     assert result.exit_code == 2
     assert result.stderr.splitlines()[0] == (
@@ -383,11 +366,11 @@ def test_confirm_with_an_invalid_parent_adds_nothing(root: Path) -> None:
 
 
 def test_map_set_can_target_an_added_account(root: Path) -> None:
-    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
-    fin("review", "confirm", "1", "-c", "bluepeak")
+    fin("map", "propose", "bluepeak", propose_file(root, new_account()))
+    fin("review", "confirm", "bluepeak", "1")
 
     result = fin(
-        "map", "set", "-c", "bluepeak", "-s", "balance_sheet", "-l", "Old dues", "-a",
+        "map", "set", "bluepeak", "-s", "balance_sheet", "-l", "Old dues", "-a",
         "long_overdue_debtors",
     )  # fmt: skip
 
@@ -396,8 +379,8 @@ def test_map_set_can_target_an_added_account(root: Path) -> None:
 
 
 def test_export_prints_added_accounts_and_global_labels_as_seed_rows(root: Path) -> None:
-    fin("map", "propose", propose_file(root, new_account()), "-c", "bluepeak")
-    fin("review", "confirm", "1", "-c", "bluepeak", "--scope", "global")
+    fin("map", "propose", "bluepeak", propose_file(root, new_account()))
+    fin("review", "confirm", "bluepeak", "1", "--scope", "global")
 
     result = fin("map", "accounts", "--added")
 

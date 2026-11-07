@@ -1,4 +1,4 @@
-"""`fin sql <company> --write --sql "..."`: apply a data change the user asked for (Phase 8).
+"""`fin sql <company> --write --sql "..."`: apply a data change the user asked for.
 
 The company database is copied to `backups/<run_id>/companies/<company>.duckdb` first. The
 statements then run in one transaction: all of them apply, or none. The audit `queries` table gets
@@ -40,13 +40,7 @@ def backup(root: Path, path: Path, run: Run) -> Path:
     return target
 
 
-def refresh_metrics(run: Run, company: str) -> None:
-    """Refresh metrics after a data change. The company's metrics are views, so they are already
-    current; this rebuilds shared/analytics.duckdb (all companies) for the dashboards."""
-    refresh_analytics(run)
-
-
-def write_sql(run: Run, company: str, sql: str) -> dict[str, Any]:
+def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> dict[str, Any]:
     """Back up the company database, run `sql` in one transaction and log it. Returns the JSON
     payload. A failing statement rolls everything back and raises E504."""
     path = company_db_path(run.root, company)
@@ -73,7 +67,7 @@ def write_sql(run: Run, company: str, sql: str) -> dict[str, Any]:
         {
             "query_id": run.run_id,
             "company": company,
-            "question": None,
+            "question": question,
             "sql": sql,
             "mode": "write",
             "row_count": rows_affected,
@@ -81,7 +75,7 @@ def write_sql(run: Run, company: str, sql: str) -> dict[str, Any]:
         },
     )
     held = recheck_held(run, company)
-    refresh_metrics(run, company)
+    refresh_analytics(run)  # metrics are views; this rebuilds the dashboards' shared copy
     return {
         "query_id": run.run_id,
         "company": company,

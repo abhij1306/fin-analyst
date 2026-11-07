@@ -10,7 +10,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 1 | Foundation: config, audit, errors, DB access | Done |
 | 2 | Schema and dictionary | Done |
 | 3 | Synthetic fixtures, Excel ingestion, batch | Done |
-| 4 | PDF bake-off and PDF ingestion | Done (real-PDF bake-off pending; wired into `fin ingest` in Phases 2-3) |
+| 4 | PDF bake-off and PDF ingestion | Done |
 | 5 | Mapping and review | Done |
 | 6 | Validation gates | Done |
 | 7 | Metrics and analytics export | Done |
@@ -70,7 +70,7 @@ review.
 
 Analysis core (after 1.0.0, not a phase): standard statements and the full metric set.
 - `standard_statements` (view, made per connection by `fin.statements` from the dictionary's account tree; `fin
-  query` has it): for each period and scope the P&L, balance sheet and cash flow in standard order with a depth for
+  sql` has it): for each period and scope the P&L, balance sheet and cash flow in standard order with a depth for
   indentation, every account with a value, and for each subtotal what its mapped lines explain (`explained`,
   `coverage`) plus an "Unmapped / other" line for any difference. `fin statements <co> [--period] [--scope]
   [--json]` prints it; `fin export <co>` writes `reports/<co>/<co>_financials.xlsx` (every period side by side, one
@@ -147,8 +147,8 @@ further with Claude Code, so the code and docs stay simple and easy to modify.
 | Reports | Quarto | HTML, docx, Typst PDF (no LaTeX) |
 | Dashboards | Evidence | Node LTS, local dev server |
 | Tests / lint | pytest, ruff | |
-| CI | GitHub Actions, macOS runner | |
-| System deps | Homebrew `Brewfile` | uv, node, quarto |
+| CI | GitHub Actions | Linux on every push; macOS on main and on demand |
+| System deps | Homebrew `Brewfile` | uv, node, quarto, poppler |
 
 Pin exact versions in Phase 0. Upgrade deliberately, never implicitly.
 
@@ -163,7 +163,7 @@ Three layers:
 Where Claude fits:
 
 - Claude reads CLI output (JSON) and writes back only through CLI commands. Data changes go through `fin`, so they are backed up and audit-logged.
-- Claude proposes mappings; the human reviews them (`fin review`). Claude may confirm them when the user asks.
+- Claude proposes mappings; the human reviews them (`/review`). Claude may confirm them when the user asks.
 - Guardrails prevent accidents only; they never stop Claude doing what the user asked. No approval prompts on Claude: data changes go through `fin`, which backs up and audit-logs every one.
 - Conflicting data in what a company filed is a finding to show, never a failure: the document is held until the user accepts it as filed or has Claude fix it.
 - Claude may run any `fin` command, including `fin delete` and `fin review confirm`, when the user asks.
@@ -197,7 +197,7 @@ fin-analyst/
   tests/
     fixtures/sample-financials/ # synthetic companies with known numbers, generator/ and answer_key.json
     unit/  integration/
-  .github/workflows/ci.yml
+  .github/workflows/      # ci.yml (Linux), macos.yml
 ```
 
 ## 6. Data folder
@@ -281,41 +281,9 @@ Every `fin` command:
 
 ## 9. Error handling
 
-| Code | Meaning | Behaviour |
-|---|---|---|
-| E001 | Dependency missing | `fin doctor` names it and the fix |
-| E002 | Dependency version mismatch, or a database made by an older fin | Same (for a database: re-create the data folder) |
-| E003 | Data folder not writable | Stop |
-| E005 | `fin update` stopped (local changes, or a git, uv or npm step failed) | Stop; backup is in `backups/<run_id>/` |
-| E101 | File unreadable or corrupt | Skip file, move to review/ with reason |
-| E102 | Encrypted file | Same |
-| E103 | Unsupported format | Same |
-| E104 | Scanned PDF (no text layer) | Same; scanned PDFs out of scope |
-| E105 | Duplicate (same sha256) | Skip unless `--force` (creates new version) |
-| E201 | No tables found | File to review queue, nothing loaded |
-| E202 | Periods/headers not detected | Same |
-| E203 | Unit not detected | Same |
-| E204 | Parse error | Same |
-| E205 | Reading file invalid (`fin ingest --reading`, `fin verify`) | Same; nothing loaded or compared |
-| E301 | Unmapped label | Loaded as unconfirmed, queued for review |
-| E302 | Low-confidence mapping | Same |
-| E303 | Conflicting mapping | Same; human decides |
-| E304 | Invalid mapping proposal or review request (unknown account, wrong statement, unknown id or label, invalid new account: name, parent, sign or unit) | Stop; nothing applied |
-| E401 | Balance sheet doesn't balance | Finding, not an error: document held (out of current figures) until accepted or fixed; both values and sources shown |
-| E402 | Subtotal mismatch | Same |
-| E403 | Cash flow doesn't reconcile to cash balance | Same |
-| E404 | Same figure differs across documents | Same |
-| E405 | Unit sanity check failed | Same |
-| E406 | `fin findings accept` names a finding that is not open | Stop; nothing accepted |
-| E501 | Database locked after retries | Retry with backoff (5 tries), then stop |
-| E502 | Write attempted on read-only path | Reject, log |
-| E503 | Database could not be created from its schema file | Remove the half-made file, stop |
-| E504 | SQL statement failed (`fin query`, `fin sql`) | Reject, log; nothing changed |
-| E601 | Report render failed | Keep last good report |
-| E602 | Narrative contains hand-typed numbers | Block render, list offending lines |
-| E603 | Dashboard build failed | Keep last good build |
-| E604 | Evidence source file missing | Flag in evidence page |
-| E701 | Action needs confirmation | `fin delete` without `--yes` and a wrong typed name; exit 3 |
+The code table (meaning and what to do) is in `README.md`, "Troubleshooting and error codes"; each code's class
+is in `src/fin/audit/errors.py`. E1xx-E2xx fail one document (the batch goes on); E301-E303 load facts unconfirmed;
+E401-E405 are findings (the document is held); setup, database and output errors stop the command.
 
 **Rules**
 
@@ -341,7 +309,7 @@ claude
 
 1. Check macOS and architecture.
 2. Install Homebrew if missing (asks first).
-3. `brew bundle --file=Brewfile` (uv, node, quarto).
+3. `brew bundle --file=Brewfile` (uv, node, quarto, poppler).
 4. `uv sync --frozen`
 5. `npm ci --prefix dashboards`
 6. `uv run fin init` — creates data folder, config, databases from the schema files.
@@ -350,9 +318,9 @@ claude
 **Update:** `fin update`
 
 1. Refuse if repo has local changes.
-2. Back up all databases to `backups/<timestamp>/`.
+2. Back up all databases to `backups/<run_id>/`.
 3. `git pull`, `uv sync --frozen`, `npm ci`.
-4. `fin metrics refresh`.
+4. Refresh the metrics export.
 5. `fin doctor`.
 
 **Uninstall:** delete the repo. The data folder is never touched by uninstall.
@@ -362,32 +330,33 @@ claude
 | CLI | Claude Code | Who |
 |---|---|---|
 | `fin init`, `fin doctor` | — | Human |
-| `fin ingest <co> [path]` | `/ingest` | Either |
+| `fin ingest <co> [path] [--force]` | `/ingest` | Either |
 | `fin ingest <co> <file> --reading <csv>` | `/ingest` (offered after a failure or skipped page) | Claude, when the user asks |
+| `fin ingest-batch [folder]` (default `inbox/`) | `/ingest-batch` | Either |
 | `fin verify <co> <file> --reading <csv>` | `/verify`, `/ingest` | Either |
-| `fin ingest-batch <folder>` | `/ingest-batch` | Either |
-| `fin map propose <file.json>` | used inside `/ingest`, `/review` | Claude |
-| `fin review` (interactive or flags) | `/review` | Either |
+| `fin map propose <co> <file.json>` | used inside `/ingest` | Claude |
+| `fin map set <co> --statement --label --account`, `fin map accounts` | `/ingest` (fixing a finding) | Either |
+| `fin review list [co]`, `fin review confirm\|reject <co> <ids>` | `/review` | Either (confirm when the user says) |
 | `fin findings list [co]`, `fin findings accept <co> <ids>` | `/ingest`, `/verify` | Either (accept when the user says save as is) |
 | `fin status [co]` | `/status` | Either |
-| `fin query --question --sql` | `/ask` | Either |
-| `fin sql --write <co> --sql "…"` | `/ask` | Either (on user request; backup + audit) |
-| `fin evidence <query_id>` | used inside `/ask` | Either |
-| `fin statements <co> [--period] [--scope] [--json]` | `/statements` | Either |
-| `fin export <co>` | `/statements` | Either |
-| `fin metrics refresh` | runs after ingest | Either |
-| `fin report <co>` | `/report` | Either |
-| `fin dashboard` | `/dashboard` | Either |
-| `fin audit <co> [metric fy]` | `/audit` | Either |
-| `fin delete <co>` | — | Either (typed confirmation, or `--yes` when the user asked) |
+| `fin sql <co> --sql "…" [--question] [--evidence]` | `/ask`, `/report` | Either (reads) |
+| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit) |
+| `fin statements <co> [--period] [--scope] [--json]`, `fin export <co>` | `/statements` | Either |
+| `fin report <co> [--scope] [--peers] [--render]` | `/report` | Either |
+| `fin dashboard [--build]` | `/dashboard` | Either |
+| `fin audit <co> [metric period \| --fact id]` | `/audit` | Either |
+| `fin delete <co> [--yes]` | — | Either (typed confirmation, or `--yes` when the user asked) |
 | `fin update` | — | Human |
+
+Metrics are views in each company database; `shared/analytics.duckdb` is rebuilt after every ingest, data change
+and update.
 
 ## 12. Testing and CI
 
 - **Synthetic fixtures** (`tests/fixtures/sample-financials/`): three fake companies (Kestrel Forgings: Excel with formulas; Bluepeak Polymers: Excel per year, crores, older wording, standalone + consolidated; Tarang Industrial Services: text PDF with notes), known values in `answer_key.json`, plus deliberately broken files (see Phase 6). The set already exists at `sample-financials/` (README, `answer_key.json`, `generator/`, `clean/`, `broken/`), local and untracked; Phase 3 moves it into `tests/fixtures/` and commits the generated files, so CI needs no LibreOffice.
 - **Private golden set**: one real company, ~30 hand-checked figures, kept in the data folder; run with `pytest --golden`. Never committed.
-- **CI** (macOS runner): ruff, pytest, `shellcheck install.sh`, render report for a synthetic company, build Evidence.
-- **Releases**: semantic version tags, `CHANGELOG.md` updated every phase.
+- **CI** (`.github/workflows/ci.yml`, Linux, every PR and main push): ruff, pytest, `shellcheck install.sh`; one job ingests the synthetic companies once, renders a report (Quarto) and builds the Evidence dashboard (node 24). `macos.yml` (main and on demand): `install.sh` twice, `fin doctor` and a smoke ingest.
+- **Releases**: semantic version tags, `CHANGELOG.md` written at release.
 
 ---
 
@@ -412,7 +381,7 @@ Done when:
 ### Phase 1 — Foundation
 Build:
 - `config.py`, `paths.py` (data folder resolution)
-- Audit logger (runs, events, JSONL), error classes with codes from §9, exit codes
+- Audit logger (runs, events, JSONL), error classes with codes (README error table), exit codes
 - `db/conn.py`: short-lived connections, read-only by default, retry with backoff on lock
 - One schema file per database, created by `fin init` (no migrations)
 
@@ -477,16 +446,13 @@ contingent-liability note rows):
 - pdfplumber also gives a bbox for every word (needed for evidence crops) and renders pages to PNG through
   pypdfium2, so one library covers tables, notes text and crops. pdf-inspector gives positions for text runs but
   not for Markdown table cells.
-- Caveat: the extractor was written against these two synthetic reports, so its 100% is an upper bound. The
-  real-PDF run below decides whether the word-position approach holds.
+- Caveat: the extractor was written against these two synthetic reports, so its 100% is an upper bound; the
+  real-PDF run below tested it.
 - Licenses (the repo is MIT): pdfplumber MIT, pdfminer.six MIT, pypdfium2 Apache-2.0/BSD-3-Clause, pdf-inspector
   MIT (Firecrawl; Rust wheels for macOS arm64/x86_64), AnyDoc (`firecrawl-anydoc` on PyPI; the `anydoc` name is an
   unrelated Slack bot) MIT. PyMuPDF (AGPL) is not used. pdf-inspector is a dev dependency, for the bake-off only.
 - Notes and the auditor's report go to Markdown with pdfplumber too (bold lines become headings, note tables become
   Markdown tables), so AnyDoc is not needed.
-- Not done here: real annual reports are not in the repo. Human follow-up: put 3–5 annual reports of small listed
-  Indian manufacturers in the private test set, write a key for each in the `answer_key.json` shape, run
-  `uv run python scripts/pdf_bakeoff.py <key> --company <name> --show-misses`, and add the scores to this table.
 - Real-PDF run (after 1.0.0): six Indian annual reports were tried. The word-position approach holds once header
   blocks, column bands, per-page scope and page skips are in place. Four reports load, and their main totals match the
   PDF for both years. One fails E403 because of a cash mapping, which is correct for that mapping. One is scanned with
@@ -496,7 +462,7 @@ contingent-liability note rows):
 Build:
 - Dictionary lookup → `review/<co>/pending.json`
 - `fin map propose` accepts Claude JSON proposals (label, account, confidence, reason)
-- `fin review`: confirm, reject, edit; global vs company scope. Works interactively and non-interactively (flags such as `--id`, `--account`, `--scope`)
+- `fin review list|confirm|reject`: confirm (optionally with another `--account`), reject; global vs company scope
 - `/ingest` command: runs ingest, then Claude proposes mappings for pending labels
 
 Done when:
@@ -555,9 +521,9 @@ Done when:
 
 ### Phase 8 — Query and evidence
 Build:
-- `fin query`: read-only, rejects non-SELECT (E502), returns JSON with provenance columns, logs to `queries`
-- `fin sql --write <co> --sql "…"`: applies a user-requested data change to one company DB. Backs up first, runs in one transaction, records the statement and rows affected in the audit log, and refreshes metrics. `fin query` stays read-only
-- `fin evidence <query_id>`: HTML page with highlighted PDF crops and Excel context grids
+- `fin sql` (read): rejects anything but one SELECT without `--write` (E502), returns JSON with provenance columns, logs to `queries`
+- `fin sql <co> --write --sql "…"`: applies a user-requested data change to one company DB. Backs up first, runs in one transaction, records the statement and rows affected in the audit log, and refreshes metrics
+- `fin sql --evidence`: HTML page with highlighted PDF crops and Excel context grids
 - `/ask` command with fixed answer format: answer, calculation, source table, SQL, flags
 
 Done when:
@@ -603,21 +569,3 @@ Build:
 
 Done when:
 - Clean-machine test passes without help
-
----
-
-## 14. Session prompt (paste at the start of each phase)
-
-```
-Read CLAUDE.md and PLAN.md. We are doing Phase <N>: <name>.
-
-1. Enter plan mode. Propose the implementation for this phase only:
-   files, functions, tests, and how you will verify each "done when" item.
-2. Wait for my approval.
-3. Implement with tests. Use the error codes and audit logger from
-   src/fin/audit. No new dependency without telling me why.
-4. Run ruff and the full test suite, then demonstrate each "done when"
-   item. Show me the output.
-5. Update CHANGELOG.md and the phase status table in PLAN.md.
-   Commit. Do not start the next phase.
-```

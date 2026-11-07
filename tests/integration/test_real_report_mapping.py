@@ -213,7 +213,6 @@ def test_a_held_document_loads_after_a_company_mapping_fix(
         [
             "map",
             "set",
-            "--company",
             "acme",
             "--statement",
             "balance_sheet",
@@ -265,7 +264,7 @@ def test_a_held_document_loads_after_a_company_mapping_fix(
 def test_map_set_rejects_an_account_of_another_statement(root: Path) -> None:
     result = runner.invoke(
         app,
-        ["map", "set", "-c", "acme", "-s", "balance_sheet", "-l", "Basic", "-a", "eps_basic"],
+        ["map", "set", "acme", "-s", "balance_sheet", "-l", "Basic", "-a", "eps_basic"],
     )
 
     assert result.exit_code == 2
@@ -281,9 +280,7 @@ def test_confirming_a_per_share_label_stores_the_figure_as_printed(
     path = write_pdf(tmp_path / "acme_ar25.pdf", page, width=WIDTH)
     assert runner.invoke(app, ["ingest", "acme", str(path)]).exit_code == 0
 
-    result = runner.invoke(
-        app, ["review", "confirm", "1", "--company", "acme", "--account", "eps_basic"]
-    )
+    result = runner.invoke(app, ["review", "confirm", "acme", "1", "--account", "eps_basic"])
 
     assert result.exit_code == 0, result.stdout
     assert query(root, "acme", "SELECT fiscal_year, value FROM facts ORDER BY 1") == [
