@@ -228,19 +228,20 @@ def map_rows(
     row is current or non-current. So each row is also looked up under the part of the balance
     sheet it is in: the last part heading seen ("Non-current liabilities"), or the part that comes
     after the last total line (current liabilities follow "Total non-current liabilities").
+    The part is followed for each statement and scope on its own, so a document that prints
+    standalone and consolidated columns side by side (rows interleaved) keeps its parts.
     """
     found: list[Mapping | None] = []
-    place: tuple[str, str] | None = None
-    part = heading = ""
+    parts: dict[tuple[str, str], str] = {}  # (statement, scope) -> the part its rows are in
+    headings: dict[tuple[str, str], str] = {}  # (statement, scope) -> its last heading
     for statement, scope, section, label in rows:
-        if (statement, scope) != place:
-            place, part, heading = (statement, scope), "", ""
-        if normalize_label(section) != heading:
-            heading = normalize_label(section)
-            if heading in PARTS:
-                part = heading
-        mapping = find(label_map, statement, section, label, part)
+        place = (statement, scope)
+        heading = normalize_label(section)
+        if heading != headings.get(place, "") and heading in PARTS:
+            parts[place] = heading
+        headings[place] = heading
+        mapping = find(label_map, statement, section, label, parts.get(place, ""))
         if mapping is not None and mapping.account in NEXT_PART:
-            part = NEXT_PART[mapping.account]
+            parts[place] = NEXT_PART[mapping.account]
         found.append(mapping)
     return found

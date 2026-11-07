@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from fin.cli import app
 from fin.db.conn import connect
-from fin.map.dictionary import find, load_label_map, map_rows
+from fin.map.dictionary import LabelMap, find, load_label_map, map_rows
 from fin.paths import dictionary_db_path
 
 BORROWINGS = "(a) Financial liabilities - Borrowings"  # under both non-current and current
@@ -19,6 +19,16 @@ BORROWINGS = "(a) Financial liabilities - Borrowings"  # under both non-current 
 def initialised(data_root: Path) -> Path:
     assert CliRunner().invoke(app, ["init"]).exit_code == 0
     return data_root
+
+
+@pytest.fixture(scope="module")
+def seed_map(tmp_path_factory: pytest.TempPathFactory) -> LabelMap:
+    """The global label map of a freshly initialised data folder, built once for the module."""
+    root = tmp_path_factory.mktemp("seed") / "FinAnalysis"
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("FIN_DATA_DIR", str(root))
+        assert CliRunner().invoke(app, ["init"]).exit_code == 0
+    return load_label_map(root.resolve(), "acme")
 
 
 def statements(root: Path) -> dict[str, str]:
@@ -72,7 +82,7 @@ def test_statement_tells_apart_the_same_label(initialised: Path) -> None:
 
 def test_unknown_label_is_not_mapped(initialised: Path) -> None:
     label_map = load_label_map(initialised, "kestrel")
-    assert find(label_map, "balance_sheet", "", "Goodwill on consolidation") is None
+    assert find(label_map, "balance_sheet", "", "Capital reserve on amalgamation") is None
 
 
 def test_company_mapping_wins_for_that_company_only(initialised: Path) -> None:
@@ -174,3 +184,165 @@ def test_eps_accounts_are_per_share_and_money_accounts_are_not(initialised: Path
 
     assert (basic and (basic.account, basic.per_share)) == ("eps_basic", True)
     assert (revenue and (revenue.account, revenue.per_share)) == ("revenue", False)
+
+
+@pytest.mark.parametrize(
+    ("statement", "section", "label", "account"),
+    [
+        # Schedule III Division I (old format) and Division II
+        (
+            "balance_sheet",
+            "",
+            "Share application money pending allotment",
+            "share_application_money",
+        ),
+        ("balance_sheet", "Non-current assets", "(a) Fixed assets", "fixed_assets"),
+        (
+            "balance_sheet",
+            "",
+            "a) Property,Plant & Equipment and Intangible Assets",
+            "fixed_assets",
+        ),
+        ("balance_sheet", "", "(b) Investment property", "investment_property"),
+        # Often printed after a "Current assets" subtotal that the seed reads as the total: review
+        ("balance_sheet", "", "Assets held-for-Sale (Refer Note 8)", None),
+        (
+            "balance_sheet",
+            "Non-current assets",
+            "Trade receivables",
+            "trade_receivables_non_current",
+        ),
+        ("balance_sheet", "Current assets", "Trade receivables", "trade_receivables"),
+        ("balance_sheet", "", "(i) Borrowings 13 (a)", None),  # current or non-current: by part
+        ("balance_sheet", "Current liabilities", "(i) Borrowings 13 (a)", "st_borrowings"),
+        (
+            "balance_sheet",
+            "Non-current liabilities",
+            "Employee benefit obligations",
+            "lt_provisions",
+        ),
+        # Division III (NBFCs)
+        ("balance_sheet", "Financial liabilities", "(c) Debt securities", "debt_securities"),
+        (
+            "balance_sheet",
+            "Financial liabilities",
+            "(d) Borrowings (other than debt securities)",
+            "borrowings",
+        ),
+        ("balance_sheet", "Financial liabilities", "(e) Deposits", "deposits"),
+        ("balance_sheet", "", "(f) Subordinated liabilities", "subordinated_liabilities"),
+        ("balance_sheet", "Receivables", "(I) Trade receivables", "trade_receivables"),
+        ("balance_sheet", "", "(k) Other non-financial assets", "other_non_financial_assets"),
+        ("balance_sheet", "", "Total financial assets", "total_financial_assets"),
+        ("balance_sheet", "Financial assets", "Loans", None),  # Division II uses it too
+        ("profit_and_loss", "Revenue from operations", "(i) Interest income", "interest_income"),
+        ("profit_and_loss", "", "(ii) Fees and commission income", "fee_and_commission_income"),
+        ("profit_and_loss", "", "(I) Total revenue from operations", "revenue"),
+        ("profit_and_loss", "", "Net loss on fair value changes", "net_loss_fair_value_changes"),
+        (
+            "profit_and_loss",
+            "Expenses",
+            "(iv) Impairment on financial instruments",
+            "impairment_on_financial_instruments",
+        ),
+        # Banks (Third Schedule, Forms A and B)
+        ("balance_sheet", "CAPITAL AND LIABILITIES", "Capital", "share_capital"),
+        ("balance_sheet", "CAPITAL AND LIABILITIES", "Deposits", "deposits"),
+        ("balance_sheet", "CAPITAL AND LIABILITIES", "Total", "total_equity_and_liabilities"),
+        (
+            "balance_sheet",
+            "ASSETS",
+            "Cash and balances with Reserve Bank of India",
+            "balances_with_rbi",
+        ),
+        ("balance_sheet", "ASSETS", "Advances", "loans"),
+        ("balance_sheet", "ASSETS", "Total", "total_assets"),
+        ("balance_sheet", "", "Contingent liabilities", "contingent_liabilities"),
+        ("profit_and_loss", "I. INCOME", "Interest earned", "revenue"),
+        ("profit_and_loss", "II. EXPENDITURE", "Interest expended", "interest_expended"),
+        ("profit_and_loss", "II. EXPENDITURE", "Total", "total_expenses"),
+        (
+            "profit_and_loss",
+            "IV. APPROPRIATIONS",
+            "Transfer to statutory reserve",
+            "appropriations",
+        ),
+        # SEBI results format
+        (
+            "profit_and_loss",
+            "",
+            "Paid-up equity share capital (Face Value of Rs.10 /- per share)",
+            "paid_up_share_capital",
+        ),
+        ("profit_and_loss", "", "11. Other equity", "reserves_memo"),
+        ("profit_and_loss", "", "Adjustment of tax relating to earlier periods", "tax_expense"),
+        ("profit_and_loss", "", "Total B", None),
+        ("profit_and_loss", "Expenses", "Total B", "total_expenses"),
+        # Cash flow (Ind AS 7 / AS 3)
+        ("cash_flow", "", "Profit for the year", "cf_pat"),
+        (
+            "cash_flow",
+            "",
+            "Net loss/(gain)on disposal of property, plant and equipment",
+            "cf_gain_on_sale_of_ppe",
+        ),
+        ("cash_flow", "", "Unrealised exchange loss/(gain)", "cf_unrealised_fx"),
+        ("cash_flow", "", "Increase / (decrease) in long term provisions", "cf_change_provisions"),
+        (
+            "cash_flow",
+            "",
+            "Bank balances not considered as cash and cash equivalents",
+            "cf_bank_deposits_net",
+        ),
+        ("cash_flow", "", "Payment of lease liabilities", "cf_lease_payments"),
+        (
+            "cash_flow",
+            "C. Cash flow from financing activities",
+            "Finance costs",
+            "cf_finance_cost_paid",
+        ),
+        ("cash_flow", "Adjustments for:", "Finance costs", "cf_add_finance_cost"),
+        (
+            "cash_flow",
+            "",
+            "Effect of exchange rate changes on cash and cash equivalents",
+            "cf_fx_effect",
+        ),
+    ],
+)
+def test_standard_format_labels_map_to_their_account(
+    seed_map: LabelMap, statement: str, section: str, label: str, account: str | None
+) -> None:
+    mapping = find(seed_map, statement, section, label)
+
+    assert (mapping and mapping.account) == account
+
+
+def test_the_part_is_kept_when_standalone_and_consolidated_rows_alternate(
+    seed_map: LabelMap,
+) -> None:
+    rows = [
+        (scope, section, label)
+        for section, label in [
+            ("Non-current assets", "Property, plant and equipment"),
+            ("Financial assets", "Investments"),
+            ("Financial assets", "Total non-current assets"),
+            ("Financial assets", "Loans"),
+        ]
+        for scope in ("standalone", "consolidated")
+    ]
+
+    mappings = map_rows(
+        seed_map, [("balance_sheet", scope, section, label) for scope, section, label in rows]
+    )
+
+    assert [m and m.account for m in mappings] == [
+        "ppe_net",
+        "ppe_net",
+        "non_current_investments",
+        "non_current_investments",
+        "total_non_current_assets",
+        "total_non_current_assets",
+        "loans_current",
+        "loans_current",
+    ]
