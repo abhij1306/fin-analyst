@@ -5,6 +5,7 @@ select
     period_months,
     period_end,
     scope,
+    category,
     metric,
     unit,
     cast(value as double) as value

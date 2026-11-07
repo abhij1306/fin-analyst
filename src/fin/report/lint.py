@@ -3,11 +3,14 @@
 Claude writes the narrative (`reports/<company>/<scope>/narrative.md`); it never types a number.
 Every number is a reference that the renderer replaces with a value from the company database:
 
-    {{metric:<metric>:<FY>}}   e.g. {{metric:ebitda_margin:FY25}}  -> 18.0%
-    {{fact:<account>:<FY>}}    e.g. {{fact:revenue:FY25}}          -> ₹123.45 Cr
+    {{metric:<metric>:<period>}}   e.g. {{metric:ebitda_margin:FY25}}  -> 18.0%
+    {{fact:<account>:<period>}}    e.g. {{fact:revenue:FY25}}          -> ₹123.45 Cr
 
-The lint rule is strict: after removing HTML comments, references and fiscal-year labels written as
-`FY` plus two digits (`FY25`), any digit left on a line is a hand-typed number (E602). That includes
+A period is a fiscal year (`FY25`) or a part of one: `FY26-Q1`..`FY26-Q4`, `FY26-H1`, `FY26-H2`,
+`FY26-9M`.
+
+The lint rule is strict: after removing HTML comments, references and period labels written as
+above (`FY25`, `FY26-Q1`), any digit left on a line is a hand-typed number (E602). That includes
 ordered-list markers ("1."), percentages, years such as 2025 and digits inside words.
 """
 
@@ -15,8 +18,9 @@ import re
 
 from fin.audit.errors import NarrativeHasTypedNumbers
 
-REFERENCE = re.compile(r"\{\{(metric|fact):([a-z][a-z0-9_]*):(FY\d{2})\}\}")
-FISCAL_YEAR = re.compile(r"\bFY\d{2}\b")
+PERIOD = r"FY\d{2}(?:-(?:Q[1-4]|H[12]|9M))?"
+REFERENCE = re.compile(r"\{\{(metric|fact):([a-z][a-z0-9_]*):(" + PERIOD + r")\}\}")
+FISCAL_YEAR = re.compile(r"\b" + PERIOD + r"\b")
 COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 DIGIT = re.compile(r"\d")  # any Unicode digit
 HEADING = re.compile(r"^## (.+?)\s*$")

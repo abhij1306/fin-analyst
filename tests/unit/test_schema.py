@@ -14,6 +14,7 @@ COMPANY_VIEWS = {
     "metric_input_accounts",
     "metrics",
     "metric_inputs",
+    "statement_coverage",
 }
 
 

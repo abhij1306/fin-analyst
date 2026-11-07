@@ -42,10 +42,19 @@ def test_references_fiscal_years_and_comments_pass() -> None:
     assert typed_number_lines(text) == []
 
 
+def test_quarter_and_half_year_periods_pass() -> None:
+    text = (
+        "## Latest quarters\n\nRevenue was {{metric:revenue:FY26-Q1}} in FY26-Q1, and "
+        "{{metric:pat:FY26-H1}} in FY26-H1 and FY26-9M.\n"
+    )
+    assert typed_number_lines(text) == []
+
+
 @pytest.mark.parametrize(
     "line",
     [
         "Revenue was ₹ one hundred and 5 crores.",
+        "Revenue rose in FY26-Q5.",  # no fifth quarter
         "{{metric:ebitda_margin:2025}}",  # not a reference: the year must be FYnn
         "{{metric:ebitda_margin:FY25}}0",  # digit right after a reference
         "In FY2025 revenue rose.",  # only two-digit FY labels are allowed

@@ -24,7 +24,7 @@ After 1.0.0 (not phases): real annual-report PDFs, then quarterly and half-year 
 period (`FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`; see §7). Results statements (SEBI Reg 33) ingest from PDF next to
 annual reports, quarter / half-year / year columns land in their own periods, and like periods are compared
 (E404). Quarterly metrics: revenue, PAT, EBITDA, margins, year-on-year and quarter-on-quarter growth. The
-health report stays annual; the dashboard company page shows quarters.
+health report is annual, with a short "latest quarters" section; the dashboard company page shows quarters.
 
 Claude readings (after 1.0.0, not a phase): fin's deterministic extraction stays the primary path (OCR was tested and
 rejected). Only when the user asks, Claude Code reads pages fin could not read (scanned, E2xx, skipped statement
@@ -81,6 +81,26 @@ Analysis core (after 1.0.0, not a phase): standard statements and the full metri
   growth (year on year, 3- and 5-year CAGR), earnings quality, per share (EPS as printed), lender (NBFCs and banks,
   only when their accounts exist), trailing twelve months (four consecutive quarters). A metric without its inputs is
   NULL (`when_missing = 'null'`) or absent (`'absent'`), never zero.
+- EBITDA is computed from profit before exceptional items (PBT when the period prints none, else the printed profit
+  before exceptional items plus any share of associates), so a one-off exceptional item does not move EBITDA, its
+  margin, debt/EBITDA, interest cover or EBITDA growth.
+- `fin statements` and `fin export` show money in the unit the company's documents use (the most recent document's
+  when they differ); `--json` stays in rupees with a `unit` per row.
+
+Reports and dashboards by category (after 1.0.0, not a phase):
+- Health report: a summary of key metrics over the latest five fiscal years (both scopes where present); one
+  section per metric category with data (trend table and an SVG chart drawn by `fin.report.chart`, no library);
+  latest quarters (TTM, growth on the year before and the previous quarter) when quarters are loaded; a peer
+  comparison with `fin report <co> --peers a,b` (key metrics for the latest fiscal year every company has); findings
+  with sources; data coverage (`statement_coverage` view: mapped share per statement and unverified Claude-read
+  figures; `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data); and
+  appendices (condensed standard statements, metric definitions, facts behind the metrics). Narrative references
+  accept quarter and half-year periods (`{{metric:ttm_revenue:FY26-Q2}}`).
+- Dashboards: `analytics.duckdb` also holds metric categories and definitions, the standard statements (in the
+  documents' unit), findings, coverage, unread pages and unverified Claude-read facts. Company page by category
+  (trend charts, any metric, quarters, statements for a chosen period, findings, coverage); compare page (category,
+  then metric, across companies); data quality page (findings, held documents, coverage, unread pages, unverified
+  figures). An analytics file missing a table is made again at the next refresh (it is derived).
 
 Simpler PDF parser (after 1.0.0, not a phase; owner decision): the product is the analysis, not the parsing. The
 parser reads clean, standard digital statements; a page it cannot read is listed as not read and a Claude reading

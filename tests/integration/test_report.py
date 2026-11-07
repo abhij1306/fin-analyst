@@ -20,6 +20,7 @@ from typer.testing import CliRunner, Result
 from fin.cli import app
 from fin.db.conn import connect
 from fin.paths import audit_db_path
+from tests.integration.test_ingest_results import q1_results, q2_results, q4_results
 
 runner = CliRunner()
 TESTS = Path(__file__).resolve().parents[1]
@@ -29,6 +30,7 @@ OUTPUTS = ("health.html", "health.docx", "health.pdf")
 
 FAKE_QUARTO = """\
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -37,6 +39,9 @@ if os.environ.get("FAKE_QUARTO_FAIL"):
     sys.exit(1)
 assert sys.argv[1:] == ["render", "health.qmd", "--to", "all"], sys.argv
 text = Path("health.qmd").read_text(encoding="utf-8")
+# Every chart the report shows is written next to it.
+for chart in re.findall("[(](chart-[a-z_]+[.]svg)[)]", text):
+    assert Path(chart).read_text(encoding="utf-8").startswith("<svg"), chart
 for name in ("health.html", "health.docx", "health.pdf"):
     Path(name).write_text(text, encoding="utf-8")
 """
@@ -110,14 +115,17 @@ def test_first_run_writes_the_stub_and_stops(root: Path) -> None:
     stub = (folder(root) / "narrative.md").read_text(encoding="utf-8")
     headings = [line for line in stub.splitlines() if line.startswith("## ")]
     assert headings == [
-        "## Growth",
+        "## Summary",
         "## Profitability",
-        "## Cash flow quality",
-        "## Working capital",
-        "## Leverage and liquidity",
+        "## Returns",
+        "## Liquidity",
+        "## Solvency",
+        "## Efficiency and working capital",
+        "## Cash flow",
+        "## Growth",
         "## Earnings quality",
-        "## Observations",
-        "## Data quality",
+        "## Findings",
+        "## Data coverage",
     ]
     assert "Years: FY23, FY24, FY25" in stub
     assert not any((folder(root) / name).exists() for name in OUTPUTS)
@@ -151,9 +159,22 @@ def test_render_substitutes_references_and_logs_the_report(root: Path, fake_quar
     assert "EBITDA margin moved from 20.0% in FY23 to 18.0%\nin FY25." in html
     assert "Receivable days went from 62.0 days in FY23 to\n94.0 days in FY25." in html
     # Tables come from the metrics view; missing data is listed.
+    assert "**Standalone**\n\n|  | FY23 | FY24 | FY25 |" in html  # the summary
     assert "| EBITDA margin | 20.0% | 19.0% | 18.0% |" in html
     assert "| Free cash flow | ₹5.87 Cr | -₹0.34 Cr | ₹3.60 Cr |" in html
+    assert "| ROE (average equity) | n/a | 19.5% | 16.9% |" in html
+    assert "| Receivable days | 62.0 days | 78.0 days | 94.0 days |" in html
+    assert "![Profitability, FY23 to FY25](chart-profitability.svg){width=100%}" in html
+    assert "## Lending" not in html  # no lender metrics for a manufacturer
+    assert "## Latest quarters" not in html and "## Peer comparison" not in html
+    # Findings, coverage and the appendices.
+    assert "No open or accepted findings." in html
+    assert "| Balance sheet | 54 | 54 | 100.0% | 0 |" in html
+    assert "None: fin read every statement page of the loaded documents." in html
     assert "| FY23 | Revenue growth | revenue (FY22) |" in html
+    assert "| Total assets | ₹98.75 Cr | ₹116.44 Cr | ₹128.64 Cr |" in html
+    assert "| Inventories |" not in html  # condensed: subtotals only
+    assert "| profitability | EBITDA margin (`ebitda_margin`) | EBITDA as a fraction of" in html
     assert "| `revenue` | FY25 | ₹134.09 Cr | Kestrel_Forgings_Financials_FY23-FY25.xlsx" in html
     assert "{{" not in html
 
@@ -240,8 +261,69 @@ def test_failed_render_keeps_the_last_good_report(
     assert len(report_rows(root)) == 1
 
 
+ACME_NARRATIVE = """\
+## Summary
+
+Revenue was {{fact:revenue:FY25}} in FY25.
+
+## Latest quarters
+
+Revenue was {{metric:revenue:FY26-Q2}} in FY26-Q2 and {{metric:ttm_revenue:FY26-Q2}} over the
+last four quarters.
+
+## Peer comparison
+
+The table sets acme next to kestrel for the latest fiscal year both have.
+"""
+
+
+def ingest_quarters(root: Path, tmp_path: Path) -> Path:
+    """acme: results statements for FY24-Q4 to FY26-Q2 with their 'Year ended' columns (FY24,
+    FY25), and its narrative."""
+    for path in (
+        q4_results(tmp_path / "q4.pdf"),
+        q1_results(tmp_path / "q1.pdf"),
+        q2_results(tmp_path / "q2.pdf"),
+    ):
+        result = runner.invoke(app, ["ingest", "acme", str(path)])
+        assert result.exit_code == 0, result.output
+    narrative = root / "reports" / "acme" / "standalone" / "narrative.md"
+    narrative.parent.mkdir(parents=True)
+    narrative.write_text(ACME_NARRATIVE, encoding="utf-8")
+    return narrative.parent
+
+
+def test_latest_quarters_and_peer_comparison(root: Path, tmp_path: Path, fake_quarto: None) -> None:
+    acme = ingest_quarters(root, tmp_path)
+
+    result = runner.invoke(app, ["report", "acme", "--peers", "kestrel"])
+
+    assert result.exit_code == 0, result.output
+    html = (acme / "health.html").read_text(encoding="utf-8")
+    assert "Revenue was ₹12.10 Cr in FY26-Q2 and ₹43.90 Cr over the\nlast four quarters." in html
+    assert "|  | FY25-Q2 | FY25-Q3 | FY25-Q4 | FY26-Q1 | FY26-Q2 |" in html
+    assert "| Revenue | ₹10.20 Cr | ₹10.30 Cr | ₹10.50 Cr | ₹11.00 Cr | ₹12.10 Cr |" in html
+    assert "| Revenue growth on the previous quarter | 2.0% | 1.0% | 1.9% | 4.8% | 10.0% |" in html
+    assert (
+        "| Revenue, last four quarters | n/a | ₹40.00 Cr | ₹41.00 Cr | ₹42.00 Cr | ₹43.90 Cr |"
+        in (html)
+    )
+    assert "Fiscal year FY25, standalone.\n\n|  | acme | kestrel |" in html
+    assert "| Revenue | ₹41.00 Cr | ₹134.09 Cr |" in html
+    assert "| Profit after tax | ₹29.00 Cr | ₹12.90 Cr |" in html
+
+    # Without --peers the narrative's peer section has nowhere to go.
+    result = runner.invoke(app, ["report", "acme"])
+    assert result.exit_code == 2
+    assert "the narrative has text under 'Peer comparison'" in result.stderr
+
+    result = runner.invoke(app, ["report", "acme", "--peers", "nobody"])
+    assert result.exit_code == 2
+    assert "E601: no database for peer nobody" in result.stderr
+
+
 @pytest.mark.skipif(shutil.which("quarto") is None, reason="needs Quarto (CI `report` job, macOS)")
-def test_quarto_renders_all_three_formats(root: Path) -> None:
+def test_quarto_renders_all_three_formats(root: Path, tmp_path: Path) -> None:
     write_narrative(root)
     result = report()
     assert result.exit_code == 0, result.output
@@ -250,3 +332,12 @@ def test_quarto_renders_all_three_formats(root: Path) -> None:
     html = (folder(root) / "health.html").read_text(encoding="utf-8")
     assert "18.0%" in html
     assert (folder(root) / "health.pdf").read_bytes().startswith(b"%PDF")
+
+    # Every optional section too: latest quarters and the peer comparison, with charts.
+    acme = ingest_quarters(root, tmp_path)
+    result = runner.invoke(app, ["report", "acme", "--peers", "kestrel"])
+    assert result.exit_code == 0, result.output
+    html = (acme / "health.html").read_text(encoding="utf-8")
+    assert "Latest quarters" in html and "Peer comparison" in html
+    assert "<svg" in html  # the charts are embedded
+    assert (acme / "health.pdf").read_bytes().startswith(b"%PDF")
