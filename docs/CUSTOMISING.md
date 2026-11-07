@@ -25,6 +25,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
 - `metrics/export.py`: copies every company's `metrics` view to `shared/analytics.duckdb`.
+- `statements.py`: the `standard_statements` view (made per connection from the dictionary's account tree) and
+  `fin statements`. `workbook.py`: `fin export` (the Excel workbook).
 - `query/`: `run.py` (`fin query`), `write.py` (`fin sql --write`), `evidence.py` (evidence pages).
 - `report/`: `data.py` (sections and labels), `lint.py` (the no-typed-numbers rule), `render.py` (Quarto).
 - `delete.py`, `update.py`, `doctor.py`: `fin delete`, `fin update`, `fin doctor`.
@@ -50,11 +52,18 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   NBFC subtotals, the bank appropriation lines and results memo lines (paid-up capital, face value) are accounts
   without a parent: mapped, never checked. `fixed_assets` (old format and banks) is the parent of `ppe_net`, CWIP and
   intangibles.
-- Leave a label to review when it means different accounts in different formats and no section tells them apart.
-  The seed does not map "Loans", "Investments", "Other financial assets", "Provisions", "Lease liabilities",
-  "Other financial liabilities" or "Other assets" outside a balance-sheet part, nor "Derivative financial
-  instruments" or assets held for sale: in a Division II statement whose part heading was not read they would land
-  in the wrong subtotal and a correct document would be held on an E402 finding. Map them per company (`fin map set`) instead.
+- Lender balance sheets. "Loans", "Investments", "Other financial assets", "Other assets", "Provisions", "Lease
+  liabilities", "Other financial liabilities" and "Derivative financial instruments" mean a current or non-current
+  account in a Division II statement but the unsplit lender account in an NBFC (Division III) or bank (Form A)
+  balance sheet. `map_rows` decides from the whole balance sheet (per statement and scope): with no current /
+  non-current part heading or part total, and a lender marker (a line only lenders have, such as "Debt securities",
+  "Deposits" or "Total financial assets", or "Loans" / "Investments" under a "Financial assets" heading), its rows
+  are also looked up under the pseudo-section `Lender assets` or `Lender liabilities` (by the side of the balance
+  sheet the row is on) in `labels.csv`. A Division II statement always prints its part totals, so it is never
+  read as a lender's. To map another lender-only line, add a `labels.csv` row with that section.
+- Leave a label to review when it means different accounts in different formats and nothing tells them apart, such
+  as assets held for sale: in a statement whose part heading was not read it would land in the wrong subtotal and a
+  correct document would be held on an E402 finding. Map it per company (`fin map set`) instead.
 - Run `uv run fin init`. It adds missing rows to the shared dictionary and never removes or changes existing ones. To
   change an existing row (a new parent or sign), edit the row in `templates/dictionary/schedule_iii.csv` and re-create the data folder, or use `fin sql --write` on
   the dictionary for a one-off change.
@@ -85,23 +94,30 @@ and the next one shown), not the sign of `exceptional_items` alone.
 
 ## Add a metric
 
-Metrics are SQL views in each company database, so they are always current.
+Metrics are SQL views in each company database, so they are always current. All of a metric is in
+`src/fin/db/schema/company_views.sql`; read the rules at the top of the file first (facts come from `current_facts`,
+one value per account, period and scope; ratios use `div6`; nothing is guessed).
 
-1. Edit `src/fin/db/schema/company_views.sql`, the one place the metrics live. Add your metric to the `metrics` view
-   (the formula, the `UNPIVOT` list, the unit `CASE` and the final `WHERE`) and to `metric_definitions` (the accounts
-   the metric uses), so `fin audit <co> <metric> <period>` can trace it. Read the rules at the top of the file: facts
-   come from `current_facts` (one value per account, period and scope), a missing input gives NULL, ratios use
-   `div6`. The final `WHERE` of the view says which metrics a year gets and which a quarter or half year gets; a
-   metric that needs a full year of flows or balance-sheet averages belongs to years only.
-2. The views only exist in a company database when it is created, so apply the change to existing ones too: re-create
-   the data folder (`fin init` and ingest again), or run the edited `CREATE OR REPLACE VIEW` through `fin sql --write`
-   on each company.
-3. Optionally show it in the report: add it to `SECTIONS`, `LABELS` (and `PERCENT` if it is a percentage) in
-   `src/fin/report/data.py`.
-4. Test: add the metric's expected values to the key's `metrics` for each company (in
-   `sample-financials/generator/`, then regenerate `answer_key.json`), computed from the key's facts, and run
-   `tests/integration/test_metrics.py`. It compares every metric to the key and fails on a metric the key does not
-   list.
+1. `metric_definitions`: add a row: name, category (`profitability`, `returns`, `liquidity`, `solvency`,
+   `efficiency`, `cash_flow`, `growth`, `earnings_quality`, `per_share`, `lender`, `ttm`, `headline`, or a new
+   one), unit (`rupees`, `rupees_per_share`, `ratio` or `days`), periods (`annual`, `all`, `interim` or
+   `quarter`), when_missing (`null` keeps a NULL row so the report can say which input is missing; `absent` leaves
+   the row out, for metrics only some companies have), a plain-English definition and the formula in words.
+2. `metric_input_accounts`: list the accounts it uses and from which period (`same`, `year-1`, `quarter-1`, ...),
+   so `fin audit <co> <metric> <period>` and `metric_inputs` can trace it.
+3. `metrics` view: if it needs an account not read yet, add a `max(p) FILTER (WHERE account = '...')` line to
+   `period_inputs` (and a join in `derived` for an earlier period). Add the formula to `wide`, on integer paise
+   (`div6` for a ratio, `rupees` for money, `growth6` / `cagr6` for growth), and its name to the `UNPIVOT` list.
+4. The views only exist in a company database when it is created, so apply the change to existing ones too:
+   re-create the data folder (`fin init` and ingest again), or run the edited `CREATE OR REPLACE VIEW` statements
+   through `fin sql --write` on each company.
+5. Optionally show it in the report: add it to `SECTIONS`, `LABELS` (and `PERCENT` if it is a percentage) in
+   `src/fin/report/data.py`. Every metric is in `fin query`, the dashboard and the `fin export` workbook already.
+6. Test: add the expected values to `tests/fixtures/sample-financials/answer_key_analysis.json` (computed by hand
+   or with Python's `decimal` from the facts in `answer_key.json`, never by running the SQL) and run
+   `tests/integration/test_metrics.py`. A metric the synthetic companies cannot have (lender, quarters, EPS) is
+   tested on a synthetic PDF instead, as in `tests/integration/test_standard_formats.py` and
+   `tests/integration/test_ingest_results.py`.
 
 ## Add a validation gate
 

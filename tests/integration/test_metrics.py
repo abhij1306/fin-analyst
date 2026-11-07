@@ -1,6 +1,7 @@
 """Phase 7: metric views on the synthetic documents, checked against the answer key, and the
 analytics export (`fin metrics refresh`, and after every ingest)."""
 
+import json
 import shutil
 from collections.abc import Iterator
 from decimal import ROUND_HALF_UP, Decimal
@@ -38,7 +39,7 @@ def ingested(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
             assert result.exit_code == 0, result.output
         # The last ingest exported all three companies.
         assert result.stdout.splitlines()[-1] == (
-            "metrics: shared/analytics.duckdb refreshed, 3 companies, 252 metric rows"
+            "metrics: shared/analytics.duckdb refreshed, 3 companies, 584 metric rows"
         )
     yield root
 
@@ -85,6 +86,32 @@ def test_metrics_equal_the_answer_key(
                 if (company, scope, year, metric) not in NOT_IN_DOCUMENTS:
                     want = expected(answer_key, company, metric, value)
                 assert got[(scope, year, metric)] == want, (company, scope, year, metric)
+
+
+@pytest.mark.parametrize("company", ["kestrel", "bluepeak", "tarang"])
+def test_analysis_metrics_equal_the_analysis_key(ingested: Path, company: str) -> None:
+    """answer_key_analysis.json: returns, liquidity, solvency, efficiency, cash flow, growth and
+    earnings-quality metrics, computed independently from the answer key's facts. null means the
+    metric has no value (an input is in no document); a CAGR not in the key must be absent."""
+    key = json.loads((SAMPLES / "answer_key_analysis.json").read_text(encoding="utf-8"))[company]
+    rows = query(
+        company_db_path(ingested, company),
+        "SELECT scope, fiscal_year, metric, value FROM metrics WHERE period_months = 12",
+    )
+    got = {(scope, year, metric): value for scope, year, metric, value in rows}
+    for scope, years in key.items():
+        for year, metrics in years.items():
+            for metric, value in metrics.items():
+                want = None if value is None else Decimal(value)
+                assert got[(scope, year, metric)] == want, (company, scope, year, metric)
+    cagrs = {k for k in got if "_cagr_" in k[2]}
+    assert cagrs == {
+        (scope, year, metric)
+        for scope, years in key.items()
+        for year, metrics in years.items()
+        for metric in metrics
+        if "_cagr_" in metric
+    }
 
 
 def test_metrics_not_in_the_key(ingested: Path) -> None:
@@ -156,7 +183,7 @@ def test_metrics_refresh_rebuilds_analytics(root: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert result.stdout == (
-        "metrics: shared/analytics.duckdb refreshed, 3 companies, 252 metric rows\n"
+        "metrics: shared/analytics.duckdb refreshed, 3 companies, 584 metric rows\n"
     )
     assert query(
         analytics,
@@ -167,10 +194,10 @@ def test_metrics_refresh_rebuilds_analytics(root: Path) -> None:
         analytics,
         "SELECT company, scope, count(*), count(value) FROM metrics GROUP BY ALL ORDER BY ALL",
     ) == [
-        ("bluepeak", "consolidated", 72, 71),
-        ("bluepeak", "standalone", 72, 71),
-        ("kestrel", "standalone", 54, 46),
-        ("tarang", "standalone", 54, 53),
+        ("bluepeak", "consolidated", 169, 161),
+        ("bluepeak", "standalone", 169, 161),
+        ("kestrel", "standalone", 123, 104),
+        ("tarang", "standalone", 123, 115),
     ]
     # Unconfirmed revenue makes every FY25 metric that needs it NULL; the rest are unchanged.
     assert query(

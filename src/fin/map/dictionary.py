@@ -230,7 +230,15 @@ def map_rows(
     after the last total line (current liabilities follow "Total non-current liabilities").
     The part is followed for each statement and scope on its own, so a document that prints
     standalone and consolidated columns side by side (rows interleaved) keeps its parts.
+
+    A lender's balance sheet (NBFC Division III, bank Form A) has no current / non-current parts,
+    so lines such as "Loans" or "Provisions" would be left to review. It is told apart from a
+    Division II balance sheet whose part headings were not read by the whole statement (see
+    `_lender_balance_sheets`); its rows are then looked up under the lender part instead:
+    'lender assets' or 'lender liabilities' (templates/dictionary/labels.csv), by the side of the
+    balance sheet the row is on.
     """
+    rows = list(rows)
     found: list[Mapping | None] = []
     parts: dict[tuple[str, str], str] = {}  # (statement, scope) -> the part its rows are in
     headings: dict[tuple[str, str], str] = {}  # (statement, scope) -> its last heading
@@ -244,4 +252,67 @@ def map_rows(
         if mapping is not None and mapping.account in NEXT_PART:
             parts[place] = NEXT_PART[mapping.account]
         found.append(mapping)
+
+    lenders = _lender_balance_sheets(rows, found)
+    sides: dict[tuple[str, str], str] = {}
+    for n, (statement, scope, section, label) in enumerate(rows):
+        place = (statement, scope)
+        if place not in lenders:
+            continue
+        heading = normalize_label(section)
+        if "liabilit" in heading:
+            sides[place] = "lender liabilities"
+        elif "asset" in heading:
+            sides[place] = "lender assets"
+        found[n] = find(label_map, statement, section, label, sides.get(place, "lender assets"))
+        if found[n] is not None and found[n].account == "total_assets":
+            sides[place] = "lender liabilities"
     return found
+
+
+# Totals of a Division II balance-sheet part.
+PART_TOTALS = {
+    "total_non_current_assets",
+    "total_current_assets",
+    "total_non_current_liabilities",
+    "total_current_liabilities",
+}
+# Accounts only a lender's balance sheet has (NBFC Division III, bank Form A).
+LENDER_ACCOUNTS = {
+    "debt_securities",
+    "deposits",
+    "subordinated_liabilities",
+    "balances_with_rbi",
+    "balances_with_banks",
+    "other_non_financial_assets",
+    "other_non_financial_liabilities",
+    "other_liabilities_and_provisions",
+    "total_financial_assets",
+    "total_non_financial_assets",
+    "total_financial_liabilities",
+    "total_non_financial_liabilities",
+}
+
+
+def _lender_balance_sheets(
+    rows: list[tuple[str, str, str, str]], found: list[Mapping | None]
+) -> set[tuple[str, str]]:
+    """The (statement, scope) balance sheets that are a lender's: no current / non-current part
+    heading or part total anywhere, and a lender marker: a line only lenders have
+    (LENDER_ACCOUNTS), or "Loans" or "Investments" under a "Financial assets" heading. A Division
+    II balance sheet always has its part totals, even when its headings were not read."""
+    division_ii: set[tuple[str, str]] = set()
+    marked: set[tuple[str, str]] = set()
+    for (statement, scope, section, label), mapping in zip(rows, found, strict=True):
+        if statement != "balance_sheet":
+            continue
+        place = (statement, scope)
+        heading, key = normalize_label(section), normalize_label(label)
+        account = mapping.account if mapping is not None else None
+        if heading in PARTS or key in PARTS or account in PART_TOTALS:
+            division_ii.add(place)
+        if account in LENDER_ACCOUNTS or (
+            heading == "financial assets" and key in ("loans", "investments")
+        ):
+            marked.add(place)
+    return marked - division_ii

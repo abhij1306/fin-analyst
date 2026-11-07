@@ -64,7 +64,23 @@ Chart of accounts (after 1.0.0, not a phase): the seed dictionary covers Schedul
 (NBFCs), the bank Forms A and B, SEBI Reg 33 results and the indirect cash flow. Lines with no current / non-current
 split (NBFCs, banks) add straight into `total_assets` / `total_liabilities`; NBFC subtotals such as "Total financial
 assets" and memo lines are accounts without a parent. Labels that mean different accounts in different formats
-("Loans", "Investments", "Provisions" outside a balance-sheet part) are left to review.
+("Loans", "Investments", "Provisions" outside a balance-sheet part) map to the lender accounts when the whole balance
+sheet is a lender's (no current / non-current part heading or total, and a lender marker), and are otherwise left to
+review.
+
+Analysis core (after 1.0.0, not a phase): standard statements and the full metric set.
+- `standard_statements` (view, made per connection by `fin.statements` from the dictionary's account tree; `fin
+  query` has it): for each period and scope the P&L, balance sheet and cash flow in standard order with a depth for
+  indentation, every account with a value, and for each subtotal what its mapped lines explain (`explained`,
+  `coverage`) plus an "Unmapped / other" line for any difference. `fin statements <co> [--period] [--scope]
+  [--json]` prints it; `fin export <co>` writes `reports/<co>/<co>_financials.xlsx` (every period side by side, one
+  sheet per statement and scope, and a Metrics sheet).
+- `metric_definitions` is one row per metric (category, unit, periods, when_missing, definition, formula);
+  `metric_input_accounts` lists each metric's input accounts and periods for `metric_inputs`. Categories:
+  profitability, returns (closing and `*_avg` on average balances), liquidity, solvency, efficiency, cash flow,
+  growth (year on year, 3- and 5-year CAGR), earnings quality, per share (EPS as printed), lender (NBFCs and banks,
+  only when their accounts exist), trailing twelve months (four consecutive quarters). A metric without its inputs is
+  NULL (`when_missing = 'null'`) or absent (`'absent'`), never zero.
 
 Simpler PDF parser (after 1.0.0, not a phase; owner decision): the product is the analysis, not the parsing. The
 parser reads clean, standard digital statements; a page it cannot read is listed as not read and a Claude reading
@@ -142,10 +158,10 @@ fin-analyst/
   pyproject.toml  uv.lock  .python-version  .gitignore
   .claude/
     settings.json        # hooks
-    commands/            # ingest, ingest-batch, review, ask, report, dashboard, audit
+    commands/            # ingest, ingest-batch, review, ask, statements, report, dashboard, audit, status, verify
     hooks/               # log_action.py
   src/fin/
-    cli.py  config.py  paths.py  ingest.py
+    cli.py  config.py  paths.py  ingest.py  statements.py  workbook.py
     audit/     logger.py  errors.py
     db/        conn.py  schema.py  schema/{audit,dictionary,analytics,company,company_views}.sql
     extract/   excel.py  pdf.py  text.py  units.py
@@ -192,7 +208,8 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `facts` — fact_id, raw_id, account, fiscal_year, period, period_months, period_end, scope, value `DECIMAL(20,2)` in rupees, mapping_id, confirmed, run_id
 - `document_facts` and `current_facts` (views): one value per account, period and scope (lines a document maps to the same account are summed, a total line is not added to its parts)
 - `notes` — doc_id, section, markdown_path
-- `metrics` (views) and `metric_inputs` (metric → fact_ids lineage)
+- `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
+- `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 
 **Shared**
 
@@ -336,6 +353,8 @@ claude
 | `fin query --question --sql` | `/ask` | Either |
 | `fin sql --write <co> --sql "…"` | `/ask` | Either (on user request; backup + audit) |
 | `fin evidence <query_id>` | used inside `/ask` | Either |
+| `fin statements <co> [--period] [--scope] [--json]` | `/statements` | Either |
+| `fin export <co>` | `/statements` | Either |
 | `fin metrics refresh` | runs after ingest | Either |
 | `fin report <co>` | `/report` | Either |
 | `fin dashboard` | `/dashboard` | Either |

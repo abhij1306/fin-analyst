@@ -7,7 +7,23 @@ Answer this question with `fin`: $ARGUMENTS
 
 1. Write one SELECT on the company database (`companies/<company>.duckdb`). Tables: `documents` (use
    `status = 'loaded'`), `raw_values`, `facts` (value in rupees, `confirmed`); views `current_facts` (one value per
-   account, period and scope, already de-duplicated across documents) and `metrics`. Rules:
+   account, period and scope, already de-duplicated across documents), `metrics` (one row per period, scope and
+   metric, with `unit` and `category`), `metric_definitions` (what each metric means and its formula) and
+   `standard_statements` (the P&L, balance sheet and cash flow in standard order, with `explained`, `coverage` and
+   an `Unmapped / other` line where a printed subtotal is more than its mapped lines). Rules:
+   - For a ratio, margin, return or growth, use the `metrics` view; don't recompute it. Find the metric with
+     `SELECT metric, category, definition, formula FROM metric_definitions`. Categories: `profitability` (gross,
+     EBITDA, EBIT, PBT, PAT margins), `returns` (ROE, ROCE, ROA on closing balances; `*_avg` on average balances),
+     `liquidity` (current, quick, cash ratio), `solvency` (debt/equity, net debt, net debt/EBITDA, interest
+     cover, debt/assets), `efficiency` (asset turnovers, receivable/inventory/payable days, cash conversion
+     cycle), `cash_flow` (CFO, free cash flow, CFO/EBITDA, CFO/PAT, capex ratios), `growth` (year on year, and
+     3- and 5-year CAGR), `earnings_quality` (other income and exceptional items over PBT, effective tax rate),
+     `per_share` (EPS as reported), `lender` (NBFCs and banks: net interest income, cost to income, credit cost,
+     assets/equity), `ttm` (last four quarters), `headline` (a quarter's revenue and PAT).
+   - A metric whose inputs are missing is NULL or absent: say which input is missing (`metric_inputs` rows with
+     no `fact_id`); never fill it in.
+   - Select `metric_inputs.fact_id` with a metric (`JOIN metric_inputs USING (period, scope, metric)`), so each
+     input gets its source.
    - Select `f.fact_id` (or `current_facts.fact_id`) for every fact you use, so each row gets its source.
    - Compute ratios, sums and growth in the SQL. Never do arithmetic yourself.
    - Never mix `standalone` and `consolidated`. If a period appears in two documents (comparatives), pick one

@@ -41,7 +41,7 @@ def test_snapshot_copies_the_analytics_tables(data_root: Path) -> None:
             ("bluepeak",),
             ("kestrel",),
         ]
-        assert con.execute("SELECT count(*) FROM metrics").fetchone() == (198,)
+        assert con.execute("SELECT count(*) FROM metrics").fetchone() == (461,)
     # The live file is not held after the snapshot: a writer opens it at once.
     with connect(analytics_db_path(data_root), write=True):
         pass

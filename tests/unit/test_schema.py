@@ -11,6 +11,7 @@ COMPANY_VIEWS = {
     "document_facts",
     "current_facts",
     "metric_definitions",
+    "metric_input_accounts",
     "metrics",
     "metric_inputs",
 }

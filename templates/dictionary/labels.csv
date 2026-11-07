@@ -694,3 +694,12 @@ Cash (used in)/generated from operations,cash_flow,,cf_cash_generated
 Net cash from investing activities,cash_flow,,cfi
 Cash and cash equivalents at beginning of the year,cash_flow,,opening_cash
 Cash and cash equivalents as at the end of the year,cash_flow,,closing_cash
+Loans,balance_sheet,Lender assets,loans
+Investments,balance_sheet,Lender assets,investments
+Other financial assets,balance_sheet,Lender assets,other_financial_assets
+Other assets,balance_sheet,Lender assets,other_assets
+Derivative financial instruments,balance_sheet,Lender assets,derivative_financial_assets
+Provisions,balance_sheet,Lender liabilities,provisions
+Lease liabilities,balance_sheet,Lender liabilities,lease_liabilities
+Other financial liabilities,balance_sheet,Lender liabilities,other_financial_liabilities
+Derivative financial instruments,balance_sheet,Lender liabilities,derivative_financial_liabilities

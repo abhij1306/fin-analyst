@@ -162,29 +162,37 @@ def test_quarterly_metrics_year_on_year_and_quarter_on_quarter(root: Path, tmp_p
     metrics = query(
         root,
         "SELECT period, metric, CAST(value AS VARCHAR) FROM metrics "
-        "WHERE period IN ('FY26-Q1', 'FY26-Q2', 'FY26-H1') ORDER BY period, metric",
+        "WHERE period IN ('FY26-Q1', 'FY26-Q2', 'FY26-H1') AND category IN ('headline', 'growth') "
+        "OR metric IN ('gross_margin', 'ebitda', 'ebitda_margin', 'pat_margin') "
+        "AND period IN ('FY26-Q1', 'FY26-Q2', 'FY26-H1') ORDER BY period, metric",
     )
 
     assert metrics == [
         ("FY26-H1", "ebitda", "231000000.000000"),
+        ("FY26-H1", "ebitda_growth", "0.143564"),
         ("FY26-H1", "ebitda_margin", "1.000000"),
         ("FY26-H1", "gross_margin", None),
         ("FY26-H1", "pat", "170000000.000000"),
+        ("FY26-H1", "pat_growth", "0.197183"),
         ("FY26-H1", "pat_margin", "0.735931"),
         ("FY26-H1", "revenue", "231000000.000000"),
         ("FY26-H1", "revenue_growth", "0.143564"),
         ("FY26-Q1", "ebitda", "110000000.000000"),
+        ("FY26-Q1", "ebitda_growth", "0.100000"),
         ("FY26-Q1", "ebitda_margin", "1.000000"),
         ("FY26-Q1", "gross_margin", None),
         ("FY26-Q1", "pat", "80000000.000000"),
+        ("FY26-Q1", "pat_growth", "0.142857"),
         ("FY26-Q1", "pat_margin", "0.727273"),
         ("FY26-Q1", "revenue", "110000000.000000"),
         ("FY26-Q1", "revenue_growth", "0.100000"),
         ("FY26-Q1", "revenue_growth_qoq", "0.047619"),
         ("FY26-Q2", "ebitda", "121000000.000000"),
+        ("FY26-Q2", "ebitda_growth", "0.186275"),
         ("FY26-Q2", "ebitda_margin", "1.000000"),
         ("FY26-Q2", "gross_margin", None),
         ("FY26-Q2", "pat", "90000000.000000"),
+        ("FY26-Q2", "pat_growth", "0.250000"),
         ("FY26-Q2", "pat_margin", "0.743802"),
         ("FY26-Q2", "revenue", "121000000.000000"),
         ("FY26-Q2", "revenue_growth", "0.186275"),
@@ -200,6 +208,70 @@ def test_quarterly_metrics_year_on_year_and_quarter_on_quarter(root: Path, tmp_p
     assert query(
         root, "SELECT DISTINCT metric FROM metrics WHERE period = 'FY25' AND metric LIKE 'revenue%'"
     ) == [("revenue_growth",)]
+
+
+def q4_results(path: Path) -> Path:
+    """The March 2025 quarter's results: Q4 and Q3 of FY25, Q4 of FY24, and both years."""
+    return write_pdf(
+        path,
+        results_page(
+            "Statement of Audited Standalone Financial Results for the quarter and year ended",
+            [(258, "Quarter ended"), (415, "Year ended")],
+            ["31.03.2025", "31.12.2024", "31.03.2024", "31.03.2025", "31.03.2024"],
+            pnl(1050, 750),
+            pnl(1030, 730),
+            pnl(950, 650),
+            pnl(4100, 2900),
+            pnl(3800, 2600),
+        ),
+    )
+
+
+def test_trailing_twelve_months_need_four_consecutive_quarters(root: Path, tmp_path: Path) -> None:
+    for path in (q4_results(tmp_path / "q4.pdf"), q1_results(tmp_path / "q1.pdf")):
+        assert ingest(path).exit_code == 0
+    assert ingest(q2_results(tmp_path / "q2.pdf")).exit_code == 0
+
+    # Quarters loaded: FY24-Q4, FY25-Q1 to Q4, FY26-Q1 and Q2. FY25-Q2 has no FY24-Q3, so no TTM.
+    # EBITDA equals revenue in these figures (pnl()).
+    assert query(
+        root,
+        "SELECT period, metric, CAST(value AS VARCHAR) FROM metrics WHERE category = 'ttm' "
+        "ORDER BY period_end, metric",
+    ) == [
+        ("FY25-Q3", "ttm_ebitda", "400000000.000000"),
+        ("FY25-Q3", "ttm_ebitda_margin", "1.000000"),
+        ("FY25-Q3", "ttm_pat", "280000000.000000"),
+        ("FY25-Q3", "ttm_pat_margin", "0.700000"),
+        ("FY25-Q3", "ttm_revenue", "400000000.000000"),
+        # The four FY25 quarters add up to the year: revenue 4,100 and PAT 2,900 lakhs.
+        ("FY25-Q4", "ttm_ebitda", "410000000.000000"),
+        ("FY25-Q4", "ttm_ebitda_margin", "1.000000"),
+        ("FY25-Q4", "ttm_pat", "290000000.000000"),
+        ("FY25-Q4", "ttm_pat_margin", "0.707317"),
+        ("FY25-Q4", "ttm_revenue", "410000000.000000"),
+        ("FY26-Q1", "ttm_ebitda", "420000000.000000"),
+        ("FY26-Q1", "ttm_ebitda_margin", "1.000000"),
+        ("FY26-Q1", "ttm_pat", "300000000.000000"),
+        ("FY26-Q1", "ttm_pat_margin", "0.714286"),
+        ("FY26-Q1", "ttm_revenue", "420000000.000000"),
+        ("FY26-Q2", "ttm_ebitda", "439000000.000000"),
+        ("FY26-Q2", "ttm_ebitda_margin", "1.000000"),
+        ("FY26-Q2", "ttm_pat", "318000000.000000"),
+        ("FY26-Q2", "ttm_pat_margin", "0.724374"),
+        ("FY26-Q2", "ttm_revenue", "439000000.000000"),
+    ]
+    # Lineage: FY26-Q2's TTM revenue used Q2 and the three quarters before it.
+    assert query(
+        root,
+        "SELECT input_period, CAST(value AS VARCHAR) FROM metric_inputs "
+        "WHERE metric = 'ttm_revenue' AND period = 'FY26-Q2' ORDER BY input_period",
+    ) == [
+        ("FY25-Q3", "103000000.00"),
+        ("FY25-Q4", "105000000.00"),
+        ("FY26-Q1", "110000000.00"),
+        ("FY26-Q2", "121000000.00"),
+    ]
 
 
 def test_a_different_q1_column_in_the_q2_filing_is_an_e404_finding(

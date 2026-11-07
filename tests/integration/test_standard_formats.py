@@ -1,7 +1,8 @@
-"""Subtotal checks (E402) on the standard formats with no current / non-current split: a Division
-III (NBFC) balance sheet and statement of profit and loss, and a bank's Forms A and B (synthetic
-PDFs). The lines a Division II statement uses too ("Loans", "Investments", "Other assets") are not
-mapped by the seed; they are mapped once for the company, as review would."""
+"""Subtotal checks (E402) and lender metrics on the standard formats with no current / non-current
+split: a Division III (NBFC) balance sheet and statement of profit and loss, and a bank's Forms A
+and B (synthetic PDFs). The lines a Division II statement uses too ("Loans", "Investments", "Other
+assets") map to the lender accounts because the whole balance sheet is a lender's
+(`fin.map.dictionary.map_rows`)."""
 
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,8 @@ import pytest
 from typer.testing import CliRunner
 
 from fin.cli import app
+from fin.db.conn import connect
+from fin.paths import company_db_path
 from tests.integration.test_real_report_mapping import WIDTH, statement
 from tests.synthetic_pdf import write_pdf
 
@@ -122,10 +125,12 @@ def root(data_root: Path) -> Path:
     return data_root
 
 
-def map_for_company(company: str, label: str, account: str) -> None:
-    args = ["map", "set", "-c", company, "-s", "balance_sheet", "-l", label, "-a", account]
-    result = runner.invoke(app, args)
-    assert result.exit_code == 0, result.stdout
+def lender_metrics(root: Path, company: str) -> list[tuple[Any, ...]]:
+    with connect(company_db_path(root, company)) as con:
+        return con.execute(
+            "SELECT period, metric, CAST(value AS VARCHAR) FROM metrics WHERE category = 'lender' "
+            "ORDER BY period, metric"
+        ).fetchall()
 
 
 def subtotal_checks(audit_query: Any) -> list[tuple[Any, ...]]:
@@ -139,8 +144,6 @@ def subtotal_checks(audit_query: Any) -> list[tuple[Any, ...]]:
 def test_a_division_iii_statement_maps_and_every_subtotal_adds_up(
     root: Path, tmp_path: Path, audit_query: Any
 ) -> None:
-    map_for_company("nbfc", "Loans", "loans")
-    map_for_company("nbfc", "Investments", "investments")
     path = write_pdf(
         tmp_path / "nbfc_ar25.pdf", NBFC_BALANCE_SHEET, NBFC_PROFIT_AND_LOSS, width=WIDTH
     )
@@ -161,13 +164,22 @@ def test_a_division_iii_statement_maps_and_every_subtotal_adds_up(
         ("total_tax_expense", 2),
     ]
     assert audit_query("SELECT count(*) FROM validation_results WHERE NOT passed") == [(0,)]
+    # Rs. in lakhs. NII = interest income - finance costs; cost to income = (27 - 15 - 3) /
+    # (37 - 15); credit cost = 3 / average loans (152 + 123) / 2, so FY25 only; assets / equity.
+    assert lender_metrics(root, "nbfc") == [
+        ("FY24", "assets_to_equity", "3.600000"),
+        ("FY24", "cost_to_income", "0.421053"),
+        ("FY24", "net_interest_income", "1300000.000000"),
+        ("FY25", "assets_to_equity", "3.666667"),
+        ("FY25", "cost_to_income", "0.409091"),
+        ("FY25", "credit_cost", "0.021818"),
+        ("FY25", "net_interest_income", "1500000.000000"),
+    ]
 
 
 def test_a_bank_statement_maps_and_every_subtotal_adds_up(
     root: Path, tmp_path: Path, audit_query: Any
 ) -> None:
-    map_for_company("bank", "Investments", "investments")
-    map_for_company("bank", "Other assets", "other_assets")
     path = write_pdf(
         tmp_path / "bank_ar25.pdf", BANK_BALANCE_SHEET, BANK_PROFIT_AND_LOSS, width=WIDTH
     )
@@ -184,3 +196,14 @@ def test_a_bank_statement_maps_and_every_subtotal_adds_up(
         ("total_income", 2),
     ]
     assert audit_query("SELECT count(*) FROM validation_results WHERE NOT passed") == [(0,)]
+    # A bank: interest earned (revenue) - interest expended; operating expenses / (total income -
+    # interest expended); provisions / average advances; total assets / (capital + reserves).
+    assert lender_metrics(root, "bank") == [
+        ("FY24", "assets_to_equity", "9.666667"),
+        ("FY24", "cost_to_income", "0.545455"),
+        ("FY24", "net_interest_income", "2500000.000000"),
+        ("FY25", "assets_to_equity", "10.000000"),
+        ("FY25", "cost_to_income", "0.500000"),
+        ("FY25", "credit_cost", "0.013734"),
+        ("FY25", "net_interest_income", "3000000.000000"),
+    ]

@@ -19,6 +19,7 @@ from fin.audit.errors import ReadOnlyViolation, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.paths import company_db_path
+from fin.statements import add_view
 
 PROVENANCE_COLUMNS = (
     "source_file",
@@ -57,9 +58,11 @@ def check_select(con: duckdb.DuckDBPyConnection, sql: str) -> None:
 
 def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
     """Run one SELECT on a read-only connection and return the rows, with provenance columns added
-    when the result has `fact_id` or `raw_id`."""
+    when the result has `fact_id` or `raw_id`. The `standard_statements` view (fin.statements) is
+    available to it."""
     with connect(company_db_path(root, company)) as con:
         check_select(con, sql)
+        add_view(con, root)  # standard_statements
         try:
             result = con.execute(sql)
             columns = [column[0] for column in result.description or []]
