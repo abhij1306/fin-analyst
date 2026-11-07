@@ -39,7 +39,12 @@ def jsonl_records(root: Path, run_id: str) -> list[dict[str, Any]]:
 
 
 def _all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
-    versions = {"uv": "uv 0.11.28", "node": "v24.11.1", "quarto": "1.8.25"}
+    versions = {
+        "uv": "uv 0.11.28",
+        "node": "v24.11.1",
+        "quarto": "1.8.25",
+        "pdftoppm": "pdftoppm version 24.02.0",
+    }
     monkeypatch.setattr("fin.doctor.tool_version", versions.get)
     monkeypatch.setattr("fin.doctor.sys.version_info", (3, 12, 13, "final", 0))
 
@@ -80,16 +85,17 @@ def test_doctor_writes_runs_events_and_jsonl(
         (2, "check", "info", None, "uv: 0.11.28"),
         (3, "check", "info", None, "node: 24.11.1"),
         (4, "check", "info", None, "quarto: 1.8.25"),
-        (5, "check", "info", None, f"data folder: {data_root}"),
-        (6, "check", "info", None, "config: display unit crores"),
-        (7, "check", "info", None, "audit schema: version 3"),
-        (8, "check", "info", None, "dictionary schema: version 3"),
+        (5, "check", "info", None, "poppler: 24.2.0"),
+        (6, "check", "info", None, f"data folder: {data_root}"),
+        (7, "check", "info", None, "config: display unit crores"),
+        (8, "check", "info", None, "audit schema: version 4"),
+        (9, "check", "info", None, "dictionary schema: version 3"),
     ]
 
     records = jsonl_records(data_root, run_id)
     assert [(r["table"], r.get("record"), r.get("seq")) for r in records] == [
         ("runs", "start", None),
-        *[("events", None, seq) for seq in range(1, 9)],
+        *[("events", None, seq) for seq in range(1, 10)],
         ("runs", "end", None),
     ]
     assert [r["message"] for r in records if r["table"] == "events"] == [e[4] for e in events]
@@ -110,9 +116,9 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
     ) == [
         ("folders", "11 created, 0 already present"),
         ("config", "wrote default config.toml"),
-        ("migrate", "shared/audit.duckdb: schema version 0 -> 3 (backup: none, new file)"),
+        ("migrate", "shared/audit.duckdb: schema version 0 -> 4 (backup: none, new file)"),
         ("migrate", "shared/dictionary.duckdb: schema version 0 -> 3 (backup: none, new file)"),
-        ("migrate", "shared/analytics.duckdb: schema version 0 -> 3 (backup: none, new file)"),
+        ("migrate", "shared/analytics.duckdb: schema version 0 -> 4 (backup: none, new file)"),
         (
             "dictionary",
             "dictionary: 104 accounts and 362 label mappings added from templates/dictionary",
@@ -123,9 +129,9 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         "WHERE run_id = ?",
         [run_id],
     ) == [
-        ("shared/audit.duckdb", 0, 3, None, "applied"),
+        ("shared/audit.duckdb", 0, 4, None, "applied"),
         ("shared/dictionary.duckdb", 0, 3, None, "applied"),
-        ("shared/analytics.duckdb", 0, 3, None, "applied"),
+        ("shared/analytics.duckdb", 0, 4, None, "applied"),
     ]
     assert len(jsonl_records(data_root, run_id)) == 11
 
@@ -155,7 +161,7 @@ def test_forced_error_logs_its_code_and_exits_2(data_root: Path, audit_query: Qu
 
     assert result.exit_code == 2
     message = (
-        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 4; "
+        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 5; "
         "update fin (`git pull`, then `uv sync --frozen`)"
     )
     assert result.stderr.splitlines()[0] == f"E004: {message}"

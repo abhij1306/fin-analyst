@@ -214,4 +214,4 @@ def test_held_documents_and_findings_are_counted(root: Path) -> None:
         analytics_db_path(root),
         "SELECT company, documents, held_documents, open_findings, accepted_findings, "
         "failed_validations FROM companies ORDER BY company",
-    ) == [("bluepeak", 3, 0, 0, 0, 0), ("kestrel", 1, 1, 1, 0, 1), ("tarang", 2, 0, 0, 0, 0)]
+    ) == [("bluepeak", 3, 0, 0, 0, 0), ("kestrel", 1, 1, 4, 0, 4), ("tarang", 2, 0, 0, 0, 0)]
