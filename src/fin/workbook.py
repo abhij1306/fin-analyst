@@ -15,7 +15,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
-from fin.audit.errors import DataFolderNotWritable, ReportRenderFailed
+from fin.audit.errors import DataFolderNotWritable
 from fin.db.conn import connect
 from fin.paths import company_db_path
 from fin.statements import OTHER_LABEL, STATEMENTS, statement_rows
@@ -54,8 +54,44 @@ def _header(sheet: Any, first: list[str], periods: list[str]) -> None:
     sheet.freeze_panes = f"{get_column_letter(len(first) + 1)}2"
 
 
+def _statement_sheet(book: Workbook, title: str, rows: list[dict[str, Any]]) -> None:
+    """One statement and scope: one row per line (an account, or the "Unmapped / other" line
+    under a subtotal), one column per period."""
+    periods = _periods(rows)
+    sheet = book.create_sheet(title)
+    _header(sheet, ["Line"], periods)
+    order: dict[tuple[int, str], dict[str, Any]] = {}
+    for r in rows:
+        entry = order.setdefault((r["line_no"], r["label"]), {"depth": r["depth"]})
+        entry[r["period"]] = r["value"]
+    for (_, label), entry in sorted(order.items()):
+        sheet.append([label] + [entry.get(p) for p in periods])
+        first = sheet.cell(row=sheet.max_row, column=1)
+        first.alignment = Alignment(indent=entry["depth"])
+        if label == OTHER_LABEL:
+            first.font = Font(italic=True)
+        for cell in sheet[sheet.max_row][1:]:
+            cell.number_format = MONEY_FORMAT
+    sheet.column_dimensions["A"].width = 60
+
+
+def _metrics_sheet(book: Workbook, metrics: list[dict[str, Any]]) -> None:
+    sheet = book.create_sheet("Metrics")
+    periods = _periods(metrics)
+    _header(sheet, ["Scope", "Category", "Metric", "Unit"], periods + ["Definition"])
+    table: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    for m in metrics:
+        key = (m["scope"], m["category"], m["metric"], m["unit"], m["definition"])
+        table.setdefault(key, {})[m["period"]] = m["value"]
+    for (scope, category, metric, unit, definition), values in sorted(table.items()):
+        cells = [values.get(p) for p in periods]
+        sheet.append([scope, category, metric, unit, *cells, definition])
+    sheet.column_dimensions["C"].width = 26
+
+
 def export_workbook(root: Path, company: str) -> Path:
-    """Write the workbook and return its path. Raises E601 when the company has no figures."""
+    """Write the workbook and return its path. Raises E601 (`statement_rows`) when the company
+    has no figures."""
     lines = statement_rows(root, company)
     with connect(company_db_path(root, company)) as con:
         result = con.execute(_METRICS_SQL)
@@ -67,39 +103,9 @@ def export_workbook(root: Path, company: str) -> Path:
     for scope in sorted({r["scope"] for r in lines}):
         for statement in STATEMENTS:
             rows = [r for r in lines if r["scope"] == scope and r["statement"] == statement]
-            if not rows:
-                continue
-            periods = _periods(rows)
-            sheet = book.create_sheet(f"{SHEET_TITLES[statement]} {scope}")
-            _header(sheet, ["Line"], periods)
-            # One row per line: an account, or the "Unmapped / other" line under a subtotal.
-            order: dict[tuple[int, str], dict[str, Any]] = {}
-            for r in rows:
-                entry = order.setdefault((r["line_no"], r["label"]), {"depth": r["depth"]})
-                entry[r["period"]] = r["value"]
-            for (_, label), entry in sorted(order.items()):
-                sheet.append([label] + [entry.get(p) for p in periods])
-                row = sheet.max_row
-                sheet.cell(row=row, column=1).alignment = Alignment(indent=entry["depth"])
-                if label == OTHER_LABEL:
-                    sheet.cell(row=row, column=1).font = Font(italic=True)
-                for column in range(2, len(periods) + 2):
-                    sheet.cell(row=row, column=column).number_format = MONEY_FORMAT
-            sheet.column_dimensions["A"].width = 60
-    if not book.sheetnames:
-        raise ReportRenderFailed(f"{company} has no figures to export")
-
-    sheet = book.create_sheet("Metrics")
-    periods = _periods(metrics) if metrics else []
-    _header(sheet, ["Scope", "Category", "Metric", "Unit"], periods + ["Definition"])
-    table: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
-    for m in metrics:
-        key = (m["scope"], m["category"], m["metric"], m["unit"], m["definition"])
-        table.setdefault(key, {})[m["period"]] = m["value"]
-    for (scope, category, metric, unit, definition), values in sorted(table.items()):
-        cells = [values.get(p) for p in periods]
-        sheet.append([scope, category, metric, unit, *cells, definition])
-    sheet.column_dimensions["C"].width = 26
+            if rows:
+                _statement_sheet(book, f"{SHEET_TITLES[statement]} {scope}", rows)
+    _metrics_sheet(book, metrics)
 
     path = export_path(root, company)
     try:

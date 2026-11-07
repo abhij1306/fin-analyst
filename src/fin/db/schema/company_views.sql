@@ -226,36 +226,6 @@ SELECT * FROM (VALUES
         'Growth of total assets over the year.', 'total_assets / total_assets a year before - 1'),
     ('total_equity_growth', 'growth', 'ratio', 'annual', 'null',
         'Growth of total equity over the year.', 'total_equity / total_equity a year before - 1'),
-    ('revenue_cagr_3y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual revenue growth over 3 years (both ends loaded and positive).',
-        '(revenue / revenue 3 years before) ^ (1/3) - 1'),
-    ('revenue_cagr_5y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual revenue growth over 5 years (both ends loaded and positive).',
-        '(revenue / revenue 5 years before) ^ (1/5) - 1'),
-    ('ebitda_cagr_3y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual EBITDA growth over 3 years (both ends loaded and positive).',
-        '(ebitda / ebitda 3 years before) ^ (1/3) - 1'),
-    ('ebitda_cagr_5y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual EBITDA growth over 5 years (both ends loaded and positive).',
-        '(ebitda / ebitda 5 years before) ^ (1/5) - 1'),
-    ('pat_cagr_3y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual profit after tax growth over 3 years (both ends loaded and positive).',
-        '(pat / pat 3 years before) ^ (1/3) - 1'),
-    ('pat_cagr_5y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual profit after tax growth over 5 years (both ends loaded and positive).',
-        '(pat / pat 5 years before) ^ (1/5) - 1'),
-    ('total_assets_cagr_3y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual growth of total assets over 3 years (both ends loaded and positive).',
-        '(total_assets / total_assets 3 years before) ^ (1/3) - 1'),
-    ('total_assets_cagr_5y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual growth of total assets over 5 years (both ends loaded and positive).',
-        '(total_assets / total_assets 5 years before) ^ (1/5) - 1'),
-    ('total_equity_cagr_3y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual growth of total equity over 3 years (both ends loaded and positive).',
-        '(total_equity / total_equity 3 years before) ^ (1/3) - 1'),
-    ('total_equity_cagr_5y', 'growth', 'ratio', 'annual', 'absent',
-        'Compound annual growth of total equity over 5 years (both ends loaded and positive).',
-        '(total_equity / total_equity 5 years before) ^ (1/5) - 1'),
     -- earnings quality
     ('other_income_to_pbt', 'earnings_quality', 'ratio', 'all', 'null',
         'Share of profit before tax that is other income.', 'other_income / pbt'),
@@ -297,7 +267,16 @@ SELECT * FROM (VALUES
         'EBITDA margin on the last four quarters.', 'ttm_ebitda / ttm_revenue'),
     ('ttm_pat_margin', 'ttm', 'ratio', 'quarter', 'absent',
         'Profit after tax margin on the last four quarters.', 'ttm_pat / ttm_revenue')
-) AS t(metric, category, unit, periods, when_missing, definition, formula);
+) AS t(metric, category, unit, periods, when_missing, definition, formula)
+UNION ALL
+-- 3- and 5-year compound annual growth, only when both ends are loaded and positive
+SELECT
+    x || '_cagr_' || n || 'y', 'growth', 'ratio', 'annual', 'absent',
+    'Compound annual growth of ' || what || ' over ' || n || ' years (both ends loaded and positive).',
+    '(' || x || ' / ' || x || ' ' || n || ' years before) ^ (1/' || n || ') - 1'
+FROM (VALUES ('revenue', 'revenue'), ('ebitda', 'EBITDA'), ('pat', 'profit after tax'),
+    ('total_assets', 'total assets'), ('total_equity', 'total equity')) AS g(x, what),
+    (VALUES (3), (5)) AS y(n);
 
 -- Which accounts each metric uses, for metric_inputs. Keep it in step with the formulas in the metrics view.
 -- input_period: which period the input comes from, relative to the metric's: 'same', 'year-1' (the same period a

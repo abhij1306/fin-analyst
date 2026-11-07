@@ -253,6 +253,15 @@ def map_rows(
             parts[place] = NEXT_PART[mapping.account]
         found.append(mapping)
 
+    _map_lender_rows(label_map, rows, found)
+    return found
+
+
+def _map_lender_rows(
+    label_map: LabelMap, rows: list[tuple[str, str, str, str]], found: list[Mapping | None]
+) -> None:
+    """Look the rows of each lender balance sheet up again, in place, under the lender part of
+    their side ('lender assets' or 'lender liabilities')."""
     lenders = _lender_balance_sheets(rows, found)
     sides: dict[tuple[str, str], str] = {}
     for n, (statement, scope, section, label) in enumerate(rows):
@@ -267,7 +276,6 @@ def map_rows(
         found[n] = find(label_map, statement, section, label, sides.get(place, "lender assets"))
         if found[n] is not None and found[n].account == "total_assets":
             sides[place] = "lender liabilities"
-    return found
 
 
 # Totals of a Division II balance-sheet part.
