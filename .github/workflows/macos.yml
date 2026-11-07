@@ -72,19 +72,16 @@ jobs:
         run: |
           eval "$(brew shellenv)"
           grep -q '^docling = true' "$FIN_DATA_DIR/config.toml"
-          uv run --frozen fin doctor | grep -q "docling.*installed, models in"
+          .venv/bin/fin doctor | grep -q "docling.*installed, models in"
       - name: A second plain install keeps it
         run: |
           ./install.sh
-          eval "$(brew shellenv)"
-          uv run --frozen python -c "import docling"
+          .venv/bin/python -c "import docling"
       - name: Real-Docling tests
         run: |
-          eval "$(brew shellenv)"
-          uv run --frozen pytest -m docling --durations=10
+          .venv/bin/pytest -m docling --durations=10
       - name: --no-docling removes it
         run: |
           ./install.sh --no-docling
-          eval "$(brew shellenv)"
           grep -q '^docling = false' "$FIN_DATA_DIR/config.toml"
-          if uv run --frozen python -c "import docling"; then echo "docling still installed"; exit 1; fi
+          if .venv/bin/python -c "import docling"; then echo "docling still installed"; exit 1; fi

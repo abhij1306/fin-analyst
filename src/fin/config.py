@@ -87,7 +87,8 @@ def set_docling(root: Path, on: bool) -> None:
     else:
         text = text.rstrip("\n") + "\n" + _PDF_TABLE.format(value=value)
     try:
-        path.write_text(text, encoding="utf-8")
+        with path.open("w", encoding="utf-8") as handle:
+            handle.write(text)
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
     load_config(root)

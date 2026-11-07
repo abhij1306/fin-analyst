@@ -94,7 +94,7 @@ if [[ "$DOCLING" == true ]]; then
   step "Syncing Python environment with the Docling add-on (uv sync --frozen --extra docling)"
   uv sync --frozen --extra docling
   step "Downloading Docling's models (once; about 700 MB)"
-  uv run --frozen docling-tools models download layout tableformer rapidocr
+  .venv/bin/docling-tools models download layout tableformer rapidocr
 else
   step "Syncing Python environment (uv sync --frozen)"
   uv sync --frozen

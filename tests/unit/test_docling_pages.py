@@ -135,8 +135,10 @@ def test_results_columns_take_their_length_from_the_header() -> None:
 def test_a_results_column_that_names_no_length_leaves_the_page_unread() -> None:
     table = grid(["Particulars", "30.09.2025", "30.06.2025"], ["Revenue", "500.00", "450.00"])
 
+    context, tables = page("profit_and_loss", results=True), [Table(table)]
+
     with pytest.raises(PeriodsNotDetected) as caught:
-        read_tables(page("profit_and_loss", results=True), [Table(table)], 4)
+        read_tables(context, tables, 4)
 
     assert caught.value.code == "E202"
     assert "does not say whether it is a quarter" in caught.value.message
@@ -149,8 +151,10 @@ def test_two_columns_with_the_same_period_and_scope_leave_the_page_unread() -> N
         header_rows=1,
     )
 
+    context, tables = page(), [Table(table)]
+
     with pytest.raises(PeriodsNotDetected) as caught:
-        read_tables(page(), [Table(table)], 4)
+        read_tables(context, tables, 4)
 
     assert caught.value.code == "E202"
     assert caught.value.message == (
@@ -159,8 +163,10 @@ def test_two_columns_with_the_same_period_and_scope_leave_the_page_unread() -> N
 
 
 def test_no_unit_on_the_page_or_in_the_table_leaves_the_page_unread() -> None:
+    context, tables = page(unit=None), [Table(SIDE_BY_SIDE)]
+
     with pytest.raises(UnitNotDetected) as caught:
-        read_tables(page(unit=None), [Table(SIDE_BY_SIDE)], 4)
+        read_tables(context, tables, 4)
 
     assert caught.value.code == "E203"
 
@@ -183,8 +189,10 @@ def test_a_unit_printed_in_the_table_is_used() -> None:
 def test_a_cell_that_is_not_one_figure_leaves_the_page_unread() -> None:
     table = grid(["Particulars", "31 March 2025", "31 March 2024"], ["Loans", "12.3 4", "1.00"])
 
+    context, tables = page(), [Table(table)]
+
     with pytest.raises(ParseError) as caught:
-        read_tables(page(), [Table(table)], 4)
+        read_tables(context, tables, 4)
 
     assert caught.value.code == "E204"
 
@@ -192,15 +200,19 @@ def test_a_cell_that_is_not_one_figure_leaves_the_page_unread() -> None:
 def test_a_figure_with_an_unpaired_bracket_leaves_the_page_unread() -> None:
     table = grid(["Particulars", "31 March 2025", "31 March 2024"], ["Loans", "(4.00", "1.00"])
 
+    context, tables = page(), [Table(table)]
+
     with pytest.raises(ParseError, match="unpaired bracket"):
-        read_tables(page(), [Table(table)], 4)
+        read_tables(context, tables, 4)
 
 
 def test_a_page_whose_tables_have_no_period_columns_is_not_read() -> None:
     table = grid(["Name", "Designation"], ["A Person", "Director"])
 
+    context, tables = page(), [Table(table)]
+
     with pytest.raises(NoTablesFound) as caught:
-        read_tables(page(), [Table(table)], 4)
+        read_tables(context, tables, 4)
 
     assert caught.value.code == "E201"
 

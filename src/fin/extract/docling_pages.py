@@ -149,16 +149,21 @@ def read_table(context: PageContext, table: Table, unit: str, start_month: int) 
             if label and _WORDY.search(label) and not SUB_HEADING.match(label):
                 section = label
             continue
-        if FIGURE_TEXT.search(label):
-            raise ParseError(
-                f"page {context.page}: the label {label[:60]!r} holds a figure; the figures do "
-                "not line up with their labels (Docling)"
-            )
         note_ref = (_cell(row, note).text.strip() or None) if note is not None else None
-        named = (label or section, section, note_ref)
+        named = (_label(label, context.page) or section, section, note_ref)
         for column, cell, value in figures:
             values.append(_value(context, column, cell, value, named, unit, start_month))
     return values
+
+
+def _label(label: str, page: int) -> str:
+    """A row's label. Raises E204 when it holds a figure (the figures do not line up)."""
+    if FIGURE_TEXT.search(label):
+        raise ParseError(
+            f"page {page}: the label {label[:60]!r} holds a figure; the figures do not line up "
+            "with their labels (Docling)"
+        )
+    return label
 
 
 def _cell(row: list[Cell], index: int) -> Cell:

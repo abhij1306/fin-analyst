@@ -39,9 +39,9 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - run: uv sync --frozen
-      # The real-Quarto test runs in the outputs job, which has Quarto; the real-Docling tests in
-      # the docling job, which has the add-on. This job has neither (the default install).
-      - run: uv run --frozen pytest -m "not quarto and not docling" --durations=10
+      # The real-Quarto test runs in the outputs job, which has Quarto; the real-Docling tests
+      # (marked docling) skip here, without the add-on, and run in the docling job.
+      - run: uv run --frozen pytest -m "not quarto" --durations=10
 
   # The optional Docling add-on (uv sync --extra docling; CPU-only PyTorch on Linux, pyproject.toml):
   # the tests that run the real Docling on synthetic PDFs. Its models are cached between runs.
@@ -62,8 +62,8 @@ jobs:
           path: ~/.cache/docling/models
           key: docling-models-${{ hashFiles('uv.lock') }}
       - if: steps.models.outputs.cache-hit != 'true'
-        run: uv run --frozen docling-tools models download layout tableformer rapidocr
-      - run: uv run --frozen pytest -m docling --durations=10
+        run: .venv/bin/docling-tools models download layout tableformer rapidocr
+      - run: .venv/bin/pytest -m docling --durations=10
 
   # Ingest the synthetic companies once, then render Kestrel's report (Quarto) and build the dashboard.
   outputs:

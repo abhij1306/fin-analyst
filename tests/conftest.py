@@ -1,3 +1,4 @@
+import importlib.util
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -9,6 +10,17 @@ from fin.db.conn import connect
 from fin.paths import audit_db_path
 
 SAMPLES = Path(__file__).parent / "fixtures" / "sample-financials"
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Tests marked `docling` run the real Docling: skipped where the add-on is not installed (the
+    default install; CI's docling job has it)."""
+    if importlib.util.find_spec("docling") is not None:
+        return
+    skip = pytest.mark.skip(reason="the Docling add-on is not installed (uv sync --extra docling)")
+    for item in items:
+        if item.get_closest_marker("docling") is not None:
+            item.add_marker(skip)
 
 
 @pytest.fixture
