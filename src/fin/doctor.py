@@ -32,9 +32,8 @@ TOOL_MINIMUMS: dict[str, tuple[int, ...]] = {
     "quarto": (1, 7),
 }
 
-_VERSION_RE = re.compile(
-    r"(?<!\d)(\d+)\.(\d+)(?:\.(\d+))?"
-)  # (?<!\d): start at a number's first digit
+# "1.2" or "1.2.3"; starts at a number's first digit, and "++" never gives digits back.
+_VERSION_RE = re.compile(r"(?<!\d)(\d++)\.(\d++)(?:\.(\d++))?")
 
 
 @dataclass(frozen=True)
