@@ -18,7 +18,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 9 | Reports | Done |
 | 10 | Dashboards | Done |
 | 11 | Audit, delete, update | Done |
-| 12 | Release | Done, v1.0.0 tagged (Claude Code clean-machine test on macOS pending) |
+| 12 | Release | Done, v1.0.0 (Claude Code clean-machine test on macOS pending) |
 
 After 1.0.0 (not phases): real annual-report PDFs, then quarterly and half-year results. Every fact now has a
 period (`FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`; see §7). Results statements (SEBI Reg 33) ingest from PDF next to
@@ -281,7 +281,7 @@ Every `fin` command:
 
 ## 9. Error handling
 
-The code table (meaning and what to do) is in `README.md`, "Troubleshooting and error codes"; each code's class
+The code table (meaning and what to do) is in `README.md`, "Error codes"; each code's class
 is in `src/fin/audit/errors.py`. E1xx-E2xx fail one document (the batch goes on); E301-E303 load facts unconfirmed;
 E401-E405 are findings (the document is held); setup, database and output errors stop the command.
 
