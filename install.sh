@@ -47,7 +47,7 @@ if ! load_brew; then
   [[ -t 0 ]] || die "Homebrew is not installed. Install it from https://brew.sh and run ./install.sh again."
   read -r -p "Homebrew is not installed. Install it now? [y/N] " answer
   [[ "$answer" =~ ^[Yy]$ ]] || die "Homebrew is required. Install it from https://brew.sh and run ./install.sh again."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  /bin/bash -c "$(curl -fsSL --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   load_brew || die "Homebrew installed but brew was not found in /opt/homebrew or /usr/local."
 fi
 echo "brew: $(brew --version | head -n 1)"
@@ -68,7 +68,7 @@ uv sync --frozen
 
 # 5. Dashboard packages (exact versions from dashboards/package-lock.json; npm ci is safe to repeat)
 step "Installing dashboard packages (npm ci --prefix dashboards)"
-npm ci --prefix dashboards --no-audit --no-fund
+npm ci --prefix dashboards --no-audit --no-fund --ignore-scripts
 
 # 6. Data folder
 step "Creating data folder (fin init)"

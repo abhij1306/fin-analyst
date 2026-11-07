@@ -20,13 +20,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - run: uv sync --frozen
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
       - run: shellcheck install.sh
 
   test:
@@ -34,13 +34,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
       - run: uv sync --frozen
       # The real-Quarto test runs in the outputs job, which has Quarto.
-      - run: uv run pytest -m "not quarto" --durations=10
+      - run: uv run --frozen pytest -m "not quarto" --durations=10
 
   # Ingest the synthetic companies once, then render Kestrel's report (Quarto) and build the dashboard.
   outputs:
@@ -50,11 +50,11 @@ jobs:
       FIN_DATA_DIR: ${{ github.workspace }}/.fin-data
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
-      - uses: quarto-dev/quarto-actions/setup@v2.2.0
+      - uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
         with:
           version: 1.10.19
       - uses: actions/setup-node@v5
@@ -63,18 +63,18 @@ jobs:
           cache: npm
           cache-dependency-path: dashboards/package-lock.json
       - run: uv sync --frozen
-      - run: npm ci --prefix dashboards --no-audit --no-fund
+      - run: npm ci --prefix dashboards --no-audit --no-fund --ignore-scripts
       - name: Ingest the synthetic companies
         run: |
-          uv run fin init
+          uv run --frozen fin init
           for company in kestrel bluepeak tarang; do
-            uv run fin ingest "$company" "tests/fixtures/sample-financials/clean/$company"
+            uv run --frozen fin ingest "$company" "tests/fixtures/sample-financials/clean/$company"
           done
       - name: Render Kestrel's report (with peers) from the sample narrative
         run: |
           mkdir -p "$FIN_DATA_DIR/reports/kestrel/standalone"
           cp tests/fixtures/report/kestrel_narrative.md "$FIN_DATA_DIR/reports/kestrel/standalone/narrative.md"
-          uv run fin report kestrel --render --peers bluepeak,tarang
+          uv run --frozen fin report kestrel --render --peers bluepeak,tarang
       - name: All three formats exist, with every section
         run: |
           cd "$FIN_DATA_DIR/reports/kestrel/standalone"
@@ -89,7 +89,7 @@ jobs:
         with:
           name: kestrel-report
           path: .fin-data/reports/kestrel/standalone/health.*
-      - run: uv run fin dashboard --build
+      - run: uv run --frozen fin dashboard --build
       - name: The built site has every page and the companies
         # Pages load their query results from api/prerendered_queries (Arrow files), where the
         # company names are stored.
@@ -106,4 +106,4 @@ jobs:
             grep -rq "$text" "$build/api/prerendered_queries" || { echo "'$text' missing from the built data"; exit 1; }
           done
       # Only the test that needs the real Quarto; the test job ran the rest (-rs lists a skip).
-      - run: uv run pytest -m quarto -rs
+      - run: uv run --frozen pytest -m quarto -rs
