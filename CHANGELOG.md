@@ -288,6 +288,32 @@ Human follow-ups:
 - With the guard gone, nothing prompts before `rm` in the data folder or a direct `.duckdb` open; confirm that is
   wanted.
 
+### Report statement pages fin could not read
+
+A balance sheet, profit and loss or cash flow printed in a PDF but not read is now always reported, with its page
+and reason, so `/ingest` can offer a Claude reading of exactly those pages. Before, a skipped page reached only the
+run log, and some statement pages were passed over without any record.
+
+- `fin ingest` lists every statement page it could not read under the file's outcome:
+  `; 2 statement page(s) not read:` then `  not read: balance_sheet page 138: E202 page 138: ...`.
+- A file that fails because no statement page could be read has `unread_pages` (page, statement, code, reason) in
+  `review/<company>/<file>.error.json`.
+- New E201 reasons: a titled statement page with a header but no line holding a figure under every period column;
+  and a page whose title fin does not recognise names a statement ("balance sheet", "statement of assets and
+  liabilities" or "& liabilities", "profit and loss", "statement of cash flows", "cash flow statement", "financial
+  results", or the "cash flow from operating activities" heading under a garbled title), above five or more lines
+  ending in a figure. The title is searched in the top 12 lines, above the first figure (below a letterhead). A
+  line starting in lower case or ending in a figure, '.' or ':' is a sentence or a lead-in, not a title, and the
+  statement words must start within its first five words, so note pages that mention a statement are not listed.
+- Such a page is no longer read as the statement on the page before carried on when it names another statement.
+- `/ingest` reads the `not read:` lines and `unread_pages` to name the pages to offer for a reading.
+- No new dependencies. Parser rules for more layouts (dates, titles, OCR checks) were left out of this change.
+
+Human follow-ups:
+- A page that merely mentions a statement in its top lines above five figure lines (a ten-year summary, a
+  directors' report table) is listed as not read; the user declines the reading offer for it.
+- Rows inside a statement that do not parse are still dropped without a record; only whole pages are reported.
+
 ## [1.0.0] - 2026-11-07
 
 First release: Phases 0-12 below. How it was tested:

@@ -69,6 +69,8 @@ class DocumentFailure(FinError):
     """Base for per-document failures (E1xx-E3xx): the command completes with failures."""
 
     exit_code = EXIT_FAILURES
+    # The statement pages fin could not read (page, statement, code, reason), when every one failed.
+    pages: tuple[dict[str, object], ...] = ()
 
 
 class FileUnreadable(DocumentFailure):

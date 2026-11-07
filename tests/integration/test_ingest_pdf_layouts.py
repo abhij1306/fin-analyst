@@ -1,5 +1,6 @@
 """`fin ingest` on an annual-report PDF holding standalone and consolidated statements."""
 
+import json
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -107,3 +108,58 @@ def test_closing_cash_that_does_not_reconcile_is_an_e403_finding(
     assert "held as doc_id 1" in result.stdout
     assert query(root, "SELECT code, period, status FROM findings") == [("E403", "FY25", "open")]
     assert query(root, "SELECT count(*) FROM current_facts") == [(0,)]
+
+
+def test_a_statement_page_fin_cannot_read_is_listed_on_screen(root: Path, tmp_path: Path) -> None:
+    path = write_pdf(
+        tmp_path / "acme_ar25.pdf",
+        statement(
+            "STANDALONE BALANCE SHEET",
+            ("Security deposits", "100.00", "90.00"),
+            ("TOTAL ASSETS", "100.00", "90.00"),
+            ("TOTAL EQUITY AND LIABILITIES", "100.00", "90.00"),
+        ),
+        # A balance sheet whose header names one period column only.
+        [(50, 50, "CONSOLIDATED BALANCE SHEET"), UNIT, (380, 85, "31 March 2025")],
+    )
+
+    result = runner.invoke(app, ["ingest", "acme", str(path)])
+
+    assert result.exit_code == 0, result.stderr
+    assert (
+        "; 1 statement page(s) not read:\n  not read: balance_sheet page 2: E202 page 2: no "
+        "period column headers (such as 'As at 31 March 2025')\n"
+    ) in result.stdout
+
+
+def test_a_pdf_with_no_readable_statement_lists_its_pages_in_error_json(
+    root: Path, tmp_path: Path
+) -> None:
+    rows = [(f"Line {n}", f"{n}0.00", f"{n}5.00") for n in range(1, 7)]
+    path = write_pdf(
+        tmp_path / "acme_q1.pdf",
+        statement("Abridged Balance Sheet as at 31 March 2025", *rows),
+        statement("Summary of Financial Results for the year ended 31 March 2025", *rows),
+    )
+
+    result = runner.invoke(app, ["ingest", "acme", str(path)])
+
+    assert result.exit_code == 1
+    error = json.loads((root / "review" / "acme" / "acme_q1.pdf.error.json").read_text("utf-8"))
+    assert error["unread_pages"] == [
+        {
+            "page": 1,
+            "statement": "balance_sheet",
+            "code": "E201",
+            "reason": "page 1: 'Abridged Balance Sheet as at 31 March 2025' names a statement in "
+            "a title fin does not recognise; the page was not read",
+        },
+        {
+            "page": 2,
+            "statement": "profit_and_loss",
+            "code": "E201",
+            "reason": "page 2: 'Summary of Financial Results for the year ended 31 March 2025' "
+            "names a statement in a title fin does not recognise; the page was not read",
+        },
+    ]
+    assert "not read: profit_and_loss page 2: E201" in result.stdout

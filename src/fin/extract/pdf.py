@@ -113,6 +113,17 @@ _SCOPE_PHRASE = re.compile(r"^(standalone|consolidated)(?:\s+(?:financial\s+)?re
 # Top-of-page text that starts something other than a statement continued from the page before.
 _OTHER_TITLE = re.compile(r"\bstatement\b|\breport\b|^notes\b|\bnotes\s+(?:to|forming)\b", re.I)
 TITLE_LINES = 6  # how many lines from the top of a page can hold its title
+UNREAD_FIGURE_LINES = 5  # figure lines that make an untitled page naming a statement reported
+# Words that name a primary statement in a title, however it is worded.
+_STATEMENT_WORDS = re.compile(
+    r"\b(?:balance\s+sheet|statement\s+of\s+assets\s+(?:and|&)\s+liab\w*|profit\s+(?:and|&)\s+loss"
+    r"|statement\s+of\s+cash\s*flows?|cash\s*flows?\s+statement|financial\s+results"
+    r"|cash\s*flows?\s+from\s+operating\s+activities)\b",
+    re.I,
+)
+TITLE_WORDS = 5  # the statement words of a title start within its first five words
+NAMED_LINES = 12  # top lines searched for them, down to the first figure (below a letterhead)
+_FIGURE_TEXT = re.compile(r"\d[,.]\d")  # a figure with a comma or decimal point, not a page number
 LABEL_LINES = 4  # how many lines above a column header can hold period-length or scope labels
 
 _MONTHS = {
@@ -191,7 +202,15 @@ class PdfValue:
 class SkippedPage:
     page: int
     statement: str
-    error: DocumentFailure  # why: E202 (no readable period columns) or E203 (no unit)
+    error: DocumentFailure  # why: E201 (no full row, or an unrecognised title), E202, E203
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "page": self.page,
+            "statement": self.statement,
+            "code": self.error.code,
+            "reason": self.error.message,
+        }
 
 
 @dataclass(frozen=True)
@@ -277,6 +296,9 @@ def extract_pdf(path: Path) -> PdfExtraction:
         if statement is None and previous is not None and _continues(previous, number, lines):
             statement, scope = previous.statement, previous.scope
         if statement is None:
+            untitled = _untitled_statement(lines, number)
+            if untitled is not None:
+                skipped.append(SkippedPage(number, *untitled))
             previous = None
             continue
         continues = (
@@ -305,7 +327,12 @@ def extract_pdf(path: Path) -> PdfExtraction:
                 raise PeriodsNotDetected(
                     f"page {number}: no period column headers (such as 'As at 31 March 2025')"
                 )
-        except (UnitNotDetected, PeriodsNotDetected) as exc:
+            if not page_values and statement in PRIMARY_STATEMENTS and not continues:
+                raise NoTablesFound(
+                    f"page {number}: titled as a statement, but no line has a figure under "
+                    "every period column"
+                )
+        except (UnitNotDetected, PeriodsNotDetected, NoTablesFound) as exc:
             if statement != "notes":
                 skipped.append(SkippedPage(number, statement, exc))
             previous = None
@@ -321,20 +348,65 @@ def extract_pdf(path: Path) -> PdfExtraction:
         if skipped:
             reasons = "; ".join(s.error.message for s in skipped[:5])
             more = f" (and {len(skipped) - 5} more)" if len(skipped) > 5 else ""
-            raise type(skipped[0].error)(
+            error = type(skipped[0].error)(
                 f"{path.name}: no statement page could be read: {reasons}{more}"
             )
+            error.pages = tuple(s.as_dict() for s in skipped)
+            raise error
         raise NoTablesFound(f"{path.name}: no statement tables with values found")
     return PdfExtraction(path, fiscal_years, units[0], values, skipped)
+
+
+def _untitled_statement(lines: list[Line], number: int) -> tuple[str, DocumentFailure] | None:
+    """(statement, E201) for a page whose top lines name a statement in words no title pattern
+    matches, above at least UNREAD_FIGURE_LINES lines ending in a figure: a statement fin cannot
+    read, reported rather than passed over in silence. None for any other page."""
+    figures = sum(
+        1 for line in lines if _is_value_like(line) and _FIGURE_TEXT.search(line[-1]["text"])
+    )
+    named = _named_statement(lines)
+    if figures < UNREAD_FIGURE_LINES or named is None:
+        return None
+    statement, text = named
+    return statement, NoTablesFound(
+        f"page {number}: {text!r} names a statement in a title fin does not recognise; "
+        "the page was not read"
+    )
+
+
+def _named_statement(lines: list[Line]) -> tuple[str, str] | None:
+    """(statement, line) for the first top line (of NAMED_LINES, above the first figure) that
+    reads as a title naming a primary statement within its first TITLE_WORDS words, or None. Not
+    a title: a line starting in lower case or ending in a figure, '.' or ':' (a sentence, a table
+    row, a lead-in)."""
+    for line in lines[:NAMED_LINES]:
+        text = line_text(line).strip()
+        if _is_value_like(line) and _FIGURE_TEXT.search(line[-1]["text"]):
+            break
+        if not text or text[0].islower() or _is_value_like(line):
+            continue
+        if text.rstrip(" -").endswith((".", ":")):
+            continue
+        match = _STATEMENT_WORDS.search(text)
+        if match and len(text[: match.start()].split()) < TITLE_WORDS:
+            words = match.group(0).lower()
+            if "sheet" in words or "assets" in words:
+                return "balance_sheet", text
+            return ("cash_flow" if "cash" in words else "profit_and_loss"), text
+    return None
 
 
 def _continues(previous: _Page, number: int, lines: list[Line]) -> bool:
     """True when an untitled page part carries on the statement just read: the next page part
     (such as the second half of a balance sheet printed over two half pages), with no other title
-    (statement of changes in equity, notes, a report) at its top."""
+    (statement of changes in equity, notes, a report, or words naming another statement) at its
+    top."""
     if previous.statement not in PRIMARY_STATEMENTS or number - previous.number > 1:
         return False
-    return not any(_OTHER_TITLE.search(line_text(line)) for line in lines[:TITLE_LINES])
+    if any(_OTHER_TITLE.search(line_text(line)) for line in lines[:TITLE_LINES]):
+        return False
+    named = _named_statement(lines)
+    return named is None or named[0] == previous.statement
 
 
 def _without_repeats(values: list[PdfValue]) -> list[PdfValue]:
