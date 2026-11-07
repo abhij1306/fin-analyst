@@ -42,9 +42,11 @@ from fin.query.evidence import write_evidence
 from fin.query.run import query
 from fin.query.write import write_sql
 from fin.report.render import make_report
+from fin.statements import format_statements, latest_annual_period, statement_rows
 from fin.status import companies, format_status, status
 from fin.update import update as run_update
 from fin.verify import format_result, verify
+from fin.workbook import export_workbook
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -355,6 +357,50 @@ def status_command(
             typer.echo(format_status(result))
 
     execute("status", {"company": company, "json": json_output}, body)
+
+
+@app.command("statements")
+def statements_command(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+    period: Annotated[
+        str | None,
+        typer.Option("--period", help="FY25, FY26-Q1, ... Default: the latest fiscal year."),
+    ] = None,
+    scope: Annotated[
+        str | None, typer.Option("--scope", help="standalone or consolidated. Default: both.")
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON rows.")] = False,
+) -> None:
+    """Show the profit and loss, balance sheet and cash flow in the standard account order, with
+    an "Unmapped / other" line wherever a printed subtotal is not explained by its mapped lines."""
+
+    def body(run: Run) -> None:
+        if scope is not None and scope not in SCOPES:
+            raise typer.BadParameter(f"--scope must be one of {', '.join(SCOPES)}")
+        rows = statement_rows(run.root, company, period, scope)
+        if period is None:
+            latest = latest_annual_period(rows)
+            rows = [row for row in rows if row["period"] == latest]
+        if json_output:
+            typer.echo(json.dumps(rows, indent=2, default=str))
+        else:
+            typer.echo(format_statements(company, rows))
+
+    execute("statements", {"company": company, "period": period, "scope": scope}, body)
+
+
+@app.command("export")
+def export_command(
+    company: Annotated[str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.")],
+) -> None:
+    """Write reports/<company>/<company>_financials.xlsx: the standard statements, every period
+    side by side (one sheet per statement and scope), and a Metrics sheet."""
+
+    def body(run: Run) -> None:
+        path = export_workbook(run.root, company)
+        typer.echo(f"exported {path.relative_to(run.root).as_posix()}")
+
+    execute("export", {"company": company}, body)
 
 
 @app.command("query")

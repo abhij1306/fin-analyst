@@ -136,7 +136,7 @@ WHERE cf.scope = ? AND cf.period_months = 12
 ORDER BY cf.account, cf.fiscal_year
 """
 
-_METRIC_ACCOUNTS_SQL = "SELECT DISTINCT account FROM metric_definitions ORDER BY account"
+_METRIC_ACCOUNTS_SQL = "SELECT DISTINCT account FROM metric_input_accounts ORDER BY account"
 
 _UNCONFIRMED_SQL = """
 SELECT d.file_name, r.raw_label,
@@ -186,7 +186,8 @@ def collect(root: Path, company: str, scope: str) -> dict[str, Any]:
         facts = _rows(con, _FACTS_SQL, [scope])
         metric_accounts = [row[0] for row in con.execute(_METRIC_ACCOUNTS_SQL).fetchall()]
         unconfirmed = _rows(con, _UNCONFIRMED_SQL, [scope])
-        missing = _rows(con, _MISSING_SQL, [scope])
+        # Only the metrics the report shows (LABELS); the others are in `fin query` and the export.
+        missing = [row for row in _rows(con, _MISSING_SQL, [scope]) if row["metric"] in LABELS]
         findings = _rows(con, _FINDINGS_SQL, [scope])
     if not metric_rows:
         raise ReportRenderFailed(

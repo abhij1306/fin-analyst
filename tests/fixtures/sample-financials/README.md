@@ -31,7 +31,7 @@ All companies, people and auditors are invented. Every file carries a "SYNTHETIC
 - **Phase 4 (PDF bake-off):** Tarang FY24 (no lines) is the harder case; score extractors on exact matches against the key.
 - **Phase 5 (mapping):** `labels` gives the correct account for every label; Bluepeak's older wording is the real test.
 - **Phase 6 (validation):** each broken file must fail with its error code and load nothing.
-- **Phase 7 (metrics):** compare against `metrics` (definitions in `conventions`).
+- **Phase 7 (metrics):** compare against `metrics` (definitions in `conventions`). `answer_key_analysis.json` holds the expected values of the later metrics (returns, liquidity, solvency, efficiency, cash flow, growth and earnings quality; `null` = no value, a CAGR not listed = absent), computed independently from `facts` with Python's decimal module, not by the generator.
 - **Phases 8–9:** the "story" lines give known trends for test questions and report observations.
 
 ## Regenerate and verify

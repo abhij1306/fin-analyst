@@ -1,42 +1,4 @@
 account,statement,parent,sign,unit,description
-share_capital,balance_sheet,total_equity,1,rupees,Equity share capital
-other_equity,balance_sheet,total_equity,1,rupees,"Other equity (reserves and surplus, retained earnings)"
-share_warrants,balance_sheet,total_equity,1,rupees,Money received against share warrants
-non_controlling_interests,balance_sheet,total_equity,1,rupees,Non-controlling interests (consolidated balance sheet)
-share_application_money,balance_sheet,total_equity_and_liabilities,1,rupees,Share application money pending allotment (old format line between equity and liabilities)
-total_equity,balance_sheet,total_equity_and_liabilities,1,rupees,Total equity (shareholders' funds)
-lt_borrowings,balance_sheet,total_non_current_liabilities,1,rupees,Non-current borrowings (term loans)
-lease_liabilities_non_current,balance_sheet,total_non_current_liabilities,1,rupees,Non-current lease liabilities
-other_financial_liabilities_non_current,balance_sheet,total_non_current_liabilities,1,rupees,Other non-current financial liabilities
-lt_provisions,balance_sheet,total_non_current_liabilities,1,rupees,Long-term provisions
-deferred_tax_liabilities,balance_sheet,total_non_current_liabilities,1,rupees,Deferred tax liabilities (net)
-other_non_current_liabilities,balance_sheet,total_non_current_liabilities,1,rupees,Other non-current liabilities
-trade_payables_non_current,balance_sheet,total_non_current_liabilities,1,rupees,Non-current trade payables
-total_non_current_liabilities,balance_sheet,total_liabilities,1,rupees,Total non-current liabilities
-st_borrowings,balance_sheet,total_current_liabilities,1,rupees,Current borrowings (working capital loans)
-lease_liabilities_current,balance_sheet,total_current_liabilities,1,rupees,Current lease liabilities
-trade_payables,balance_sheet,total_current_liabilities,1,rupees,"Trade payables (sundry creditors); the MSME and other-creditor lines both map here"
-other_financial_liabilities_current,balance_sheet,total_current_liabilities,1,rupees,Other current financial liabilities
-other_current_liabilities,balance_sheet,total_current_liabilities,1,rupees,Other current liabilities
-st_provisions,balance_sheet,total_current_liabilities,1,rupees,Short-term provisions
-current_tax_liabilities,balance_sheet,total_current_liabilities,1,rupees,Current tax liabilities (net)
-liabilities_held_for_sale,balance_sheet,total_current_liabilities,1,rupees,Liabilities directly associated with assets classified as held for sale
-total_current_liabilities,balance_sheet,total_liabilities,1,rupees,Total current liabilities
-total_liabilities,balance_sheet,total_equity_and_liabilities,1,rupees,Total liabilities (non-current plus current)
-borrowings,balance_sheet,total_liabilities,1,rupees,"Borrowings not split into current and non-current (NBFCs, banks)"
-debt_securities,balance_sheet,total_liabilities,1,rupees,"Debt securities such as bonds, debentures and commercial paper (NBFC format)"
-deposits,balance_sheet,total_liabilities,1,rupees,Deposits taken from customers (banks and deposit-taking NBFCs)
-subordinated_liabilities,balance_sheet,total_liabilities,1,rupees,Subordinated liabilities (NBFC format)
-derivative_financial_liabilities,balance_sheet,total_liabilities,1,rupees,Derivative financial instruments shown as liabilities (NBFC format)
-other_payables,balance_sheet,total_liabilities,1,rupees,Payables other than trade payables (NBFC format)
-lease_liabilities,balance_sheet,total_liabilities,1,rupees,"Lease liabilities not split into current and non-current (NBFCs)"
-other_financial_liabilities,balance_sheet,total_liabilities,1,rupees,"Other financial liabilities not split into current and non-current (NBFCs)"
-provisions,balance_sheet,total_liabilities,1,rupees,"Provisions not split into current and non-current (NBFCs)"
-other_non_financial_liabilities,balance_sheet,total_liabilities,1,rupees,Other non-financial liabilities (NBFC format)
-other_liabilities_and_provisions,balance_sheet,total_liabilities,1,rupees,Other liabilities and provisions (bank format)
-total_financial_liabilities,balance_sheet,,,rupees,"Total financial liabilities (NBFC format); a memo line, its lines add into total liabilities directly"
-total_non_financial_liabilities,balance_sheet,,,rupees,"Total non-financial liabilities (NBFC format); a memo line, its lines add into total liabilities directly"
-total_equity_and_liabilities,balance_sheet,,,rupees,Total equity and liabilities (total sources of funds)
 fixed_assets,balance_sheet,total_non_current_assets,1,rupees,"Fixed assets: property, plant and equipment, intangibles and work in progress (old and bank formats)"
 ppe_net,balance_sheet,fixed_assets,1,rupees,"Property, plant and equipment, net block"
 capital_work_in_progress,balance_sheet,fixed_assets,1,rupees,Capital work-in-progress
@@ -79,6 +41,44 @@ other_non_financial_assets,balance_sheet,total_assets,1,rupees,Other non-financi
 other_assets,balance_sheet,total_assets,1,rupees,Other assets (bank format)
 total_financial_assets,balance_sheet,,,rupees,"Total financial assets (NBFC format); a memo line, its lines add into total assets directly"
 total_non_financial_assets,balance_sheet,,,rupees,"Total non-financial assets (NBFC format); a memo line, its lines add into total assets directly"
+share_capital,balance_sheet,total_equity,1,rupees,Equity share capital
+other_equity,balance_sheet,total_equity,1,rupees,"Other equity (reserves and surplus, retained earnings)"
+share_warrants,balance_sheet,total_equity,1,rupees,Money received against share warrants
+non_controlling_interests,balance_sheet,total_equity,1,rupees,Non-controlling interests (consolidated balance sheet)
+share_application_money,balance_sheet,total_equity_and_liabilities,1,rupees,Share application money pending allotment (old format line between equity and liabilities)
+total_equity,balance_sheet,total_equity_and_liabilities,1,rupees,Total equity (shareholders' funds)
+lt_borrowings,balance_sheet,total_non_current_liabilities,1,rupees,Non-current borrowings (term loans)
+lease_liabilities_non_current,balance_sheet,total_non_current_liabilities,1,rupees,Non-current lease liabilities
+other_financial_liabilities_non_current,balance_sheet,total_non_current_liabilities,1,rupees,Other non-current financial liabilities
+lt_provisions,balance_sheet,total_non_current_liabilities,1,rupees,Long-term provisions
+deferred_tax_liabilities,balance_sheet,total_non_current_liabilities,1,rupees,Deferred tax liabilities (net)
+other_non_current_liabilities,balance_sheet,total_non_current_liabilities,1,rupees,Other non-current liabilities
+trade_payables_non_current,balance_sheet,total_non_current_liabilities,1,rupees,Non-current trade payables
+total_non_current_liabilities,balance_sheet,total_liabilities,1,rupees,Total non-current liabilities
+st_borrowings,balance_sheet,total_current_liabilities,1,rupees,Current borrowings (working capital loans)
+lease_liabilities_current,balance_sheet,total_current_liabilities,1,rupees,Current lease liabilities
+trade_payables,balance_sheet,total_current_liabilities,1,rupees,"Trade payables (sundry creditors); the MSME and other-creditor lines both map here"
+other_financial_liabilities_current,balance_sheet,total_current_liabilities,1,rupees,Other current financial liabilities
+other_current_liabilities,balance_sheet,total_current_liabilities,1,rupees,Other current liabilities
+st_provisions,balance_sheet,total_current_liabilities,1,rupees,Short-term provisions
+current_tax_liabilities,balance_sheet,total_current_liabilities,1,rupees,Current tax liabilities (net)
+liabilities_held_for_sale,balance_sheet,total_current_liabilities,1,rupees,Liabilities directly associated with assets classified as held for sale
+total_current_liabilities,balance_sheet,total_liabilities,1,rupees,Total current liabilities
+total_liabilities,balance_sheet,total_equity_and_liabilities,1,rupees,Total liabilities (non-current plus current)
+borrowings,balance_sheet,total_liabilities,1,rupees,"Borrowings not split into current and non-current (NBFCs, banks)"
+debt_securities,balance_sheet,total_liabilities,1,rupees,"Debt securities such as bonds, debentures and commercial paper (NBFC format)"
+deposits,balance_sheet,total_liabilities,1,rupees,Deposits taken from customers (banks and deposit-taking NBFCs)
+subordinated_liabilities,balance_sheet,total_liabilities,1,rupees,Subordinated liabilities (NBFC format)
+derivative_financial_liabilities,balance_sheet,total_liabilities,1,rupees,Derivative financial instruments shown as liabilities (NBFC format)
+other_payables,balance_sheet,total_liabilities,1,rupees,Payables other than trade payables (NBFC format)
+lease_liabilities,balance_sheet,total_liabilities,1,rupees,"Lease liabilities not split into current and non-current (NBFCs)"
+other_financial_liabilities,balance_sheet,total_liabilities,1,rupees,"Other financial liabilities not split into current and non-current (NBFCs)"
+provisions,balance_sheet,total_liabilities,1,rupees,"Provisions not split into current and non-current (NBFCs)"
+other_non_financial_liabilities,balance_sheet,total_liabilities,1,rupees,Other non-financial liabilities (NBFC format)
+other_liabilities_and_provisions,balance_sheet,total_liabilities,1,rupees,Other liabilities and provisions (bank format)
+total_financial_liabilities,balance_sheet,,,rupees,"Total financial liabilities (NBFC format); a memo line, its lines add into total liabilities directly"
+total_non_financial_liabilities,balance_sheet,,,rupees,"Total non-financial liabilities (NBFC format); a memo line, its lines add into total liabilities directly"
+total_equity_and_liabilities,balance_sheet,,,rupees,Total equity and liabilities (total sources of funds)
 contingent_liabilities,balance_sheet,,,rupees,Contingent liabilities shown below a bank balance sheet (memo)
 bills_for_collection,balance_sheet,,,rupees,Bills for collection shown below a bank balance sheet (memo)
 revenue,profit_and_loss,total_income,1,rupees,Revenue from operations (sales)

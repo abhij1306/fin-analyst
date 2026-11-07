@@ -51,13 +51,23 @@ Start Claude Code in the `fin-analyst` folder with `claude`. Then:
 | 2 | `/ingest <company>` (or `/ingest-batch` for every folder under `inbox/`) | Loads the files, checks them, and proposes accounts for labels it does not know. A document with findings is held and Claude asks you: save as is, or have Claude fix it (see "Findings"). A file with nothing readable goes to `review/<company>/` with a reason. A file already loaded is skipped (E105). |
 | 3 | `/review [company]` | Lists the proposed mappings. Tell Claude which to confirm or reject. When no account fits a line, Claude may propose a new account; it is added only if you confirm it (`fin map accounts --added` prints added accounts to share). |
 | 4 | `/ask <company> <question>` | Answer, calculation, source table (file and sheet!cell or page), the SQL, an evidence page and flags (unconfirmed mappings, missing data). |
-| 5 | `/report <company>` | Writes a narrative that describes the numbers (it never types them) and renders HTML, Word and PDF into `reports/<company>/<scope>/`. |
-| 6 | `/dashboard` (or `uv run fin dashboard`) | Refreshes the dashboard data and starts the Evidence dashboard at http://localhost:3000 (company, compare and data quality pages). It reads a copy of the data, so you can ingest while it is open. `uv run fin dashboard --build` makes a static site instead (kept in `~/FinAnalysis/dashboard/build`; a failed build, E603, keeps the last good one). |
-| 7 | `/audit <company> [metric fiscal-year or --fact id]` | Traces a figure to its source, or lists the company's history. |
-| 8 | `/verify <company> <file>` | On request: Claude reads the pages you name and `fin verify` compares that reading with what is loaded (agree, differ, missing). |
+| 5 | `/statements <company> [period] [scope]` (or `uv run fin statements <company>`) | Shows the profit and loss, balance sheet and cash flow in the standard account order, whatever labels the filing used. A printed subtotal that its mapped lines do not fully explain gets an "Unmapped / other" line for the difference and says how much the lines explain. `uv run fin export <company>` writes `reports/<company>/<company>_financials.xlsx`: every period side by side, one sheet per statement and scope, and a Metrics sheet with each metric's definition. |
+| 6 | `/report <company>` | Writes a narrative that describes the numbers (it never types them) and renders HTML, Word and PDF into `reports/<company>/<scope>/`. |
+| 7 | `/dashboard` (or `uv run fin dashboard`) | Refreshes the dashboard data and starts the Evidence dashboard at http://localhost:3000 (company, compare and data quality pages). It reads a copy of the data, so you can ingest while it is open. `uv run fin dashboard --build` makes a static site instead (kept in `~/FinAnalysis/dashboard/build`; a failed build, E603, keeps the last good one). |
+| 8 | `/audit <company> [metric fiscal-year or --fact id]` | Traces a figure to its source, or lists the company's history. |
+| 9 | `/verify <company> <file>` | On request: Claude reads the pages you name and `fin verify` compares that reading with what is loaded (agree, differ, missing). |
 | any time | `/status [company]` (or `uv run fin status`) | Per company: periods loaded and gaps, held documents, findings, mappings waiting for review, unverified figures read by Claude, and inbox files not yet ingested. |
 
 Until you confirm a mapping, the facts it affects are marked unconfirmed and are left out of metrics. Answers say so.
+
+Metrics (`/ask` uses them; definitions in the `metric_definitions` view and the export's Metrics sheet):
+profitability (gross, EBITDA, EBIT, PBT and PAT margins), returns (ROE, ROCE, ROA, on closing and on average
+balances), liquidity (current, quick, cash ratio), solvency (debt/equity, net debt, net debt/EBITDA, interest cover,
+debt/assets), efficiency (asset turnovers, receivable, inventory and payable days, cash conversion cycle), cash flow
+(CFO, free cash flow, CFO/EBITDA, CFO/PAT, capex/revenue, capex/depreciation), growth (year on year, 3- and 5-year
+CAGR), earnings quality (other income and exceptional items over PBT, effective tax rate), EPS as reported, lender
+metrics for NBFCs and banks (net interest income, cost to income, credit cost, assets/equity), and trailing twelve
+months from four consecutive quarters. A metric whose inputs are missing has no value; nothing is guessed.
 
 The slash commands call `fin` for you. You can also run `uv run fin --help` and use the commands directly.
 

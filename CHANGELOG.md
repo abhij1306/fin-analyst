@@ -4,6 +4,58 @@ All notable changes to this project. Versions follow semantic versioning.
 
 ## [Unreleased]
 
+### Standard statements and the full metric set
+
+- **Standard statements.** `fin statements <company> [--period FY25] [--scope standalone] [--json]` shows the profit
+  and loss, balance sheet and cash flow in the dictionary's account tree, whatever labels the filing used: standard
+  order (lines, then their subtotal; memo lines last), depth for indentation, every account with a value. Each
+  printed subtotal says what its mapped lines explain (`explained`, `coverage`), and an "Unmapped / other" line
+  carries any difference, so nothing is hidden. Exceptional and extraordinary items count with either sign, as in
+  the subtotal check. The `standard_statements` view behind it is made per connection from the shared dictionary
+  (`fin.statements`) and is also available in `fin query`. Default period: the latest fiscal year.
+- **Excel export.** `fin export <company>` writes `reports/<company>/<company>_financials.xlsx`: one sheet per
+  statement and scope with every period side by side (indented lines, "Unmapped / other" in italics), and a Metrics
+  sheet (scope, category, metric, unit, every period, definition). Uses openpyxl, already a dependency.
+- **Full metric set** (`company_views.sql`). `metric_definitions` is now one row per metric with category, unit,
+  periods (`annual`, `all`, `interim`, `quarter`), `when_missing` (`null` or `absent`), definition and formula; the
+  input accounts moved to the new `metric_input_accounts` view (with the input period: `same`, `year-1`, `year-3`,
+  `year-5`, `quarter-1` to `quarter-3`). `metrics` has a new `category` column. New metrics:
+  - profitability: `ebit`, `ebit_margin`, `pbt_margin`;
+  - returns: `roa`, and `roe_avg`, `roce_avg`, `roa_avg` on the average of opening and closing balances;
+  - liquidity: `quick_ratio`, `cash_ratio`;
+  - solvency: `net_debt`, `net_debt_to_ebitda`, `debt_to_assets`;
+  - efficiency: `asset_turnover`, `fixed_asset_turnover`;
+  - cash flow: `cfo`, `cfo_to_pat`, `capex_to_depreciation`;
+  - growth: `ebitda_growth`, `pat_growth`, `total_assets_growth`, `total_equity_growth`, and 3- and 5-year CAGR of
+    revenue, EBITDA, PAT, total assets and total equity (only when both ends are loaded and positive);
+  - earnings quality: `other_income_to_pbt`, `exceptional_items_to_pbt` (only when printed), `effective_tax_rate`;
+  - per share: `eps_basic`, `eps_diluted` as printed;
+  - lender (only when the statement has interest income or interest expended): `net_interest_income`,
+    `cost_to_income`, `credit_cost` (on average loans), `assets_to_equity`;
+  - trailing twelve months on four consecutive quarters: `ttm_revenue`, `ttm_ebitda`, `ttm_pat`,
+    `ttm_ebitda_margin`, `ttm_pat_margin`.
+
+  Existing metrics keep their values. Growth is NULL when the earlier value is not positive (revenue growth was
+  already NULL on a zero base and never meets a negative one). Quarters, half years and nine months also get EBIT,
+  EBIT and PBT margins, EBITDA and PAT growth, the earnings-quality ratios, EPS and the lender income metrics.
+- **Lender balance sheets in mapping.** `map_rows` decides per balance sheet (statement and scope) whether it is a
+  lender's: no current / non-current part heading or part total, and a lender marker (a line only NBFCs and banks
+  have, or "Loans" / "Investments" under "Financial assets"). Then "Loans", "Investments", "Other financial assets",
+  "Other assets", "Provisions", "Lease liabilities", "Other financial liabilities" and "Derivative financial
+  instruments" map to the lender accounts (new `labels.csv` rows under the pseudo-sections `Lender assets` /
+  `Lender liabilities`, by the side of the balance sheet). A Division II statement, which prints its part totals,
+  is never read as a lender's. The NBFC and bank test PDFs now load with no company mappings.
+- The balance-sheet asset accounts come first in `schedule_iii.csv`, the order statements show them in.
+- Report: the data quality table lists missing inputs only for the metrics the report shows.
+- Tests: `answer_key_analysis.json` (the new annual metrics for the three synthetic companies, computed
+  independently from the answer key's facts with Python's decimal module); lender metrics on the NBFC and bank
+  PDFs; TTM on quarterly results; EPS, exceptional items and tax on an annual report; standard statements as a
+  literal table with an "Unmapped / other" line; the Excel export; lender detection both ways.
+- Docs: README (commands, metrics), `/ask` (metric categories and views), new `/statements`,
+  `docs/CUSTOMISING.md` ("Add a metric", lender labels, module map), PLAN.md.
+- Data folders made before this change keep the old metric views and dictionary rows; re-create the data folder
+  (`fin init`, then ingest again) to get the new metrics and lender labels. No new dependencies.
+
 ### One schema file per database; no migrations
 
 There is no deployed data to keep and the users are non-technical, so the migration system is gone.

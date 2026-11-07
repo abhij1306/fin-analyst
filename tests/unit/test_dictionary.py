@@ -346,3 +346,111 @@ def test_the_part_is_kept_when_standalone_and_consolidated_rows_alternate(
         "loans_current",
         "loans_current",
     ]
+
+
+def bs_rows(rows: list[tuple[str, str]]) -> list[tuple[str, str, str, str]]:
+    return [("balance_sheet", "standalone", section, label) for section, label in rows]
+
+
+def test_an_nbfc_balance_sheet_maps_its_unsplit_lines_to_lender_accounts(
+    seed_map: LabelMap,
+) -> None:
+    rows = [
+        ("Financial assets", "Cash and cash equivalents"),
+        ("Financial assets", "Derivative financial instruments"),
+        ("Financial assets", "Loans"),
+        ("Financial assets", "Investments"),
+        ("Financial assets", "Other financial assets"),
+        ("Non-financial assets", "Other non-financial assets"),
+        ("", "Total assets"),
+        ("Financial liabilities", "Derivative financial instruments"),
+        ("Financial liabilities", "Lease liabilities"),
+        ("Financial liabilities", "Other financial liabilities"),
+        ("Non-financial liabilities", "Provisions"),
+        ("Equity", "Total equity"),
+        ("Equity", "Total liabilities and equity"),
+    ]
+
+    mappings = map_rows(seed_map, bs_rows(rows))
+
+    assert [m and m.account for m in mappings] == [
+        "cash",
+        "derivative_financial_assets",
+        "loans",
+        "investments",
+        "other_financial_assets",
+        "other_non_financial_assets",
+        "total_assets",
+        "derivative_financial_liabilities",
+        "lease_liabilities",
+        "other_financial_liabilities",
+        "provisions",
+        "total_equity",
+        "total_equity_and_liabilities",
+    ]
+
+
+def test_a_bank_balance_sheet_maps_its_unsplit_lines_to_lender_accounts(
+    seed_map: LabelMap,
+) -> None:
+    rows = [
+        ("CAPITAL AND LIABILITIES", "Capital"),
+        ("CAPITAL AND LIABILITIES", "Deposits"),
+        ("CAPITAL AND LIABILITIES", "Other liabilities and provisions"),
+        ("ASSETS", "Investments"),
+        ("ASSETS", "Advances"),
+        ("ASSETS", "Other assets"),
+    ]
+
+    mappings = map_rows(seed_map, bs_rows(rows))
+
+    assert [m and m.account for m in mappings] == [
+        "share_capital",
+        "deposits",
+        "other_liabilities_and_provisions",
+        "investments",
+        "loans",
+        "other_assets",
+    ]
+
+
+def test_a_division_ii_balance_sheet_without_part_headings_is_not_a_lender(
+    seed_map: LabelMap,
+) -> None:
+    """No "Non-current assets" or "Current assets" heading was read, and "Loans" sits under
+    "Financial assets" as in an NBFC; the part totals say it is Division II."""
+    rows = [
+        ("Financial assets", "Loans"),
+        ("Financial assets", "Investments"),
+        ("", "Total non-current assets"),
+        ("Financial assets", "Loans"),
+        ("Financial assets", "Other financial assets"),
+        ("", "Total current assets"),
+        ("Financial liabilities", "Lease liabilities"),
+        ("", "Provisions"),
+    ]
+
+    mappings = map_rows(seed_map, bs_rows(rows))
+
+    assert [m and m.account for m in mappings] == [
+        None,  # before the first part total: left to review, as before
+        None,
+        "total_non_current_assets",
+        "loans_current",
+        "other_financial_assets_current",
+        "total_current_assets",
+        None,
+        None,
+    ]
+
+
+def test_lender_detection_is_per_statement_and_scope(seed_map: LabelMap) -> None:
+    rows = [
+        ("balance_sheet", "standalone", "Financial assets", "Loans"),
+        ("balance_sheet", "consolidated", "Financial assets", "Loans"),
+        ("balance_sheet", "consolidated", "", "Total current assets"),
+    ]
+
+    mappings = map_rows(seed_map, rows)
+
+    assert [m and m.account for m in mappings] == ["loans", None, "total_current_assets"]

@@ -145,7 +145,7 @@ def test_default_path_is_the_company_inbox(root: Path, samples: Path) -> None:
     assert result.stdout.splitlines()[-2:] == [
         "[1/1] kestrel/Kestrel_Forgings_Financials_FY23-FY25.xlsx: loaded as doc_id 1 "
         "version 1: 162 facts, 0 unmapped labels",
-        "metrics: shared/analytics.duckdb refreshed, 1 companies, 54 metric rows",
+        "metrics: shared/analytics.duckdb refreshed, 1 companies, 123 metric rows",
     ]
 
 
