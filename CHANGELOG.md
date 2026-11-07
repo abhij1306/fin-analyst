@@ -344,11 +344,12 @@ B (Third Schedule, Banking Regulation Act), SEBI Reg 33 results and the indirect
 - Left to review on purpose: "Loans", "Investments", "Other financial assets", "Provisions", "Lease liabilities",
   "Other financial liabilities" and "Other assets" outside a balance-sheet part, "Derivative financial instruments",
   and assets held for sale. Each means different accounts in different formats, and mapped in a Division II
-  statement whose part heading was not read, it fails a correct document on E402. The accounts exist for
+  statement whose part heading was not read, it would hold a correct document on an E402 finding. The accounts exist for
   `fin map set` and review.
 - Coverage on 20 real PDFs fin can read (annual reports and quarterly results; 8 more are scanned or fail E2xx and
   were not counted): lines mapped automatically 63.7% to 77.3% (4,018 to 4,874 of 6,306). E402 checks run 220 to
   320, all passing; no document changed status (one still fails E403 on old-format "Cash and bank balances").
+  Measured before "findings instead of failures" (#25), when a failed gate rolled the document back.
 - No new dependencies.
 
 Human follow-ups:

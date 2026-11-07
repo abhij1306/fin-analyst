@@ -53,7 +53,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   The seed does not map "Loans", "Investments", "Other financial assets", "Provisions", "Lease liabilities",
   "Other financial liabilities" or "Other assets" outside a balance-sheet part, nor "Derivative financial
   instruments" or assets held for sale: in a Division II statement whose part heading was not read they would land
-  in the wrong subtotal and a correct document would fail E402. Map them per company (`fin map set`) instead.
+  in the wrong subtotal and a correct document would be held on an E402 finding. Map them per company (`fin map set`) instead.
 - Run `uv run fin init`. It adds missing rows to the shared dictionary and never removes or changes existing ones. To
   change an existing row (a new parent or sign), add a `dictionary` migration (see
   `db/migrations/dictionary/002_account_unit_and_pl_tree.sql`), or use `fin sql` on the dictionary.
