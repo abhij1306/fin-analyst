@@ -14,10 +14,10 @@ from fin.audit.errors import (
     DependencyMissing,
     DependencyVersionMismatch,
     FinError,
-    SchemaNewerThanCode,
 )
 from fin.config import load_config
-from fin.db.migrate import current_version, latest_version
+from fin.db.conn import connect
+from fin.db.schema import is_old_format
 from fin.paths import audit_db_path, dictionary_db_path, probe_writable
 
 PYTHON_VERSION = (3, 12)
@@ -170,9 +170,8 @@ def check_audit_schema(root: Path) -> Check:
 
 
 def check_schema(path: Path, kind: str) -> Check:
-    """The schema version of a shared database (`kind` names its migrations folder)."""
+    """A shared database exists and was made by this fin's layout (not an older one)."""
     name = f"{kind} schema"
-    latest = latest_version(kind)
     if not path.is_file():
         return Check(
             name,
@@ -182,26 +181,19 @@ def check_schema(path: Path, kind: str) -> Check:
             "run `uv run fin init`",
         )
     try:
-        version = current_version(path)
+        with connect(path) as con:
+            old = is_old_format(con)
     except DatabaseLocked as exc:
         return Check(name, False, exc.message, exc.code, "close other fin commands")
-    if version < latest:
+    if old:
         return Check(
             name,
             False,
-            f"version {version}, expected {latest}",
+            "made by an older fin",
             DependencyVersionMismatch.code,
-            "run `uv run fin migrate`",
+            "move the data folder away and re-create it with `uv run fin init`",
         )
-    if version > latest:
-        return Check(
-            name,
-            False,
-            f"version {version} is newer than this fin ({latest})",
-            SchemaNewerThanCode.code,
-            "update fin: `git pull`, then `uv sync --frozen`",
-        )
-    return Check(name, True, f"version {version}")
+    return Check(name, True, "present")
 
 
 def run_checks(root: Path) -> list[Check]:

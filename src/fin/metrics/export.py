@@ -1,6 +1,6 @@
 """Export every company's metrics to shared/analytics.duckdb (PLAN.md Phase 7).
 
-The metrics are SQL views in each company database (`db/migrations/company/002_metrics.sql`).
+The metrics are SQL views in each company database (`db/schema/company_views.sql`).
 `refresh_analytics` reads them from every `companies/<company>.duckdb`, then rewrites the analytics
 tables in one short transaction, so a dashboard reading analytics.duckdb sees either the old or the
 new rows and the file is locked only for that moment.
@@ -12,7 +12,7 @@ from typing import Any
 
 from fin.audit.logger import Run
 from fin.db.conn import connect
-from fin.db.migrate import ensure_current
+from fin.db.schema import ensure_database
 from fin.paths import analytics_db_path, audit_db_path, companies_dir
 
 
@@ -39,10 +39,10 @@ JOIN documents d ON d.doc_id = f.doc_id AND d.status = 'loaded'
 
 def refresh_analytics(run: Run) -> Refresh:
     """Rebuild analytics.metrics and analytics.companies from every company database. A company
-    database not at the current schema raises E002 (run `fin migrate`)."""
+    database made by an older fin raises E002."""
     root = run.root
     analytics = analytics_db_path(root)
-    ensure_current(root, analytics, "analytics", run)
+    ensure_database(analytics, "analytics")
     now = datetime.now(UTC).replace(tzinfo=None)
 
     run.flush()  # so this run's validation results are in the audit database
@@ -57,7 +57,7 @@ def refresh_analytics(run: Run) -> Refresh:
     companies: list[list[Any]] = []
     for path in sorted(companies_dir(root).glob("*.duckdb")):
         company = path.stem
-        ensure_current(root, path, "company", run)
+        ensure_database(path, "company")
         with connect(path) as con:
             rows = con.execute(
                 "SELECT fiscal_year, period, period_months, period_end, scope, metric, value, unit "

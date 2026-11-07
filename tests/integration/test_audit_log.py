@@ -88,8 +88,8 @@ def test_doctor_writes_runs_events_and_jsonl(
         (5, "check", "info", None, "poppler: 24.2.0"),
         (6, "check", "info", None, f"data folder: {data_root}"),
         (7, "check", "info", None, "config: display unit crores"),
-        (8, "check", "info", None, "audit schema: version 4"),
-        (9, "check", "info", None, "dictionary schema: version 3"),
+        (8, "check", "info", None, "audit schema: present"),
+        (9, "check", "info", None, "dictionary schema: present"),
     ]
 
     records = jsonl_records(data_root, run_id)
@@ -116,38 +116,27 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
     ) == [
         ("folders", "11 created, 0 already present"),
         ("config", "wrote default config.toml"),
-        ("migrate", "shared/audit.duckdb: schema version 0 -> 4 (backup: none, new file)"),
-        ("migrate", "shared/dictionary.duckdb: schema version 0 -> 3 (backup: none, new file)"),
-        ("migrate", "shared/analytics.duckdb: schema version 0 -> 4 (backup: none, new file)"),
+        ("database", "created  shared/audit.duckdb"),
+        ("database", "created  shared/dictionary.duckdb"),
+        ("database", "created  shared/analytics.duckdb"),
         (
             "dictionary",
             "dictionary: 182 accounts and 680 label mappings added from templates/dictionary",
         ),
     ]
-    assert audit_query(
-        "SELECT db_file, from_version, to_version, backup_path, status FROM migrations "
-        "WHERE run_id = ?",
-        [run_id],
-    ) == [
-        ("shared/audit.duckdb", 0, 4, None, "applied"),
-        ("shared/dictionary.duckdb", 0, 3, None, "applied"),
-        ("shared/analytics.duckdb", 0, 4, None, "applied"),
-    ]
-    assert len(jsonl_records(data_root, run_id)) == 11
+    assert len(jsonl_records(data_root, run_id)) == 8
 
 
 def test_runs_are_appended_never_updated(data_root: Path, audit_query: Query) -> None:
     for _ in range(3):
-        runner.invoke(app, ["migrate"] if (data_root / "shared").exists() else ["init"])
+        runner.invoke(app, ["init"])
     assert audit_query("SELECT command, record, count(*) FROM runs GROUP BY ALL ORDER BY ALL") == [
-        ("init", "end", 1),
-        ("init", "start", 1),
-        ("migrate", "end", 2),
-        ("migrate", "start", 2),
+        ("init", "end", 3),
+        ("init", "start", 3),
     ]
 
 
-def test_forced_error_logs_its_code_and_exits_2(data_root: Path, audit_query: Query) -> None:
+def test_database_from_an_older_fin_is_e002(data_root: Path, audit_query: Query) -> None:
     runner.invoke(app, ["init"])
     company = data_root / "companies" / "acme.duckdb"
     with connect(company, write=True) as con:
@@ -155,24 +144,23 @@ def test_forced_error_logs_its_code_and_exits_2(data_root: Path, audit_query: Qu
             "CREATE TABLE schema_version (version INTEGER, name VARCHAR, "
             "applied_at TIMESTAMP, run_id VARCHAR)"
         )
-        con.execute("INSERT INTO schema_version VALUES (99, '099_future', now(), 'x')")
 
-    result = runner.invoke(app, ["migrate"])
+    result = runner.invoke(app, ["ingest", "acme", str(data_root / "inbox")])
 
     assert result.exit_code == 2
     message = (
-        "companies/acme.duckdb is at schema version 99, but this fin knows only up to 5; "
-        "update fin (`git pull`, then `uv sync --frozen`)"
+        "acme.duckdb was made by an older fin; move the data folder away and re-create it with "
+        "`uv run fin init`"
     )
-    assert result.stderr.splitlines()[0] == f"E004: {message}"
+    assert result.stderr.splitlines()[0] == f"E002: {message}"
     run_id = run_id_of(result.stderr)
     assert audit_query(
         "SELECT level, error_code, message FROM events WHERE run_id = ?", [run_id]
-    ) == [("error", "E004", message)]
+    ) == [("error", "E002", message)]
     assert audit_query(
         "SELECT status, exit_code FROM runs WHERE run_id = ? AND record = 'end'", [run_id]
     ) == [("error", 2)]
-    assert jsonl_records(data_root, run_id)[1]["error_code"] == "E004"
+    assert jsonl_records(data_root, run_id)[1]["error_code"] == "E002"
 
 
 def _guarded_app(body: Callable[[Run], None]) -> typer.Typer:

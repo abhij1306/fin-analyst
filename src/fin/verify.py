@@ -35,7 +35,7 @@ from typing import Any
 from fin.audit.logger import Run
 from fin.config import load_config
 from fin.db.conn import connect
-from fin.db.migrate import ensure_current
+from fin.db.schema import ensure_database
 from fin.extract.reading import ReadingLine, printed_value, read_reading
 from fin.findings import record
 from fin.ingest import sha256_of
@@ -152,7 +152,7 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
     db = company_db_path(run.root, company)
     doc_id, loaded_reading, loaded = None, None, []
     if db.is_file():
-        ensure_current(run.root, db, "company", run)
+        ensure_database(db, "company")
         with connect(db) as con:
             doc = con.execute(
                 "SELECT doc_id, reading_sha256 FROM documents WHERE sha256 = ? AND status IN "

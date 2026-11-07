@@ -4,6 +4,24 @@ All notable changes to this project. Versions follow semantic versioning.
 
 ## [Unreleased]
 
+### One schema file per database; no migrations
+
+There is no deployed data to keep and the users are non-technical, so the migration system is gone.
+
+- Each database has one schema file with its final tables and views, in `src/fin/db/schema/`: `audit.sql`,
+  `dictionary.sql`, `analytics.sql`, `company.sql` and `company_views.sql` (the metric macros and views, the one place
+  to add a metric). Built from the old migrations and from these files, the databases have identical columns, types,
+  constraints, defaults, sequences, macros and view definitions; the only difference is the dropped `migrations` table.
+- `fin init` creates the shared databases from them, and a company database is created from them the first time it is
+  used (`fin.db.schema.ensure_database`). Existing databases are never altered. To change a schema, edit its file and
+  re-create the data folder.
+- Removed: `fin migrate`, `db/migrate.py`, the numbered migration files, the `schema_version` tables, the audit
+  `migrations` table, the backup-before-migrate step in `fin update`, and error E004 (E503 now means a database could
+  not be created from its schema file).
+- Kept: one small check. A database that has a `schema_version` table was made by an older fin; `fin doctor` and every
+  command that opens it stop with E002 and say to re-create the data folder.
+- Docs: README, PLAN.md, `docs/CUSTOMISING.md` ("Migrations" became "Schema").
+
 ### Ingest real annual-report PDFs
 
 Stress-tested PDF ingest on six real Indian annual reports (main board and NSE SME). Every rule below is general, and

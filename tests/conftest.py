@@ -1,12 +1,10 @@
 import json
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-import fin.db.migrate
 from fin.db.conn import connect
 from fin.paths import audit_db_path
 
@@ -31,15 +29,6 @@ def data_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "FinAnalysis"
     monkeypatch.setenv("FIN_DATA_DIR", str(root))
     return root.resolve()
-
-
-@pytest.fixture
-def migrations_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A writable copy of the real migrations folder that fin uses instead of the real one."""
-    target = tmp_path / "migrations"
-    shutil.copytree(fin.db.migrate.MIGRATIONS_DIR, target)
-    monkeypatch.setattr("fin.db.migrate.MIGRATIONS_DIR", target)
-    return target
 
 
 @pytest.fixture

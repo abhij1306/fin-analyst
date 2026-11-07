@@ -1,1 +1,1 @@
-"""Database access, migrations and schemas."""
+"""Database access and the schema files."""

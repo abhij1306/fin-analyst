@@ -6,7 +6,7 @@ equal to its lines, closing cash that does not reconcile, a figure that differs 
 file with nothing readable (E1xx/E2xx) fails.
 
 A finding lives in the company database's `findings` table with a status (open, accepted, resolved,
-superseded; see company migration 005), and every finding and status change is appended to the
+superseded; see db/schema/company.sql), and every finding and status change is appended to the
 audit table `findings`.
 
 - Ingest stages each document and runs the checks in `VALIDATORS` (the validation gates). A
@@ -30,7 +30,7 @@ import duckdb
 from fin.audit.errors import FindingNotOpen
 from fin.audit.logger import Run
 from fin.db.conn import connect
-from fin.db.migrate import ensure_current
+from fin.db.schema import ensure_database
 from fin.paths import company_db_path
 from fin.validate.gates import validate_document
 
@@ -194,7 +194,7 @@ def recheck_held(run: Run, company: str) -> list[dict[str, Any]]:
     path = company_db_path(run.root, company)
     if not path.is_file():
         return []
-    ensure_current(run.root, path, "company", run)
+    ensure_database(path, "company")
     with connect(path, write=True) as con:
         held = con.execute(
             "SELECT doc_id, file_name FROM documents WHERE status = 'held' ORDER BY doc_id"
@@ -227,7 +227,7 @@ def accept(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
     path = company_db_path(run.root, company)
     if not path.is_file():
         raise FindingNotOpen(f"no database for company {company!r}; nothing accepted")
-    ensure_current(run.root, path, "company", run)
+    ensure_database(path, "company")
     with connect(path, write=True) as con:
         con.execute("BEGIN TRANSACTION")
         try:
@@ -287,7 +287,7 @@ def list_findings(run: Run, company: str) -> list[dict[str, Any]]:
     path = company_db_path(run.root, company)
     if not path.is_file():
         return []
-    ensure_current(run.root, path, "company", run)
+    ensure_database(path, "company")
     with connect(path) as con:
         result = con.execute(_LIST_SQL)
         columns = [c[0] for c in result.description]

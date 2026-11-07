@@ -135,9 +135,10 @@ up the database first to `backups/<run_id>/` and is recorded in the audit log. E
 ## Update and uninstall
 
 - Update: `uv run fin update`. It refuses if you have local changes in this folder, backs up all databases, pulls the
-  latest code, installs dependencies, migrates the databases and runs `fin doctor`. If a step fails (E005), the
+  latest code, installs dependencies, refreshes the metrics and runs `fin doctor`. If a step fails (E005), the
   backup is in `~/FinAnalysis/backups/<run_id>/`.
-- `uv run fin migrate` brings every database to the current layout on its own (it backs up first).
+- There are no database migrations. If a new version changes the database layout, move `~/FinAnalysis` away and run
+  `uv run fin init` again (the doctor says so with E002).
 - Uninstall: delete the `fin-analyst` folder. To remove your data as well, delete `~/FinAnalysis` yourself.
 
 To modify the app with Claude Code, see [docs/CUSTOMISING.md](docs/CUSTOMISING.md).
@@ -151,9 +152,8 @@ findings included), 1 finished but some files failed, 2 the command could not ru
 | Code | Meaning | What to do |
 |---|---|---|
 | E001 | A required program (uv, node, quarto), `config.toml` or the audit database is missing | Run the fix `fin doctor` shows (`./install.sh` or `uv run fin init`) |
-| E002 | A program is the wrong version, `config.toml` is invalid, or a database needs migrating | Run the fix shown (`brew upgrade`, correct `config.toml`, or `uv run fin migrate`) |
+| E002 | A program is the wrong version, `config.toml` is invalid, or a database was made by an older fin | Run the fix shown (`brew upgrade`, correct `config.toml`, or move the data folder away and run `uv run fin init`) |
 | E003 | The data folder is missing or not writable | Run `uv run fin init`, or fix the folder permissions |
-| E004 | A database is newer than this version of fin | Update fin: `uv run fin update` |
 | E005 | `fin update` stopped: local changes in this folder, or a git, uv or npm step failed | Commit or discard local changes, or fix the failing step, and run it again. The backup is in `backups/<run_id>/` |
 | E101 | File is unreadable or corrupt | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
 | E102 | File is password protected | Save an unprotected copy and ingest that |
@@ -172,7 +172,7 @@ findings included), 1 finished but some files failed, 2 the command could not ru
 | E406 | `fin findings accept` named a finding that does not exist or is not open | Nothing was accepted. Check the ids with `uv run fin findings list <company>` |
 | E501 | A database is in use by another `fin` command | Wait for it to finish and run again |
 | E502 | `fin query` was given something other than one SELECT | Use `fin sql --write` for changes you want made |
-| E503 | A database migration failed | The database was restored from `backups/`; report the error |
+| E503 | A database could not be created from its schema file | Report the error |
 | E504 | A SQL statement failed (syntax, unknown column, constraint) | Nothing changed. Fix the statement |
 | E601 | Report render failed | The last good report is kept. Run `uv run fin doctor` (Quarto) and try again |
 | E602 | The narrative contains hand-typed numbers | Replace each listed line with a `{{metric:...}}` or `{{fact:...}}` reference, or reword it |

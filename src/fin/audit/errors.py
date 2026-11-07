@@ -52,10 +52,6 @@ class DataFolderNotWritable(FinError):
     code = "E003"
 
 
-class SchemaNewerThanCode(FinError):
-    code = "E004"
-
-
 class UpdateFailed(FinError):
     """E005. `fin update` stopped: local changes in the repo, or a git, uv or npm step failed."""
 
@@ -164,7 +160,9 @@ class ReadOnlyViolation(FinError):
     code = "E502"
 
 
-class MigrationFailed(FinError):
+class SchemaFailed(FinError):
+    """E503. A database could not be created from its schema file."""
+
     code = "E503"
 
 

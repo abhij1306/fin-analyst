@@ -1,14 +1,22 @@
 -- Account dictionary, shared/dictionary.duckdb (PLAN.md §7). `fin init` seeds it from
--- templates/dictionary/schedule_iii.csv (accounts) and templates/dictionary/labels.csv (label_map).
+-- templates/dictionary/schedule_iii.csv (accounts, with the subtotal tree) and templates/dictionary/labels.csv
+-- (label_map).
 
 -- statement: balance_sheet, profit_and_loss or cash_flow.
 -- parent is the subtotal the account adds into and sign is +1 (adds) or -1 (subtracts); both NULL for a top line.
+-- unit: 'rupees' for money; 'rupees_per_share' for earnings per share, stored as printed (not scaled by the
+-- statement's unit) and never added into a subtotal.
+-- source: 'seed' for templates/dictionary/schedule_iii.csv, 'review' for an account the user accepted in review
+-- (`fin review confirm` of a new-account proposal); run_id is the run that added a review account (NULL for seed).
 CREATE TABLE accounts (
     account VARCHAR PRIMARY KEY,
     statement VARCHAR NOT NULL CHECK (statement IN ('balance_sheet', 'profit_and_loss', 'cash_flow')),
     parent VARCHAR,
     sign INTEGER CHECK (sign IN (1, -1)),
-    description VARCHAR NOT NULL
+    description VARCHAR NOT NULL,
+    unit VARCHAR DEFAULT 'rupees',
+    source VARCHAR DEFAULT 'seed',
+    run_id VARCHAR
 );
 
 CREATE SEQUENCE label_map_seq START 1;
