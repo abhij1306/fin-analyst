@@ -18,7 +18,7 @@ Working name: `fin-analyst` (repo), `fin` (CLI). Rename freely.
 | 9 | Reports | Done |
 | 10 | Dashboards | Done |
 | 11 | Audit, delete, update | Done |
-| 12 | Release | Done, v1.0.0 tagged (Claude Code clean-machine test on macOS pending) |
+| 12 | Release | Done, v1.0.0 (Claude Code clean-machine test on macOS pending) |
 
 After 1.0.0 (not phases): real annual-report PDFs, then quarterly and half-year results. Every fact now has a
 period (`FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`; see §7). Results statements (SEBI Reg 33) ingest from PDF next to
