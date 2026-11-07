@@ -66,7 +66,8 @@ class Config:
     docling: bool = False  # [pdf] docling: run the Docling fallback on pages pdfplumber skips
 
 
-_DOCLING_LINE = re.compile(r"^docling\s*=\s*\S+[ \t]*$", re.M)
+# The value only, so a trailing comment ("docling = false  # off") is kept.
+_DOCLING_LINE = re.compile(r"^docling\s*=\s*(?:true|false)(?=[ \t]*(?:#.*)?$)", re.M)
 _PDF_TABLE = """
 [pdf]
 # Docling, the optional PDF add-on (`./install.sh --docling` / `--no-docling`).

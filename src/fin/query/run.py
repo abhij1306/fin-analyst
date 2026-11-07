@@ -77,9 +77,10 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
         sources = {}
         for source in con.execute(SOURCE_SQL).fetchall():
             raw_id, fact_id, *provenance = source
-            sources[fact_id if key == "fact_id" else raw_id] = dict(
-                zip(PROVENANCE_COLUMNS, provenance, strict=True)
-            )
+            source_key = fact_id if key == "fact_id" else raw_id
+            if source_key is None:
+                continue  # a raw value mapped to no fact: no row's fact_id points to it
+            sources[source_key] = dict(zip(PROVENANCE_COLUMNS, provenance, strict=True))
     empty = dict.fromkeys(PROVENANCE_COLUMNS)
     return [{**row, **sources.get(row[key], empty)} for row in rows]
 

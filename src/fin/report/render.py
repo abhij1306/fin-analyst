@@ -161,7 +161,7 @@ def _chart(data: dict[str, Any], category: str, display_unit: str) -> str | None
     series = [(n, values) for n, values in series if sum(v is not None for v in values) > 1]
     if len(years) < 2 or not series:
         return None
-    unit = data["metric_units"][names[0]]
+    unit = data["metric_info"][names[0]]["unit"]
     per_unit = MONEY_UNITS[display_unit][0] if unit == "rupees" else Decimal(1)
     scale = Decimal(100) if unit == "ratio" and not is_times(data, names[0]) else Decimal(1)
     plotted = [

@@ -60,6 +60,8 @@ def test_to_rupees_rounds_half_up_to_the_paisa(
         ("( - 5 )", Decimal("-5")),
         ("(1,234)", Decimal("-1234")),
         ("- -5", None),
+        ("(56.67", None),  # an unpaired bracket: the sign is unknown
+        ("56.67)", None),
         ("abc", None),
         ("", None),
     ],

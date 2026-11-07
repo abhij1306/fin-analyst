@@ -72,7 +72,7 @@ def _statement_sheet(book: Workbook, title: str, rows: list[dict[str, Any]], uni
     order: dict[tuple[int, str], dict[str, Any]] = {}
     for r in rows:
         entry = order.setdefault((r["line_no"], r["label"]), {"depth": r["depth"]})
-        entry[r["period"]] = in_unit(r["value"], r["unit"])
+        entry[r["period"]] = in_unit(r["value"], PER_SHARE if r["unit"] == PER_SHARE else unit)
     for (_, label), entry in sorted(order.items()):
         sheet.append([label] + [entry.get(p) for p in periods])
         first = sheet.cell(row=sheet.max_row, column=1)

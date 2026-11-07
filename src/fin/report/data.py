@@ -102,7 +102,7 @@ QUARTER_ROWS = [
 ]
 
 _METRICS_SQL = """
-SELECT m.metric, m.period, m.period_months, m.value, m.unit
+SELECT m.metric, m.period, m.period_months, m.value
 FROM metrics m WHERE m.scope = ?
 ORDER BY m.metric, m.period_end, m.period_months DESC
 """
@@ -182,16 +182,13 @@ def _scope_data(con: Any, scope: str) -> dict[str, Any]:
     """Metrics (every period), periods and facts of one scope."""
     periods = fetch_dicts(con, _PERIODS_SQL, [scope])
     metrics: dict[str, dict[str, Decimal | None]] = {}
-    units: dict[str, str] = {}
     for row in fetch_dicts(con, _METRICS_SQL, [scope]):
         metrics.setdefault(row["metric"], {})[row["period"]] = row["value"]
-        units[row["metric"]] = row["unit"]
     return {
         "years": [p["period"] for p in periods if p["period_months"] == 12],
         "quarters": [p["period"] for p in periods if p["period_months"] == 3],
         "periods": [p["period"] for p in periods],
         "metrics": metrics,
-        "metric_units": units,
         "facts": fetch_dicts(con, _FACTS_SQL, [scope]),
     }
 
@@ -286,6 +283,8 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
             (d for d in definitions if d["metric"] in present),
             key=lambda d: _category_order(d["category"]),
         ),
+        # Every metric's definition (unit, label, times), for values from any scope or peer.
+        "metric_info": {d["metric"]: d for d in definitions},
         "metric_accounts": metric_accounts,
         "unconfirmed": unconfirmed,
         "missing": missing,

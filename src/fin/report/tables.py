@@ -1,8 +1,9 @@
 """Display formatting and the report's Markdown tables, from the data `fin.report.data.collect`
 read. Python only formats here: every value was computed in SQL.
 
-A metric's display name (`label`), whether a ratio shows as times (`times`) and its order come from
-`metric_definitions` (in `data["definitions"]`).
+A metric's display name (`label`), unit, whether a ratio shows as times (`times`) and its order come
+from `metric_definitions`: `data["metric_info"]` has every metric (the other scope's and peers'
+included), `data["definitions"]` the ones this scope has, in report order.
 """
 
 from decimal import ROUND_HALF_UP, Decimal
@@ -57,7 +58,7 @@ def metric_text(unit: str, value: Decimal | None, display_unit: str, times: bool
 
 
 def _definition(data: dict[str, Any], metric: str) -> dict[str, Any]:
-    return next(d for d in data["definitions"] if d["metric"] == metric)
+    return data["metric_info"][metric]
 
 
 def label(data: dict[str, Any], metric: str) -> str:
@@ -72,7 +73,8 @@ def metric_value_text(
     data: dict[str, Any], metric: str, value: Decimal | None, display_unit: str
 ) -> str:
     """A value of `metric` for display, in the metric's unit."""
-    return metric_text(data["metric_units"][metric], value, display_unit, is_times(data, metric))
+    unit = _definition(data, metric)["unit"]
+    return metric_text(unit, value, display_unit, is_times(data, metric))
 
 
 def _row_label(data: dict[str, Any], kind: str, name: str) -> str:

@@ -40,6 +40,18 @@ def backup(root: Path, path: Path, run: Run) -> Path:
     return target
 
 
+def _changed_rows(con: duckdb.DuckDBPyConnection, statement: Any) -> int:
+    """Run `statement`; the rows it changed. DuckDB returns one `Count` column for INSERT, UPDATE
+    and DELETE, but the returned rows instead when the statement has a RETURNING clause."""
+    result = con.execute(statement).fetchall()
+    if statement.type not in COUNTED:
+        return 0
+    columns = [column[0] for column in con.description or []]
+    if columns == ["Count"] and len(result) == 1:
+        return int(result[0][0])
+    return len(result)
+
+
 def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> dict[str, Any]:
     """Back up the company database, run `sql` in one transaction and log it. Returns the JSON
     payload. A failing statement rolls everything back and raises E504."""
@@ -52,9 +64,7 @@ def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> 
         con.execute("BEGIN TRANSACTION")
         try:
             for statement in con.extract_statements(sql):
-                result = con.execute(statement).fetchall()
-                if statement.type in COUNTED:
-                    rows_affected += result[0][0]
+                rows_affected += _changed_rows(con, statement)
             con.execute("COMMIT")
         except duckdb.Error as exc:
             con.execute("ROLLBACK")
