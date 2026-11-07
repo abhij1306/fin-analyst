@@ -11,6 +11,7 @@ select company, documents, facts, last_ingested_at from analytics.companies orde
 
 <DataTable data={companies} />
 
-- [One company over the years](/company)
-- [Companies side by side](/compare)
-- [Data quality](/quality)
+- [One company](/company): metrics by category over the years, quarters, standard statements, findings and
+  coverage
+- [Companies side by side](/compare): one metric, picked by category, across companies
+- [Data quality](/quality): findings, held documents, coverage, unread pages, unverified Claude-read facts

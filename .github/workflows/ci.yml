@@ -113,3 +113,7 @@ jobs:
           for company in kestrel bluepeak tarang; do
             grep -rq "$company" "$build/api/prerendered_queries" || { echo "$company missing from the built data"; exit 1; }
           done
+          # Metric categories and statement coverage reach the pages too.
+          for text in profitability efficiency balance_sheet; do
+            grep -rq "$text" "$build/api/prerendered_queries" || { echo "'$text' missing from the built data"; exit 1; }
+          done

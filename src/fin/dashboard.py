@@ -1,7 +1,7 @@
 """`fin dashboard` (PLAN.md Phase 10): Evidence dashboards over shared/analytics.duckdb.
 
 Evidence reads its DuckDB source at `npm run sources` time. So that it never holds the live
-analytics file (an ingest rewrites it), `snapshot_analytics` first copies the two tables into
+analytics file (an ingest rewrites it), `snapshot_analytics` first copies the analytics tables into
 `<data>/dashboard/analytics.duckdb` with one brief read-only open, and Evidence is pointed at that
 copy through EVIDENCE_SOURCE__analytics__filename. Nothing outside this module touches the live
 file for the dashboard, so an ingest never waits for it.
@@ -16,11 +16,12 @@ import typer
 
 from fin.audit.errors import DashboardBuildFailed, DependencyMissing
 from fin.db.conn import connect
+from fin.metrics.export import TABLES as EXPORTED
 from fin.paths import analytics_db_path
 
 PROJECT_DIR = Path(__file__).resolve().parents[2] / "dashboards"
 DEV_URL = "http://localhost:3000"
-TABLES = ("metrics", "companies")
+TABLES = tuple(EXPORTED)
 
 
 def dashboard_dir(root: Path) -> Path:
