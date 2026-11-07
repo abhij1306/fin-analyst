@@ -81,7 +81,9 @@ def _save(root: Path, company: str, pending: Pending) -> None:
         raise InvalidMapping(f"{company!r} is not a loaded company")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(pending, indent=2) + "\n", encoding="utf-8")
+        with path.open("w", encoding="utf-8") as file:
+            json.dump(pending, file, indent=2)
+            file.write("\n")
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
 
