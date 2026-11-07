@@ -42,7 +42,7 @@ jobs:
           diff -u "$RUNNER_TEMP/before.txt" "$RUNNER_TEMP/after.txt"
           grep -q "all Brewfile dependencies already installed" "$FIN_DATA_DIR/logs/install.log"
           grep -q "kept     config.toml (already present, not changed)" "$FIN_DATA_DIR/logs/install.log"
-          grep -q "shared/audit.duckdb: up to date at schema version" "$FIN_DATA_DIR/logs/install.log"
+          grep -q "kept     shared/audit.duckdb" "$FIN_DATA_DIR/logs/install.log"
       - name: fin doctor passes
         run: |
           eval "$(brew shellenv)"
