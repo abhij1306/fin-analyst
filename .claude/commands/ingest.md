@@ -38,9 +38,10 @@ Ingest documents for the company in `$ARGUMENTS`.
       with no open findings is loaded. Never change data to make a check pass when the source itself shows the
       figure: that is the user's call to save as is.
 8. **Pages fin could not read.** A file can fail extraction (E104 scanned, E201, E202, E203, E204), or load with a
-   warning that a balance sheet, profit and loss or cash flow page was skipped (`... page N skipped: E20x ...`), or
-   load without one of those statements. Tell the user which file, which statements and which pages (from the
-   warnings, or the page numbers you find), and **offer** a Claude reading of those pages. Ask first; never read
+   list of statement pages it did not read (`not read: <statement> page N: E20x ...` under the file's outcome; for
+   a failed file also `unread_pages` in its error.json), or load without one of those statements. Tell the user
+   which file, which statements and which pages (from those lines, or the page numbers you find), and **offer** a
+   Claude reading of those pages. Ask first; never read
    them unasked. If the user agrees, follow "Claude reading" below.
 
 ## Claude reading (only when the user asked for it)

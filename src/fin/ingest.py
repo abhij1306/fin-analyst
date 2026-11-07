@@ -92,6 +92,8 @@ class Document:
     notes: list[tuple[str, Path]]  # (section, markdown file)
     notices: list[str]  # things worth logging, e.g. an assumed scope
     warnings: list[str] = field(default_factory=list)  # e.g. a statement page that was skipped
+    # Statement pages fin could not read: page, statement, code, reason (SkippedPage.as_dict).
+    unread: list[dict[str, object]] = field(default_factory=list)
 
 
 def files_in(path: Path) -> list[Path]:
@@ -194,7 +196,7 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
             f"{s.statement} page {s.page} skipped: {s.error.code} {s.error.message}"
             for s in pdf.skipped
         ]
-        return Document(rows, notes, notices, warnings)
+        return Document(rows, notes, notices, warnings, [s.as_dict() for s in pdf.skipped])
     raise UnsupportedFormat(f"{path.name}: {suffix or 'no extension'} files are not supported")
 
 
@@ -258,7 +260,7 @@ def read_with_reading(
             f"{len(lines) - len(used)} reading lines not loaded: fin read those statements itself"
         )
     rows = document.rows + [_reading_row(line) for line in used]
-    return Document(rows, document.notes, notices, document.warnings)
+    return Document(rows, document.notes, notices, document.warnings, document.unread)
 
 
 def _copy(source: Path, target: Path) -> None:
@@ -389,6 +391,7 @@ def ingest_file(
     Per-document failures are logged, counted on `run` and sent to review; they do not raise. A
     document with findings is held (counted in `run.held`), not failed."""
     name = f"{company}/{path.name}"
+    document: Document | None = None
     try:
         sha256 = sha256_of(path)
         with connect(company_db_path(run.root, company)) as con:
@@ -430,10 +433,11 @@ def ingest_file(
         run.failure_codes.append(exc.code)
         run.exit_code = EXIT_FAILURES
         run.event("ingest", exc.message, level="error", code=exc.code, file=name)
-        _to_review(run, company, path, exc, reading)
+        unread = list(exc.pages) if document is None else document.unread
+        _to_review(run, company, path, exc, reading, unread)
         return (
             f"failed ({exc}); copied to review/{company}/, reason in "
-            f"review/{company}/{path.name}.error.json"
+            f"review/{company}/{path.name}.error.json" + _unread_lines(unread)
         )
     for statement, label in unmapped:
         run.event(
@@ -461,11 +465,26 @@ def ingest_file(
         run.loaded += 1
         message = f"loaded as {details}"
     run.event("ingest", message, file=name, context={"doc_id": doc_id, "archive": archive_rel})
-    return message
+    return message + _unread_lines(document.unread)
+
+
+def _unread_lines(unread: list[dict[str, object]]) -> str:
+    """The statement pages fin could not read, one per line, for the screen."""
+    if not unread:
+        return ""
+    return f"; {len(unread)} statement page(s) not read:" + "".join(
+        f"\n  not read: {u['statement']} page {u['page']}: {u['code']} {u['reason']}"
+        for u in unread
+    )
 
 
 def _to_review(
-    run: Run, company: str, path: Path, error: DocumentFailure, reading: Path | None = None
+    run: Run,
+    company: str,
+    path: Path,
+    error: DocumentFailure,
+    reading: Path | None = None,
+    unread: list[dict[str, object]] | None = None,
 ) -> None:
     folder = review_dir(run.root, company)
     copy = folder / path.name
@@ -479,6 +498,8 @@ def _to_review(
     }
     if reading is not None:
         reason["reading"] = str(reading)
+    if unread:
+        reason["unread_pages"] = unread  # statement pages fin could not read: offer a reading
     try:
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{path.name}.error.json").write_text(

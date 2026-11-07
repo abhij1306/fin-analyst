@@ -51,6 +51,15 @@ works without approval prompts: the guard hook is removed; `fin`'s backup and au
 `fin status` shows per company the periods loaded and gaps, held documents, findings, pending mappings,
 unverified Claude-read facts and inbox files not yet ingested.
 
+Unread statement pages (after 1.0.0, not a phase): a primary statement printed in a PDF but not read is never passed
+over in silence. Besides pages skipped for their header or unit (E202/E203), fin reports a titled statement page
+with no row holding a figure under every column, and a page whose title fin does not recognise names a statement
+("balance sheet", "statement of assets and liabilities", "profit and loss", "statement of cash flows", "financial
+results", ...) above five or more figure lines (E201; the title-like line is searched in the top 12 lines, above the
+first figure). Such a page is not taken as the previous statement carried on. Every unread
+page is listed under the file's outcome on screen (`not read: <statement> page N: <code> <reason>`) and, when the
+file fails, as `unread_pages` in its error.json, so `/ingest` can offer a Claude reading of exactly those pages.
+
 ---
 
 ## 1. What it does
