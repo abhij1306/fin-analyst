@@ -122,7 +122,8 @@ def test_statements_json_has_coverage_and_lineage(root: Path) -> None:
         "500000.00",
         2,
     )
-    assert total["fact_id"] is not None and other["fact_id"] is None
+    assert total["fact_id"] is not None
+    assert other["fact_id"] is None
     assert (total["unit"], by_label[("profit_and_loss", "Basic earnings per share")]["unit"]) == (
         "lakh",
         "rupees_per_share",
