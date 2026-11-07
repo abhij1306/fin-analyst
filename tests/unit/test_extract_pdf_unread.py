@@ -135,3 +135,54 @@ def test_when_no_statement_can_be_read_the_error_lists_every_page(tmp_path: Path
         (1, "balance_sheet", "E201"),
         (2, "profit_and_loss", "E201"),
     ]
+
+
+def test_a_page_whose_figures_look_misread_is_reported_not_loaded(tmp_path: Path) -> None:
+    # Page 2: a figure sits in a label, so the figures do not line up with their labels (a skewed
+    # scan). Page 3: "(31" has no closing bracket, so its sign is unknown.
+    skewed = [*ROWS[:2], ("Trade receivables 1,234.00", "910.00", "808.00")]
+    unpaired = [*ROWS[:2], ("Net cash from operating activities", "(31", "120.00")]
+    path = write_pdf(
+        tmp_path / "misread.pdf",
+        statement("Statement of Profit and Loss for the year ended 31 March 2025"),
+        statement("Balance Sheet as at 31 March 2025", skewed),
+        statement("Statement of Cash Flows for the year ended 31 March 2025", unpaired),
+    )
+
+    assert {(v.page, v.statement) for v in extract_pdf(path).values} == {(1, "profit_and_loss")}
+    assert unread(path) == [
+        {
+            "page": 2,
+            "statement": "balance_sheet",
+            "code": "E204",
+            "reason": "page 2: the label 'Trade receivables 1,234.00' holds a figure; the "
+            "figures do not line up with their labels",
+        },
+        {
+            "page": 3,
+            "statement": "cash_flow",
+            "code": "E204",
+            "reason": "page 3: figure '(31' has an unpaired bracket",
+        },
+    ]
+
+
+def test_a_page_carrying_on_a_page_not_read_is_reported_too(tmp_path: Path) -> None:
+    unpaired = [*ROWS[:2], ("Trade receivables", "(31", "120.00")]
+    # Page 3 has no title: five lines of figures carrying on page 2's balance sheet.
+    rest: Page = [
+        item
+        for n, (label, fy25, fy24) in enumerate(ROWS[1:])
+        for item in ((50, 50 + 15 * n, label), (390, 50 + 15 * n, fy25), (480, 50 + 15 * n, fy24))
+    ]
+    path = write_pdf(
+        tmp_path / "carried.pdf",
+        statement("Statement of Profit and Loss for the year ended 31 March 2025"),
+        statement("Balance Sheet as at 31 March 2025", unpaired),
+        rest,
+    )
+
+    assert [(s["page"], s["statement"], s["code"], s["reason"]) for s in unread(path)] == [
+        (2, "balance_sheet", "E204", "page 2: figure '(31' has an unpaired bracket"),
+        (3, "balance_sheet", "E204", "page 3: carries on page 2, which was not read"),
+    ]

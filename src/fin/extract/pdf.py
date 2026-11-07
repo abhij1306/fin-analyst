@@ -15,11 +15,12 @@ is read as two halves. On each statement page (balance sheet, profit and loss, c
    name two or more period ends: "31 March 2024", "March 31, 2025", "31st March, 2025",
    "31.03.2025", "30-Sep-25", "2023-24". A stack is one column; a period split over lines ("As at
    March 31," / "2024") is read as one. Words in or just above the header that only name a period
-   length ("Quarter ended", "Half year ended", "Year ended") or a scope ("Standalone",
-   "Consolidated") are spread over the columns below them, so one page can hold quarter,
-   half-year and year columns of both scopes. `fin.extract.periods` names each column's period
-   ("FY25", "FY26-Q1", "FY26-H1"). A flow column that names no length is a year only when it ends
-   on 31 March and the page is not a results statement; otherwise the page is skipped (E202).
+   length ("Quarter ended", "Half year ended", "Year ended") are spread over the columns below
+   them, so one page can hold quarter, half-year and year columns. `fin.extract.periods` names
+   each column's period ("FY25", "FY26-Q1", "FY26-H1"). A flow column that names no length is a
+   year only when it ends on 31 March and the page is not a results statement; otherwise the page
+   is skipped (E202), as it is when two columns hold the same period (such as standalone and
+   consolidated printed side by side).
 4. A line whose trailing numbers sit under every period column is a value row. The words to their
    left are the label, minus a note reference when the header has a "Note" column. A row with no
    label takes its label from a line just above it (a label wrapped around its figures, whose tail
@@ -29,7 +30,10 @@ is read as two halves. On each statement page (balance sheet, profit and loss, c
 
 A statement page without its own header or unit continues the page before it when that page holds
 the same statement and scope. A page that still cannot be read is skipped and reported in
-`PdfExtraction.skipped`; the document fails only when no statement page can be read.
+`PdfExtraction.skipped`; the document fails only when no statement page can be read. So is a page
+whose figures look misread: a row label that holds a figure (the figures do not line up with their
+labels) or a figure with an unpaired bracket (its sign is unknown). fin reads clean digital
+statements; a page it skips is listed for a Claude reading, never loaded wrong.
 
 Every value keeps its raw text, the parsed `Decimal` in document units, the same in rupees, the
 1-based page number and the word's bbox `(x0, top, x1, bottom)` in PDF points from the page's
@@ -55,13 +59,13 @@ from fin.audit.errors import (
     FileEncrypted,
     FileUnreadable,
     NoTablesFound,
+    ParseError,
     PeriodsNotDetected,
     ScannedPdf,
     UnitNotDetected,
 )
 from fin.extract.periods import PHRASE, fiscal_year_of, months_in, period_of, resolve_months
 from fin.extract.units import RUPEES_PER_UNIT, unit_in
-from fin.map.normalize import normalize_label
 
 Word = dict[str, Any]
 Line = list[Word]
@@ -109,11 +113,10 @@ PRIMARY_STATEMENTS = ("balance_sheet", "profit_and_loss", "cash_flow")
 _RESULTS_TITLE = re.compile(r"financial\s+results\b", re.I)
 # In a results document, a statement numbered as a note ("1. Balance Sheet as on").
 _NUMBERED = re.compile(r"^\d{1,2}\s*[.)]\s*")
-_SCOPE_PHRASE = re.compile(r"^(standalone|consolidated)(?:\s+(?:financial\s+)?results)?:?$", re.I)
 # Top-of-page text that starts something other than a statement continued from the page before.
 _OTHER_TITLE = re.compile(r"\bstatement\b|\breport\b|^notes\b|\bnotes\s+(?:to|forming)\b", re.I)
 TITLE_LINES = 6  # how many lines from the top of a page can hold its title
-UNREAD_FIGURE_LINES = 5  # figure lines that make an untitled page naming a statement reported
+UNREAD_FIGURE_LINES = 5  # figure lines that make an untitled statement page reported
 # Words that name a primary statement in a title, however it is worded.
 _STATEMENT_WORDS = re.compile(
     r"\b(?:balance\s+sheet|statement\s+of\s+assets\s+(?:and|&)\s+liab\w*|profit\s+(?:and|&)\s+loss"
@@ -124,7 +127,7 @@ _STATEMENT_WORDS = re.compile(
 TITLE_WORDS = 5  # the statement words of a title start within its first five words
 NAMED_LINES = 12  # top lines searched for them, down to the first figure (below a letterhead)
 _FIGURE_TEXT = re.compile(r"\d[,.]\d")  # a figure with a comma or decimal point, not a page number
-LABEL_LINES = 4  # how many lines above a column header can hold period-length or scope labels
+LABEL_LINES = 4  # how many lines above a column header can hold period-length labels
 
 _MONTHS = {
     name: number
@@ -149,14 +152,13 @@ _MONTHS = {
 }
 _ORDINAL = r"(?:st|nd|rd|th)?"
 _NUMERIC_DATE = re.compile(r"\b(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{4})\b")  # 31.03.2025
-_DIGIT_GAP = re.compile(r"(?<=\d) (?=\d)")  # "3 0-06-2025": a date printed in two pieces
 _DAY_FIRST = re.compile(  # 31 March 2025, 31-Mar-2025, 30-Sep-25
     rf"\b(\d{{1,2}}){_ORDINAL}[\s,.-]*([a-z]{{3,9}})\.?[\s,.-]*(\d{{4}}|\d{{2}})\b", re.I
 )
 _MONTH_FIRST = re.compile(rf"\b([a-z]{{3,9}})\.?\s*(\d{{1,2}}){_ORDINAL}\s*,?\s*(\d{{4}})\b", re.I)
 _FY_RANGE = re.compile(r"\b(\d{4})\s*[-–]\s*(\d{2}|\d{4})\b")  # 2023-24 or 2023-2024
 _DASHES = ("-", "–", "—")
-_NUMBER = re.compile(r"^[({]?-?(?:[\d,]*\d(?:\.\d+)?|\.\d+)\)?$|^[-–—]$")
+_NUMBER = re.compile(r"^\(?-?(?:[\d,]*\d(?:\.\d+)?|\.\d+)\)?$|^[-–—]$")
 _YEAR = re.compile(r"^(19|20)\d\d$")
 _NOTE_REF = re.compile(r"^\d{1,3}(\.\d{1,2})?[a-z]?(\([a-z0-9]{1,4}\))*$|^&$|^and$", re.I)
 _SUB_HEADING = re.compile(r"^\(?\s*[a-z]{1,4}\s*\)", re.I)  # "(a)", "b)", "(iii)", "(c )"
@@ -173,8 +175,8 @@ SPREAD_STRADDLE = 2  # a landscape page with at most this many words across its 
 INDENT = 2.0  # points: a line starting this much further right is indented
 TOUCHING = 0.5  # points: figure pieces closer than this are one figure
 SPLIT_GAP = 2.5  # points: pieces this close are one figure when only together they make one
-_FIGURE_PART = re.compile(r"^[({]?[\d,.]+\)?$|^[({]$")
-_FIGURE = re.compile(r"^[({]?-?(?:\d{1,3}(?:,\d{2,3})*|\d+)(?:\.\d+)?\)?$")
+_FIGURE_PART = re.compile(r"^\(?[\d,.]+\)?$|^\($")
+_FIGURE = re.compile(r"^\(?-?(?:\d{1,3}(?:,\d{2,3})*|\d+)(?:\.\d+)?\)?$")
 # A label ending in one of these words carries on to the next line.
 _DANGLING = re.compile(r"\b(and|or|of|to|than|in|for|the|from|with|on|by)$", re.I)
 
@@ -193,7 +195,7 @@ class PdfValue:
     page: int  # 1-based
     bbox: tuple[float, float, float, float]  # x0, top, x1, bottom; points from top-left
     statement: str  # balance_sheet | profit_and_loss | cash_flow | notes
-    scope: str | None  # standalone | consolidated, None when neither page nor column says
+    scope: str | None  # standalone | consolidated, None when the title does not say
     section: str  # nearest heading line above the row, "" if none
     note: str | None  # note reference column, if the table has one
 
@@ -202,7 +204,7 @@ class PdfValue:
 class SkippedPage:
     page: int
     statement: str
-    error: DocumentFailure  # why: E201 (no full row, or an unrecognised title), E202, E203
+    error: DocumentFailure  # E201 (no full row, unrecognised title), E202, E203, E204 (misread)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -228,7 +230,6 @@ class Column:
     x0: float  # left edge of the column's header words
     x1: float  # right edge of the column's header words
     months: int | None = None  # period length its header names (fin.extract.periods.months_in)
-    scope: str | None = None  # standalone | consolidated when the header groups columns by scope
     period: str | None = None  # "FY25", "FY26-Q1", ...: set once the statement is known
 
     @property
@@ -238,17 +239,16 @@ class Column:
     @property
     def key(self) -> str:
         """Tells apart the columns of one header (two can end on the same date)."""
-        return f"{self.scope or ''}|{self.period_end.isoformat()}|{self.months}"
+        return f"{self.period_end.isoformat()}|{self.months}"
 
     @property
     def label(self) -> str:
-        """The column's name in a Markdown table: 'FY25', or its period and scope."""
-        name = self.period or (
+        """The column's name in a Markdown table: 'FY25', or its length and date."""
+        return self.period or (
             self.fiscal_year
             if self.months in (None, 12)
             else f"{self.months or 'YTD'}M to {self.period_end}"
         )
-        return f"{self.scope} {name}" if self.scope else name
 
     @property
     def center(self) -> float:
@@ -274,6 +274,7 @@ class _Page:
     scope: str | None
     unit: str
     columns: list[Column]
+    failed: DocumentFailure | None = None  # why the page was not read
 
 
 def extract_pdf(path: Path) -> PdfExtraction:
@@ -295,6 +296,12 @@ def extract_pdf(path: Path) -> PdfExtraction:
         scope = scope_of(lines, numbered=results)
         if statement is None and previous is not None and _continues(previous, number, lines):
             statement, scope = previous.statement, previous.scope
+            if previous.failed is not None:  # carries on a page that was not read: nor is it
+                if _figure_lines(lines) >= UNREAD_FIGURE_LINES:
+                    reason = f"page {number}: carries on page {previous.number}, which was not read"
+                    skipped.append(SkippedPage(number, statement, type(previous.failed)(reason)))
+                previous = None
+                continue
         if statement is None:
             untitled = _untitled_statement(lines, number)
             if untitled is not None:
@@ -304,13 +311,12 @@ def extract_pdf(path: Path) -> PdfExtraction:
         continues = (
             previous
             if previous is not None
+            and previous.failed is None
             and (previous.statement, previous.scope) == (statement, scope)
             and number - previous.number <= 1
             else None
         )
         unit = unit_of(lines) or (continues.unit if continues else None)
-        if unit is None and results and units:
-            unit = units[-1]  # a results document states its unit once, on the results page
         try:
             if unit is None:
                 raise UnitNotDetected(f"page {number}: no unit line such as '₹ in Lakhs'")
@@ -332,10 +338,10 @@ def extract_pdf(path: Path) -> PdfExtraction:
                     f"page {number}: titled as a statement, but no line has a figure under "
                     "every period column"
                 )
-        except (UnitNotDetected, PeriodsNotDetected, NoTablesFound) as exc:
+        except (UnitNotDetected, PeriodsNotDetected, NoTablesFound, ParseError) as exc:
             if statement != "notes":
                 skipped.append(SkippedPage(number, statement, exc))
-            previous = None
+            previous = _Page(number, statement, scope, unit or "", [], exc)
             continue
         previous = _Page(number, statement, scope, unit, columns)
         if statement != "notes":
@@ -343,7 +349,6 @@ def extract_pdf(path: Path) -> PdfExtraction:
             fiscal_years = fiscal_years or list(dict.fromkeys(c.period or "" for c in columns))
         values.extend(page_values)
 
-    values = _without_repeats(values)
     if not any(v.statement in PRIMARY_STATEMENTS for v in values):
         if skipped:
             reasons = "; ".join(s.error.message for s in skipped[:5])
@@ -361,16 +366,20 @@ def _untitled_statement(lines: list[Line], number: int) -> tuple[str, DocumentFa
     """(statement, E201) for a page whose top lines name a statement in words no title pattern
     matches, above at least UNREAD_FIGURE_LINES lines ending in a figure: a statement fin cannot
     read, reported rather than passed over in silence. None for any other page."""
-    figures = sum(
-        1 for line in lines if _is_value_like(line) and _FIGURE_TEXT.search(line[-1]["text"])
-    )
     named = _named_statement(lines)
-    if figures < UNREAD_FIGURE_LINES or named is None:
+    if _figure_lines(lines) < UNREAD_FIGURE_LINES or named is None:
         return None
     statement, text = named
     return statement, NoTablesFound(
         f"page {number}: {text!r} names a statement in a title fin does not recognise; "
         "the page was not read"
+    )
+
+
+def _figure_lines(lines: list[Line]) -> int:
+    """How many lines end in a figure written with a comma or decimal point."""
+    return sum(
+        1 for line in lines if _is_value_like(line) and _FIGURE_TEXT.search(line[-1]["text"])
     )
 
 
@@ -407,20 +416,6 @@ def _continues(previous: _Page, number: int, lines: list[Line]) -> bool:
         return False
     named = _named_statement(lines)
     return named is None or named[0] == previous.statement
-
-
-def _without_repeats(values: list[PdfValue]) -> list[PdfValue]:
-    """Drop a value printed twice in one statement (same scope, section, label, period and figure),
-    such as a net change in cash repeated under the closing balance."""
-    seen: set[tuple[object, ...]] = set()
-    kept = []
-    for v in values:
-        key = (v.statement, v.scope, v.section, normalize_label(v.label), v.period, v.value)
-        if v.statement != "notes" and key in seen:
-            continue
-        seen.add(key)
-        kept.append(v)
-    return kept
 
 
 def open_pdf(path: Path) -> Any:
@@ -534,18 +529,10 @@ def statement_of(lines: list[Line], numbered: bool = False) -> str | None:
 
 
 def scope_of(lines: list[Line], numbered: bool = False) -> str | None:
-    """'standalone' or 'consolidated' from the title, else from the other top lines (a running
-    header such as 'Consolidated Financial Statements'); None when they do not say."""
+    """'standalone' or 'consolidated' from the title; None when it does not say."""
     found = _title(lines, numbered)
-    if found:
-        words = [g for g in found[1].groups() if g]
-        if words:
-            return words[0].lower()
-    for line in lines[:TITLE_LINES]:
-        match = re.search(r"\b(standalone|consolidated)\b", line_text(line), re.I)
-        if match:
-            return match.group(1).lower()
-    return None
+    words = [g for g in found[1].groups() if g] if found else []
+    return words[0].lower() if words else None
 
 
 def _is_results(lines: list[Line]) -> bool:
@@ -568,14 +555,9 @@ def period_end_in(text: str) -> date | None:
     2025', '31.03.2025', '31-Mar-2025', '30-Sep-25' or '2023-24' (year ended 31 March 2024). None
     if it names no date, or a date that is not a month end (such as '1 April 2023', an opening
     balance)."""
-    numeric = [
-        match
-        for match in (_NUMERIC_DATE.search(t) for t in (text, _DIGIT_GAP.sub("", text)))
-        if match
-    ]
+    numeric = _NUMERIC_DATE.search(text)
     if numeric:
-        ends = [_month_end(int(m.group(3)), int(m.group(2)), int(m.group(1))) for m in numeric]
-        return next((end for end in ends if end is not None), None)
+        return _month_end(int(numeric.group(3)), int(numeric.group(2)), int(numeric.group(1)))
     for pattern, day_group, month_group in ((_DAY_FIRST, 1, 2), (_MONTH_FIRST, 2, 1)):
         for match in pattern.finditer(text):
             month = _MONTHS.get(match.group(month_group).lower())
@@ -635,26 +617,13 @@ def _stacks(block: list[Line]) -> list[list[Word]]:
 
 def block_columns(block: list[Line]) -> list[Column]:
     """The period columns a header block names, left to right; [] if fewer than two. Two columns
-    can end on the same date (a quarter and a year ending 31 March). When a date appears twice at
-    different heights (a title date above a column), the rightmost is the column."""
-    found: list[tuple[Column, float, float]] = []  # column, top and bottom of its words
+    can end on the same date (a quarter and a year ending 31 March)."""
+    columns = []
     for stack in _stacks(block):
-        text = " ".join(w["text"] for w in stack)
-        period = period_end_in(text)
-        if period is None:
-            continue
-        column = Column(
-            period, min(w["x0"] for w in stack), max(w["x1"] for w in stack), months_in(text)
-        )
-        top, bottom = min(w["top"] for w in stack), max(w["top"] for w in stack)
-        same = [(c, t, b) for c, t, b in found if c.period_end == period]
-        apart = (b < top - LINE_TOLERANCE or bottom < t - LINE_TOLERANCE for _, t, b in same)
-        if same and all(apart):
-            if column.x0 < min(c.x0 for c, _, _ in same):
-                continue
-            found = [item for item in found if item[0].period_end != period]
-        found.append((column, top, bottom))
-    columns = sorted((c for c, _, _ in found), key=lambda c: c.x0)
+        period = period_end_in(" ".join(w["text"] for w in stack))
+        if period is not None:
+            columns.append(Column(period, min(w["x0"] for w in stack), max(w["x1"] for w in stack)))
+    columns.sort(key=lambda c: c.x0)
     return columns if len(columns) >= 2 else []
 
 
@@ -672,53 +641,19 @@ def header_at(lines: list[Line], i: int) -> tuple[list[Column], int] | None:
     return None
 
 
-def _joins(lines: list[Line], added: int, neighbour: int) -> bool:
-    """True when line `added` can join a header that holds line `neighbour` (just above or below
-    it): it holds no figures and is close enough."""
-    return (
-        not _is_value_like(lines[added])
-        and abs(lines[added][0]["top"] - lines[neighbour][0]["top"]) <= HEADER_GAP
-    )
-
-
 def complete_header(lines: list[Line], start: int, end: int) -> tuple[list[Column], int]:
     """The columns of the header found at lines[start:end], and the index of the line after it.
-
-    The header grows by up to two lines above or below when that finds columns for dates it did
-    not have (a date split as "31 March" / "2025" around a row of "30-Sep-25" dates; a title
-    repeating a column's date adds none). Then the period-length labels
-    ("Quarter ended") and scope labels ("Standalone") in the header or in the few lines above it are
-    spread over the columns (`spread`); without such labels a column keeps the length its own
-    words name, if any."""
-    best, top, bottom = block_columns(lines[start:end]), start, end
-    upper = start
-    while upper > max(start - 2, 0) and _joins(lines, upper - 1, upper):
-        upper -= 1
-    for first in range(start, upper - 1, -1):
-        last = end
-        while True:
-            columns = block_columns(lines[first:last])
-            new = {c.period_end for c in columns} - {c.period_end for c in best}
-            if len(columns) > len(best) and new:
-                best, top, bottom = columns, first, last
-            if last >= min(end + 2, len(lines)) or not _joins(lines, last, last - 1):
-                break
-            last += 1
-    region = top
-    while region > max(top - LABEL_LINES, 0) and not _is_value_like(lines[region - 1]):
+    The period-length labels ("Quarter ended") in the header or in the few lines above it are
+    spread over the columns (`spread`)."""
+    columns = block_columns(lines[start:end])
+    region = start
+    while region > max(start - LABEL_LINES, 0) and not _is_value_like(lines[region - 1]):
         region -= 1
-    runs = [run for line in lines[region:bottom] for run in _runs(line)]
-    lengths = _labels(runs, PHRASE, best, lambda text: months_in(text))
-    scopes = _labels(runs, _SCOPE_PHRASE, best, lambda text: text.split()[0].rstrip(":").lower())
-    columns = [
-        replace(
-            column,
-            months=column.months if lengths is None else lengths[n],
-            scope=None if scopes is None else scopes[n],
-        )
-        for n, column in enumerate(best)
-    ]
-    return columns, bottom
+    runs = [run for line in lines[region:end] for run in _runs(line)]
+    lengths = _labels(runs, PHRASE, columns, months_in)
+    if lengths is not None:
+        columns = [replace(c, months=months) for c, months in zip(columns, lengths, strict=True)]
+    return columns, end
 
 
 def _labels(
@@ -768,7 +703,6 @@ def parse_number(raw: str) -> Decimal:
     """'1,234.56' -> 1234.56; '(56.67)' -> -56.67; '.82' -> 0.82; a lone dash means nil -> 0."""
     if raw in _DASHES:
         return Decimal(0)
-    raw = "(" + raw[1:] if raw.startswith("{") else raw  # a bracket read as a brace
     negative = raw.startswith("(") and raw.endswith(")") or raw.startswith("-")
     value = Decimal(raw.strip("()").lstrip("-").replace(",", ""))
     return -value if negative else value
@@ -822,21 +756,11 @@ def _join(head: str, tail: str) -> str:
     return head + tail if head.endswith("-") else f"{head} {tail}"
 
 
-def _repeats(header: list[Column], columns: list[Column]) -> bool:
-    """True when a header without scope labels repeats the dates of the scoped columns above it."""
-    return (
-        len(header) == len(columns)
-        and all(c.scope is None for c in header)
-        and any(c.scope is not None for c in columns)
-        and [c.period_end for c in header] == [c.period_end for c in columns]
-    )
-
-
 def resolve_columns(
     columns: list[Column], statement: str, page: int, *, results: bool
 ) -> list[Column]:
     """Name each column's period for this statement (`fin.extract.periods`). Raises E202 when a
-    column's period cannot be told, or two columns would hold the same period and scope."""
+    column's period cannot be told, or two columns would hold the same period."""
     where = f"page {page}"
     resolved = []
     for column in columns:
@@ -848,9 +772,9 @@ def resolve_columns(
         months = resolve_months(statement, column.period_end, column.months, where=where)
         period = period_of(column.period_end, months, where=where)
         resolved.append(replace(column, months=months, period=period))
-    names = [(c.scope, c.period) for c in resolved]
+    names = [c.period for c in resolved]
     if len(set(names)) < len(names):
-        listed = ", ".join(f"{c.scope or ''} {c.period}".strip() for c in resolved)
+        listed = ", ".join(c.period for c in resolved if c.period)
         raise PeriodsNotDetected(f"{where}: two columns hold the same period ({listed})")
     return resolved
 
@@ -886,15 +810,11 @@ def read_page(
                 (w["x0"] for ln in lines[i:end] for w in ln if _is_note(w)), None
             )
             i = end
-            if _repeats(header, columns):  # the same columns again, without the scope labels
-                header = [replace(c, scope=p.scope) for c, p in zip(header, columns, strict=True)]
             try:
                 columns = resolve_columns(header, statement, page, results=results)
             except PeriodsNotDetected:
-                if statement != "notes" and not rows:
-                    raise
                 if statement != "notes":
-                    break  # a later table on the page that cannot be read ends the statement
+                    raise
                 columns = []
                 continue
             last_text = None
@@ -953,6 +873,8 @@ def read_page(
             # A heading printed with nil dashes ("Current assets - -"), items indented below it.
             last_text, before_heading, section = words, section, label
             continue
+        if statement != "notes":
+            _check_figures(label, row, page)
         rows.append(_Row(label, row, columns, section, note, top, height, wrapped))
         last_text = None
     found_values = [
@@ -961,6 +883,20 @@ def read_page(
         for column in r.columns
     ]
     return found_values, columns
+
+
+def _check_figures(label: str, row: dict[str, Word], page: int) -> None:
+    """Raise E204 when a row's figures look misread: its label holds a figure (the page's figures
+    do not line up with their labels), or a figure has an unpaired bracket (its sign is unknown)."""
+    if _FIGURE_TEXT.search(label):
+        raise ParseError(
+            f"page {page}: the label {label[:60]!r} holds a figure; the figures do not line up "
+            "with their labels"
+        )
+    for word in row.values():
+        raw = word["text"]
+        if raw.startswith("(") != raw.endswith(")"):
+            raise ParseError(f"page {page}: figure {word['text']!r} has an unpaired bracket")
 
 
 def _value(
@@ -987,7 +923,7 @@ def _value(
         page=page,
         bbox=(word["x0"], word["top"], word["x1"], word["bottom"]),
         statement=statement,
-        scope=column.scope or scope,
+        scope=scope,
         section=row.section,
         note=row.note,
     )

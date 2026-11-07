@@ -92,9 +92,9 @@ def test_q1_results_keep_the_march_quarter_apart_from_the_march_year(tmp_path: P
     assert {v.fiscal_year for v in result.values if v.period == "FY26-Q1"} == {"FY26"}
 
 
-def test_both_scopes_side_by_side_half_year_balance_sheet_and_split_figures(
-    tmp_path: Path,
-) -> None:
+def test_both_scopes_side_by_side_are_reported_not_read(tmp_path: Path) -> None:
+    # Standalone and consolidated columns side by side hold the same periods twice: fin does not
+    # tell them apart, so both pages (the balance sheet numbered as a note) are listed as not read.
     results: Page = [
         (50, 50, "Statement of Unaudited Financial Results for the quarter and half year ended"),
         (50, 65, "(Rs. in Lakhs)"),
@@ -104,7 +104,6 @@ def test_both_scopes_side_by_side_half_year_balance_sheet_and_split_figures(
         (312, 90, "Half year ended"),
         (406, 90, "Quarter ended"),
         (492, 90, "Half year ended"),
-        # d-Mon-yy dates; columns 1-2 and 4-5 are quarters, 3 and 6 half years.
         (205, 102, "30-Sep-25"),
         (265, 102, "30-Sep-24"),
         (325, 102, "30-Sep-25"),
@@ -112,22 +111,12 @@ def test_both_scopes_side_by_side_half_year_balance_sheet_and_split_figures(
         (445, 102, "30-Sep-24"),
         (505, 102, "30-Sep-25"),
         (50, 120, "Revenue from operations"),
-        # "1,210." and "00" a point apart are one figure; so are "(" and "5.00)".
-        (207, 120, "1,210."),
-        (236, 120, "00"),
+        (207, 120, "1,210.00"),
         (267, 120, "1,020.00"),
         (327, 120, "2,310.00"),
         (387, 120, "1,300.00"),
         (447, 120, "1,100.00"),
         (507, 120, "2,500.00"),
-        (50, 135, "Exceptional items"),
-        (207, 135, "("),
-        (212, 135, "5.00)"),
-        (267, 135, "-"),
-        (327, 135, "(5.00)"),
-        (387, 135, "(5.00)"),
-        (447, 135, "-"),
-        (507, 135, "(5.00)"),
     ]
     balance_sheet: Page = [
         (50, 50, "Notes:"),
@@ -147,25 +136,16 @@ def test_both_scopes_side_by_side_half_year_balance_sheet_and_split_figures(
     ]
     path = write_pdf(tmp_path / "q2.pdf", results, balance_sheet)
 
-    assert rows(path) == [
-        (1, "profit_and_loss", "standalone", "FY26-Q2", 3, "Revenue from operations", "1,210.00"),
-        (1, "profit_and_loss", "standalone", "FY25-Q2", 3, "Revenue from operations", "1,020.00"),
-        (1, "profit_and_loss", "standalone", "FY26-H1", 6, "Revenue from operations", "2,310.00"),
-        (1, "profit_and_loss", "consolidated", "FY26-Q2", 3, "Revenue from operations", "1,300.00"),
-        (1, "profit_and_loss", "consolidated", "FY25-Q2", 3, "Revenue from operations", "1,100.00"),
-        (1, "profit_and_loss", "consolidated", "FY26-H1", 6, "Revenue from operations", "2,500.00"),
-        (1, "profit_and_loss", "standalone", "FY26-Q2", 3, "Exceptional items", "(5.00)"),
-        (1, "profit_and_loss", "standalone", "FY25-Q2", 3, "Exceptional items", "-"),
-        (1, "profit_and_loss", "standalone", "FY26-H1", 6, "Exceptional items", "(5.00)"),
-        (1, "profit_and_loss", "consolidated", "FY26-Q2", 3, "Exceptional items", "(5.00)"),
-        (1, "profit_and_loss", "consolidated", "FY25-Q2", 3, "Exceptional items", "-"),
-        (1, "profit_and_loss", "consolidated", "FY26-H1", 6, "Exceptional items", "(5.00)"),
-        # A balance sheet is a point in time: 30 Sep closes the first half, 31 March the year.
-        (2, "balance_sheet", "standalone", "FY26-H1", 6, "TOTAL ASSETS", "500.00"),
-        (2, "balance_sheet", "standalone", "FY25", 12, "TOTAL ASSETS", "450.00"),
-        (2, "balance_sheet", "consolidated", "FY26-H1", 6, "TOTAL ASSETS", "600.00"),
-        (2, "balance_sheet", "consolidated", "FY25", 12, "TOTAL ASSETS", "550.00"),
+    with pytest.raises(PeriodsNotDetected) as caught:
+        extract_pdf(path)
+
+    assert [(p["page"], p["statement"], p["code"]) for p in caught.value.pages] == [
+        (1, "profit_and_loss", "E202"),
+        (2, "balance_sheet", "E202"),
     ]
+    assert caught.value.pages[1]["reason"] == (
+        "page 2: two columns hold the same period (FY26-H1, FY25, FY26-H1, FY25)"
+    )
 
 
 def test_results_columns_that_do_not_name_their_length_are_e202(tmp_path: Path) -> None:
