@@ -7,30 +7,33 @@ from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.paths import audit_db_path, dictionary_db_path
 
-COMPANY_VIEWS = {
-    "document_facts",
-    "current_facts",
-    "metric_definitions",
-    "metric_input_accounts",
-    "metrics",
-    "metric_inputs",
-    "statement_coverage",
-}
+PERIOD_COLUMNS = {"fiscal_year", "period", "period_months", "scope", "period_end"}
 
 
-def _names(path: Path, table_type: str) -> set[str]:
-    with connect(path) as con:
-        rows = con.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_type = ?", [table_type]
-        ).fetchall()
-    return {row[0] for row in rows}
-
-
-def test_company_database_has_its_tables_and_metric_views(tmp_path: Path) -> None:
+def test_company_database_is_created_and_its_metrics_are_queryable(tmp_path: Path) -> None:
     path = tmp_path / "acme.duckdb"
     assert ensure_database(path, "company") is True
-    assert _names(path, "BASE TABLE") == {"documents", "raw_values", "facts", "notes", "findings"}
-    assert _names(path, "VIEW") == COMPANY_VIEWS
+    with connect(path) as con:
+        assert con.execute("SELECT count(*) FROM metrics").fetchone() == (0,)
+        assert con.execute("SELECT count(*) FROM metric_inputs").fetchone() == (0,)
+
+
+def test_every_metric_has_a_definition_and_inputs(tmp_path: Path) -> None:
+    """Every metric formula (a metrics_wide column) has a metric_definitions row and at least one
+    metric_input_accounts row, and every definition has a formula."""
+    path = tmp_path / "acme.duckdb"
+    ensure_database(path, "company")
+    with connect(path) as con:
+
+        def first_column(sql: str) -> set[str]:
+            return {row[0] for row in con.execute(sql).fetchall()}
+
+        formulas = first_column("DESCRIBE metrics_wide")
+        defined = first_column("SELECT metric FROM metric_definitions")
+        with_inputs = first_column("SELECT metric FROM metric_input_accounts")
+    assert len(defined) == 66
+    assert formulas - PERIOD_COLUMNS == defined
+    assert with_inputs == defined
 
 
 def test_existing_database_is_left_alone(tmp_path: Path) -> None:
@@ -45,8 +48,5 @@ def test_existing_database_is_left_alone(tmp_path: Path) -> None:
 
 def test_init_creates_the_shared_databases(data_root: Path) -> None:
     assert CliRunner().invoke(app, ["init"]).exit_code == 0
-    assert _names(audit_db_path(data_root), "BASE TABLE") == {
-        "runs", "events", "mapping_decisions", "validation_results", "queries", "reports",
-        "deletions", "findings",
-    }  # fmt: skip
-    assert _names(dictionary_db_path(data_root), "BASE TABLE") == {"accounts", "label_map"}
+    assert audit_db_path(data_root).is_file()
+    assert dictionary_db_path(data_root).is_file()

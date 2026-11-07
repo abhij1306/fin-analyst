@@ -12,21 +12,21 @@
 - peers (optional): the key metrics of other companies for the latest fiscal year all have.
 
 `data_hash` is the SHA-256 of all of it as sorted JSON, so the same data always gives the same hash.
-Ratios, growth and days are computed in SQL; Python only formats them for display.
+Ratios, growth and days are computed in SQL; `fin.report.tables` only formats them for display.
 """
 
 import hashlib
 import json
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from fin.audit.errors import ReportRenderFailed
 from fin.db.conn import connect
+from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
 from fin.paths import company_db_path
 from fin.statements import STATEMENTS, statement_rows
-from fin.statements import TITLES as STATEMENT_TITLES
 
 YEARS_SHOWN = 5  # fiscal years in the trend tables (the latest ones)
 QUARTERS_SHOWN = 5
@@ -54,97 +54,8 @@ TITLES = {
     "findings": "Findings",
     "coverage": "Data coverage",
 }
-
-# Metric display names, in table order within each category. A metric not listed (one added
-# later) comes after them, under its own name.
-LABELS = {
-    "revenue": "Revenue",
-    "pat": "Profit after tax",
-    "gross_margin": "Gross margin",
-    "ebitda": "EBITDA",
-    "ebitda_margin": "EBITDA margin",
-    "ebit": "EBIT",
-    "ebit_margin": "EBIT margin",
-    "pbt_margin": "PBT margin",
-    "pat_margin": "PAT margin",
-    "roe": "ROE",
-    "roce": "ROCE",
-    "roa": "ROA",
-    "roe_avg": "ROE (average equity)",
-    "roce_avg": "ROCE (average capital)",
-    "roa_avg": "ROA (average assets)",
-    "current_ratio": "Current ratio",
-    "quick_ratio": "Quick ratio",
-    "cash_ratio": "Cash ratio",
-    "debt_to_equity": "Debt / equity",
-    "debt_to_ebitda": "Debt / EBITDA",
-    "net_debt": "Net debt",
-    "net_debt_to_ebitda": "Net debt / EBITDA",
-    "interest_cover": "Interest cover",
-    "debt_to_assets": "Debt / assets",
-    "asset_turnover": "Asset turnover",
-    "fixed_asset_turnover": "Fixed asset turnover",
-    "receivable_days": "Receivable days",
-    "inventory_days": "Inventory days",
-    "payable_days": "Payable days",
-    "cash_conversion_cycle": "Cash conversion cycle",
-    "cfo": "Cash from operations",
-    "free_cash_flow": "Free cash flow",
-    "cfo_to_ebitda": "CFO / EBITDA",
-    "cfo_to_pat": "CFO / PAT",
-    "capex_to_revenue": "Capex / revenue",
-    "capex_to_depreciation": "Capex / depreciation",
-    "revenue_growth": "Revenue growth",
-    "revenue_growth_qoq": "Revenue growth on the previous quarter",
-    "ebitda_growth": "EBITDA growth",
-    "pat_growth": "PAT growth",
-    "total_assets_growth": "Total assets growth",
-    "total_equity_growth": "Total equity growth",
-    "revenue_cagr_3y": "Revenue CAGR, 3 years",
-    "revenue_cagr_5y": "Revenue CAGR, 5 years",
-    "ebitda_cagr_3y": "EBITDA CAGR, 3 years",
-    "ebitda_cagr_5y": "EBITDA CAGR, 5 years",
-    "pat_cagr_3y": "PAT CAGR, 3 years",
-    "pat_cagr_5y": "PAT CAGR, 5 years",
-    "total_assets_cagr_3y": "Total assets CAGR, 3 years",
-    "total_assets_cagr_5y": "Total assets CAGR, 5 years",
-    "total_equity_cagr_3y": "Total equity CAGR, 3 years",
-    "total_equity_cagr_5y": "Total equity CAGR, 5 years",
-    "other_income_to_pbt": "Other income / PBT",
-    "exceptional_items_to_pbt": "Exceptional items / PBT",
-    "effective_tax_rate": "Effective tax rate",
-    "eps_basic": "EPS, basic",
-    "eps_diluted": "EPS, diluted",
-    "net_interest_income": "Net interest income",
-    "cost_to_income": "Cost to income",
-    "credit_cost": "Credit cost",
-    "assets_to_equity": "Assets / equity",
-    "ttm_revenue": "Revenue, last four quarters",
-    "ttm_ebitda": "EBITDA, last four quarters",
-    "ttm_pat": "PAT, last four quarters",
-    "ttm_ebitda_margin": "EBITDA margin, last four quarters",
-    "ttm_pat_margin": "PAT margin, last four quarters",
-}
-FACT_LABELS = {"revenue": "Revenue", "pat": "Profit after tax"}
 # Facts shown at the top of a category table (for a year, revenue and PAT are facts).
 CATEGORY_FACTS = {"growth": ["revenue", "pat"]}
-
-# Ratios shown as times ("2.35x"); every other ratio is shown as a percentage.
-TIMES = {
-    "current_ratio",
-    "quick_ratio",
-    "cash_ratio",
-    "debt_to_equity",
-    "debt_to_ebitda",
-    "net_debt_to_ebitda",
-    "interest_cover",
-    "asset_turnover",
-    "fixed_asset_turnover",
-    "cfo_to_ebitda",
-    "cfo_to_pat",
-    "capex_to_depreciation",
-    "assets_to_equity",
-}
 
 # One chart per category where a trend picture helps: metrics of one unit, at most four.
 CHARTS = {
@@ -190,16 +101,8 @@ QUARTER_ROWS = [
     "ttm_pat_margin",
 ]
 
-# Display unit (config.toml [display] unit) -> (rupees per unit, suffix).
-MONEY_UNITS = {
-    "rupees": (Decimal(1), ""),
-    "thousands": (Decimal(1000), " thousand"),
-    "lakhs": (Decimal(100000), " lakh"),
-    "crores": (Decimal(10000000), " Cr"),
-}
-
 _METRICS_SQL = """
-SELECT m.metric, m.period, m.period_months, m.value, m.unit, m.category
+SELECT m.metric, m.period, m.period_months, m.value, m.unit
 FROM metrics m WHERE m.scope = ?
 ORDER BY m.metric, m.period_end, m.period_months DESC
 """
@@ -211,7 +114,7 @@ ORDER BY period_end, period_months DESC
 
 _FACTS_SQL = """
 SELECT cf.account, cf.period, cf.period_months, cf.value, cf.fact_id, d.file_name,
-       coalesce(r.sheet || '!' || r.cell, 'page ' || r.page) AS source_ref
+       source_ref(r.sheet, r.cell, r.page) AS source_ref
 FROM current_facts cf
 JOIN facts f ON f.fact_id = cf.fact_id
 JOIN raw_values r ON r.raw_id = f.raw_id
@@ -222,7 +125,10 @@ ORDER BY cf.account, cf.period_end, cf.period_months DESC
 
 _SCOPES_SQL = "SELECT DISTINCT scope FROM metrics ORDER BY scope"
 
-_DEFINITIONS_SQL = "SELECT metric, category, unit, definition, formula FROM metric_definitions"
+_DEFINITIONS_SQL = """
+SELECT metric, label, times, category, unit, definition, formula FROM metric_definitions
+ORDER BY position
+"""
 
 _METRIC_ACCOUNTS_SQL = "SELECT DISTINCT account FROM metric_input_accounts ORDER BY account"
 
@@ -272,30 +178,21 @@ WHERE status = 'loaded' AND unread_pages IS NOT NULL ORDER BY doc_id
 """
 
 
-def _rows(con: Any, sql: str, params: list[Any]) -> list[dict[str, Any]]:
-    result = con.execute(sql, params)
-    columns = [column[0] for column in result.description]
-    return [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
-
-
 def _scope_data(con: Any, scope: str) -> dict[str, Any]:
     """Metrics (every period), periods and facts of one scope."""
-    periods = _rows(con, _PERIODS_SQL, [scope])
+    periods = fetch_dicts(con, _PERIODS_SQL, [scope])
     metrics: dict[str, dict[str, Decimal | None]] = {}
     units: dict[str, str] = {}
-    categories: dict[str, str] = {}
-    for row in _rows(con, _METRICS_SQL, [scope]):
+    for row in fetch_dicts(con, _METRICS_SQL, [scope]):
         metrics.setdefault(row["metric"], {})[row["period"]] = row["value"]
         units[row["metric"]] = row["unit"]
-        categories[row["metric"]] = row["category"]
     return {
         "years": [p["period"] for p in periods if p["period_months"] == 12],
         "quarters": [p["period"] for p in periods if p["period_months"] == 3],
         "periods": [p["period"] for p in periods],
         "metrics": metrics,
         "metric_units": units,
-        "metric_categories": categories,
-        "facts": _rows(con, _FACTS_SQL, [scope]),
+        "facts": fetch_dicts(con, _FACTS_SQL, [scope]),
     }
 
 
@@ -352,12 +249,12 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
         scopes = [r[0] for r in con.execute(_SCOPES_SQL).fetchall()]
         by_scope = {s: _scope_data(con, s) for s in scopes}
         main = by_scope.get(scope) or _scope_data(con, scope)
-        definitions = _rows(con, _DEFINITIONS_SQL, [])
+        definitions = fetch_dicts(con, _DEFINITIONS_SQL, [])
         metric_accounts = [row[0] for row in con.execute(_METRIC_ACCOUNTS_SQL).fetchall()]
-        unconfirmed = _rows(con, _UNCONFIRMED_SQL, [scope])
-        missing = _rows(con, _MISSING_SQL, [scope])
-        findings = _rows(con, _FINDINGS_SQL, [scope])
-        coverage = _rows(con, _COVERAGE_SQL, [scope, list(STATEMENTS)])
+        unconfirmed = fetch_dicts(con, _UNCONFIRMED_SQL, [scope])
+        missing = fetch_dicts(con, _MISSING_SQL, [scope])
+        findings = fetch_dicts(con, _FINDINGS_SQL, [scope])
+        coverage = fetch_dicts(con, _COVERAGE_SQL, [scope, list(STATEMENTS)])
         unread = [
             {"file_name": file_name, **page}
             for file_name, pages in con.execute(_UNREAD_SQL).fetchall()
@@ -367,7 +264,7 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
         raise ReportRenderFailed(
             f"{company} has no annual {scope} data to report on: the health report covers fiscal "
             "years (load an annual report, or results with a 'Year ended' column); quarter and "
-            "half-year figures are in `fin query` and the dashboard"
+            "half-year figures are in `fin sql` and the dashboard"
         )
     shown = main["years"][-YEARS_SHOWN:]
     present = set(main["metrics"])
@@ -384,9 +281,10 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
             if d["years"]
         },
         "statements": _condensed_statements(root, company, scope, shown),
+        # In report order: by category, then metric_definitions order.
         "definitions": sorted(
             (d for d in definitions if d["metric"] in present),
-            key=lambda d: (_category_order(d["category"]), _metric_order(d["metric"])),
+            key=lambda d: _category_order(d["category"]),
         ),
         "metric_accounts": metric_accounts,
         "unconfirmed": unconfirmed,
@@ -401,11 +299,6 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
 def _category_order(category: str) -> int:
     keys = [key for key, _ in CATEGORIES] + ["ttm", "headline"]
     return keys.index(category) if category in keys else len(keys)
-
-
-def _metric_order(metric: str) -> tuple[int, str]:
-    labels = list(LABELS)
-    return (labels.index(metric) if metric in labels else len(labels), metric)
 
 
 def to_json(data: Any) -> str:
@@ -428,245 +321,3 @@ def value_of(data: dict[str, Any], kind: str, name: str, period: str) -> Decimal
     if kind == "fact":
         return fact_value(data, name, period)
     return data["metrics"].get(name, {}).get(period)
-
-
-# Display formatting.
-
-
-def money(value: Decimal | None, display_unit: str) -> str:
-    if value is None:
-        return "n/a"
-    per_unit, suffix = MONEY_UNITS[display_unit]
-    amount = (value / per_unit).quantize(Decimal("0.01"), ROUND_HALF_UP)
-    sign = "-" if amount < 0 else ""
-    return f"{sign}₹{abs(amount):,.2f}{suffix}"
-
-
-def metric_text(metric: str, unit: str, value: Decimal | None, display_unit: str) -> str:
-    if value is None:
-        return "n/a"
-    if unit == "rupees":
-        return money(value, display_unit)
-    if unit == "rupees_per_share":
-        return f"₹{value.quantize(Decimal('0.01'), ROUND_HALF_UP)}"
-    if unit == "days":
-        return f"{value.quantize(Decimal('0.1'), ROUND_HALF_UP)} days"
-    if metric in TIMES:
-        return f"{value.quantize(Decimal('0.01'), ROUND_HALF_UP)}x"
-    return f"{(value * 100).quantize(Decimal('0.1'), ROUND_HALF_UP)}%"
-
-
-def label(metric: str) -> str:
-    return LABELS.get(metric, metric)
-
-
-def cell(data: dict[str, Any], kind: str, name: str, period: str, display_unit: str) -> str:
-    value = value_of(data, kind, name, period)
-    if kind == "fact":
-        return money(value, display_unit)
-    return metric_text(name, data["metric_units"][name], value, display_unit)
-
-
-def table(header: list[str], rows: list[list[str]], empty: str) -> str:
-    """A Markdown pipe table, or `empty` (a sentence) when there are no rows."""
-    if not rows:
-        return empty
-
-    def line(cells: list[str]) -> str:
-        return "| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |"
-
-    return "\n".join([line(header), "|" + "|".join("---" for _ in header) + "|", *map(line, rows)])
-
-
-def trend_table(
-    data: dict[str, Any], rows: list[tuple[str, str]], periods: list[str], display_unit: str
-) -> str:
-    body = [
-        [FACT_LABELS[name] if kind == "fact" else label(name)]
-        + [cell(data, kind, name, p, display_unit) for p in periods]
-        for kind, name in rows
-    ]
-    return table(["", *periods], body, "")
-
-
-def category_rows(data: dict[str, Any], category: str) -> list[tuple[str, str]]:
-    """The facts and metrics a category table shows: metrics with rows in this scope's years."""
-    metrics = [
-        m
-        for m, c in data["metric_categories"].items()
-        if c == category and any(p in data["metrics"][m] for p in data["years"])
-    ]
-    facts = [("fact", a) for a in CATEGORY_FACTS.get(category, []) if metrics]
-    return facts + [("metric", m) for m in sorted(metrics, key=_metric_order)]
-
-
-def summary_tables(data: dict[str, Any], display_unit: str) -> str:
-    """One key-metrics table per scope the company has (both scopes where present)."""
-    parts = []
-    for scope, s in data["summary"].items():
-        body = []
-        for kind, name, values in s["rows"]:
-            unit = "rupees" if kind == "fact" else data["metric_units"].get(name, "ratio")
-            text = (
-                [money(values[y], display_unit) for y in s["years"]]
-                if kind == "fact"
-                else [metric_text(name, unit, values[y], display_unit) for y in s["years"]]
-            )
-            body.append([FACT_LABELS[name] if kind == "fact" else label(name), *text])
-        parts.append(f"**{scope.capitalize()}**\n\n" + table(["", *s["years"]], body, ""))
-    return "\n\n".join(parts)
-
-
-def quarters_table(data: dict[str, Any], display_unit: str) -> str:
-    quarters = data["quarters"][-QUARTERS_SHOWN:]
-    rows = [
-        ("metric", m)
-        for m in QUARTER_ROWS
-        if m in data["metrics"] and any(q in data["metrics"][m] for q in quarters)
-    ]
-    return trend_table(data, rows, quarters, display_unit)
-
-
-def peers_table(data: dict[str, Any], display_unit: str) -> str:
-    peers = data["peers"]
-    if peers["year"] is None:
-        return (
-            f"No fiscal year is loaded for every company ({', '.join(peers['companies'])}) in "
-            f"{data['scope']} figures, so there is no comparison."
-        )
-    year = peers["year"]
-    values: dict[tuple[str, str], dict[str, Decimal | None]] = {}
-    for company, rows in peers["rows"].items():
-        for kind, name, by_year in rows:
-            values.setdefault((kind, name), {})[company] = by_year[year]
-    body = []
-    for kind, name in KEY_ROWS:
-        if (kind, name) not in values:
-            continue
-        cells = []
-        for company in peers["companies"]:
-            value = values[(kind, name)].get(company)
-            if kind == "fact":
-                cells.append(money(value, display_unit))
-            else:
-                cells.append(metric_text(name, data["metric_units"][name], value, display_unit))
-        body.append([FACT_LABELS[name] if kind == "fact" else label(name), *cells])
-    return f"Fiscal year {year}, {data['scope']}.\n\n" + table(["", *peers["companies"]], body, "")
-
-
-def statements_tables(data: dict[str, Any], display_unit: str) -> str:
-    """The condensed statements: subtotals only, one table per statement."""
-    parts = []
-    years = data["years"][-YEARS_SHOWN:]
-    for statement in STATEMENTS:
-        lines: dict[tuple[int, str], dict[str, Decimal]] = {}
-        for r in data["statements"]:
-            if r["statement"] == statement:
-                lines.setdefault((r["line_no"], r["label"]), {})[r["period"]] = r["value"]
-        if not lines:
-            continue
-        body = [
-            [name, *(money(by_year.get(y), display_unit) for y in years)]
-            for (_, name), by_year in sorted(lines.items())
-        ]
-        title = STATEMENT_TITLES[statement]
-        parts.append(f"### {title}\n\n" + table(["", *years], body, ""))
-    return "\n\n".join(parts) or "No statements."
-
-
-def definitions_table(data: dict[str, Any]) -> str:
-    return table(
-        ["Category", "Metric", "Definition", "Formula"],
-        [
-            [
-                d["category"].replace("_", " "),
-                f"{label(d['metric'])} (`{d['metric']}`)",
-                d["definition"],
-                f"`{d['formula']}`",
-            ]
-            for d in data["definitions"]
-        ],
-        "No metrics.",
-    )
-
-
-def findings_table(data: dict[str, Any], display_unit: str) -> str:
-    def with_source(value: Decimal | None, source: str | None, file: str | None = None) -> str:
-        where = ", ".join(x for x in (file, source) if x)
-        return money(value, display_unit) + (f" ({where})" if where else "")
-
-    return table(
-        ["Finding", "Document", "Check", "Period", "Line", "This document", "Compared with"],
-        [
-            [
-                row["status"],
-                f"{row['file_name'] or ''} ({row['document_status']})",
-                row["code"],
-                row["period"] or "",
-                row["label"] or "",
-                with_source(row["fin_value"], row["fin_source"]),
-                with_source(row["other_value"], row["other_source"], row["other_file"]),
-            ]
-            for row in data["findings"]
-        ],
-        "No open or accepted findings.",
-    )
-
-
-def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
-    coverage = table(
-        ["Statement", "Figures read", "Mapped", "Mapped share", "Read by Claude, unverified"],
-        [
-            [
-                STATEMENT_TITLES[row["statement"]],
-                str(row["figures"]),
-                str(row["mapped"]),
-                metric_text("mapped_share", "ratio", row["mapped_share"], "rupees"),
-                str(row["claude_unverified"]),
-            ]
-            for row in data["coverage"]
-        ],
-        "No figures loaded.",
-    )
-    unread = table(
-        ["File", "Statement", "Page", "Reason"],
-        [
-            [row["file_name"], row["statement"], str(row["page"]), f"{row['code']} {row['reason']}"]
-            for row in data["unread"]
-        ],
-        "None: fin read every statement page of the loaded documents.",
-    )
-    unconfirmed = table(
-        ["File", "Label", "Periods"],
-        [[row["file_name"], row["raw_label"], row["years"]] for row in data["unconfirmed"]],
-        "No unconfirmed mappings.",
-    )
-    missing = table(
-        ["Year", "Metric", "Missing inputs"],
-        [
-            [row["fiscal_year"], label(row["metric"]), row["missing_inputs"]]
-            for row in data["missing"]
-        ],
-        "No missing data: every metric has a value.",
-    )
-    return {"coverage": coverage, "unread": unread, "unconfirmed": unconfirmed, "missing": missing}
-
-
-def facts_table(data: dict[str, Any], display_unit: str) -> str:
-    used = set(data["metric_accounts"])
-    years = set(data["years"])
-    return table(
-        ["Account", "Year", "Value", "File", "Source"],
-        [
-            [
-                f"`{row['account']}`",
-                row["period"],
-                money(row["value"], display_unit),
-                row["file_name"],
-                row["source_ref"],
-            ]
-            for row in data["facts"]
-            if row["account"] in used and row["period"] in years
-        ],
-        "No facts.",
-    )

@@ -21,7 +21,7 @@ import re
 import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -38,14 +38,12 @@ from fin.audit.errors import (
     PeriodsNotDetected,
     UnitNotDetected,
 )
-from fin.extract.periods import months_in
-from fin.extract.units import to_rupees, unit_in
+from fin.extract.periods import MONTHS, months_in
+from fin.extract.units import parse_figure, to_rupees, unit_in
 
 # An encrypted .xlsx is not a zip file but an OLE compound file with this signature.
 _OLE_SIGNATURE = bytes.fromhex("d0cf11e0a1b11ae1")
 
-_MONTH_NAMES = "jan feb mar apr may jun jul aug sep oct nov dec".split()
-_MONTHS = {name: number for number, name in enumerate(_MONTH_NAMES, start=1)}
 _PERIOD_PREFIX = (
     r"(?:(?:as\s+(?:at|on)|(?:for\s+the\s+)?(?:year|period|quarter|half[\s-]*year"
     r"|(?:three|six|nine|twelve)\s+months?)\s+(?:ended|ending))\s+)?"
@@ -68,7 +66,6 @@ _STATEMENTS = (
     ("balance_sheet", re.compile(r"balance\s*sheet|\bbs\b")),
     ("profit_and_loss", re.compile(r"profit|p\s*&\s*l|\bloss\b|income\s+statement")),
 )
-_NIL = ("-", "–", "—")
 
 
 @dataclass(frozen=True)
@@ -137,9 +134,9 @@ def parse_period(value: Any) -> date | None:
         if order == "dmy":
             day, month, year = int(a), int(b), int(c)
         elif order == "dMy":
-            day, month, year = int(a), _MONTHS.get(b[:3], 0), int(c)
+            day, month, year = int(a), MONTHS.get(b[:3], 0), int(c)
         else:
-            day, month, year = int(b), _MONTHS.get(a[:3], 0), int(c)
+            day, month, year = int(b), MONTHS.get(a[:3], 0), int(c)
         try:
             return date(year, month, day)
         except ValueError:
@@ -164,22 +161,19 @@ def scope_in(text: str) -> str | None:
 
 
 def parse_number(value: Any, where: str) -> tuple[str, Decimal]:
-    """A value cell as (raw text, Decimal). Text such as "1,234.50" or "(56.67)" is accepted and a
-    lone dash means nil. Raises E204 for anything else."""
+    """A value cell as (raw text, Decimal). Text is read as a printed figure
+    (`fin.extract.units.parse_figure`: "1,234.50", "(56.67)", a dash or "nil" for nil). Raises
+    E204 for anything else."""
     if isinstance(value, bool):
         raise ParseError(f"{where}: TRUE/FALSE where a number was expected")
     if isinstance(value, int | float):
         raw = repr(value) if isinstance(value, float) else str(value)
         return raw, Decimal(raw)
     text = str(value).strip()
-    if text in _NIL:
-        return text, Decimal(0)
-    negative = text.startswith("(") and text.endswith(")")
-    try:
-        number = Decimal(text.strip("()").replace(",", ""))
-    except InvalidOperation as exc:
-        raise ParseError(f"{where}: {text!r} is not a number") from exc
-    return text, -number if negative else number
+    number = parse_figure(text)
+    if number is None:
+        raise ParseError(f"{where}: {text!r} is not a number")
+    return text, number
 
 
 def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[ExcelValue] | None:

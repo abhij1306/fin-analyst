@@ -327,7 +327,7 @@ def test_report_says_cleanly_when_there_is_no_annual_data(root: Path, tmp_path: 
     assert result.stderr.splitlines()[0] == (
         "E601: acme has no annual standalone data to report on: the health report covers fiscal "
         "years (load an annual report, or results with a 'Year ended' column); quarter and "
-        "half-year figures are in `fin query` and the dashboard"
+        "half-year figures are in `fin sql` and the dashboard"
     )
 
 

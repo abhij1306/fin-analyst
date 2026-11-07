@@ -18,6 +18,7 @@ from openpyxl.workbook.workbook import Workbook
 from fin.audit.errors import DataFolderNotWritable, EvidenceSourceMissing
 from fin.audit.logger import Run
 from fin.db.conn import connect
+from fin.db.rows import fetch_dicts
 from fin.extract.pdf import render_crop
 from fin.paths import company_db_path
 
@@ -26,6 +27,7 @@ GRID_ROWS_AROUND = 2  # rows shown above and below an Excel value
 FACT_SQL = """
 SELECT f.fact_id, f.account, f.fiscal_year, f.period, f.scope, f.value, f.confirmed,
        r.raw_label, r.raw_value_text, r.raw_unit, r.sheet, r.cell, r.page, r.bbox,
+       source_ref(r.sheet, r.cell, r.page) AS source_ref,
        d.file_name, d.archive_path
 FROM raw_values r
 JOIN documents d ON d.doc_id = r.doc_id
@@ -58,7 +60,7 @@ def _grid(workbook: Workbook, sheet: str, cell: str) -> str:
 
 def _fact_section(run: Run, fact: dict[str, Any], folder: Path, books: dict[Path, Workbook]) -> str:
     """One fact's evidence: details, then the crop or grid, or an E604 flag."""
-    ref = f"{fact['sheet']}!{fact['cell']}" if fact["sheet"] else f"page {fact['page']}"
+    ref = fact["source_ref"]
     status = "confirmed" if fact["confirmed"] else "UNCONFIRMED mapping"
     title = (
         f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['period']} "
@@ -131,10 +133,7 @@ def write_evidence(
     sections = []
     with connect(company_db_path(run.root, company)) as con:
         for id_ in ids:
-            found = con.execute(FACT_SQL.format(column=ID_COLUMN[column]), [id_])
-            names = [d[0] for d in found.description or []]
-            for record in found.fetchall():
-                fact = dict(zip(names, record, strict=True))
+            for fact in fetch_dicts(con, FACT_SQL.format(column=ID_COLUMN[column]), [id_]):
                 sections.append(_fact_section(run, fact, folder, books))
     unconfirmed = sum(1 for row in rows if row.get("source_confirmed") is False)
     if unconfirmed:

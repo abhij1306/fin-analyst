@@ -10,7 +10,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
 - `audit/errors.py`: error classes and codes (E001 to E701). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
-- `db/conn.py`: the only way to open a database. `db/schema.py`: creates a database from its schema file.
+- `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
+  database from its schema file.
   `db/schema/<kind>.sql`: the schema (`audit`, `dictionary`, `analytics`, `company`; the company metric views are
   in `company_views.sql`).
 - `ingest.py`: loads one document in one transaction (stage, check, commit, or roll back on an error).
@@ -28,8 +29,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   coverage, unread pages and unverified facts to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
 - `statements.py`: the `standard_statements` view (made per connection from the dictionary's account tree) and
   `fin statements`. `workbook.py`: `fin export` (the Excel workbook).
-- `query/`: `run.py` (`fin sql`, read), `write.py` (`fin sql --write`), `evidence.py` (`fin sql --evidence` pages).
-- `report/`: `data.py` (what the report reads, categories, labels, tables), `chart.py` (the SVG line chart),
+- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`), `evidence.py` (`fin sql --evidence` pages).
+- `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
+  Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).
 - `delete.py`, `update.py`, `doctor.py`: `fin delete`, `fin update`, `fin doctor`.
 - Outside `src/`: `templates/dictionary/` (seed CSVs), `templates/report/health.qmd`, `.claude/commands/` (slash
@@ -106,16 +108,19 @@ one value per account, period and scope; ratios use `div6`; nothing is guessed).
    `efficiency`, `cash_flow`, `growth`, `earnings_quality`, `per_share`, `lender`, `ttm`, `headline`, or a new
    one), unit (`rupees`, `rupees_per_share`, `ratio` or `days`), periods (`annual`, `all`, `interim` or
    `quarter`), when_missing (`null` keeps a NULL row so the report can say which input is missing; `absent` leaves
-   the row out, for metrics only some companies have), a plain-English definition and the formula in words.
+   the row out, for metrics only some companies have), its display label, whether a ratio shows as times
+   (`true`: "2.35x"; `false`: a percentage), a plain-English definition and the formula in words. The row's place
+   in the list is its order in the report.
 2. `metric_input_accounts`: list the accounts it uses and from which period (`same`, `year-1`, `quarter-1`, ...),
    so `fin audit <co> <metric> <period>` and `metric_inputs` can trace it.
-3. `metrics` view: if it needs an account not read yet, add a `max(p) FILTER (WHERE account = '...')` line to
-   `period_inputs` (and a join in `derived` for an earlier period). Add the formula to `wide`, on integer paise
-   (`div6` for a ratio, `rupees` for money, `growth6` / `cagr6` for growth), and its name to the `UNPIVOT` list.
+3. `metrics_wide` view: if it needs an account not read yet, add a `max(p) FILTER (WHERE account = '...')`
+   line to `period_inputs` (and a join in `derived` for an earlier period). Add the formula as a column of its
+   final SELECT, on integer paise (`div6` for a ratio, `rupees` for money, `growth6` / `cagr6` for growth); every
+   column there becomes a row of `metrics`. `tests/unit/test_schema.py` checks that steps 1 to 3 agree.
 4. The views only exist in a company database when it is created, so apply the change to existing ones too:
    re-create the data folder (`fin init` and ingest again), or run the edited `CREATE OR REPLACE VIEW` statements
    through `fin sql --write` on each company.
-5. Optionally show it in the report: add it to `SECTIONS`, `LABELS` (and `PERCENT` if it is a percentage) in
+5. The report shows it in its category's table already. Optionally add it to `CHARTS` or `KEY_ROWS` in
    `src/fin/report/data.py`. Every metric is in `fin sql`, the dashboard and the `fin export` workbook already.
 6. Test: add the expected values to `tests/fixtures/sample-financials/answer_key_analysis.json` (computed by hand
    or with Python's `decimal` from the facts in `answer_key.json`, never by running the SQL) and run
@@ -142,18 +147,18 @@ up is for the user to see and decide.
 
 ## Add a report section
 
-The report is built in `src/fin/report/`: `data.py` reads the data (`collect`) and turns it into Markdown tables;
+The report is built in `src/fin/report/`: `data.py` reads the data (`collect`), `tables.py` turns it into Markdown tables;
 `render.py` fills `templates/report/health.qmd`. A narrative section is a key in `TITLES` (`data.py`): the stub
 gets a `## <Title>` heading for it, and `{{narrative:<key>}}` in the template places the text.
 
 - **A metric category** (a metric whose `metric_definitions.category` is new): add `(category, title)` to
   `CATEGORIES` in `data.py`. Its section (heading, narrative, trend table of every metric in the category, chart)
   is made by `category_section` in `render.py` and appears whenever the company has such a metric. Optionally list
-  up to four same-unit metrics in `CHARTS` for its chart, and display names in `LABELS`; ratios shown as times go
-  in `TIMES` (every other ratio is a percentage).
+  up to four same-unit metrics in `CHARTS` for its chart. Display names and times-or-percentage are in
+  `metric_definitions` (`label`, `times`).
 - **A metric in the summary or peer table:** add `("metric", name)` or `("fact", account)` to `KEY_ROWS`.
 - **A new fixed section** (one table): add its key and title to `TITLES` and to `sections()` in `render.py`, a
-  function in `data.py` that returns its Markdown table, and an entry in the `tables` dict in `build` (`render.py`);
+  function in `tables.py` that returns its Markdown table, and an entry in the `tables` dict in `build` (`render.py`);
   then put `## <Title>`, `{{narrative:<key>}}` and `{{table:<key>}}` in `health.qmd`. Read new data in `collect`
   with SQL, so the data hash covers it.
 - Update `.claude/commands/report.md` with what to write under the new heading.

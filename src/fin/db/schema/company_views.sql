@@ -1,8 +1,9 @@
 -- Metrics (PLAN.md Phase 7): macros and plain views over facts, so they are always current and never stored twice.
 -- THIS FILE IS WHERE A METRIC IS ADDED OR CHANGED (docs/CUSTOMISING.md "Add a metric"):
---   1. a row in `metric_definitions` (category, unit, which periods, plain-English definition, formula);
+--   1. a row in `metric_definitions` (category, unit, which periods, display label, plain-English definition,
+--      formula);
 --   2. its input accounts in `metric_input_accounts` (for lineage, `metric_inputs`);
---   3. its formula in the `wide` step of the `metrics` view, and its name in the UNPIVOT list there.
+--   3. its formula in the `metrics_wide` view (every column there is a metric).
 --
 -- Inputs: current_facts holds the facts a metric may use (see below). Queries should use current_facts too.
 --
@@ -136,179 +137,202 @@ JOIN documents d ON d.doc_id = f.doc_id
 WHERE d.status = 'loaded'
 GROUP BY f.scope, r.statement;
 
+-- The 3- and 5-year CAGR metrics, one row each: their definitions (metric_definitions) and inputs
+-- (metric_input_accounts) are made from these rows. Their formulas are in metrics_wide.
+CREATE VIEW cagr_metrics AS
+SELECT x || '_cagr_' || n || 'y' AS metric, x AS account, what, name, n, 1000 + 2 * i + n // 5 AS position
+FROM (VALUES ('revenue', 'revenue', 'Revenue', 1), ('ebitda', 'EBITDA', 'EBITDA', 2),
+        ('pat', 'profit after tax', 'PAT', 3), ('total_assets', 'total assets', 'Total assets', 4),
+        ('total_equity', 'total equity', 'Total equity', 5)) AS g(x, what, name, i),
+    (VALUES (3), (5)) AS y(n);
+
+-- Totals a document may not print, and the lines summed in their place when it does not: the metrics view uses the
+-- sum (metrics_wide, its `paise` step), and metric_input_accounts lists the lines (stands_in_for) for every metric using the total.
+CREATE VIEW stand_ins AS
+SELECT total, unnest(accounts) AS account FROM (VALUES
+    ('total_current_assets', ['inventories', 'current_investments', 'trade_receivables', 'cash', 'other_bank_balances',
+        'other_current_assets']),
+    ('total_current_liabilities', ['st_borrowings', 'lease_liabilities_current', 'trade_payables',
+        'other_financial_liabilities_current', 'other_current_liabilities', 'st_provisions',
+        'current_tax_liabilities']),
+    ('total_tax_expense', ['tax_expense', 'deferred_tax'])
+) AS t(total, accounts);
+
+-- Where a raw value was printed: `sheet!cell` for Excel, `page N` for PDF.
+CREATE MACRO source_ref(sheet, cell, page) AS coalesce(sheet || '!' || cell, 'page ' || page);
+
 -- One row per metric: what it is, for people and for Claude. category groups metrics in `/ask`, the Excel export
 -- and the dashboard. periods: 'annual' (fiscal years only), 'all' (years, quarters, half years and nine months),
 -- 'interim' (every period but years: for a year the figure is a fact), 'quarter' (quarters only). when_missing:
--- see the rules at the top.
+-- see the rules at the top. label: the display name (report tables, charts). times: a ratio shown as times ("2.35x")
+-- instead of a percentage. position: display order (the order of the rows below; CAGRs come after them).
 CREATE VIEW metric_definitions AS
-SELECT * FROM (VALUES
+SELECT row_number() OVER () AS position, * FROM (VALUES
     -- headline figures of an interim period (for a year they are facts: revenue, pat)
-    ('revenue', 'headline', 'rupees', 'interim', 'null',
+    ('revenue', 'headline', 'rupees', 'interim', 'null', 'Revenue', false,
         'Revenue from operations of the period.', 'revenue'),
-    ('pat', 'headline', 'rupees', 'interim', 'null',
+    ('pat', 'headline', 'rupees', 'interim', 'null', 'Profit after tax', false,
         'Profit after tax of the period.', 'pat'),
     -- profitability
-    ('gross_margin', 'profitability', 'ratio', 'all', 'null',
+    ('gross_margin', 'profitability', 'ratio', 'all', 'null', 'Gross margin', false,
         'Revenue left after cost of materials consumed, as a fraction of revenue.',
         '(revenue - cost_of_materials) / revenue'),
-    ('ebitda', 'profitability', 'rupees', 'all', 'null',
+    ('ebitda', 'profitability', 'rupees', 'all', 'null', 'EBITDA', false,
         'Operating profit before depreciation, interest and tax, without other income and without exceptional or '
         || 'extraordinary items.',
         'pbt before exceptional items + finance_cost + depreciation - other_income; pbt before exceptional items is '
         || 'profit_before_exceptional_items + share_of_associates_jv when the period has exceptional or '
         || 'extraordinary items, else pbt'),
-    ('ebitda_margin', 'profitability', 'ratio', 'all', 'null',
+    ('ebitda_margin', 'profitability', 'ratio', 'all', 'null', 'EBITDA margin', false,
         'EBITDA as a fraction of revenue.', 'ebitda / revenue'),
-    ('ebit', 'profitability', 'rupees', 'all', 'null',
+    ('ebit', 'profitability', 'rupees', 'all', 'null', 'EBIT', false,
         'Profit before interest and tax (other income included), as used by ROCE.', 'pbt + finance_cost'),
-    ('ebit_margin', 'profitability', 'ratio', 'all', 'null',
+    ('ebit_margin', 'profitability', 'ratio', 'all', 'null', 'EBIT margin', false,
         'EBIT as a fraction of revenue.', 'ebit / revenue'),
-    ('pbt_margin', 'profitability', 'ratio', 'all', 'null',
+    ('pbt_margin', 'profitability', 'ratio', 'all', 'null', 'PBT margin', false,
         'Profit before tax as a fraction of revenue.', 'pbt / revenue'),
-    ('pat_margin', 'profitability', 'ratio', 'all', 'null',
+    ('pat_margin', 'profitability', 'ratio', 'all', 'null', 'PAT margin', false,
         'Profit after tax as a fraction of revenue.', 'pat / revenue'),
     -- returns
-    ('roe', 'returns', 'ratio', 'annual', 'null',
+    ('roe', 'returns', 'ratio', 'annual', 'null', 'ROE', false,
         'Return on equity on the closing balance sheet.', 'pat / total_equity'),
-    ('roce', 'returns', 'ratio', 'annual', 'null',
+    ('roce', 'returns', 'ratio', 'annual', 'null', 'ROCE', false,
         'Return on capital employed (equity plus debt) on the closing balance sheet.',
         'ebit / (total_equity + debt)'),
-    ('roa', 'returns', 'ratio', 'annual', 'null',
+    ('roa', 'returns', 'ratio', 'annual', 'null', 'ROA', false,
         'Return on assets on the closing balance sheet.', 'pat / total_assets'),
-    ('roe_avg', 'returns', 'ratio', 'annual', 'null',
+    ('roe_avg', 'returns', 'ratio', 'annual', 'null', 'ROE (average equity)', false,
         'Return on equity on the average of opening and closing equity (needs the previous year''s balance sheet).',
         'pat / ((total_equity + total_equity a year before) / 2)'),
-    ('roce_avg', 'returns', 'ratio', 'annual', 'null',
+    ('roce_avg', 'returns', 'ratio', 'annual', 'null', 'ROCE (average capital)', false,
         'Return on capital employed on the average of opening and closing equity plus debt (needs the previous '
         || 'year''s balance sheet).',
         'ebit / ((total_equity + debt + the same a year before) / 2)'),
-    ('roa_avg', 'returns', 'ratio', 'annual', 'null',
+    ('roa_avg', 'returns', 'ratio', 'annual', 'null', 'ROA (average assets)', false,
         'Return on assets on the average of opening and closing total assets (needs the previous year''s balance '
         || 'sheet).',
         'pat / ((total_assets + total_assets a year before) / 2)'),
     -- liquidity
-    ('current_ratio', 'liquidity', 'ratio', 'annual', 'null',
+    ('current_ratio', 'liquidity', 'ratio', 'annual', 'null', 'Current ratio', true,
         'Current assets over current liabilities. When a total is not printed, the current lines printed are '
         || 'summed.', 'total_current_assets / total_current_liabilities'),
-    ('quick_ratio', 'liquidity', 'ratio', 'annual', 'null',
+    ('quick_ratio', 'liquidity', 'ratio', 'annual', 'null', 'Quick ratio', true,
         'Current assets other than inventories over current liabilities.',
         '(total_current_assets - inventories) / total_current_liabilities'),
-    ('cash_ratio', 'liquidity', 'ratio', 'annual', 'null',
+    ('cash_ratio', 'liquidity', 'ratio', 'annual', 'null', 'Cash ratio', true,
         'Cash and cash equivalents over current liabilities.', 'cash / total_current_liabilities'),
     -- solvency
-    ('debt_to_equity', 'solvency', 'ratio', 'annual', 'null',
+    ('debt_to_equity', 'solvency', 'ratio', 'annual', 'null', 'Debt / equity', true,
         'Borrowings over equity.', 'debt / total_equity'),
-    ('debt_to_ebitda', 'solvency', 'ratio', 'annual', 'null',
+    ('debt_to_ebitda', 'solvency', 'ratio', 'annual', 'null', 'Debt / EBITDA', true,
         'Borrowings over a year''s EBITDA.', 'debt / ebitda'),
-    ('net_debt', 'solvency', 'rupees', 'annual', 'null',
+    ('net_debt', 'solvency', 'rupees', 'annual', 'null', 'Net debt', false,
         'Borrowings less cash and cash equivalents (negative when cash is larger).', 'debt - cash'),
-    ('net_debt_to_ebitda', 'solvency', 'ratio', 'annual', 'null',
+    ('net_debt_to_ebitda', 'solvency', 'ratio', 'annual', 'null', 'Net debt / EBITDA', true,
         'Net debt over a year''s EBITDA.', 'net_debt / ebitda'),
-    ('interest_cover', 'solvency', 'ratio', 'annual', 'null',
+    ('interest_cover', 'solvency', 'ratio', 'annual', 'null', 'Interest cover', true,
         'How many times EBITDA covers finance costs.', 'ebitda / finance_cost'),
-    ('debt_to_assets', 'solvency', 'ratio', 'annual', 'null',
+    ('debt_to_assets', 'solvency', 'ratio', 'annual', 'null', 'Debt / assets', false,
         'Borrowings as a fraction of total assets.', 'debt / total_assets'),
     -- efficiency
-    ('asset_turnover', 'efficiency', 'ratio', 'annual', 'null',
+    ('asset_turnover', 'efficiency', 'ratio', 'annual', 'null', 'Asset turnover', true,
         'Revenue per rupee of total assets (closing).', 'revenue / total_assets'),
-    ('fixed_asset_turnover', 'efficiency', 'ratio', 'annual', 'null',
+    ('fixed_asset_turnover', 'efficiency', 'ratio', 'annual', 'null', 'Fixed asset turnover', true,
         'Revenue per rupee of property, plant and equipment, net block (closing).', 'revenue / ppe_net'),
-    ('receivable_days', 'efficiency', 'days', 'annual', 'null',
+    ('receivable_days', 'efficiency', 'days', 'annual', 'null', 'Receivable days', false,
         'Days of revenue held as trade receivables (closing, 365-day year).',
         'trade_receivables * 365 / revenue'),
-    ('inventory_days', 'efficiency', 'days', 'annual', 'null',
+    ('inventory_days', 'efficiency', 'days', 'annual', 'null', 'Inventory days', false,
         'Days of cost of materials consumed held as inventories (closing, 365-day year).',
         'inventories * 365 / cost_of_materials'),
-    ('payable_days', 'efficiency', 'days', 'annual', 'null',
+    ('payable_days', 'efficiency', 'days', 'annual', 'null', 'Payable days', false,
         'Days of cost of materials consumed owed as trade payables (closing, 365-day year).',
         'trade_payables * 365 / cost_of_materials'),
-    ('cash_conversion_cycle', 'efficiency', 'days', 'annual', 'null',
+    ('cash_conversion_cycle', 'efficiency', 'days', 'annual', 'null', 'Cash conversion cycle', false,
         'Receivable days plus inventory days less payable days.',
         'receivable_days + inventory_days - payable_days'),
     -- cash flow
-    ('cfo', 'cash_flow', 'rupees', 'annual', 'null',
+    ('cfo', 'cash_flow', 'rupees', 'annual', 'null', 'Cash from operations', false,
         'Net cash from operating activities.', 'cfo'),
-    ('free_cash_flow', 'cash_flow', 'rupees', 'annual', 'null',
+    ('free_cash_flow', 'cash_flow', 'rupees', 'annual', 'null', 'Free cash flow', false,
         'Cash from operations less purchase of property and equipment.', 'cfo + cf_capex (capex is negative)'),
-    ('cfo_to_ebitda', 'cash_flow', 'ratio', 'annual', 'null',
+    ('cfo_to_ebitda', 'cash_flow', 'ratio', 'annual', 'null', 'CFO / EBITDA', true,
         'How much of EBITDA came in as operating cash.', 'cfo / ebitda'),
-    ('cfo_to_pat', 'cash_flow', 'ratio', 'annual', 'null',
+    ('cfo_to_pat', 'cash_flow', 'ratio', 'annual', 'null', 'CFO / PAT', true,
         'How much of profit after tax came in as operating cash.', 'cfo / pat'),
-    ('capex_to_revenue', 'cash_flow', 'ratio', 'annual', 'null',
+    ('capex_to_revenue', 'cash_flow', 'ratio', 'annual', 'null', 'Capex / revenue', false,
         'Purchase of property and equipment as a fraction of revenue.', '-cf_capex / revenue'),
-    ('capex_to_depreciation', 'cash_flow', 'ratio', 'annual', 'null',
+    ('capex_to_depreciation', 'cash_flow', 'ratio', 'annual', 'null', 'Capex / depreciation', true,
         'Purchase of property and equipment over depreciation.', '-cf_capex / depreciation'),
     -- growth: year on year against the same period a year before; NULL unless the earlier value is positive
-    ('revenue_growth', 'growth', 'ratio', 'all', 'null',
+    ('revenue_growth', 'growth', 'ratio', 'all', 'null', 'Revenue growth', false,
         'Revenue growth against the same period a year before.', 'revenue / revenue a year before - 1'),
-    ('revenue_growth_qoq', 'growth', 'ratio', 'quarter', 'null',
+    ('revenue_growth_qoq', 'growth', 'ratio', 'quarter', 'null', 'Revenue growth on the previous quarter', false,
         'Revenue growth against the quarter before (Q1 against the previous year''s Q4).',
         'revenue / revenue of the quarter before - 1'),
-    ('ebitda_growth', 'growth', 'ratio', 'all', 'null',
+    ('ebitda_growth', 'growth', 'ratio', 'all', 'null', 'EBITDA growth', false,
         'EBITDA growth against the same period a year before.', 'ebitda / ebitda a year before - 1'),
-    ('pat_growth', 'growth', 'ratio', 'all', 'null',
+    ('pat_growth', 'growth', 'ratio', 'all', 'null', 'PAT growth', false,
         'Profit after tax growth against the same period a year before.', 'pat / pat a year before - 1'),
-    ('total_assets_growth', 'growth', 'ratio', 'annual', 'null',
+    ('total_assets_growth', 'growth', 'ratio', 'annual', 'null', 'Total assets growth', false,
         'Growth of total assets over the year.', 'total_assets / total_assets a year before - 1'),
-    ('total_equity_growth', 'growth', 'ratio', 'annual', 'null',
+    ('total_equity_growth', 'growth', 'ratio', 'annual', 'null', 'Total equity growth', false,
         'Growth of total equity over the year.', 'total_equity / total_equity a year before - 1'),
     -- earnings quality
-    ('other_income_to_pbt', 'earnings_quality', 'ratio', 'all', 'null',
+    ('other_income_to_pbt', 'earnings_quality', 'ratio', 'all', 'null', 'Other income / PBT', false,
         'Share of profit before tax that is other income.', 'other_income / pbt'),
-    ('exceptional_items_to_pbt', 'earnings_quality', 'ratio', 'all', 'absent',
+    ('exceptional_items_to_pbt', 'earnings_quality', 'ratio', 'all', 'absent', 'Exceptional items / PBT', false,
         'Exceptional items as printed (Schedule III prints a charge as positive) over profit before tax; only '
         || 'when the statement shows exceptional items.', 'exceptional_items / pbt'),
-    ('effective_tax_rate', 'earnings_quality', 'ratio', 'all', 'null',
+    ('effective_tax_rate', 'earnings_quality', 'ratio', 'all', 'null', 'Effective tax rate', false,
         'Total tax expense over profit before tax. When total tax is not printed, the tax lines printed are '
         || 'summed.', 'total_tax_expense / pbt'),
     -- per share, as printed
-    ('eps_basic', 'per_share', 'rupees_per_share', 'all', 'absent',
+    ('eps_basic', 'per_share', 'rupees_per_share', 'all', 'absent', 'EPS, basic', false,
         'Basic earnings per share as printed.', 'eps_basic'),
-    ('eps_diluted', 'per_share', 'rupees_per_share', 'all', 'absent',
+    ('eps_diluted', 'per_share', 'rupees_per_share', 'all', 'absent', 'EPS, diluted', false,
         'Diluted earnings per share as printed.', 'eps_diluted'),
     -- lenders (NBFCs and banks): only when the statement has interest income (NBFC) or interest expended (bank)
-    ('net_interest_income', 'lender', 'rupees', 'all', 'absent',
+    ('net_interest_income', 'lender', 'rupees', 'all', 'absent', 'Net interest income', false,
         'Interest income less interest expense. Interest income is the NBFC line, or a bank''s interest earned '
         || '(revenue); interest expense is a bank''s interest expended, else finance costs.',
         'interest_income - interest_expense'),
-    ('cost_to_income', 'lender', 'ratio', 'all', 'absent',
+    ('cost_to_income', 'lender', 'ratio', 'all', 'absent', 'Cost to income', false,
         'Operating expenses over net total income: total expenses less interest expense and impairment or '
         || 'provisions, over total income less interest expense.',
         '(total_expenses - interest_expense - impairment or provisions) / (total_income - interest_expense)'),
-    ('credit_cost', 'lender', 'ratio', 'annual', 'absent',
+    ('credit_cost', 'lender', 'ratio', 'annual', 'absent', 'Credit cost', false,
         'Impairment on financial instruments (NBFC) or provisions and contingencies (bank) over average loans '
         || 'or advances (needs the previous year''s balance sheet).',
         'impairment or provisions / ((loans + loans a year before) / 2)'),
-    ('assets_to_equity', 'lender', 'ratio', 'annual', 'absent',
+    ('assets_to_equity', 'lender', 'ratio', 'annual', 'absent', 'Assets / equity', true,
         'Total assets over equity (leverage). When total equity is not printed (banks), capital plus reserves.',
         'total_assets / total_equity'),
     -- trailing twelve months: the quarter and the three before it, all loaded
-    ('ttm_revenue', 'ttm', 'rupees', 'quarter', 'absent',
+    ('ttm_revenue', 'ttm', 'rupees', 'quarter', 'absent', 'Revenue, last four quarters', false,
         'Revenue of the last four quarters.', 'revenue of this quarter and the three before'),
-    ('ttm_ebitda', 'ttm', 'rupees', 'quarter', 'absent',
+    ('ttm_ebitda', 'ttm', 'rupees', 'quarter', 'absent', 'EBITDA, last four quarters', false,
         'EBITDA of the last four quarters.', 'ebitda of this quarter and the three before'),
-    ('ttm_pat', 'ttm', 'rupees', 'quarter', 'absent',
+    ('ttm_pat', 'ttm', 'rupees', 'quarter', 'absent', 'PAT, last four quarters', false,
         'Profit after tax of the last four quarters.', 'pat of this quarter and the three before'),
-    ('ttm_ebitda_margin', 'ttm', 'ratio', 'quarter', 'absent',
+    ('ttm_ebitda_margin', 'ttm', 'ratio', 'quarter', 'absent', 'EBITDA margin, last four quarters', false,
         'EBITDA margin on the last four quarters.', 'ttm_ebitda / ttm_revenue'),
-    ('ttm_pat_margin', 'ttm', 'ratio', 'quarter', 'absent',
+    ('ttm_pat_margin', 'ttm', 'ratio', 'quarter', 'absent', 'PAT margin, last four quarters', false,
         'Profit after tax margin on the last four quarters.', 'ttm_pat / ttm_revenue')
-) AS t(metric, category, unit, periods, when_missing, definition, formula)
+) AS t(metric, category, unit, periods, when_missing, label, times, definition, formula)
 UNION ALL
 -- 3- and 5-year compound annual growth, only when both ends are loaded and positive
 SELECT
-    x || '_cagr_' || n || 'y', 'growth', 'ratio', 'annual', 'absent',
+    position, metric, 'growth', 'ratio', 'annual', 'absent', name || ' CAGR, ' || n || ' years', false,
     'Compound annual growth of ' || what || ' over ' || n || ' years (both ends loaded and positive).',
-    '(' || x || ' / ' || x || ' ' || n || ' years before) ^ (1/' || n || ') - 1'
-FROM (VALUES ('revenue', 'revenue'), ('ebitda', 'EBITDA'), ('pat', 'profit after tax'),
-    ('total_assets', 'total assets'), ('total_equity', 'total equity')) AS g(x, what),
-    (VALUES (3), (5)) AS y(n);
+    '(' || account || ' / ' || account || ' ' || n || ' years before) ^ (1/' || n || ') - 1'
+FROM cagr_metrics;
 
--- Which accounts each metric uses, for metric_inputs. Keep it in step with the formulas in the metrics view.
+-- Which accounts each metric uses, for metric_inputs. Keep it in step with the formulas in metrics_wide.
 -- input_period: which period the input comes from, relative to the metric's: 'same', 'year-1' (the same period a
 -- year before), 'year-3', 'year-5', 'quarter-1' (the quarter before), 'quarter-2', 'quarter-3'.
--- stands_in_for: when the document does not print that total (total current assets or liabilities, total tax
--- expense, a bank's total equity), the lines summed in its place. These rows appear in metric_inputs only then.
+-- stands_in_for: when the document does not print that total (stand_ins; and a bank's total equity), the lines
+-- summed in its place. These rows appear in metric_inputs only then.
 -- exceptional: for the EBITDA input "PBT before exceptional items" (conventions): false for pbt, which is used only
 -- when the period has no exceptional or extraordinary items; true for profit_before_exceptional_items and
 -- share_of_associates_jv, used only when it has. NULL for every other input (always used).
@@ -366,16 +390,6 @@ inputs(metric, input_periods, accounts) AS (
         ('pat_growth', ['same', 'year-1'], ['pat']),
         ('total_assets_growth', ['same', 'year-1'], ['total_assets']),
         ('total_equity_growth', ['same', 'year-1'], ['total_equity']),
-        ('revenue_cagr_3y', ['same', 'year-3'], ['revenue']),
-        ('revenue_cagr_5y', ['same', 'year-5'], ['revenue']),
-        ('ebitda_cagr_3y', ['same', 'year-3'], (FROM ebitda)),
-        ('ebitda_cagr_5y', ['same', 'year-5'], (FROM ebitda)),
-        ('pat_cagr_3y', ['same', 'year-3'], ['pat']),
-        ('pat_cagr_5y', ['same', 'year-5'], ['pat']),
-        ('total_assets_cagr_3y', ['same', 'year-3'], ['total_assets']),
-        ('total_assets_cagr_5y', ['same', 'year-5'], ['total_assets']),
-        ('total_equity_cagr_3y', ['same', 'year-3'], ['total_equity']),
-        ('total_equity_cagr_5y', ['same', 'year-5'], ['total_equity']),
         ('other_income_to_pbt', ['same'], ['other_income', 'pbt']),
         ('exceptional_items_to_pbt', ['same'], ['exceptional_items', 'pbt']),
         ('effective_tax_rate', ['same'], ['total_tax_expense', 'pbt']),
@@ -393,6 +407,9 @@ inputs(metric, input_periods, accounts) AS (
         ('ttm_ebitda_margin', (FROM ttm), list_concat((FROM ebitda), ['revenue'])),
         ('ttm_pat_margin', (FROM ttm), ['pat', 'revenue'])
     )
+    UNION ALL
+    SELECT metric, ['same', 'year-' || n], CASE account WHEN 'ebitda' THEN (FROM ebitda) ELSE [account] END
+    FROM cagr_metrics
 ),
 by_period AS (SELECT metric, unnest(input_periods) AS input_period, accounts FROM inputs),
 by_account AS (SELECT metric, unnest(accounts) AS account, input_period FROM by_period),
@@ -404,31 +421,32 @@ SELECT a.metric, coalesce(x.account, a.account) AS account, a.input_period, NULL
 FROM by_account a
 LEFT JOIN pbt_before_exceptional x ON a.account = 'pbt_before_exceptional'
 UNION ALL
-SELECT metric, unnest(['inventories', 'current_investments', 'trade_receivables', 'cash', 'other_bank_balances',
-    'other_current_assets']), 'same', 'total_current_assets', NULL
-FROM (VALUES ('current_ratio'), ('quick_ratio')) AS m(metric)
+SELECT a.metric, s.account, a.input_period, s.total, NULL
+FROM by_account a
+JOIN stand_ins s ON s.total = a.account
 UNION ALL
-SELECT metric, unnest(['st_borrowings', 'lease_liabilities_current', 'trade_payables',
-    'other_financial_liabilities_current', 'other_current_liabilities', 'st_provisions',
-    'current_tax_liabilities']), 'same', 'total_current_liabilities', NULL
-FROM (VALUES ('current_ratio'), ('quick_ratio'), ('cash_ratio')) AS m(metric)
-UNION ALL
-SELECT 'effective_tax_rate', unnest(['tax_expense', 'deferred_tax']), 'same', 'total_tax_expense', NULL
-UNION ALL
+-- A bank prints no total equity: assets_to_equity (lenders only) uses capital plus reserves instead.
 SELECT 'assets_to_equity', unnest(['share_capital', 'other_equity']), 'same', 'total_equity', NULL;
 
--- Metrics, one row per period, scope and metric (long format). Which periods get a metric, and whether a metric
--- without a value is a NULL row or no row, is in metric_definitions (periods, when_missing).
---
--- Annual periods (period_months = 12) get the annual metrics. Quarter, half-year and nine-month periods get the
--- metrics that make sense on one period's flows ('all' and 'interim'; 'quarter' for quarters only). Ratios that
--- need a full year of flows or balance-sheet averages (days, returns, leverage, cash conversion) are annual: a
--- quarter's revenue against a closing balance is not comparable to the annual figure.
-CREATE VIEW metrics AS
-WITH paise AS (
+-- The metric formulas: one row per period and scope, one column per metric (every column after period_end).
+-- Every period gets every column here; the metrics view below keeps the periods each metric is for.
+CREATE VIEW metrics_wide AS
+WITH printed AS (
     -- Values as integer paise (exact: value has two decimal places).
     SELECT account, fiscal_year, period, period_months, scope, period_end, CAST(value * 100 AS HUGEINT) AS p
     FROM current_facts
+),
+paise AS (
+    -- Plus, for a total in stand_ins the document does not print, the sum of its lines printed.
+    FROM printed
+    UNION ALL
+    SELECT s.total, x.fiscal_year, x.period, x.period_months, x.scope, max(x.period_end), CAST(sum(x.p) AS HUGEINT)
+    FROM printed x
+    JOIN stand_ins s ON s.account = x.account
+    WHERE NOT EXISTS (
+        SELECT 1 FROM printed t WHERE t.account = s.total AND t.period = x.period AND t.scope = x.scope
+    )
+    GROUP BY s.total, x.fiscal_year, x.period, x.period_months, x.scope
 ),
 period_inputs AS (
     SELECT
@@ -449,11 +467,7 @@ period_inputs AS (
         max(p) FILTER (WHERE account = 'extraordinary_items') AS extraordinary_items,
         max(p) FILTER (WHERE account = 'share_of_associates_jv') AS share_of_associates_jv,
         max(p) FILTER (WHERE account = 'pbt') AS pbt,
-        -- The reported total tax, else the sum of the tax lines reported (see metric_input_accounts).
-        coalesce(
-            max(p) FILTER (WHERE account = 'total_tax_expense'),
-            CAST(sum(p) FILTER (WHERE account IN ('tax_expense', 'deferred_tax')) AS HUGEINT)
-        ) AS tax,
+        max(p) FILTER (WHERE account = 'total_tax_expense') AS tax,
         max(p) FILTER (WHERE account = 'pat') AS pat,
         max(p) FILTER (WHERE account = 'eps_basic') AS eps_basic,
         max(p) FILTER (WHERE account = 'eps_diluted') AS eps_diluted,
@@ -471,21 +485,10 @@ period_inputs AS (
         max(p) FILTER (WHERE account = 'lt_borrowings') AS lt_borrowings,
         max(p) FILTER (WHERE account = 'st_borrowings') AS st_borrowings,
         max(p) FILTER (WHERE account = 'trade_payables') AS trade_payables,
-        -- The reported total, else the sum of the current liability lines reported (see metric_input_accounts).
-        coalesce(
-            max(p) FILTER (WHERE account = 'total_current_liabilities'),
-            CAST(sum(p) FILTER (WHERE account IN ('st_borrowings', 'lease_liabilities_current', 'trade_payables',
-                'other_financial_liabilities_current', 'other_current_liabilities', 'st_provisions',
-                'current_tax_liabilities')) AS HUGEINT)
-        ) AS current_liabilities,
+        max(p) FILTER (WHERE account = 'total_current_liabilities') AS current_liabilities,
         max(p) FILTER (WHERE account = 'inventories') AS inventories,
         max(p) FILTER (WHERE account = 'trade_receivables') AS trade_receivables,
-        -- The reported total, else the sum of the current asset lines reported.
-        coalesce(
-            max(p) FILTER (WHERE account = 'total_current_assets'),
-            CAST(sum(p) FILTER (WHERE account IN ('inventories', 'current_investments', 'trade_receivables', 'cash',
-                'other_bank_balances', 'other_current_assets')) AS HUGEINT)
-        ) AS current_assets,
+        max(p) FILTER (WHERE account = 'total_current_assets') AS current_assets,
         max(p) FILTER (WHERE account = 'cfo') AS cfo,
         max(p) FILTER (WHERE account = 'cf_capex') AS cf_capex
     FROM paise
@@ -536,115 +539,110 @@ derived AS (
         AND q3.period = previous_quarter(previous_quarter(previous_quarter(y.period)))
     LEFT JOIN base y3 ON y3.scope = y.scope AND y.period_months = 12 AND y3.period = fy_back(y.period, 3)
     LEFT JOIN base y5 ON y5.scope = y.scope AND y.period_months = 12 AND y5.period = fy_back(y.period, 5)
-),
-wide AS (
-    SELECT
-        fiscal_year,
-        period,
-        period_months,
-        scope,
-        period_end,
-        -- headline
-        rupees(revenue) AS revenue,
-        rupees(pat) AS pat,
-        -- profitability
-        div6(revenue - cost_of_materials, revenue) AS gross_margin,
-        rupees(ebitda) AS ebitda,
-        div6(ebitda, revenue) AS ebitda_margin,
-        rupees(ebit) AS ebit,
-        div6(ebit, revenue) AS ebit_margin,
-        div6(pbt, revenue) AS pbt_margin,
-        div6(pat, revenue) AS pat_margin,
-        -- returns: closing balances; *_avg on the average of opening and closing (2x / (opening + closing))
-        div6(pat, total_equity) AS roe,
-        div6(ebit, total_equity + debt) AS roce,
-        div6(pat, total_assets) AS roa,
-        div6(2 * pat, total_equity + prev_total_equity) AS roe_avg,
-        div6(2 * ebit, total_equity + debt + prev_total_equity + prev_debt) AS roce_avg,
-        div6(2 * pat, total_assets + prev_total_assets) AS roa_avg,
-        -- liquidity
-        div6(current_assets, current_liabilities) AS current_ratio,
-        div6(current_assets - inventories, current_liabilities) AS quick_ratio,
-        div6(cash, current_liabilities) AS cash_ratio,
-        -- solvency
-        div6(debt, total_equity) AS debt_to_equity,
-        div6(debt, ebitda) AS debt_to_ebitda,
-        rupees(debt - cash) AS net_debt,
-        div6(debt - cash, ebitda) AS net_debt_to_ebitda,
-        div6(ebitda, finance_cost) AS interest_cover,
-        div6(debt, total_assets) AS debt_to_assets,
-        -- efficiency: closing balances, 365-day year. Cash conversion cycle = receivable + inventory - payable
-        -- days, computed from the exact fractions and rounded once.
-        div6(revenue, total_assets) AS asset_turnover,
-        div6(revenue, ppe_net) AS fixed_asset_turnover,
-        div6(trade_receivables * 365, revenue) AS receivable_days,
-        div6(inventories * 365, cost_of_materials) AS inventory_days,
-        div6(trade_payables * 365, cost_of_materials) AS payable_days,
-        div6(
-            trade_receivables * 365 * cost_of_materials + (inventories - trade_payables) * 365 * revenue,
-            revenue * cost_of_materials
-        ) AS cash_conversion_cycle,
-        -- cash flow (capex is negative)
-        rupees(cfo) AS cfo,
-        rupees(cfo + cf_capex) AS free_cash_flow,
-        div6(cfo, ebitda) AS cfo_to_ebitda,
-        div6(cfo, pat) AS cfo_to_pat,
-        div6(-cf_capex, revenue) AS capex_to_revenue,
-        div6(-cf_capex, depreciation) AS capex_to_depreciation,
-        -- growth
-        growth6(revenue, prev_revenue) AS revenue_growth,
-        growth6(revenue, previous_quarter_revenue) AS revenue_growth_qoq,
-        growth6(ebitda, prev_ebitda) AS ebitda_growth,
-        growth6(pat, prev_pat) AS pat_growth,
-        growth6(total_assets, prev_total_assets) AS total_assets_growth,
-        growth6(total_equity, prev_total_equity) AS total_equity_growth,
-        cagr6(revenue, revenue_3y, 3) AS revenue_cagr_3y,
-        cagr6(revenue, revenue_5y, 5) AS revenue_cagr_5y,
-        cagr6(ebitda, ebitda_3y, 3) AS ebitda_cagr_3y,
-        cagr6(ebitda, ebitda_5y, 5) AS ebitda_cagr_5y,
-        cagr6(pat, pat_3y, 3) AS pat_cagr_3y,
-        cagr6(pat, pat_5y, 5) AS pat_cagr_5y,
-        cagr6(total_assets, total_assets_3y, 3) AS total_assets_cagr_3y,
-        cagr6(total_assets, total_assets_5y, 5) AS total_assets_cagr_5y,
-        cagr6(total_equity, total_equity_3y, 3) AS total_equity_cagr_3y,
-        cagr6(total_equity, total_equity_5y, 5) AS total_equity_cagr_5y,
-        -- earnings quality
-        div6(other_income, pbt) AS other_income_to_pbt,
-        div6(exceptional_items, pbt) AS exceptional_items_to_pbt,
-        div6(tax, pbt) AS effective_tax_rate,
-        -- per share, as printed
-        rupees(eps_basic) AS eps_basic,
-        rupees(eps_diluted) AS eps_diluted,
-        -- lenders
-        CASE WHEN lender THEN rupees(interest_earned - interest_expense) END AS net_interest_income,
-        CASE WHEN lender THEN div6(
-            total_expenses - interest_expense - coalesce(credit_charge, 0), total_income - interest_expense
-        ) END AS cost_to_income,
-        CASE WHEN lender THEN div6(2 * credit_charge, loans + prev_loans) END AS credit_cost,
-        CASE WHEN lender THEN div6(total_assets, lender_equity) END AS assets_to_equity,
-        -- trailing twelve months
-        rupees(ttm_revenue) AS ttm_revenue,
-        rupees(ttm_ebitda) AS ttm_ebitda,
-        rupees(ttm_pat) AS ttm_pat,
-        div6(ttm_ebitda, ttm_revenue) AS ttm_ebitda_margin,
-        div6(ttm_pat, ttm_revenue) AS ttm_pat_margin
-    FROM derived
-),
-long AS (
-    FROM wide UNPIVOT INCLUDE NULLS (
-        value FOR metric IN (
-            revenue, pat, gross_margin, ebitda, ebitda_margin, ebit, ebit_margin, pbt_margin, pat_margin,
-            roe, roce, roa, roe_avg, roce_avg, roa_avg, current_ratio, quick_ratio, cash_ratio,
-            debt_to_equity, debt_to_ebitda, net_debt, net_debt_to_ebitda, interest_cover, debt_to_assets,
-            asset_turnover, fixed_asset_turnover, receivable_days, inventory_days, payable_days,
-            cash_conversion_cycle, cfo, free_cash_flow, cfo_to_ebitda, cfo_to_pat, capex_to_revenue,
-            capex_to_depreciation, revenue_growth, revenue_growth_qoq, ebitda_growth, pat_growth,
-            total_assets_growth, total_equity_growth, revenue_cagr_3y, revenue_cagr_5y, ebitda_cagr_3y,
-            ebitda_cagr_5y, pat_cagr_3y, pat_cagr_5y, total_assets_cagr_3y, total_assets_cagr_5y,
-            total_equity_cagr_3y, total_equity_cagr_5y, other_income_to_pbt, exceptional_items_to_pbt,
-            effective_tax_rate, eps_basic, eps_diluted, net_interest_income, cost_to_income, credit_cost,
-            assets_to_equity, ttm_revenue, ttm_ebitda, ttm_pat, ttm_ebitda_margin, ttm_pat_margin
-        )
+)
+SELECT
+    fiscal_year,
+    period,
+    period_months,
+    scope,
+    period_end,
+    -- headline
+    rupees(revenue) AS revenue,
+    rupees(pat) AS pat,
+    -- profitability
+    div6(revenue - cost_of_materials, revenue) AS gross_margin,
+    rupees(ebitda) AS ebitda,
+    div6(ebitda, revenue) AS ebitda_margin,
+    rupees(ebit) AS ebit,
+    div6(ebit, revenue) AS ebit_margin,
+    div6(pbt, revenue) AS pbt_margin,
+    div6(pat, revenue) AS pat_margin,
+    -- returns: closing balances; *_avg on the average of opening and closing (2x / (opening + closing))
+    div6(pat, total_equity) AS roe,
+    div6(ebit, total_equity + debt) AS roce,
+    div6(pat, total_assets) AS roa,
+    div6(2 * pat, total_equity + prev_total_equity) AS roe_avg,
+    div6(2 * ebit, total_equity + debt + prev_total_equity + prev_debt) AS roce_avg,
+    div6(2 * pat, total_assets + prev_total_assets) AS roa_avg,
+    -- liquidity
+    div6(current_assets, current_liabilities) AS current_ratio,
+    div6(current_assets - inventories, current_liabilities) AS quick_ratio,
+    div6(cash, current_liabilities) AS cash_ratio,
+    -- solvency
+    div6(debt, total_equity) AS debt_to_equity,
+    div6(debt, ebitda) AS debt_to_ebitda,
+    rupees(debt - cash) AS net_debt,
+    div6(debt - cash, ebitda) AS net_debt_to_ebitda,
+    div6(ebitda, finance_cost) AS interest_cover,
+    div6(debt, total_assets) AS debt_to_assets,
+    -- efficiency: closing balances, 365-day year. Cash conversion cycle = receivable + inventory - payable
+    -- days, computed from the exact fractions and rounded once.
+    div6(revenue, total_assets) AS asset_turnover,
+    div6(revenue, ppe_net) AS fixed_asset_turnover,
+    div6(trade_receivables * 365, revenue) AS receivable_days,
+    div6(inventories * 365, cost_of_materials) AS inventory_days,
+    div6(trade_payables * 365, cost_of_materials) AS payable_days,
+    div6(
+        trade_receivables * 365 * cost_of_materials + (inventories - trade_payables) * 365 * revenue,
+        revenue * cost_of_materials
+    ) AS cash_conversion_cycle,
+    -- cash flow (capex is negative)
+    rupees(cfo) AS cfo,
+    rupees(cfo + cf_capex) AS free_cash_flow,
+    div6(cfo, ebitda) AS cfo_to_ebitda,
+    div6(cfo, pat) AS cfo_to_pat,
+    div6(-cf_capex, revenue) AS capex_to_revenue,
+    div6(-cf_capex, depreciation) AS capex_to_depreciation,
+    -- growth
+    growth6(revenue, prev_revenue) AS revenue_growth,
+    growth6(revenue, previous_quarter_revenue) AS revenue_growth_qoq,
+    growth6(ebitda, prev_ebitda) AS ebitda_growth,
+    growth6(pat, prev_pat) AS pat_growth,
+    growth6(total_assets, prev_total_assets) AS total_assets_growth,
+    growth6(total_equity, prev_total_equity) AS total_equity_growth,
+    cagr6(revenue, revenue_3y, 3) AS revenue_cagr_3y,
+    cagr6(revenue, revenue_5y, 5) AS revenue_cagr_5y,
+    cagr6(ebitda, ebitda_3y, 3) AS ebitda_cagr_3y,
+    cagr6(ebitda, ebitda_5y, 5) AS ebitda_cagr_5y,
+    cagr6(pat, pat_3y, 3) AS pat_cagr_3y,
+    cagr6(pat, pat_5y, 5) AS pat_cagr_5y,
+    cagr6(total_assets, total_assets_3y, 3) AS total_assets_cagr_3y,
+    cagr6(total_assets, total_assets_5y, 5) AS total_assets_cagr_5y,
+    cagr6(total_equity, total_equity_3y, 3) AS total_equity_cagr_3y,
+    cagr6(total_equity, total_equity_5y, 5) AS total_equity_cagr_5y,
+    -- earnings quality
+    div6(other_income, pbt) AS other_income_to_pbt,
+    div6(exceptional_items, pbt) AS exceptional_items_to_pbt,
+    div6(tax, pbt) AS effective_tax_rate,
+    -- per share, as printed
+    rupees(eps_basic) AS eps_basic,
+    rupees(eps_diluted) AS eps_diluted,
+    -- lenders
+    CASE WHEN lender THEN rupees(interest_earned - interest_expense) END AS net_interest_income,
+    CASE WHEN lender THEN div6(
+        total_expenses - interest_expense - coalesce(credit_charge, 0), total_income - interest_expense
+    ) END AS cost_to_income,
+    CASE WHEN lender THEN div6(2 * credit_charge, loans + prev_loans) END AS credit_cost,
+    CASE WHEN lender THEN div6(total_assets, lender_equity) END AS assets_to_equity,
+    -- trailing twelve months
+    rupees(ttm_revenue) AS ttm_revenue,
+    rupees(ttm_ebitda) AS ttm_ebitda,
+    rupees(ttm_pat) AS ttm_pat,
+    div6(ttm_ebitda, ttm_revenue) AS ttm_ebitda_margin,
+    div6(ttm_pat, ttm_revenue) AS ttm_pat_margin
+FROM derived;
+
+-- Metrics, one row per period, scope and metric (long format). Which periods get a metric, and whether a metric
+-- without a value is a NULL row or no row, is in metric_definitions (periods, when_missing).
+--
+-- Annual periods (period_months = 12) get the annual metrics. Quarter, half-year and nine-month periods get the
+-- metrics that make sense on one period's flows ('all' and 'interim'; 'quarter' for quarters only). Ratios that
+-- need a full year of flows or balance-sheet averages (days, returns, leverage, cash conversion) are annual: a
+-- quarter's revenue against a closing balance is not comparable to the annual figure.
+CREATE VIEW metrics AS
+WITH long AS (
+    FROM metrics_wide UNPIVOT INCLUDE NULLS (
+        value FOR metric IN (COLUMNS(* EXCLUDE (fiscal_year, period, period_months, scope, period_end)))
     )
 )
 SELECT

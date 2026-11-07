@@ -15,9 +15,11 @@ def test_ticks_legend_and_a_gap_for_a_missing_value() -> None:
         lambda value: f"{value:g}%",
     )
 
-    ticks = re.findall(r'text-anchor="end" fill="#898781">([^<]+)<', svg)
+    ticks = re.findall(r'text-anchor="end"[^>]*>([^<]+)<', svg)
     assert ticks == ["0%", "5%", "10%", "15%", "20%"]
-    assert re.findall(r'fill="#52514e">([^<]+)<', svg) == ["EBITDA margin", "PAT margin"]
+    # The legend: a name next to each line, at the top.
+    legend = re.findall(r'<text x="[\d.]+" y="20"[^>]*>([^<]+)<', svg)
+    assert legend == ["EBITDA margin", "PAT margin"]
     # EBITDA margin: two segments around the missing FY23; PAT margin: one line.
     assert svg.count("<polyline") == 3
     assert svg.count("<circle") == 9

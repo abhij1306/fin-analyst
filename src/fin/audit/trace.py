@@ -13,31 +13,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-import duckdb
-
 from fin.audit.errors import SqlFailed
 from fin.db.conn import connect
+from fin.db.rows import fetch_dicts
 from fin.map.normalize import normalize_label
 from fin.paths import audit_db_path, company_db_path, dictionary_db_path
-
-
-def _rows(
-    con: duckdb.DuckDBPyConnection, sql: str, params: list[Any] | None = None
-) -> list[dict[str, Any]]:
-    cursor = con.execute(sql, params or [])
-    names = [column[0] for column in cursor.description]
-    return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
-
-
-def source_ref(raw: dict[str, Any]) -> str:
-    """`sheet!cell` for Excel values, `page N` for PDF values."""
-    return f"{raw['sheet']}!{raw['cell']}" if raw["sheet"] else f"page {raw['page']}"
 
 
 def fact_trace(root: Path, company: str, fact_id: int) -> dict[str, Any]:
     """Trace one fact to its cell or page. Raises E504 if the fact does not exist."""
     with connect(company_db_path(root, company)) as con:
-        found = _rows(
+        found = fetch_dicts(
             con,
             "SELECT fact_id, account, fiscal_year, period, period_end, scope, value, confirmed, "
             "mapping_id, raw_id, doc_id FROM facts WHERE fact_id = ?",
@@ -46,19 +32,19 @@ def fact_trace(root: Path, company: str, fact_id: int) -> dict[str, Any]:
         if not found:
             raise SqlFailed(f"{company} has no fact with fact_id {fact_id}")
         fact = found[0]
-        raw = _rows(
+        raw = fetch_dicts(
             con,
             "SELECT raw_id, statement, section, raw_label, raw_value_text, raw_unit, "
-            "rupees_per_unit, sheet, cell, page, bbox FROM raw_values WHERE raw_id = ?",
+            "rupees_per_unit, sheet, cell, page, bbox, source_ref(sheet, cell, page) AS source "
+            "FROM raw_values WHERE raw_id = ?",
             [fact["raw_id"]],
         )[0]
-        document = _rows(
+        document = fetch_dicts(
             con,
             "SELECT doc_id, file_name, sha256, version, status, archive_path, run_id "
             "FROM documents WHERE doc_id = ?",
             [fact["doc_id"]],
         )[0]
-    raw["source"] = source_ref(raw)
     document["archive_exists"] = (root / document["archive_path"]).is_file()
     return {
         "company": company,
@@ -77,7 +63,7 @@ def _mapping(
     dictionary = None
     if mapping_id is not None:
         with connect(dictionary_db_path(root)) as con:
-            rows = _rows(
+            rows = fetch_dicts(
                 con,
                 "SELECT mapping_id, label, section, account, scope, company, source, created_at "
                 "FROM label_map WHERE mapping_id = ?",
@@ -85,7 +71,7 @@ def _mapping(
             )
         dictionary = rows[0] if rows else None
     with connect(audit_db_path(root)) as con:
-        decisions = _rows(
+        decisions = fetch_dicts(
             con,
             "SELECT run_id, recorded_at, section, raw_label, account, scope, decision, actor, "
             "on_request, confidence, reason FROM mapping_decisions "
@@ -104,14 +90,14 @@ def _mapping(
 
 def _ingest_run(root: Path, run_id: str, event_file: str) -> dict[str, Any]:
     with connect(audit_db_path(root)) as con:
-        runs = _rows(
+        runs = fetch_dicts(
             con,
             "SELECT s.run_id, s.command, s.started_at, e.status, e.exit_code "
             "FROM runs s LEFT JOIN runs e ON e.run_id = s.run_id AND e.record = 'end' "
             "WHERE s.record = 'start' AND s.run_id = ?",
             [run_id],
         )
-        events = _rows(
+        events = fetch_dicts(
             con,
             "SELECT seq, stage, level, error_code, message FROM events "
             "WHERE run_id = ? AND file = ? ORDER BY seq",
@@ -121,22 +107,18 @@ def _ingest_run(root: Path, run_id: str, event_file: str) -> dict[str, Any]:
     return run | {"events": events}
 
 
-def _trace_or_none(root: Path, company: str, fact_id: int | None) -> dict[str, Any] | None:
-    return None if fact_id is None else fact_trace(root, company, fact_id)
-
-
 def metric_trace(root: Path, company: str, metric: str, fiscal_year: str) -> dict[str, Any]:
     """Trace a metric to the facts it used (`metric_inputs`), and each fact to its source. One entry
     per scope. An input with no fact (fact_id null) is why the metric is null. `fiscal_year` is a
     period: a fiscal year ("FY25") or a quarter or half year ("FY26-Q1"). Raises E504 if the
     company has no such metric and period."""
     with connect(company_db_path(root, company)) as con:
-        values = _rows(
+        values = fetch_dicts(
             con,
             "SELECT scope, value, unit FROM metrics WHERE metric = ? AND period = ? ORDER BY scope",
             [metric, fiscal_year],
         )
-        inputs = _rows(
+        inputs = fetch_dicts(
             con,
             "SELECT scope, account, stands_in_for, input_period AS input_fiscal_year, fact_id "
             "FROM metric_inputs WHERE metric = ? AND period = ? "
@@ -149,7 +131,8 @@ def metric_trace(root: Path, company: str, metric: str, fiscal_year: str) -> dic
     for entry in values:
         rows = [
             {key: row[key] for key in ("account", "stands_in_for", "input_fiscal_year", "fact_id")}
-            | {"trace": _trace_or_none(root, company, row["fact_id"])}
+            # fact_ids start at 1, so a missing input (NULL) is the only one without a trace.
+            | {"trace": row["fact_id"] and fact_trace(root, company, row["fact_id"])}
             for row in inputs
             if row["scope"] == entry["scope"]
         ]
@@ -188,7 +171,7 @@ def company_history(root: Path, company: str) -> dict[str, Any]:
                 r[0] for r in con.execute("SELECT DISTINCT run_id FROM documents").fetchall()
             }
     with connect(audit_db_path(root)) as con:
-        runs = _rows(
+        runs = fetch_dicts(
             con,
             "SELECT s.run_id, s.command, s.args, s.started_at, e.status, e.exit_code, "
             "e.loaded, e.skipped, e.failed "
@@ -200,7 +183,7 @@ def company_history(root: Path, company: str) -> dict[str, Any]:
             for r in runs
             if json.loads(r["args"]).get("company") == company or r["run_id"] in ingest_runs
         ]
-        problems = _rows(
+        problems = fetch_dicts(
             con,
             "SELECT run_id, stage, level, error_code, file, message FROM events "
             "WHERE level IN ('warning', 'error') ORDER BY run_id, seq",
@@ -211,18 +194,18 @@ def company_history(root: Path, company: str) -> dict[str, Any]:
             "runs": [
                 r | {"problems": [p for p in problems if p["run_id"] == r["run_id"]]} for r in runs
             ],
-            "mapping_decisions": _rows(
+            "mapping_decisions": fetch_dicts(
                 con, f"SELECT * FROM mapping_decisions {by_company}", [company]
             ),
-            "queries": _rows(con, f"SELECT * FROM queries {by_company}", [company]),
-            "reports": _rows(con, f"SELECT * FROM reports {by_company}", [company]),
-            "validation_failures": _rows(
+            "queries": fetch_dicts(con, f"SELECT * FROM queries {by_company}", [company]),
+            "reports": fetch_dicts(con, f"SELECT * FROM reports {by_company}", [company]),
+            "validation_failures": fetch_dicts(
                 con,
                 "SELECT * FROM validation_results WHERE company = ? AND NOT passed "
                 "ORDER BY recorded_at",
                 [company],
             ),
-            "deletions": _rows(con, f"SELECT * FROM deletions {by_company}", [company]),
+            "deletions": fetch_dicts(con, f"SELECT * FROM deletions {by_company}", [company]),
         }
 
 

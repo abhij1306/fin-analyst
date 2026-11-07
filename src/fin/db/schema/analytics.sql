@@ -1,6 +1,6 @@
 -- shared/analytics.duckdb (PLAN.md §7): every company's metrics in one file for the dashboards.
--- Rebuilt in full by `fin metrics refresh` and after every ingest (fin.metrics.export), so it never holds
--- anything the company databases do not. A file made by an older fin (missing one of these tables) is deleted and
+-- Rebuilt in full after every ingest and data change (fin.metrics.export), so it never holds
+-- anything the company databases do not. A file made by an older fin (different tables or columns) is deleted and
 -- created again at the next refresh: everything in it is derived.
 
 -- companies/<company>.duckdb metrics view, one row per company, period, scope and metric.
@@ -16,8 +16,6 @@ CREATE TABLE metrics (
     metric VARCHAR NOT NULL,
     value DECIMAL(38, 6),           -- NULL when an input is missing
     unit VARCHAR NOT NULL,          -- rupees, ratio (0.18 = 18%) or days
-    refreshed_at TIMESTAMP NOT NULL,
-    run_id VARCHAR NOT NULL,
     category VARCHAR,               -- metric_definitions.category: profitability, returns, liquidity, ...
     PRIMARY KEY (company, period, scope, metric)
 );

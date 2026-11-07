@@ -58,8 +58,8 @@ def test_every_value_matches_the_answer_key(document: dict) -> None:
     # The titles do not say standalone or consolidated; ingest applies defaults.scope.
     assert {v.scope for v in result.values} == {None}
     assert result.skipped == []
-    assert result.fiscal_years == document["fiscal_years"]
-    assert result.unit == "lakh"
+    assert [*dict.fromkeys(v.period for v in result.values)] == document["fiscal_years"]
+    assert {v.unit for v in result.values} == {"lakh"}
     for value in result.values:
         assert value.page == document["pages"][STATEMENT_PAGE_KEY[value.statement]]
 
@@ -145,8 +145,8 @@ def test_crore_unit_financial_year_ranges_and_nil_dashes(tmp_path: Path) -> None
 
     result = extract_pdf(path)
 
-    assert result.unit == "crore"
-    assert result.fiscal_years == ["FY25", "FY24"]
+    assert {v.unit for v in result.values} == {"crore"}
+    assert [*dict.fromkeys(v.period for v in result.values)] == ["FY25", "FY24"]
     assert [(v.label, v.fiscal_year, v.rupees) for v in result.values] == [
         ("Revenue from operations", "FY25", Decimal("12345000000.00")),
         ("Revenue from operations", "FY24", Decimal("9872500000.00")),

@@ -73,7 +73,7 @@ CREATE TABLE validation_results (
     message VARCHAR
 );
 
--- Questions answered with `fin query`, and data changes made with `fin sql --write`.
+-- Questions answered with `fin sql`, and data changes made with `fin sql --write`.
 CREATE TABLE queries (
     query_id VARCHAR NOT NULL,
     run_id VARCHAR NOT NULL,
