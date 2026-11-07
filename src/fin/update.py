@@ -2,7 +2,8 @@
 
 1. Refuse if the repo has local changes.
 2. Back up every database to `backups/<run_id>/`.
-3. `git pull --ff-only`, `uv sync --frozen`, and `npm ci` (only if `dashboards/package-lock.json`
+3. `git pull --ff-only`, `uv sync --frozen` (with `--extra docling` when config.toml has the
+   Docling add-on on), and `npm ci` (only if `dashboards/package-lock.json`
    exists).
 4. Refresh the metrics export (`shared/analytics.duckdb`), then run `fin doctor` as a new process
    so it uses the freshly pulled code.
@@ -16,6 +17,7 @@ from pathlib import Path
 
 from fin.audit.errors import EXIT_FAILURES, UpdateFailed
 from fin.audit.logger import Run
+from fin.config import load_config
 from fin.db.schema import all_databases
 from fin.metrics.export import refresh_analytics
 from fin.query.write import backup
@@ -25,6 +27,7 @@ REPO = Path(__file__).resolve().parents[2]
 # Module constants so tests can swap the slow steps for harmless ones.
 GIT = "git"
 UV_SYNC = ["uv", "sync", "--frozen"]
+DOCLING_EXTRA = ["--extra", "docling"]  # kept when config.toml says the add-on is installed
 NPM_CI = ["npm", "ci", "--prefix", "dashboards"]
 FIN = ["uv", "run", "--frozen", "fin"]
 
@@ -61,7 +64,10 @@ def update(run: Run) -> None:
     run.event("update", f"backed up {len(saved)} databases to backups/{run.run_id}/")
 
     _run(run, "git pull", [GIT, "pull", "--ff-only"], repo)
-    _run(run, "uv sync", UV_SYNC, repo)
+    # A plain sync would uninstall the optional Docling add-on: keep it when it is on.
+    docling = load_config(run.root).docling
+    step = "uv sync --extra docling" if docling else "uv sync"
+    _run(run, step, [*UV_SYNC, *DOCLING_EXTRA] if docling else UV_SYNC, repo)
     if (repo / "dashboards" / "package-lock.json").is_file():
         _run(run, "npm ci", NPM_CI, repo)
 

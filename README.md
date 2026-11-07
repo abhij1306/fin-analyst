@@ -60,6 +60,24 @@ The installer asks before installing [Homebrew](https://brew.sh) if it is missin
 `quarto` and `poppler`, sets up the tool, creates your data folder (`~/FinAnalysis`) and runs `uv run fin doctor`.
 Running it again only installs what is missing. Its log is `~/FinAnalysis/logs/install.log`.
 
+**Optional: the Docling PDF add-on.** fin reads digital PDFs with pdfplumber. Some statement pages it can't read
+(standalone and consolidated side by side, unusual headers, scanned results). With the add-on, fin hands exactly those
+pages to [Docling](https://github.com/docling-project/docling), which reads their tables (with OCR) on your Mac:
+
+```sh
+./install.sh --docling      # add it (Apple Silicon only)
+./install.sh --no-docling   # remove it
+```
+
+| Install | Download and disk | First run |
+|---|---|---|
+| `./install.sh` (default) | the base tool only | nothing more to download |
+| `./install.sh --docling` | about 650 MB more of Python packages (PyTorch, Docling) plus about 730 MB of Docling models, downloaded by the installer into `~/.cache/docling/models` | the first PDF with skipped pages loads the models (some seconds); each page takes about 15 seconds |
+
+The choice is saved in `config.toml` (`[pdf] docling = true`), so running `./install.sh` again or `uv run fin
+update` keeps it. Figures Docling reads are marked as such and count as unverified until a reading agrees
+(`/verify`). Intel Macs can't use it (PyTorch has no Intel Mac build); everything else works the same without it.
+
 To keep your data somewhere else, set `FIN_DATA_DIR` before installing (for example
 `export FIN_DATA_DIR="$HOME/Documents/FinAnalysis"`) and add that line to `~/.zshrc`.
 
@@ -98,9 +116,11 @@ Claude shows each finding with both figures and where each came from, then asks 
 
 ## Pages fin can't read
 
-fin reads Excel files and digital PDFs. When it can't read a page (a scanned PDF, an unusual layout), it says which
-pages. If you ask, Claude reads those pages and fin loads that reading through the same checks. Figures read by
-Claude are marked as such until a second, independent reading agrees (`/verify`).
+fin reads Excel files and digital PDFs. When it can't read a statement page (an unusual layout, a scanned PDF)
+and the Docling add-on is installed, Docling reads that page automatically (a scanned PDF only up to 40 pages, such
+as a results filing). Whatever is still not read, fin lists by page. If you ask, Claude reads those pages and fin
+loads that reading through the same checks. Figures read by Docling or Claude are marked as such until a second,
+independent reading agrees (`/verify`).
 
 ## Your data
 
@@ -109,7 +129,7 @@ it.
 
 ```
 ~/FinAnalysis/
-  config.toml           # display unit, default scope, fiscal year start, check tolerances
+  config.toml           # display unit, default scope, fiscal year start, check tolerances, Docling add-on
   inbox/<company>/      # drop documents here
   companies/            # one database per company
   shared/               # chart of accounts, audit log, dashboard data
@@ -155,6 +175,7 @@ confirm. Every run is logged in `~/FinAnalysis/logs/<date>/<run_id>.jsonl`.
 | E203 | Unit (crores, lakhs, ...) not detected | Add a unit line such as "Rs. in Crores" to the file, then ingest again |
 | E204 | Parse error while reading the file | Read the reason in `review/<company>/<file>.error.json` and fix the file |
 | E205 | A Claude reading file cannot be used (missing columns, unknown statement or scope, bad figure, date or source) | Fix the line named in the message and run again |
+| E206 | Docling (the optional PDF add-on) failed on the pages pdfplumber skipped, or could not download its models; a warning, the pages stay unread | Read the warning in the run log; `uv run fin doctor`; or ask Claude to read the pages |
 | E301 | A line is not in the chart of accounts | Loaded as unconfirmed. Run `/review` to confirm a mapping |
 | E302 (warning) | A proposed mapping has low confidence; a warning, not an error | Check it in `/review` |
 | E303 | A line maps to conflicting accounts | You decide in `/review` |

@@ -87,6 +87,7 @@ def _all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     monkeypatch.setattr("fin.doctor.tool_version", versions.get)
     monkeypatch.setattr("fin.doctor.sys.version_info", (3, 12, 13, "final", 0))
+    monkeypatch.setattr("fin.extract.docling_run.installed", lambda: False)
 
 
 def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -104,6 +105,7 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
         "ok    config: display unit crores",
         "ok    audit schema: present",
         "ok    dictionary schema: present",
+        "ok    docling: not installed (optional; `./install.sh --docling` to add it)",
         "all checks passed",
     ]
 
@@ -116,7 +118,7 @@ def test_doctor_json_reports_missing_data_folder(
     assert result.exit_code == 1
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert payload["checks"][-4:] == [
+    assert payload["checks"][-5:-1] == [
         {
             "name": "data folder",
             "ok": False,

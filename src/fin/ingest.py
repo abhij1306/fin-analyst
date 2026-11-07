@@ -5,7 +5,11 @@ For each file, `ingest_file`:
 1. Hashes it. A file whose sha256 is already loaded is skipped with E105, unless `force`, which
    loads it again as a new version and marks the earlier one superseded.
 2. Extracts its values: Excel (`fin.extract.excel`) or PDF (`fin.extract.pdf`; notes and the
-   auditor's report also go to `notes/<company>/` as Markdown).
+   auditor's report also go to `notes/<company>/` as Markdown). With the Docling add-on on
+   (`[pdf] docling = true`, `fin.extract.docling_run`), the statement pages pdfplumber skipped go
+   to Docling, and a scanned results PDF is read by Docling's OCR; those facts have
+   `read_by = 'docling'` and are unverified until `fin verify` agrees. Without it, the run logs
+   which pages were not read and how to read them.
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
 4. In ONE transaction: inserts the document, its raw values and their facts in rupees, marks
    earlier versions of the same file superseded, runs the checks (`fin.findings.check_document`:
@@ -19,8 +23,8 @@ is copied to `review/<company>/` with a `.error.json` file giving the code and r
 file goes on.
 
 With a reading (`--reading`, `fin.extract.reading`): figures Claude read from the document's pages
-or cells are loaded for each statement and scope fin's own extraction did not read (all of them when
-fin could not read the file at all), through the same stage -> validate -> commit. Their facts have
+or cells are loaded for each statement and scope neither fin nor Docling read (all of them when
+the file could not be read at all), through the same stage -> validate -> commit. Their facts have
 `read_by = 'claude'` and point at the original document's page or cell; they stay unverified until
 `fin verify` finds an independent reading that agrees.
 """
@@ -41,15 +45,21 @@ from fin.audit.errors import (
     DocumentFailure,
     DuplicateFile,
     FileUnreadable,
+    NoTablesFound,
+    ParseError,
+    PeriodsNotDetected,
     ReadingInvalid,
+    ScannedPdf,
+    UnitNotDetected,
     UnmappedLabel,
     UnsupportedFormat,
 )
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect
+from fin.extract import docling_run
 from fin.extract.excel import ExcelValue, extract_workbook
-from fin.extract.pdf import PdfValue, extract_pdf
+from fin.extract.pdf import PdfValue, SkippedPage, extract_pdf
 from fin.extract.periods import fiscal_year_of, period_of, resolve_months
 from fin.extract.reading import ReadingLine, read_reading
 from fin.extract.text import write_notes_markdown
@@ -81,7 +91,7 @@ class Row:
     period_months: int
     scope: str
     rupees: Decimal
-    read_by: str = "fin"  # or "claude": from a reading file
+    read_by: str = "fin"  # "docling" (the PDF add-on) or "claude" (a reading file)
 
 
 @dataclass(frozen=True)
@@ -111,7 +121,7 @@ def sha256_of(path: Path) -> str:
         raise FileUnreadable(f"{path.name}: {exc}") from exc
 
 
-def read_document(path: Path, root: Path, company: str, config: Config) -> Document:
+def read_document(run: Run, path: Path, company: str, config: Config) -> Document:
     """Extract the values of an Excel or PDF file. E103 for any other format."""
     suffix = path.suffix.lower()
     start = config.fiscal_year_start_month
@@ -149,37 +159,166 @@ def read_document(path: Path, root: Path, company: str, config: Config) -> Docum
             )
         return Document(rows, [], notices)
     if suffix == ".pdf":
-        pdf = extract_pdf(path, start)
-        rows = [
-            _row(
-                v,
-                start,
-                months=v.months,
-                period=v.period,
-                scope=v.scope or config.default_scope,
-                unit_text=v.unit,
-                page=v.page,
-                bbox=json.dumps(list(v.bbox)),
-            )
-            for v in pdf.values
-            if v.statement != "notes"
-        ]
-        written = write_notes_markdown(path, root / "notes" / company)
-        notes = [(note.name[len(path.stem) + 1 : -len(".md")], note) for note in written]
-        skipped = sum(1 for v in pdf.values if v.statement == "notes")
-        notices = [f"{skipped} note-table values kept in the notes Markdown, not loaded as facts"]
-        assumed = sorted({v.page for v in pdf.values if v.scope is None and v.statement != "notes"})
-        if assumed:
-            notices.append(
-                f"pages {', '.join(map(str, assumed))} do not say standalone or consolidated; "
-                f"used defaults.scope = {config.default_scope} from config.toml"
-            )
-        warnings = [
-            f"{s.statement} page {s.page} skipped: {s.error.code} {s.error.message}"
-            for s in pdf.skipped
-        ]
-        return Document(rows, notes, notices, warnings, [s.as_dict() for s in pdf.skipped])
+        return _read_pdf(run, path, company, config)
     raise UnsupportedFormat(f"{path.name}: {suffix or 'no extension'} files are not supported")
+
+
+@dataclass(frozen=True)
+class _PdfRead:
+    by_fin: list[PdfValue]  # pdfplumber's values (notes tables included)
+    by_docling: list[PdfValue]
+    unread: list[SkippedPage]  # statement pages neither read
+    scanned: bool  # no text layer: Docling's OCR read it
+
+
+def _read_pdf(run: Run, path: Path, company: str, config: Config) -> Document:
+    """pdfplumber's values, then Docling's for the statement pages pdfplumber skipped (when the
+    add-on is on, `fin.extract.docling_run`); a scanned results PDF is read by Docling alone. Fails
+    as before only when neither reads a statement page."""
+    read = _extract_pdf(run, path, f"{company}/{path.name}", config)
+    rows = [
+        _row(
+            v,
+            config.fiscal_year_start_month,
+            months=v.months,
+            period=v.period,
+            scope=v.scope or config.default_scope,
+            unit_text=v.unit,
+            page=v.page,
+            bbox=json.dumps(list(v.bbox)),
+            read_by=read_by,
+        )
+        for values, read_by in ((read.by_fin, "fin"), (read.by_docling, "docling"))
+        for v in values
+        if v.statement != "notes"
+    ]
+    notices: list[str] = []  # Docling's own are logged as it runs (`_log_docling`)
+    notes: list[tuple[str, Path]] = []
+    if not read.scanned:
+        written = write_notes_markdown(path, run.root / "notes" / company)
+        notes = [(note.name[len(path.stem) + 1 : -len(".md")], note) for note in written]
+        in_notes = sum(1 for v in read.by_fin if v.statement == "notes")
+        notices.append(
+            f"{in_notes} note-table values kept in the notes Markdown, not loaded as facts"
+        )
+    values = read.by_fin + read.by_docling
+    assumed = sorted({v.page for v in values if v.scope is None and v.statement != "notes"})
+    if assumed:
+        notices.append(
+            f"pages {', '.join(map(str, assumed))} do not say standalone or consolidated; "
+            f"used defaults.scope = {config.default_scope} from config.toml"
+        )
+    warnings = [
+        f"{s.statement} page {s.page} skipped: {s.error.code} {s.error.message}"
+        for s in read.unread
+    ]
+    return Document(rows, notes, notices, warnings, [s.as_dict() for s in read.unread])
+
+
+def _extract_pdf(run: Run, path: Path, name: str, config: Config) -> _PdfRead:
+    """pdfplumber first; Docling on what it could not read. When nothing could be read, the
+    pdfplumber error is raised again, listing the pages still unread."""
+    start = config.fiscal_year_start_month
+    try:
+        pdf = extract_pdf(path, start)
+    except ScannedPdf as exc:
+        found = _docling_scanned(run, path, name, config)
+        _raise_if_empty(exc, found)
+        assert found is not None
+        return _PdfRead([], found.values, found.unread, scanned=True)
+    except (NoTablesFound, PeriodsNotDetected, UnitNotDetected, ParseError) as exc:
+        if not exc.pages:
+            raise
+        found = _docling_skipped(run, path, name, config, _skipped_pages(exc.pages))
+        _raise_if_empty(exc, found)
+        assert found is not None
+        return _PdfRead([], found.values, found.unread, scanned=False)
+    if not pdf.skipped:
+        return _PdfRead(pdf.values, [], [], scanned=False)
+    found = _docling_skipped(run, path, name, config, pdf.skipped)
+    if found is None:
+        return _PdfRead(pdf.values, [], pdf.skipped, scanned=False)
+    return _PdfRead(pdf.values, found.values, found.unread, scanned=False)
+
+
+def _raise_if_empty(exc: DocumentFailure, found: docling_run.DoclingResult | None) -> None:
+    """Raise `exc` again when Docling was not used or read nothing (with the pages it left)."""
+    if found is not None and found.values:
+        return
+    if found is not None:
+        exc.pages = tuple(s.as_dict() for s in found.unread)
+    raise exc
+
+
+_PAGE_ERRORS: dict[str, type[DocumentFailure]] = {
+    cls.code: cls for cls in (NoTablesFound, PeriodsNotDetected, UnitNotDetected, ParseError)
+}
+
+
+def _skipped_pages(pages: tuple[dict[str, object], ...]) -> list[SkippedPage]:
+    """The unread pages an E2xx error lists, as SkippedPage again."""
+    return [
+        SkippedPage(
+            int(str(p["page"])), str(p["statement"]), _PAGE_ERRORS[str(p["code"])](str(p["reason"]))
+        )
+        for p in pages
+    ]
+
+
+def _docling_off(run: Run, name: str, config: Config, pages: list[int]) -> bool:
+    """True (after one notice naming the unread pages and the two ways to read them) when the
+    Docling add-on is not to be used: off in config.toml, or not installed."""
+    if config.docling and docling_run.installed():
+        return False
+    why = (
+        "the Docling add-on is not installed"
+        if config.docling
+        else "the Docling add-on is off ([pdf] docling = false in config.toml)"
+    )
+    run.event(
+        "extract",
+        f"pages {', '.join(map(str, pages))} not read, and {why}: install it "
+        "(`./install.sh --docling`) or give a Claude reading (`fin ingest --reading`)",
+        file=name,
+    )
+    return True
+
+
+def _docling_skipped(
+    run: Run, path: Path, name: str, config: Config, skipped: list[SkippedPage]
+) -> docling_run.DoclingResult | None:
+    """Docling's reading of the skipped statement pages, or None when the add-on is not used."""
+    if _docling_off(run, name, config, sorted({s.page for s in skipped})):
+        return None
+    found = docling_run.read_skipped(path, skipped, config.fiscal_year_start_month)
+    _log_docling(run, name, found)
+    return found
+
+
+def _docling_scanned(
+    run: Run, path: Path, name: str, config: Config
+) -> docling_run.DoclingResult | None:
+    """Docling's OCR reading of a scanned PDF, or None (add-on not used, or too long: E104)."""
+    if not (config.docling and docling_run.installed()):
+        return None
+    found = docling_run.read_scanned(path, config.fiscal_year_start_month)
+    if found is None:
+        run.event(
+            "extract",
+            f"scanned PDF longer than {docling_run.SCANNED_PAGE_LIMIT} pages: not read by Docling",
+            file=name,
+        )
+        return None
+    _log_docling(run, name, found)
+    return found
+
+
+def _log_docling(run: Run, name: str, found: docling_run.DoclingResult) -> None:
+    """Log what Docling did (also when the file then fails): notices, then warnings."""
+    for notice in found.notices:
+        run.event("extract", notice, file=name)
+    for code, message in found.warnings:
+        run.event("extract", message, level="warning", code=code, file=name)
 
 
 def _row(
@@ -243,7 +382,7 @@ def read_with_reading(
     name = f"{company}/{path.name}"
     lines = read_reading(reading, config.fiscal_year_start_month)
     try:
-        document = read_document(path, run.root, company, config)
+        document = read_document(run, path, company, config)
     except DocumentFailure as exc:
         run.event(
             "extract",
@@ -435,7 +574,7 @@ def ingest_file(
         _refuse_duplicate(run, company, name, sha256, force)
         archived_reading = None
         if reading is None:
-            document = read_document(path, run.root, company, config)
+            document = read_document(run, path, company, config)
         else:
             document = read_with_reading(run, path, company, config, reading)
             archived_reading = _archive_reading(run, company, reading)
@@ -475,11 +614,13 @@ def ingest_file(
             context={"doc_id": doc_id, "statement": statement, "label": label},
         )
     run.pending_review += len(unmapped)
-    claude = sum(1 for r in document.rows if r.read_by == "claude")
-    details = (
-        f"doc_id {doc_id} version {version}: {len(document.rows)} facts, "
+    readers = {"claude": "Claude", "docling": "Docling"}
+    counts = {who: sum(1 for r in document.rows if r.read_by == who) for who in readers}
+    details = f"doc_id {doc_id} version {version}: {len(document.rows)} facts, " + (
         f"{len(unmapped)} unmapped labels"
-        + (f", {claude} read by Claude (unverified)" if claude else "")
+    )
+    details += "".join(
+        f", {n} read by {readers[who]} (unverified)" for who, n in counts.items() if n
     )
     if open_findings:
         run.held += 1

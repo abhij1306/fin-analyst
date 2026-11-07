@@ -66,7 +66,7 @@ SELECT
     (SELECT count(*) FROM documents WHERE status = 'loaded'),
     count(f.fact_id),
     count(f.fact_id) FILTER (WHERE NOT f.confirmed),
-    count(f.fact_id) FILTER (WHERE f.read_by = 'claude' AND NOT f.verified),
+    count(f.fact_id) FILTER (WHERE f.read_by <> 'fin' AND NOT f.verified),
     (SELECT max(ingested_at) FROM documents WHERE status = 'loaded'),
     (SELECT count(*) FROM documents WHERE status = 'held'),
     (SELECT count(*) FROM findings WHERE status = 'open'),
@@ -106,7 +106,7 @@ _QUERIES = {
         FROM facts f
         JOIN documents d ON d.doc_id = f.doc_id
         JOIN raw_values r ON r.raw_id = f.raw_id
-        WHERE f.read_by = 'claude' AND NOT f.verified AND d.status IN ('loaded', 'held')
+        WHERE f.read_by <> 'fin' AND NOT f.verified AND d.status IN ('loaded', 'held')
         ORDER BY d.doc_id, f.fact_id
     """,
 }

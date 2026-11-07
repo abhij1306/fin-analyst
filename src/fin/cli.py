@@ -18,7 +18,7 @@ from fin.audit.trace import (
     format_metric_trace,
     metric_trace,
 )
-from fin.config import SCOPES, load_config, write_default_config
+from fin.config import SCOPES, load_config, set_docling, write_default_config
 from fin.dashboard import build as build_dashboard
 from fin.dashboard import serve as serve_dashboard
 from fin.db.schema import ensure_database
@@ -87,9 +87,18 @@ def _create_shared_databases(run: Run) -> None:
 
 
 @app.command()
-def init() -> None:
+def init(
+    docling: Annotated[
+        bool | None,
+        typer.Option(
+            "--docling/--no-docling",
+            help="Record whether the optional Docling PDF add-on is installed ([pdf] docling in "
+            "config.toml; install.sh sets it). Left as it is when not given.",
+        ),
+    ] = None,
+) -> None:
     """Create the data folder, config.toml and databases. Safe to run again; never deletes or
-    overwrites."""
+    overwrites (`--docling` / `--no-docling` changes only `[pdf] docling` in config.toml)."""
 
     def body(run: Run) -> None:
         created, existing = ensure_data_folder(run.root)
@@ -106,6 +115,11 @@ def init() -> None:
         else:
             typer.echo("kept     config.toml (already present, not changed)")
             run.event("config", "config.toml already present, not changed")
+        if docling is not None:
+            set_docling(run.root, docling)
+            line = f"set      [pdf] docling = {str(docling).lower()} in config.toml"
+            typer.echo(line)
+            run.event("config", line)
         _create_shared_databases(run)
         seed = load_seed(run.root, run)
         line = (
@@ -118,7 +132,7 @@ def init() -> None:
             f"data folder {run.root}: {len(created)} created, {len(existing)} already present"
         )
 
-    execute("init", {}, body, audit_required=False)
+    execute("init", {"docling": docling}, body, audit_required=False)
 
 
 def _check_level(check: Check) -> str:

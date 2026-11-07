@@ -53,3 +53,35 @@ jobs:
           eval "$(brew shellenv)"
           uv run --frozen fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
           uv run --frozen fin sql kestrel --sql "SELECT count(*) AS facts FROM facts" | grep -q '"facts": 162'
+
+  install-docling:
+    # ./install.sh --docling adds the optional Docling add-on (and its models) and records it in
+    # config.toml; a second plain run keeps it; the real-Docling tests pass; --no-docling removes it.
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Use a temporary data folder
+        run: echo "FIN_DATA_DIR=$RUNNER_TEMP/fin-data" >> "$GITHUB_ENV"
+      - name: Install with Docling
+        run: ./install.sh --docling
+      - name: Recorded in config.toml, and fin doctor finds it with its models
+        run: |
+          eval "$(brew shellenv)"
+          grep -q '^docling = true' "$FIN_DATA_DIR/config.toml"
+          .venv/bin/fin doctor | grep -q "docling.*installed, models in"
+      - name: A second plain install keeps it
+        run: |
+          ./install.sh
+          .venv/bin/python -c "import docling"
+      - name: Real-Docling tests
+        run: |
+          .venv/bin/pytest -m docling --durations=10
+      - name: --no-docling removes it
+        run: |
+          ./install.sh --no-docling
+          grep -q '^docling = false' "$FIN_DATA_DIR/config.toml"
+          if .venv/bin/python -c "import docling"; then echo "docling still installed"; exit 1; fi

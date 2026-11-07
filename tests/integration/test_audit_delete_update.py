@@ -275,6 +275,20 @@ def test_update_pulls_and_backs_up(
     assert any(s.startswith("metrics refreshed") for s in steps)
 
 
+def test_update_keeps_the_docling_add_on(
+    clone: tuple[Path, Path],
+    data_root: Path,
+    audit_query: Callable[..., list[tuple[Any, ...]]],
+) -> None:
+    """With `[pdf] docling = true`, update syncs with the extra (a plain sync would remove it)."""
+    assert invoke("init", "--docling").exit_code == 0
+
+    invoke("update")
+
+    steps = [m for (m,) in audit_query("SELECT message FROM events WHERE stage = 'update'")]
+    assert "uv sync --extra docling: exit 0" in steps
+
+
 def test_update_refuses_local_changes(clone: tuple[Path, Path], data_root: Path) -> None:
     work, other = clone
     assert invoke("init").exit_code == 0

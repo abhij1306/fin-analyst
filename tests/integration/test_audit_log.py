@@ -47,6 +47,7 @@ def _all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     monkeypatch.setattr("fin.doctor.tool_version", versions.get)
     monkeypatch.setattr("fin.doctor.sys.version_info", (3, 12, 13, "final", 0))
+    monkeypatch.setattr("fin.extract.docling_run.installed", lambda: False)
 
 
 def test_doctor_writes_runs_events_and_jsonl(
@@ -90,12 +91,19 @@ def test_doctor_writes_runs_events_and_jsonl(
         (7, "check", "info", None, "config: display unit crores"),
         (8, "check", "info", None, "audit schema: present"),
         (9, "check", "info", None, "dictionary schema: present"),
+        (
+            10,
+            "check",
+            "info",
+            None,
+            "docling: not installed (optional; `./install.sh --docling` to add it)",
+        ),
     ]
 
     records = jsonl_records(data_root, run_id)
     assert [(r["table"], r.get("record"), r.get("seq")) for r in records] == [
         ("runs", "start", None),
-        *[("events", None, seq) for seq in range(1, 10)],
+        *[("events", None, seq) for seq in range(1, 11)],
         ("runs", "end", None),
     ]
     assert [r["message"] for r in records if r["table"] == "events"] == [e[4] for e in events]

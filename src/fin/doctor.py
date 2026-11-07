@@ -1,6 +1,7 @@
 """`fin doctor`: check dependencies, versions, the data folder, config.toml and the shared
 database schemas (PLAN.md §10)."""
 
+import importlib
 import re
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from fin.audit.errors import (
 from fin.config import load_config
 from fin.db.conn import connect
 from fin.db.schema import is_old_format
+from fin.extract import docling_run
 from fin.paths import audit_db_path, dictionary_db_path, probe_writable
 
 PYTHON_VERSION = (3, 12)
@@ -135,6 +137,38 @@ def check_poppler() -> Check:
     return Check("poppler", True, _fmt(found) if found else "found")
 
 
+def check_docling(root: Path) -> Check:
+    """The optional Docling PDF add-on: off is fine; on, it must import, and its models should be
+    downloaded (ingest downloads them at first use otherwise, so missing models are a warning)."""
+    try:
+        on = load_config(root).docling
+    except FinError:
+        on = False  # the config check reports it
+    if not on:
+        detail = "installed, off in config.toml" if docling_run.installed() else "not installed"
+        return Check("docling", True, f"{detail} (optional; `./install.sh --docling` to add it)")
+    try:
+        importlib.import_module("docling.document_converter")
+    except ImportError as exc:
+        return Check(
+            "docling",
+            False,
+            f"[pdf] docling = true in config.toml, but Docling does not import ({exc})",
+            DependencyMissing.code,
+            "run `./install.sh --docling` (or `./install.sh --no-docling` to turn it off)",
+        )
+    if not docling_run.models_present():
+        return Check(
+            "docling",
+            True,
+            f"installed, but its models are not in {docling_run.models_dir()} (ingest downloads "
+            "them at first use)",
+            fix=f"run `{docling_run.MODEL_DOWNLOAD}`",
+            warning=True,
+        )
+    return Check("docling", True, f"installed, models in {docling_run.models_dir()}")
+
+
 def check_data_folder(root: Path) -> Check:
     if not root.is_dir():
         return Check(
@@ -214,4 +248,5 @@ def run_checks(root: Path) -> list[Check]:
         check_config(root),
         check_audit_schema(root),
         check_schema(dictionary_db_path(root), "dictionary"),
+        check_docling(root),
     ]

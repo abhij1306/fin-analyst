@@ -63,8 +63,9 @@ CREATE TABLE raw_values (
 -- balance sheet is a point in time: 30 Sep 2025 is 'FY26-H1' (6), 31 Mar 2025 is 'FY25' (12). fiscal_year is the
 -- fiscal year the period falls in ('FY26' for 'FY26-Q1'). Ingest always sets period and period_months.
 --
--- read_by: 'fin' (fin's own extraction) or 'claude' (from a reading file). Either way the fact points at the
--- original document's page or sheet!cell through raw_values.
+-- read_by: 'fin' (fin's own extraction, pdfplumber or openpyxl), 'docling' (the optional Docling PDF add-on, on a
+-- page pdfplumber could not read) or 'claude' (from a reading file). Either way the fact points at the original
+-- document's page or sheet!cell through raw_values. Facts not read by fin are unverified until `fin verify` agrees.
 -- verified: true once `fin verify` found a reading that agrees with the fact in a loaded document. A fact read by
 -- Claude is verified only by a reading other than the one it was loaded from. A later verify that differs sets it
 -- back to false.

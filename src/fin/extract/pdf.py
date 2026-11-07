@@ -135,7 +135,7 @@ _STATEMENT_WORDS = re.compile(
 )
 TITLE_WORDS = 5  # the statement words of a title start within its first five words
 NAMED_LINES = 12  # top lines searched for them, down to the first figure (below a letterhead)
-_FIGURE_TEXT = re.compile(r"\d[,.]\d")  # a figure with a comma or decimal point, not a page number
+FIGURE_TEXT = re.compile(r"\d[,.]\d")  # a figure with a comma or decimal point, not a page number
 LABEL_LINES = 4  # how many lines above a column header can hold period-length labels
 
 _ORDINAL = r"(?:st|nd|rd|th)?"
@@ -149,7 +149,7 @@ _NUMBER = re.compile(r"^\(?-?(?:[\d,]*\d(?:\.\d+)?|\.\d+)\)?$")
 _DASH = re.compile(r"^[-–—]$")  # a nil figure printed as a dash
 _YEAR = re.compile(r"^(19|20)\d\d$")
 _NOTE_REF = re.compile(r"^\d{1,3}(\.\d{1,2})?[a-z]?(\([a-z0-9]{1,4}\))*$|^&$|^and$", re.I)
-_SUB_HEADING = re.compile(r"^\(?\s*[a-z]{1,4}\s*\)", re.I)  # "(a)", "b)", "(iii)", "(c )"
+SUB_HEADING = re.compile(r"^\(?\s*[a-z]{1,4}\s*\)", re.I)  # "(a)", "b)", "(iii)", "(c )"
 _WORDY = re.compile(r"[a-z]{3}", re.I)
 _NOTES_BLOCK = re.compile(r"^notes?\s*:?$", re.I)  # "Notes:" ends the table on a statement page
 
@@ -267,7 +267,7 @@ def extract_pdf(path: Path, start_month: int = FY_START_MONTH) -> PdfExtraction:
     with open_pdf(path) as pdf:
         parts = [(page.page_number, lines) for page in pdf.pages for lines in page_parts(page)]
 
-    results = any(_is_results(lines) for _, lines in parts)
+    results = any(is_results(lines) for _, lines in parts)
     values: list[PdfValue] = []
     skipped: list[SkippedPage] = []
     previous: _Page | None = None
@@ -312,7 +312,7 @@ def _read_one_part(
             statement,
             scope,
             continues,
-            results=_is_results(lines) or bool(continues and results),
+            results=is_results(lines) or bool(continues and results),
             start_month=start_month,
         )
     except (UnitNotDetected, PeriodsNotDetected, NoTablesFound, ParseError) as exc:
@@ -408,9 +408,7 @@ def _untitled_statement(lines: list[Line], number: int) -> tuple[str, DocumentFa
 
 def _figure_lines(lines: list[Line]) -> int:
     """How many lines end in a figure written with a comma or decimal point."""
-    return sum(
-        1 for line in lines if _is_value_like(line) and _FIGURE_TEXT.search(line[-1]["text"])
-    )
+    return sum(1 for line in lines if _is_value_like(line) and FIGURE_TEXT.search(line[-1]["text"]))
 
 
 def _named_statement(lines: list[Line]) -> tuple[str, str] | None:
@@ -420,7 +418,7 @@ def _named_statement(lines: list[Line]) -> tuple[str, str] | None:
     row, a lead-in)."""
     for line in lines[:NAMED_LINES]:
         text = line_text(line).strip()
-        if _is_value_like(line) and _FIGURE_TEXT.search(line[-1]["text"]):
+        if _is_value_like(line) and FIGURE_TEXT.search(line[-1]["text"]):
             break
         if not _could_be_title(line, text):
             continue
@@ -458,8 +456,9 @@ def _continues(previous: _Page, number: int, lines: list[Line]) -> bool:
     return named is None or named[0] == previous.statement
 
 
-def open_pdf(path: Path) -> Any:
-    """Open a PDF with pdfplumber. Raises E101 (unreadable), E102 (encrypted), E104 (scanned)."""
+def open_pdf(path: Path, *, text_layer: bool = True) -> Any:
+    """Open a PDF with pdfplumber. Raises E101 (unreadable), E102 (encrypted), and E104 (scanned)
+    unless `text_layer` is False (an evidence crop of a page Docling read by OCR)."""
     try:
         pdf = pdfplumber.open(path)
     except PdfminerException as exc:
@@ -468,9 +467,9 @@ def open_pdf(path: Path) -> Any:
         raise FileUnreadable(f"{path.name}: not a readable PDF ({exc})") from exc
     except OSError as exc:
         raise FileUnreadable(f"{path.name}: {exc}") from exc
-    if not any(page.chars for page in pdf.pages):
+    if text_layer and not any(page.chars for page in pdf.pages):
         pdf.close()
-        raise ScannedPdf(f"{path.name}: no text layer (scanned PDFs are out of scope)")
+        raise ScannedPdf(f"{path.name}: no text layer")
     return pdf
 
 
@@ -580,7 +579,7 @@ def scope_of(lines: list[Line], numbered: bool = False) -> str | None:
     return words[0].lower() if words else None
 
 
-def _is_results(lines: list[Line]) -> bool:
+def is_results(lines: list[Line]) -> bool:
     """True for a page titled as quarterly or half-year results."""
     found = _title(lines)
     return found is not None and _RESULTS_TITLE.search(found[1].group(0)) is not None
@@ -934,7 +933,7 @@ def _read_line(
 
 def _is_nil_heading(row: dict[str, Word], label: str, line: Line, below: Line | None) -> bool:
     """True for a row whose figures are all nil dashes, with the next line indented below it."""
-    if not all(w["text"] in NIL for w in row.values()) or _SUB_HEADING.match(label):
+    if not all(w["text"] in NIL for w in row.values()) or SUB_HEADING.match(label):
         return False
     return below is not None and below[0]["x0"] > line[0]["x0"] + INDENT
 
@@ -965,7 +964,7 @@ def _text_line(state: _Reader, line: Line, columns: list[Column], statement: str
     state.last_text = line
     if _WORDY.search(text):
         state.before_heading = state.section
-        if not _SUB_HEADING.match(text):
+        if not SUB_HEADING.match(text):
             state.section = text
     return False
 
@@ -1002,7 +1001,7 @@ def _row_label(state: _Reader, words: Line, line: Line, height: float) -> tuple[
 def _check_figures(label: str, row: dict[str, Word], page: int) -> None:
     """Raise E204 when a row's figures look misread: its label holds a figure (the page's figures
     do not line up with their labels), or a figure has an unpaired bracket (its sign is unknown)."""
-    if _FIGURE_TEXT.search(label):
+    if FIGURE_TEXT.search(label):
         raise ParseError(
             f"page {page}: the label {label[:60]!r} holds a figure; the figures do not line up "
             "with their labels"
@@ -1054,7 +1053,7 @@ def render_crop(path: Path, page: int, bbox: tuple[float, float, float, float], 
 
     The band spans the page width so the row label shows next to the value.
     """
-    with open_pdf(path) as pdf:
+    with open_pdf(path, text_layer=False) as pdf:
         p = pdf.pages[page - 1]
         _, top, _, bottom = bbox
         region = (

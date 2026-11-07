@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Install fin-analyst on macOS. Safe to run again: it only installs what is missing.
 # Steps (PLAN.md §10): check macOS -> Homebrew -> brew bundle -> uv sync -> npm ci -> fin init -> fin doctor.
+#
+# Usage: ./install.sh [--docling | --no-docling]
+#   --docling     also install the optional Docling PDF add-on (PyTorch and Docling's models, about
+#                 1.4 GB) and record it in config.toml ([pdf] docling = true)
+#   --no-docling  remove the add-on and record that ([pdf] docling = false)
+#   neither       keep what config.toml says (off for a new install)
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,6 +16,15 @@ die() {
   echo "install: ERROR: $*" >&2
   exit 1
 }
+
+DOCLING_FLAG=""
+for arg in "$@"; do
+  case "$arg" in
+    --docling) DOCLING_FLAG="--docling" ;;
+    --no-docling) DOCLING_FLAG="--no-docling" ;;
+    *) die "unknown option: $arg (usage: ./install.sh [--docling | --no-docling])" ;;
+  esac
+done
 
 step() {
   echo
@@ -29,6 +44,18 @@ LOG_FILE="$DATA_DIR/logs/install.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 step "fin-analyst install: macOS $(sw_vers -productVersion) on $ARCH, repo $REPO_DIR, data $DATA_DIR"
+
+# The Docling add-on: the flag, or what config.toml already says (a plain sync would remove it).
+DOCLING=false
+if [[ "$DOCLING_FLAG" == "--docling" ]]; then
+  DOCLING=true
+elif [[ -z "$DOCLING_FLAG" ]] && grep -Eq '^docling[[:space:]]*=[[:space:]]*true' "$DATA_DIR/config.toml" 2>/dev/null; then
+  DOCLING=true
+fi
+if [[ "$DOCLING" == true && "$ARCH" == x86_64 ]]; then
+  die "the Docling add-on needs an Apple silicon Mac (PyTorch has no Intel macOS build); run ./install.sh --no-docling"
+fi
+echo "Docling add-on: $DOCLING"
 
 # 2. Homebrew (ask before installing)
 load_brew() {
@@ -63,8 +90,15 @@ fi
 cd "$REPO_DIR"
 
 # 4. Python environment (exact versions from uv.lock)
-step "Syncing Python environment (uv sync --frozen)"
-uv sync --frozen
+if [[ "$DOCLING" == true ]]; then
+  step "Syncing Python environment with the Docling add-on (uv sync --frozen --extra docling)"
+  uv sync --frozen --extra docling
+  step "Downloading Docling's models (once; about 700 MB)"
+  .venv/bin/docling-tools models download layout tableformer rapidocr
+else
+  step "Syncing Python environment (uv sync --frozen)"
+  uv sync --frozen
+fi
 
 # 5. Dashboard packages (exact versions from dashboards/package-lock.json; npm ci is safe to repeat)
 step "Installing dashboard packages (npm ci --prefix dashboards)"
@@ -72,7 +106,7 @@ npm ci --prefix dashboards --no-audit --no-fund --ignore-scripts
 
 # 6. Data folder
 step "Creating data folder (fin init)"
-uv run fin init
+uv run fin init ${DOCLING_FLAG:+"$DOCLING_FLAG"}
 
 # 7. Health check
 step "Checking installation (fin doctor)"

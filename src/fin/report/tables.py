@@ -233,7 +233,13 @@ def findings_table(data: dict[str, Any], display_unit: str) -> str:
 
 def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
     coverage = table(
-        ["Statement", "Figures read", "Mapped", "Mapped share", "Read by Claude, unverified"],
+        [
+            "Statement",
+            "Figures read",
+            "Mapped",
+            "Mapped share",
+            "Read by Claude or Docling, unverified",
+        ],
         [
             [
                 STATEMENT_TITLES[row["statement"]],

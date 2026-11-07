@@ -60,8 +60,9 @@ filed. Open findings wait for a decision; a held document's figures are not in t
 ### Mapped figures
 
 How many of the figures read from each statement are mapped to a standard account. Unmapped figures
-(or mappings waiting for review) are left out of every metric. Figures read by Claude from pages fin
-could not read count as unverified until an independent reading agrees (`fin verify`).
+(or mappings waiting for review) are left out of every metric. Figures read by Claude or by the Docling
+PDF add-on from pages fin could not read count as unverified until an independent reading agrees
+(`fin verify`).
 
 {{table:coverage}}
 
