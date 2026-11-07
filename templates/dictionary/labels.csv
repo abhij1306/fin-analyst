@@ -376,3 +376,321 @@ Repayment of long term borrowings,cash_flow,,cf_lt_borrowings_net
 Proceeds from short term borrowings,cash_flow,,cf_st_borrowings_net
 Repayment of short term borrowings,cash_flow,,cf_st_borrowings_net
 "Payments for property, plant and equipment",cash_flow,,cf_capex
+Share application money pending allotment,balance_sheet,,share_application_money
+Fixed assets,balance_sheet,,fixed_assets
+Investment property,balance_sheet,,investment_property
+Investment properties,balance_sheet,,investment_property
+Biological assets other than bearer plants,balance_sheet,,biological_assets
+Trade receivables,balance_sheet,Non-current assets,trade_receivables_non_current
+Trade payables,balance_sheet,Non-current liabilities,trade_payables_non_current
+Current tax liabilities,balance_sheet,,current_tax_liabilities
+Other bank balances,balance_sheet,,other_bank_balances
+Bank balance other than cash and cash equivalents,balance_sheet,,other_bank_balances
+Bank balance other than (a) above,balance_sheet,,other_bank_balances
+Trade receivables,balance_sheet,Receivables,trade_receivables
+Other receivables,balance_sheet,,other_receivables
+Other non-financial assets,balance_sheet,,other_non_financial_assets
+Total financial assets,balance_sheet,,total_financial_assets
+Total non-financial assets,balance_sheet,,total_non_financial_assets
+Trade payables,balance_sheet,Payables,trade_payables
+Other payables,balance_sheet,,other_payables
+Debt securities,balance_sheet,,debt_securities
+Borrowings (other than debt securities),balance_sheet,,borrowings
+Deposits,balance_sheet,Financial liabilities,deposits
+Deposits,balance_sheet,Capital and liabilities,deposits
+Subordinated liabilities,balance_sheet,,subordinated_liabilities
+Other non-financial liabilities,balance_sheet,,other_non_financial_liabilities
+Total financial liabilities,balance_sheet,,total_financial_liabilities
+Total non-financial liabilities,balance_sheet,,total_non_financial_liabilities
+Total liabilities and equity,balance_sheet,,total_equity_and_liabilities
+Capital,balance_sheet,Capital and liabilities,share_capital
+Borrowings,balance_sheet,Capital and liabilities,borrowings
+Other liabilities and provisions,balance_sheet,Capital and liabilities,other_liabilities_and_provisions
+Total,balance_sheet,Capital and liabilities,total_equity_and_liabilities
+Cash and balances with Reserve Bank of India,balance_sheet,,balances_with_rbi
+Cash and balances with RBI,balance_sheet,,balances_with_rbi
+Balances with banks and money at call and short notice,balance_sheet,,balances_with_banks
+Advances,balance_sheet,Assets,loans
+Total,balance_sheet,Assets,total_assets
+Contingent liabilities,balance_sheet,,contingent_liabilities
+Bills for collection,balance_sheet,,bills_for_collection
+Interest income,profit_and_loss,Revenue from operations,interest_income
+Dividend income,profit_and_loss,Revenue from operations,dividend_income
+Rental income,profit_and_loss,Revenue from operations,rental_income
+Fees and commission income,profit_and_loss,,fee_and_commission_income
+Fee and commission income,profit_and_loss,,fee_and_commission_income
+Net gain on fair value changes,profit_and_loss,,net_gain_fair_value_changes
+Net gain on derecognition of financial instruments under amortised cost category,profit_and_loss,,net_gain_derecognition
+Total revenue from operations,profit_and_loss,,revenue
+Fees and commission expense,profit_and_loss,,fee_and_commission_expense
+Fee and commission expense,profit_and_loss,,fee_and_commission_expense
+Net loss on fair value changes,profit_and_loss,,net_loss_fair_value_changes
+Net loss on derecognition of financial instruments under amortised cost category,profit_and_loss,,net_loss_derecognition
+Impairment on financial instruments,profit_and_loss,,impairment_on_financial_instruments
+Impairment of financial instruments,profit_and_loss,,impairment_on_financial_instruments
+Interest earned,profit_and_loss,,revenue
+Total,profit_and_loss,Income,total_income
+Interest expended,profit_and_loss,,interest_expended
+Operating expenses,profit_and_loss,Expenditure,operating_expenses
+Provisions and contingencies,profit_and_loss,,provisions_and_contingencies
+Total,profit_and_loss,Expenditure,total_expenses
+Net profit for the year,profit_and_loss,,pat
+Net profit/(loss) for the year,profit_and_loss,,pat
+Profit/(loss) brought forward,profit_and_loss,,profit_brought_forward
+Profit brought forward,profit_and_loss,,profit_brought_forward
+Total,profit_and_loss,Profit/(loss),profit_for_appropriation
+Transfer to statutory reserve,profit_and_loss,Appropriations,appropriations
+Transfer to capital reserve,profit_and_loss,Appropriations,appropriations
+Transfer to investment fluctuation reserve,profit_and_loss,Appropriations,appropriations
+Transfer to other reserves,profit_and_loss,Appropriations,appropriations
+Dividend paid,profit_and_loss,Appropriations,appropriations
+Balance carried over to balance sheet,profit_and_loss,Appropriations,appropriations
+Total,profit_and_loss,Appropriations,total_appropriations
+Paid-up equity share capital,profit_and_loss,,paid_up_share_capital
+Other equity,profit_and_loss,,reserves_memo
+Other equity excluding revaluation reserve,profit_and_loss,,reserves_memo
+Reserves excluding revaluation reserves,profit_and_loss,,reserves_memo
+Face value per share,profit_and_loss,,face_value_per_share
+Face value,profit_and_loss,,face_value_per_share
+Paid-up equity share capital (face value of Rs. 10 each),profit_and_loss,,paid_up_share_capital
+Paid-up equity share capital (face value Rs. 10 each),profit_and_loss,,paid_up_share_capital
+Paid-up equity share capital (face value of Rs. 10/- per share),profit_and_loss,,paid_up_share_capital
+Paid-up equity share capital (face value of Rs. 2 each),profit_and_loss,,paid_up_share_capital
+Paid-up equity share capital (face value of Rs. 5 each),profit_and_loss,,paid_up_share_capital
+Paid-up equity share capital (face value of Re. 1 each),profit_and_loss,,paid_up_share_capital
+Paid-up equity share capital (face value Re. 1/- each),profit_and_loss,,paid_up_share_capital
+Total A,profit_and_loss,Income,total_income
+Total B,profit_and_loss,Expenses,total_expenses
+Total,profit_and_loss,Expenses,total_expenses
+Adjustment of tax relating to earlier periods,profit_and_loss,,tax_expense
+Adjustment of tax relating to earlier years,profit_and_loss,,tax_expense
+Tax relating to earlier years,profit_and_loss,,tax_expense
+Taxes of earlier years,profit_and_loss,,tax_expense
+Earlier years tax,profit_and_loss,,tax_expense
+Short/(excess) provision for tax of earlier years,profit_and_loss,,tax_expense
+(Excess)/short provision of tax of earlier years,profit_and_loss,,tax_expense
+Share of profit/(loss) of associates and joint ventures accounted for using the equity method,profit_and_loss,,share_of_associates_jv
+Share of profit/(loss) of associates and joint ventures accounted by using the equity method,profit_and_loss,,share_of_associates_jv
+Share of net profit/(loss) of associates and joint ventures,profit_and_loss,,share_of_associates_jv
+Property plant and equipment and intangible assets,balance_sheet,,fixed_assets
+Profit for the year,cash_flow,,cf_pat
+Profit/(loss) for the year,cash_flow,,cf_pat
+Profit for the period,cash_flow,,cf_pat
+Profit/(loss) for the period,cash_flow,,cf_pat
+Income tax expense,cash_flow,,cf_add_tax_expense
+Income tax expense recognised in profit and loss,cash_flow,,cf_add_tax_expense
+Tax expense,cash_flow,,cf_add_tax_expense
+Finance costs recognised in profit and loss,cash_flow,,cf_add_finance_cost
+Interest income recognised in profit and loss,cash_flow,,cf_less_interest_income
+Interest on borrowings,cash_flow,,cf_add_finance_cost
+Interest on lease liabilities,cash_flow,,cf_add_finance_cost
+Interest on lease liability,cash_flow,,cf_add_finance_cost
+Depreciation and amortization,cash_flow,,cf_add_depreciation
+Depreciation and amortisation of non-current assets,cash_flow,,cf_add_depreciation
+"Depreciation, amortisation and impairment expense",cash_flow,,cf_add_depreciation
+"Net loss/(gain) on disposal of property, plant and equipment",cash_flow,,cf_gain_on_sale_of_ppe
+"Loss/(gain) on disposal of property, plant and equipment",cash_flow,,cf_gain_on_sale_of_ppe
+"(Gain)/loss on disposal of property, plant and equipment",cash_flow,,cf_gain_on_sale_of_ppe
+"(Profit)/loss on sale of property, plant and equipment",cash_flow,,cf_gain_on_sale_of_ppe
+"Loss/(profit) on sale of property, plant and equipment",cash_flow,,cf_gain_on_sale_of_ppe
+"Profit on sale of property, plant and equipment",cash_flow,,cf_gain_on_sale_of_ppe
+"Loss on sale of property, plant and equipment",cash_flow,,cf_gain_on_sale_of_ppe
+(Profit)/loss on sale of fixed assets,cash_flow,,cf_gain_on_sale_of_ppe
+Loss/(profit) on sale of fixed assets,cash_flow,,cf_gain_on_sale_of_ppe
+Unrealised exchange loss/(gain),cash_flow,,cf_unrealised_fx
+Unrealised exchange (gain)/loss,cash_flow,,cf_unrealised_fx
+Unrealised foreign exchange loss/(gain),cash_flow,,cf_unrealised_fx
+Unrealised foreign exchange (gain)/loss,cash_flow,,cf_unrealised_fx
+Impairment loss/(write-back) on financial assets,cash_flow,,cf_add_impairment
+Allowance for expected credit loss,cash_flow,,cf_add_impairment
+Expected credit loss,cash_flow,,cf_add_impairment
+Provision for expected credit loss,cash_flow,,cf_add_impairment
+Provision for doubtful debts,cash_flow,,cf_add_impairment
+Provision for doubtful debts and advances,cash_flow,,cf_add_impairment
+Bad debts written off,cash_flow,,cf_add_impairment
+Bad debts provision,cash_flow,,cf_add_impairment
+Impairment on financial instruments,cash_flow,,cf_add_impairment
+Fair value change on investments recognised at FVTPL,cash_flow,,cf_gain_on_investments
+Gain on investments carried at fair value through profit or loss,cash_flow,,cf_gain_on_investments
+Gain on investments through FVTPL,cash_flow,,cf_gain_on_investments
+Net gain on fair value changes,cash_flow,,cf_gain_on_investments
+Net gain on sale of investments,cash_flow,,cf_gain_on_investments
+Profit on sale of investments,cash_flow,,cf_gain_on_investments
+(Profit)/loss on sale of investments,cash_flow,,cf_gain_on_investments
+Liabilities no longer required written back,cash_flow,,cf_liabilities_written_back
+Provisions no longer required written back,cash_flow,,cf_liabilities_written_back
+Liabilities/provisions no longer required written back,cash_flow,,cf_liabilities_written_back
+Dividend income,cash_flow,,cf_less_dividend_income
+Dividend received,cash_flow,Adjustments for,cf_less_dividend_income
+Share based payment expense,cash_flow,,cf_share_based_payments
+Employee stock option expense,cash_flow,,cf_share_based_payments
+Exceptional items,cash_flow,,cf_exceptional_items
+Share of (profit)/loss of associates and joint ventures,cash_flow,,cf_share_of_associates
+Decrease/(increase) in inventories,cash_flow,,cf_change_inventories
+Decrease/(increase) in trade receivables,cash_flow,,cf_change_receivables
+Decrease/(increase) in other current assets,cash_flow,,cf_change_oca
+(Increase)/decrease in other current/non current assets,cash_flow,,cf_change_oca
+(Increase)/decrease in other assets,cash_flow,,cf_change_oca
+(Increase)/decrease in loans and advances,cash_flow,,cf_change_loans
+(Increase)/decrease in short-term loans and advances,cash_flow,,cf_change_loans
+(Increase)/decrease in loans,cash_flow,,cf_change_loans
+(Increase)/decrease in loans receivable,cash_flow,,cf_change_loans
+(Increase)/decrease in other financial assets,cash_flow,,cf_change_ofa
+(Increase)/decrease in other current/non current financial assets,cash_flow,,cf_change_ofa
+(Increase)/decrease in other non-current assets,cash_flow,,cf_change_onca
+(Increase)/decrease in non-current assets,cash_flow,,cf_change_onca
+Increase/(decrease) in other financial liabilities,cash_flow,,cf_change_ofl
+Increase/(decrease) in other current/non current financial liabilities,cash_flow,,cf_change_ofl
+Increase/(decrease) in other liabilities,cash_flow,,cf_change_ocl
+Increase/(decrease) in other non current liabilities,cash_flow,,cf_change_ocl
+Increase/(decrease) in provisions,cash_flow,,cf_change_provisions
+Increase/(decrease) in long term provisions,cash_flow,,cf_change_provisions
+Increase/(decrease) in short term provisions,cash_flow,,cf_change_provisions
+Income taxes paid (net),cash_flow,,cf_taxes_paid
+Income tax paid (net),cash_flow,,cf_taxes_paid
+Income tax paid (net of refunds),cash_flow,,cf_taxes_paid
+Direct taxes paid (net of refunds),cash_flow,,cf_taxes_paid
+"Proceeds from disposal of property, plant and equipment",cash_flow,,cf_ppe_sale_proceeds
+"Proceeds from sale of property, plant and equipment",cash_flow,,cf_ppe_sale_proceeds
+Proceeds from sale of fixed assets,cash_flow,,cf_ppe_sale_proceeds
+Sale of fixed assets,cash_flow,,cf_ppe_sale_proceeds
+"Acquisition of property, plant and equipment",cash_flow,,cf_capex
+"Payment for property, plant and equipment",cash_flow,,cf_capex
+Purchase of investments,cash_flow,,cf_investments_purchased
+Purchase of current investments,cash_flow,,cf_investments_purchased
+Purchase of non-current investments,cash_flow,,cf_investments_purchased
+Payments for acquisition of current investments,cash_flow,,cf_investments_purchased
+Investment in subsidiaries,cash_flow,,cf_investments_purchased
+Proceeds from sale of investments,cash_flow,,cf_investments_sold
+Proceeds from sale of current investments,cash_flow,,cf_investments_sold
+Proceeds from disposal of current investments,cash_flow,,cf_investments_sold
+Disposal of current investments,cash_flow,,cf_investments_sold
+Sale of investments,cash_flow,,cf_investments_sold
+Bank balances not considered as cash and cash equivalents,cash_flow,,cf_bank_deposits_net
+Bank balances not considered as cash and cash equivalents (net),cash_flow,,cf_bank_deposits_net
+Bank deposits (placed)/matured (net),cash_flow,,cf_bank_deposits_net
+Investment in bank deposits,cash_flow,,cf_bank_deposits_net
+Fixed deposits matured/(placed),cash_flow,,cf_bank_deposits_net
+Proceeds from redemption of bank deposits,cash_flow,,cf_bank_deposits_net
+Acquisition of fixed deposits,cash_flow,,cf_bank_deposits_net
+Dividends received,cash_flow,,cf_dividends_received
+Dividend received,cash_flow,Cash flow from investing activities,cf_dividends_received
+Dividend received,cash_flow,Cash flows from investing activities,cf_dividends_received
+Interest on borrowings,cash_flow,Cash flow from financing activities,cf_finance_cost_paid
+Interest on lease liabilities,cash_flow,Cash flow from financing activities,cf_finance_cost_paid
+Interest on lease liabilities,cash_flow,Cash flows from financing activities,cf_finance_cost_paid
+Proceeds from issue of equity shares,cash_flow,,cf_share_issue_proceeds
+Proceeds from issue of share capital,cash_flow,,cf_share_issue_proceeds
+Net proceeds from issue of share capital,cash_flow,,cf_share_issue_proceeds
+Issue of share capital,cash_flow,,cf_share_issue_proceeds
+Money received against share warrants,cash_flow,,cf_share_issue_proceeds
+Payment of lease liabilities,cash_flow,,cf_lease_payments
+Repayment of lease liabilities,cash_flow,,cf_lease_payments
+Principal payment of lease liabilities,cash_flow,,cf_lease_payments
+Payment of principal portion of lease liabilities,cash_flow,,cf_lease_payments
+Proceeds/(repayment) from lease liability,cash_flow,,cf_lease_payments
+Proceeds/(repayment) of long term borrowings,cash_flow,,cf_lt_borrowings_net
+Proceeds/(repayment) of short term borrowings,cash_flow,,cf_st_borrowings_net
+Proceeds/(repayment) from term loans from banks,cash_flow,,cf_lt_borrowings_net
+Proceeds/(repayment) from working capital limits from banks,cash_flow,,cf_st_borrowings_net
+Interest and finance charges paid,cash_flow,,cf_finance_cost_paid
+Finance costs,cash_flow,Cash flow from financing activities,cf_finance_cost_paid
+Finance cost,cash_flow,Cash flow from financing activities,cf_finance_cost_paid
+Effect of exchange rate changes on cash and cash equivalents,cash_flow,,cf_fx_effect
+Effects of exchange rate changes on the balance of cash and cash equivalents held in foreign currencies,cash_flow,,cf_fx_effect
+Effect of exchange differences on cash and cash equivalents held in foreign currency,cash_flow,,cf_fx_effect
+Goodwill on consolidation,balance_sheet,,goodwill
+Employee benefit obligations,balance_sheet,Non-current liabilities,lt_provisions
+Employee benefit obligations,balance_sheet,Current liabilities,st_provisions
+Non-current provisions,balance_sheet,,lt_provisions
+Current provisions,balance_sheet,,st_provisions
+Non-current borrowings,balance_sheet,,lt_borrowings
+Current borrowings,balance_sheet,,st_borrowings
+Current tax liability (net),balance_sheet,,current_tax_liabilities
+Other non-current financial assets,balance_sheet,,other_financial_assets_non_current
+Other current financial assets,balance_sheet,,other_financial_assets_current
+Other non-current financial liabilities,balance_sheet,,other_financial_liabilities_non_current
+Other current financial liabilities,balance_sheet,,other_financial_liabilities_current
+Other balances with banks,balance_sheet,,other_bank_balances
+Dues of micro and small enterprises,balance_sheet,,trade_payables
+Dues of creditors other than micro and small enterprises,balance_sheet,,trade_payables
+Dues to micro and small enterprises,balance_sheet,,trade_payables
+Dues to other than micro and small enterprises,balance_sheet,,trade_payables
+Tax adjustments relating to earlier years,profit_and_loss,,tax_expense
+Excess provision of tax for the earlier years written back,profit_and_loss,,tax_expense
+Income tax relating to items that will not be reclassified subsequently to profit or loss,profit_and_loss,,oci_items
+Income tax relating to items that will be reclassified subsequently to profit or loss,profit_and_loss,,oci_items
+Income tax related to above,profit_and_loss,,oci_items
+Income tax relating to above items,profit_and_loss,,oci_items
+Income tax relating to above item,profit_and_loss,,oci_items
+Income tax relating to these items,profit_and_loss,,oci_items
+Remeasurements of defined benefit obligations,profit_and_loss,,oci_items
+Remeasurements of the net defined benefit liability,profit_and_loss,,oci_items
+Remeasurement gain/(loss) of defined benefit plans,profit_and_loss,,oci_items
+Changes in fair value of equity instruments through OCI,profit_and_loss,,oci_items
+Effective portion of gains and losses on designated portion of hedging instruments in a cash flow hedge,profit_and_loss,,oci_items
+Share of other comprehensive income in joint venture,profit_and_loss,,oci_items
+Share of other comprehensive income of associates and joint ventures,profit_and_loss,,oci_items
+Items that may be reclassified to profit or loss,profit_and_loss,,oci_group_total
+Items that will be reclassified subsequently to profit or loss,profit_and_loss,,oci_group_total
+Items that will not be reclassified subsequently to profit or loss,profit_and_loss,,oci_group_total
+Total other comprehensive loss,profit_and_loss,,oci
+Total other comprehensive income (after tax),profit_and_loss,,oci
+Total other comprehensive income (net of tax),profit_and_loss,,oci
+Total comprehensive income for the year (net of tax),profit_and_loss,,total_comprehensive_income
+Profit/(loss) before exceptional item and tax,profit_and_loss,,profit_before_exceptional_items
+Share of profit/(loss) of joint venture,profit_and_loss,,share_of_associates_jv
+Share of profit/(loss) from joint venture (net),profit_and_loss,,share_of_associates_jv
+Basic earning per share,profit_and_loss,,eps_basic
+Diluted earning per share,profit_and_loss,,eps_diluted
+Cost of raw materials consumed,profit_and_loss,,cost_of_materials
+Raw materials consumed,profit_and_loss,,cost_of_materials
+"Changes in inventories of work-in-progress, stock-in-trade and finished goods",profit_and_loss,,change_in_inventories
+"Changes in inventories of work-in-process, finished goods and scrap",profit_and_loss,,change_in_inventories
+"Changes in inventories of finished goods, work-in-progress and scrap",profit_and_loss,,change_in_inventories
+Deferred tax (credit)/charge,profit_and_loss,,deferred_tax
+Inventories,cash_flow,,cf_change_inventories
+Trade receivables,cash_flow,,cf_change_receivables
+Trade payables,cash_flow,,cf_change_payables
+Other financial assets,cash_flow,,cf_change_ofa
+Other financial liabilities,cash_flow,,cf_change_ofl
+Other assets,cash_flow,,cf_change_oca
+Other liabilities,cash_flow,,cf_change_ocl
+Increase in other financial assets,cash_flow,,cf_change_ofa
+Increase in other financial liabilities,cash_flow,,cf_change_ofl
+Increase in other assets,cash_flow,,cf_change_oca
+Write back of liabilities no longer required,cash_flow,,cf_liabilities_written_back
+Proceeds from sale of property plant & equipments,cash_flow,,cf_ppe_sale_proceeds
+"Proceeds from sale of property, plant and equipment (net)",cash_flow,,cf_ppe_sale_proceeds
+"Profit on sale of property, plant and equipment (net)",cash_flow,,cf_gain_on_sale_of_ppe
+Profit on sale of investments (net),cash_flow,,cf_gain_on_investments
+Profit on sale of investment,cash_flow,,cf_gain_on_investments
+Profit on sale of current investments (net),cash_flow,,cf_gain_on_investments
+Purchase of long term investments,cash_flow,,cf_investments_purchased
+Payment for purchase of investments,cash_flow,,cf_investments_purchased
+Proceeds from sale of investment,cash_flow,,cf_investments_sold
+Proceeds from sale/redemption of investments,cash_flow,,cf_investments_sold
+Sale of current investments,cash_flow,,cf_investments_sold
+Proceeds from maturity of fixed deposits with banks,cash_flow,,cf_bank_deposits_net
+Investments in fixed deposits with banks,cash_flow,,cf_bank_deposits_net
+Movement in other bank balances,cash_flow,,cf_bank_deposits_net
+Repayment of lease liability,cash_flow,,cf_lease_payments
+Repayment of leases liabilities,cash_flow,,cf_lease_payments
+"Proceeds/(repayment) of short-term borrowings, net",cash_flow,,cf_st_borrowings_net
+Proceeds/(repayments) of short-term borrowings (net),cash_flow,,cf_st_borrowings_net
+Proceeds from short-term borrowings (net),cash_flow,,cf_st_borrowings_net
+Proceeds of long-term borrowings,cash_flow,,cf_lt_borrowings_net
+Repayment of borrowings - non-current (including current maturities),cash_flow,,cf_lt_borrowings_net
+Proceeds from issue of equity shares (net of issue expenses),cash_flow,,cf_share_issue_proceeds
+Proceeds from issue of share warrants,cash_flow,,cf_share_issue_proceeds
+Share based payment expense (net),cash_flow,,cf_share_based_payments
+Unrealised foreign exchange differences,cash_flow,,cf_unrealised_fx
+Unrealised foreign exchange differences (net),cash_flow,,cf_unrealised_fx
+Unrealized foreign exchange differences (net),cash_flow,,cf_unrealised_fx
+Provision for credit impaired trade receivables,cash_flow,,cf_add_impairment
+Short/(excess) provision of tax of earlier years,cash_flow,,cf_add_tax_expense
+Profit/(loss) before tax,cash_flow,,cf_pbt
+Cash (used in)/generated from operations,cash_flow,,cf_cash_generated
+Net cash from investing activities,cash_flow,,cfi
+Cash and cash equivalents at beginning of the year,cash_flow,,opening_cash
+Cash and cash equivalents as at the end of the year,cash_flow,,closing_cash

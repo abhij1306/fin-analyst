@@ -11,6 +11,8 @@
    numeral ("III Total income") at the start.
 5. "&" becomes "and"; every other character that is not a letter or digit becomes a space.
 6. Runs of spaces collapse to one; ends trimmed.
+7. A note number left at the end after a word is removed: "Borrowings 13 (a)" and
+   "Lease liability 10 B" (a notes column read into the label).
 """
 
 import re
@@ -34,6 +36,7 @@ _LEADING_NUMBERING = re.compile(
 )
 _LEADING_ROMAN = re.compile(r"^(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})\s+")
 _NOT_WORD = re.compile(r"[^a-z0-9]+")
+_TRAILING_NOTE = re.compile(r"(?<=[a-z]) \d{1,2}(?: [a-z])?$")
 
 
 def normalize_label(text: str) -> str:
@@ -47,4 +50,5 @@ def normalize_label(text: str) -> str:
     label = _LEADING_NUMBERING.sub("", label.strip())
     label = _LEADING_ROMAN.sub("", label)
     label = label.replace("&", " and ")
-    return _NOT_WORD.sub(" ", label).strip()
+    label = _NOT_WORD.sub(" ", label).strip()
+    return _TRAILING_NOTE.sub("", label)

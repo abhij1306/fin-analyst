@@ -314,6 +314,53 @@ Human follow-ups:
   directors' report table) is listed as not read; the user declines the reading offer for it.
 - Rows inside a statement that do not parse are still dropped without a record; only whole pages are reported.
 
+### Chart of accounts for the standard Indian formats
+
+The seed dictionary now covers the line items of Schedule III Divisions I, II and III (NBFCs), the bank Forms A and
+B (Third Schedule, Banking Regulation Act), SEBI Reg 33 results and the indirect cash flow (Ind AS 7 / AS 3).
+
+- 78 new accounts (182 in all) and 318 new labels (695 in all) in `templates/dictionary/`. No migration.
+  - Division I / II: share application money, fixed assets, investment property, biological assets, non-current
+    trade receivables and payables, assets held for sale and the liabilities with them.
+  - Division III and banks: lines with no current / non-current split (`loans`, `investments`, `borrowings`,
+    `deposits`, `debt_securities`, `subordinated_liabilities`, `balances_with_rbi`, ...) add straight into
+    `total_assets` or `total_liabilities`, so `total_assets`, `total_equity_and_liabilities` and `pat` stay the
+    anchors. NBFC income and expense heads (interest, fees and commission, fair value changes, impairment on
+    financial instruments) and bank heads (interest earned / expended, operating expenses, provisions and
+    contingencies). "Total financial assets" and similar NBFC subtotals, bank appropriations and contingent
+    liabilities are memo accounts with no parent (mapped, not checked).
+  - Results: paid-up equity share capital, other equity and face value below the P&L (memo), tax of earlier years,
+    share of associates, OCI line and tax variants.
+  - Cash flow: profit after tax as the starting line, tax expense added back, gains and losses on assets and
+    investments, impairment, unrealised exchange, write-backs, share-based payments, more working-capital lines,
+    investing (sale of PPE, investments, bank deposits, dividends) and financing (share issue, lease payments)
+    lines, and the effect of exchange rate changes.
+- Parent change: `ppe_net`, `capital_work_in_progress`, `intangible_assets` and `intangible_assets_under_development`
+  now add into the new `fixed_assets`, which adds into `total_non_current_assets`. An existing data folder keeps the
+  old parents (re-create it, or update the rows with `fin sql` on the dictionary).
+- `map_rows` follows the balance-sheet part per statement and scope. Before, a results PDF with standalone and
+  consolidated columns side by side (rows interleaved) lost its part on every row.
+- Normalization drops a note number left at the end of a label ("Borrowings 13 (a)", "Lease liability 10 B").
+- Left to review on purpose: "Loans", "Investments", "Other financial assets", "Provisions", "Lease liabilities",
+  "Other financial liabilities" and "Other assets" outside a balance-sheet part, "Derivative financial instruments",
+  and assets held for sale. Each means different accounts in different formats, and mapped in a Division II
+  statement whose part heading was not read, it would hold a correct document on an E402 finding. The accounts exist for
+  `fin map set` and review.
+- Coverage on 20 real PDFs fin can read (annual reports and quarterly results; 8 more are scanned or fail E2xx and
+  were not counted): lines mapped automatically 63.7% to 77.3% (4,018 to 4,874 of 6,306). E402 checks run 220 to
+  320, all passing; no document changed status (one still fails E403 on old-format "Cash and bank balances").
+  Measured before "findings instead of failures" (#25), when a failed gate rolled the document back.
+- No new dependencies.
+
+Human follow-ups:
+- NBFC and bank PDFs in the test set were unreadable, so Division III and bank coverage is proven on synthetic
+  statements only.
+- Old-format "Cash & bank balances" still maps to `cash` (a fixture expects it), so such documents fail E403 until
+  mapped to `cash_and_bank_balances`.
+- A results "(i) Items that will not be reclassified" line is an item, but the seed maps it as an OCI group subtotal
+  (right for annual reports); and a "Current assets" subtotal printed before held-for-sale assets is read as total
+  current assets.
+
 ## [1.0.0] - 2026-11-07
 
 First release: Phases 0-12 below. How it was tested:

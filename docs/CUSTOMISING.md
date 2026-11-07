@@ -40,7 +40,20 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `section` is the heading the label sits under, or empty for any heading. For the balance sheet it can also be the
   part (`Non-current assets`, `Current assets`, `Non-current liabilities`, `Current liabilities`): a row under a
   sub-heading such as "Financial liabilities" is looked up under the part it is in (`map_rows` in
-  `map/dictionary.py`).
+  `map/dictionary.py`; the part is followed per statement and scope, so side-by-side standalone and consolidated
+  columns keep theirs).
+- What the seed covers: Schedule III Divisions I, II and III (NBFCs), the bank Forms A and B, SEBI Reg 33 results
+  and the Ind AS 7 / AS 3 indirect cash flow. NBFC and bank lines with no current / non-current split add straight
+  into `total_assets` or `total_liabilities` (`loans`, `investments`, `borrowings`, `deposits`, `debt_securities`,
+  ...), so the balance-sheet checks work without a current / non-current part. "Total financial assets" and similar
+  NBFC subtotals, the bank appropriation lines and results memo lines (paid-up capital, face value) are accounts
+  without a parent: mapped, never checked. `fixed_assets` (old format and banks) is the parent of `ppe_net`, CWIP and
+  intangibles.
+- Leave a label to review when it means different accounts in different formats and no section tells them apart.
+  The seed does not map "Loans", "Investments", "Other financial assets", "Provisions", "Lease liabilities",
+  "Other financial liabilities" or "Other assets" outside a balance-sheet part, nor "Derivative financial
+  instruments" or assets held for sale: in a Division II statement whose part heading was not read they would land
+  in the wrong subtotal and a correct document would be held on an E402 finding. Map them per company (`fin map set`) instead.
 - Run `uv run fin init`. It adds missing rows to the shared dictionary and never removes or changes existing ones. To
   change an existing row (a new parent or sign), add a `dictionary` migration (see
   `db/migrations/dictionary/002_account_unit_and_pl_tree.sql`), or use `fin sql` on the dictionary.
