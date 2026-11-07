@@ -4,7 +4,55 @@ from pathlib import Path
 import pytest
 
 from fin.audit.errors import FinError
-from fin.config import DEFAULT_CONFIG_TOML, Config, load_config, write_default_config
+from fin.config import (
+    DEFAULT_CONFIG_TOML,
+    Config,
+    load_config,
+    set_docling,
+    write_default_config,
+)
+
+# config.toml as written before the Docling add-on: no [pdf] table.
+OLDER_CONFIG = DEFAULT_CONFIG_TOML[: DEFAULT_CONFIG_TOML.index("\n\n[pdf]")] + "\n"
+
+
+def test_docling_is_off_by_default_and_without_a_pdf_table(tmp_path: Path) -> None:
+    write_default_config(tmp_path)
+    assert load_config(tmp_path).docling is False
+    (tmp_path / "config.toml").write_text(OLDER_CONFIG, encoding="utf-8")
+    assert load_config(tmp_path).docling is False
+
+
+def test_set_docling_changes_only_that_line(tmp_path: Path) -> None:
+    write_default_config(tmp_path)
+
+    set_docling(tmp_path, True)
+
+    text = (tmp_path / "config.toml").read_text(encoding="utf-8")
+    assert text == DEFAULT_CONFIG_TOML.replace("docling = false", "docling = true")
+    assert load_config(tmp_path).docling is True
+
+
+def test_set_docling_adds_the_pdf_table_to_an_older_config(tmp_path: Path) -> None:
+    (tmp_path / "config.toml").write_text(OLDER_CONFIG, encoding="utf-8")
+
+    set_docling(tmp_path, True)
+
+    assert (tmp_path / "config.toml").read_text(encoding="utf-8") == OLDER_CONFIG + (
+        "\n[pdf]\n# Docling, the optional PDF add-on (`./install.sh --docling` / `--no-docling`).\n"
+        "docling = true\n"
+    )
+    assert load_config(tmp_path).docling is True
+
+
+def test_docling_must_be_true_or_false(tmp_path: Path) -> None:
+    (tmp_path / "config.toml").write_text(
+        DEFAULT_CONFIG_TOML.replace("docling = false", 'docling = "yes"'), encoding="utf-8"
+    )
+    with pytest.raises(FinError) as caught:
+        load_config(tmp_path)
+    assert caught.value.code == "E002"
+    assert "pdf.docling = 'yes'; expected true or false" in caught.value.message
 
 
 def test_default_config_round_trips(tmp_path: Path) -> None:

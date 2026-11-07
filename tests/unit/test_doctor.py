@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 
 from fin.cli import app
 from fin.db.conn import connect
-from fin.doctor import Check, check_audit_schema, check_tool, parse_version
+from fin.doctor import Check, check_audit_schema, check_docling, check_tool, parse_version
 from fin.paths import audit_db_path
 
 
@@ -55,4 +55,43 @@ def test_audit_schema_check_names_the_fix(data_root: Path) -> None:
         "made by an older fin",
         "E002",
         "move the data folder away and re-create it with `uv run fin init`",
+    )
+
+
+def test_docling_off_is_fine(data_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    CliRunner().invoke(app, ["init"])
+    monkeypatch.setattr("fin.extract.docling_run.installed", lambda: False)
+    assert check_docling(data_root) == Check(
+        "docling", True, "not installed (optional; `./install.sh --docling` to add it)"
+    )
+
+
+def test_docling_on_but_not_importable_fails(
+    data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    CliRunner().invoke(app, ["init", "--docling"])
+
+    def missing(name: str) -> None:
+        raise ImportError(f"No module named {name!r}")
+
+    monkeypatch.setattr("fin.doctor.importlib.import_module", missing)
+    check = check_docling(data_root)
+    assert (check.ok, check.code, check.fix) == (
+        False,
+        "E001",
+        "run `./install.sh --docling` (or `./install.sh --no-docling` to turn it off)",
+    )
+
+
+def test_docling_on_without_its_models_warns(
+    data_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    CliRunner().invoke(app, ["init", "--docling"])
+    monkeypatch.setattr("fin.doctor.importlib.import_module", lambda name: None)
+    monkeypatch.setenv("DOCLING_CACHE_DIR", str(tmp_path / "empty"))
+    check = check_docling(data_root)
+    assert (check.ok, check.warning, check.fix) == (
+        True,
+        True,
+        "run `uv run docling-tools models download layout tableformer rapidocr`",
     )

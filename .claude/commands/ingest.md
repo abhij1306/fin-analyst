@@ -43,6 +43,10 @@ Ingest documents for the company in `$ARGUMENTS`.
    which file, which statements and which pages (from those lines, or the page numbers you find), and **offer** a
    Claude reading of those pages. Ask first; never read
    them unasked. If the user agrees, follow "Claude reading" below.
+   With the optional Docling add-on on (`[pdf] docling = true`), fin has already tried Docling on those pages: the
+   outcome says how many figures Docling read (`read by Docling (unverified)`) and the pages still listed are the
+   ones neither read. Without it, the run log says the pages could also be read by installing the add-on
+   (`./install.sh --docling`); mention that option, do not install it unasked.
 
 ## Claude reading (only when the user asked for it)
 
@@ -79,5 +83,5 @@ second, independent reading agrees and the document's validation gates pass.
    that does not agree (a finding, not an error), with both values and their sources. Then ask the user, as in step
    7: save as is (`uv run fin findings accept <company> <finding ids>`), or have Claude re-check the page and fix it
    (`fin sql --write`, or a corrected reading and `fin ingest --force`).
-6. Say how many facts were read by Claude and how many are verified. Unverified Claude-read facts must be flagged
-   in every answer that uses them.
+6. Say how many facts were read by Claude (or Docling) and how many are verified. Unverified Claude- or
+   Docling-read facts must be flagged in every answer that uses them.

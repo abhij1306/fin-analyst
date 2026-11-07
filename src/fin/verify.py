@@ -288,6 +288,9 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
         "verified_claude_facts": sum(
             1 for _, _, f in results if f and f.fact_id in verified and f.read_by == "claude"
         ),
+        "verified_docling_facts": sum(
+            1 for _, _, f in results if f and f.fact_id in verified and f.read_by == "docling"
+        ),
         "notes": notes,
         "lines": rows,
     }
@@ -302,7 +305,13 @@ def format_result(result: dict[str, Any]) -> str:
         "agree {agree}, differ {differ}, missing in fin {missing_in_fin}, "
         "missing in reading {missing_in_reading}".format(**counts),
         f"marked verified: {result['verified_facts']} facts "
-        f"({result['verified_claude_facts']} read by Claude)",
+        f"({result['verified_claude_facts']} read by Claude"
+        + (
+            f", {result['verified_docling_facts']} by Docling"
+            if result.get("verified_docling_facts")
+            else ""
+        )
+        + ")",
         *(f"note: {note}" for note in result["notes"]),
     ]
     for row in result["lines"]:

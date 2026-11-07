@@ -29,7 +29,7 @@ SELECT
     (SELECT count(*) FROM findings WHERE status = 'open'),
     (SELECT count(*) FROM findings WHERE status = 'accepted'),
     (SELECT count(*) FROM facts f JOIN documents d USING (doc_id)
-     WHERE f.read_by = 'claude' AND NOT f.verified AND d.status IN ('loaded', 'held'))
+     WHERE f.read_by <> 'fin' AND NOT f.verified AND d.status IN ('loaded', 'held'))
 """
 _HELD = """
 SELECT d.doc_id, d.file_name,
@@ -138,7 +138,8 @@ def format_status(result: list[dict[str, Any]]) -> str:
             f"  held documents: {_list(held)}",
             f"  findings: {s['open_findings']} open, {s['accepted_findings']} accepted",
             f"  mappings waiting for review: {s['pending_mappings']}",
-            f"  figures read by Claude, not yet verified: {s['unverified_claude_facts']}",
+            "  figures read by Claude or Docling, not yet verified: "
+            f"{s['unverified_claude_facts']}",
             f"  inbox files not ingested: {_list(s['inbox_not_ingested'])}",
         ]
     return "\n".join(out)

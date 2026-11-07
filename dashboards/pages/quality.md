@@ -3,8 +3,9 @@ title: Data quality
 ---
 
 What is not yet settled, per company. Unconfirmed facts (unmapped labels or mappings still pending review)
-are left out of every metric. Unverified Claude-read facts were read by Claude from pages fin could not read
-(`fin ingest --reading`) and no second, independent reading has agreed with them yet (`fin verify`).
+are left out of every metric. Unverified Claude- or Docling-read facts were read from pages fin could not read,
+by Claude (`fin ingest --reading`) or by the Docling PDF add-on, and no reading has agreed with them yet
+(`fin verify`).
 
 Findings are figures in what a company filed that do not add up, or that differ between documents or from a
 reading. A held document has open findings and is left out of the metrics until they are accepted (kept as
@@ -52,7 +53,7 @@ order by company, scope, statement
     <Column id=figures />
     <Column id=mapped />
     <Column id=mapped_share fmt=pct1 title="Mapped share" />
-    <Column id=claude_unverified title="Claude-read, unverified" />
+    <Column id=claude_unverified title="Claude- or Docling-read, unverified" />
 </DataTable>
 
 ## Unread pages

@@ -117,6 +117,13 @@ class ReadingInvalid(DocumentFailure):
     code = "E205"
 
 
+class DoclingFailed(DocumentFailure):
+    """E206. Docling (the optional PDF add-on) failed on the pages pdfplumber skipped, or could not
+    download its models. Logged as a warning: the pages stay unread, the document still loads."""
+
+    code = "E206"
+
+
 # E3xx: mapping. Loaded as unconfirmed and queued for review.
 
 

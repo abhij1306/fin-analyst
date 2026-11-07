@@ -3,7 +3,8 @@
 The statement must be a single SELECT (or WITH ... SELECT); anything else is rejected with E502 and
 still logged. When the result has a `fact_id` or `raw_id` column, every row gets provenance columns:
 the source file, `sheet!cell` or `page N`, whether the fact's mapping is confirmed, who read the
-figure (`fin`, or `claude` from a reading file) and whether `fin verify` verified it.
+figure (`fin`, `docling` from the PDF add-on, or `claude` from a reading file) and whether `fin
+verify` verified it.
 """
 
 import hashlib

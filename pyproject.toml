@@ -9,7 +9,17 @@ dependencies = [
     "duckdb==2.0.0",
     "openpyxl==3.1.5",
     "pdfplumber==0.11.10",
-    "typer==0.28.0",
+    # 0.27: Docling (the optional add-on) needs typer < 0.28; the lock resolves both together.
+    "typer==0.27.3",
+]
+
+[project.optional-dependencies]
+# Opt-in PDF fallback (`./install.sh --docling`): reads the statement pages pdfplumber skips. Pulls
+# PyTorch and Docling's models (about 1.4 GB). Not on Intel Macs: PyTorch has no macOS x86_64 wheels.
+docling = [
+    "docling==2.148.0 ; platform_machine != 'x86_64' or sys_platform != 'darwin'",
+    "torch==2.15.0 ; platform_machine != 'x86_64' or sys_platform != 'darwin'",
+    "torchvision==0.29.2 ; platform_machine != 'x86_64' or sys_platform != 'darwin'",
 ]
 
 [project.scripts]
@@ -38,7 +48,21 @@ select = ["E", "F", "W", "I", "B", "UP", "BLE", "S110", "PTH", "T20"]
 testpaths = ["tests"]
 timeout = 60
 addopts = "-ra"
-markers = ["quarto: needs the real Quarto; run by the CI outputs job"]
+markers = [
+    "quarto: needs the real Quarto; run by the CI outputs job",
+    "docling: needs the Docling add-on and its models; run by the CI docling job",
+]
+
+# Docling's models run on PyTorch. On Linux (CI, servers) take the CPU-only wheels: the default
+# PyPI wheels pull several GB of CUDA libraries fin never uses. macOS wheels are CPU/MPS already.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [

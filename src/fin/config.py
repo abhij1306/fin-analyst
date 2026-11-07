@@ -2,9 +2,12 @@
 
 `fin init` writes `DEFAULT_CONFIG_TOML` once and never overwrites it. After that the file is the
 only source of these values: `load_config` reads it strictly and raises a coded error when it is
-missing (E001) or invalid (E002). There are no fallback values.
+missing (E001) or invalid (E002). There are no fallback values, except that a file without the
+`[pdf]` table (written before the Docling add-on) has not opted in to it. The one line fin changes
+is `[pdf] docling`, through `fin init --docling` / `--no-docling` (run by install.sh).
 """
 
+import re
 import tomllib
 from dataclasses import dataclass
 from decimal import Decimal
@@ -46,6 +49,11 @@ balance_sheet = 100000.00
 subtotal = 100000.00
 cash_flow = 100000.00
 cross_document = 100000.00
+
+[pdf]
+# Docling, the optional PDF add-on: reads the statement pages pdfplumber cannot (and scanned results
+# filings). `./install.sh --docling` installs it and sets this to true; `--no-docling` sets false.
+docling = false
 """
 
 
@@ -55,6 +63,34 @@ class Config:
     default_scope: str
     fiscal_year_start_month: int
     tolerances: dict[str, Decimal]
+    docling: bool = False  # [pdf] docling: run the Docling fallback on pages pdfplumber skips
+
+
+_DOCLING_LINE = re.compile(r"^docling\s*=\s*\S+[ \t]*$", re.M)
+_PDF_TABLE = """
+[pdf]
+# Docling, the optional PDF add-on (`./install.sh --docling` / `--no-docling`).
+docling = {value}
+"""
+
+
+def set_docling(root: Path, on: bool) -> None:
+    """Record whether the Docling add-on is installed: `[pdf] docling` in config.toml (`fin init
+    --docling` / `--no-docling`, run by install.sh). Every other line is kept as written. Raises
+    E001 if config.toml is missing, E002 if it is invalid."""
+    load_config(root)
+    path = config_path(root)
+    text = path.read_text(encoding="utf-8")
+    value = "true" if on else "false"
+    if _DOCLING_LINE.search(text):
+        text = _DOCLING_LINE.sub(f"docling = {value}", text, count=1)
+    else:
+        text = text.rstrip("\n") + "\n" + _PDF_TABLE.format(value=value)
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
+    load_config(root)
 
 
 def write_default_config(root: Path) -> bool:
@@ -116,7 +152,11 @@ def _choice(
 
 
 def _parse(data: dict[str, Any], path: Path) -> Config:
-    _keys(data, ("config_version", "display", "defaults", "tolerances"), "the file", path)
+    # [pdf] is optional: a config.toml written before the Docling add-on has none, and the add-on
+    # is opt-in, so no table means "not opted in".
+    tables = ("config_version", "display", "defaults", "tolerances")
+    _keys(data, (*tables, "pdf") if "pdf" in data else tables, "the file", path)
+    pdf = _table(data, "pdf", path) if "pdf" in data else {"docling": False}
     version = data["config_version"]
     if version != CONFIG_VERSION or isinstance(version, bool):
         raise _invalid(
@@ -152,9 +192,14 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
             )
         tolerances[check] = number
 
+    _keys(pdf, ("docling",), "[pdf]", path)
+    if not isinstance(pdf["docling"], bool):
+        raise _invalid(path, f"pdf.docling = {pdf['docling']!r}; expected true or false")
+
     return Config(
         display_unit=unit,
         default_scope=scope,
         fiscal_year_start_month=month,
         tolerances=tolerances,
+        docling=pdf["docling"],
     )

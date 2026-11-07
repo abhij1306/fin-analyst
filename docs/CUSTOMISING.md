@@ -21,6 +21,10 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
   `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read),
   `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
+  The optional Docling add-on (`docling` extra): `docling_run.py` runs Docling on the statement pages `pdf.py`
+  skipped (and on short scanned PDFs), once per document with one converter per process; `docling_pages.py` reads
+  Docling's table grids into `PdfValue`s with `pdf.py`'s and `periods.py`'s helpers and guards (no Docling needed,
+  so its tests are fast). Ingest uses it only when `[pdf] docling = true` in `config.toml`.
 - `verify.py`: `fin verify`, compares a reading with what is loaded and marks agreeing facts verified.
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
@@ -176,6 +180,10 @@ gets a `## <Title>` heading for it, and `{{narrative:<key>}}` in the template pl
 - A rule must never load a wrong figure. When a page looks misread, raise an `E2xx` error for the page
   (`read_page`), so it is listed as not read.
 - Test the rule with a tiny synthetic PDF (`tests/synthetic_pdf.py`), asserting the rows read or the page reported.
+- A page `pdf.py` skips goes to Docling when the add-on is on. A rule for how a Docling table is read belongs in
+  `extract/docling_pages.py`, tested with a hand-built grid (`tests/unit/test_docling_pages.py`). A test that runs
+  the real Docling is marked `@pytest.mark.docling`; it runs in CI's `docling` job, locally with
+  `uv sync --extra docling` and `uv run pytest -m docling`.
 
 ## Schema
 
