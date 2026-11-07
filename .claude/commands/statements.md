@@ -12,8 +12,8 @@ Show the standard statements for: $ARGUMENTS
    `--scope <standalone|consolidated>` when the user named them (default: the latest fiscal year, both scopes).
    If it fails, report the error code and run_id and stop.
 3. Show the output as it is (a code block). The lines are the dictionary's standard accounts in standard order,
-   amounts in rupees, whatever labels the filing used. Then, in plain words and using only figures from the
-   output:
+   amounts in the unit the documents use (named in each header; `--json` is in rupees), whatever labels the filing
+   used. Then, in plain words and using only figures from the output:
    - each `Unmapped / other` line: a printed subtotal its mapped lines do not fully explain (the line shows how
      much they explain). It usually means a line is waiting for review (`/review <company>`) or was not read;
    - that figures from unconfirmed mappings and held documents are not included (`/status <company>`).

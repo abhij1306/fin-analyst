@@ -59,47 +59,47 @@ def test_statements_show_the_standard_order_and_what_the_lines_do_not_explain(ro
     assert result.stdout == EXPECTED_FY25 + "\n"
 
 
-# The latest fiscal year, standalone (the document's only scope). Rs. in lakhs, shown in rupees.
+# The latest fiscal year, standalone (the document's only scope), in the document's unit (lakh).
 # Exceptional items are a gain the company adds (22 + 3 = 25), so profit before tax is explained.
 EXPECTED_FY25 = """\
-acme standalone FY25: profit and loss (rupees)
-  Revenue from operations                                           10,000,000.00
-  Other income                                                         200,000.00
-Total income                                                        10,200,000.00
-  Cost of materials consumed                                         6,000,000.00
-  Employee benefits expense                                          2,000,000.00
-Total expenses                                                       8,000,000.00
-Profit before exceptional items and tax                              2,200,000.00
-  Exceptional items                                                    300,000.00
-Profit before tax                                                    2,500,000.00
-  Current tax                                                          500,000.00
-  Deferred tax expense                                                 100,000.00
-Total tax expense                                                      600,000.00
-Profit for the year                                                  1,900,000.00
-  Other comprehensive income items                                     -75,000.00
-Other comprehensive income for the year                                -75,000.00
-Total comprehensive income for the year                              1,825,000.00
+acme standalone FY25: profit and loss (₹ in lakh)
+  Revenue from operations                                                  100.00
+  Other income                                                               2.00
+Total income                                                               102.00
+  Cost of materials consumed                                                60.00
+  Employee benefits expense                                                 20.00
+Total expenses                                                              80.00
+Profit before exceptional items and tax                                     22.00
+  Exceptional items                                                          3.00
+Profit before tax                                                           25.00
+  Current tax                                                                5.00
+  Deferred tax expense                                                       1.00
+Total tax expense                                                            6.00
+Profit for the year                                                         19.00
+  Other comprehensive income items                                          -0.75
+Other comprehensive income for the year                                     -0.75
+Total comprehensive income for the year                                     18.25
 Basic earnings per share                                                    12.34
 Diluted earnings per share                                                  12.30
 
-acme standalone FY25: balance sheet (rupees)
-    Property, plant and equipment, net block                         6,000,000.00
-    Unmapped / other                                                   500,000.00
-  Total non-current assets                                           6,500,000.00  \
-(lines explain 6,000,000.00, 92.31%)
-    Inventories                                                      1,000,000.00
-    Cash and cash equivalents                                        2,500,000.00
-  Total current assets                                               3,500,000.00
-Total assets                                                        10,000,000.00
-    Equity share capital                                             1,000,000.00
-    Other equity                                                     5,000,000.00
-  Total equity                                                       6,000,000.00
-    Non-current borrowings                                           1,500,000.00
-  Total non-current liabilities                                      1,500,000.00
-    Current borrowings                                               1,000,000.00
-    Trade payables                                                   1,500,000.00
-  Total current liabilities                                          2,500,000.00
-Total equity and liabilities                                        10,000,000.00"""
+acme standalone FY25: balance sheet (₹ in lakh)
+    Property, plant and equipment, net block                                60.00
+    Unmapped / other                                                         5.00
+  Total non-current assets                                                  65.00  \
+(lines explain 60.00, 92.31%)
+    Inventories                                                             10.00
+    Cash and cash equivalents                                               25.00
+  Total current assets                                                      35.00
+Total assets                                                               100.00
+    Equity share capital                                                    10.00
+    Other equity                                                            50.00
+  Total equity                                                              60.00
+    Non-current borrowings                                                  15.00
+  Total non-current liabilities                                             15.00
+    Current borrowings                                                      10.00
+    Trade payables                                                          15.00
+  Total current liabilities                                                 25.00
+Total equity and liabilities                                               100.00"""
 
 
 def test_statements_json_has_coverage_and_lineage(root: Path) -> None:
@@ -124,6 +124,10 @@ def test_statements_json_has_coverage_and_lineage(root: Path) -> None:
         2,
     )
     assert total["fact_id"] is not None and other["fact_id"] is None
+    assert (total["unit"], by_label[("profit_and_loss", "Basic earnings per share")]["unit"]) == (
+        "lakh",
+        "rupees_per_share",
+    )
     assert {row["period"] for row in rows} == {"FY24"}
 
 
@@ -160,10 +164,10 @@ def test_export_writes_one_sheet_per_statement_and_a_metrics_sheet(root: Path) -
     sheet = book["Balance sheet standalone"]
     rows = [[cell.value for cell in row] for row in sheet.iter_rows()]
     assert rows[:4] == [
-        ["Line", "FY24", "FY25"],
-        ["Property, plant and equipment, net block", 5000000, 6000000],
-        ["Unmapped / other", 500000, 500000],
-        ["Total non-current assets", 5500000, 6500000],
+        ["Line (₹ in lakh)", "FY24", "FY25"],
+        ["Property, plant and equipment, net block", 50, 60],
+        ["Unmapped / other", 5, 5],
+        ["Total non-current assets", 55, 65],
     ]
     assert sheet["A2"].alignment.indent == 2
 
@@ -172,7 +176,8 @@ def test_export_writes_one_sheet_per_statement_and_a_metrics_sheet(root: Path) -
     assert header == ["Scope", "Category", "Metric", "Unit", "FY24", "FY25", "Definition"]
     table = {row[2]: row for row in metrics.iter_rows(min_row=2, values_only=True)}
     assert table["roe"][:6] == ("standalone", "returns", "roe", "ratio", 0.36, 0.316667)
-    assert table["eps_basic"][4:6] == (11, 12.34)
+    assert table["eps_basic"][3:6] == ("rupees_per_share", 11, 12.34)
+    assert table["net_debt"][3:6] == ("₹ in lakh", 2, 0)  # FY24: 20 + 8 - 26; FY25: 15 + 10 - 25
     assert table["roe"][6] == "Return on equity on the closing balance sheet."
 
 

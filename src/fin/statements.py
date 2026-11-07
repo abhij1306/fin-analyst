@@ -16,13 +16,18 @@ account tree (`shared/dictionary.duckdb` accounts), whatever labels the filing u
   Exceptional and extraordinary items count with either sign, as in the subtotal check
   (`fin.validate.gates`).
 
+Amounts: the view and `--json` are in rupees. The text output and the Excel export show money in
+the unit the company's documents use (`document_unit`: lakh, crore, ...; the most recent document's
+when they differ), two decimals; earnings per share as printed. Each row from `statement_rows` has
+`unit`: that document unit for money lines, `rupees_per_share` for per-share lines.
+
 The account tree lives in the shared dictionary and the facts in the company database, so the view
 is made per connection (`add_view`): two temporary tables hold the tree, and the SQL below does the
 rest.
 """
 
 import re
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +35,7 @@ import duckdb
 
 from fin.audit.errors import ReportRenderFailed
 from fin.db.conn import connect
+from fin.extract.units import RUPEES_PER_UNIT
 from fin.map.dictionary import read_seed
 from fin.paths import company_db_path, dictionary_db_path
 from fin.validate.gates import EITHER_SIGN
@@ -41,6 +47,20 @@ TITLES = {
     "cash_flow": "Cash flow",
 }
 OTHER_LABEL = "Unmapped / other"
+UNIT_NAMES = {int(per): name for name, per in RUPEES_PER_UNIT.items() if name != "lac"}
+PER_SHARE = "rupees_per_share"
+
+# The unit of the most recent loaded document (latest period end, then latest ingest): the one most
+# of its values were printed in.
+_DOCUMENT_UNIT_SQL = """
+SELECT r.rupees_per_unit
+FROM raw_values r
+JOIN documents d ON d.doc_id = r.doc_id
+WHERE d.status = 'loaded'
+GROUP BY d.doc_id, d.period_end, r.rupees_per_unit
+ORDER BY d.period_end DESC NULLS LAST, d.doc_id DESC, count(*) DESC, r.rupees_per_unit
+LIMIT 1
+"""
 
 VIEW_SQL = """
 CREATE OR REPLACE TEMP VIEW standard_statements AS
@@ -117,13 +137,13 @@ def _label(description: str) -> str:
 
 def _tree(root: Path) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]:
     """Rows for the two temporary tables: statement_accounts (statement, position, running,
-    is_root, account, label) and statement_paths (ancestor, descendant, sign, between,
+    is_root, account, label, unit) and statement_paths (ancestor, descendant, sign, between,
     either_sign): one row per account and each account above it."""
     with connect(dictionary_db_path(root)) as con:
         rows = con.execute(
-            "SELECT account, statement, parent, sign, description FROM accounts"
+            "SELECT account, statement, parent, sign, description, unit FROM accounts"
         ).fetchall()
-    # account -> (statement, parent, sign, description)
+    # account -> (statement, parent, sign, description, unit)
     accounts = {row[0]: row[1:] for row in rows}
     seed_order = {row["account"]: n for n, row in enumerate(read_seed()[0])}
     # Accounts added in review come after the seed ones, by name.
@@ -137,11 +157,11 @@ def _tree(root: Path) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]:
     def walk(name: str) -> None:
         for child in children.get(name, []):
             walk(child)
-        statement, parent, _, description = accounts[name]
+        statement, parent, _, description, unit = accounts[name]
         running = statement != "balance_sheet"
         position = len(account_rows) + 1
         account_rows.append(
-            (statement, position, running, parent is None, name, _label(description))
+            (statement, position, running, parent is None, name, _label(description), unit)
         )
 
     for statement in STATEMENTS:
@@ -165,9 +185,9 @@ def add_view(con: duckdb.DuckDBPyConnection, root: Path) -> None:
     account_rows, path_rows = _tree(root)
     con.execute(
         "CREATE OR REPLACE TEMP TABLE statement_accounts (statement VARCHAR, position INTEGER, "
-        "running BOOLEAN, is_root BOOLEAN, account VARCHAR, label VARCHAR)"
+        "running BOOLEAN, is_root BOOLEAN, account VARCHAR, label VARCHAR, unit VARCHAR)"
     )
-    con.executemany("INSERT INTO statement_accounts VALUES (?, ?, ?, ?, ?, ?)", account_rows)
+    con.executemany("INSERT INTO statement_accounts VALUES (?, ?, ?, ?, ?, ?, ?)", account_rows)
     con.execute(
         "CREATE OR REPLACE TEMP TABLE statement_paths (ancestor VARCHAR, descendant VARCHAR, "
         "sign INTEGER, between VARCHAR[], either_sign BOOLEAN)"
@@ -180,19 +200,21 @@ def statement_rows(
     root: Path, company: str, period: str | None = None, scope: str | None = None
 ) -> list[dict[str, Any]]:
     """The standard statements of a company (optionally one period and one scope) as rows of the
-    view, in order: scope, fiscal years then other periods (oldest first), statement, line.
-    Raises E601 when there is nothing to show."""
+    view, in order: scope, fiscal years then other periods (oldest first), statement, line, each
+    with its `unit` (see the module docstring). Raises E601 when there is nothing to show."""
     db = company_db_path(root, company)
     if not db.is_file():
         raise ReportRenderFailed(f"no database for {company}; ingest its documents first")
     with connect(db) as con:
         add_view(con, root)
+        unit = document_unit(con)
         result = con.execute(
-            "SELECT * FROM standard_statements WHERE (? IS NULL OR period = ?) "
-            "AND (? IS NULL OR scope = ?) "
-            "ORDER BY scope, period_months <> 12, period_end, period_months DESC, "
-            "array_position(?, statement), line_no",
-            [period, period, scope, scope, list(STATEMENTS)],
+            "SELECT s.*, CASE WHEN a.unit = ? THEN a.unit ELSE ? END AS unit "
+            "FROM standard_statements s LEFT JOIN statement_accounts a USING (account) "
+            "WHERE (? IS NULL OR s.period = ?) AND (? IS NULL OR s.scope = ?) "
+            "ORDER BY s.scope, s.period_months <> 12, s.period_end, s.period_months DESC, "
+            "array_position(?, s.statement), s.line_no",
+            [PER_SHARE, unit, period, period, scope, scope, list(STATEMENTS)],
         )
         columns = [column[0] for column in result.description or []]
         rows = [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
@@ -203,6 +225,25 @@ def statement_rows(
             "see `uv run fin status`"
         )
     return rows
+
+
+def document_unit(con: duckdb.DuckDBPyConnection) -> str:
+    """The unit the company's documents print money in ("lakh", "crore", ...): the most recent
+    loaded document's. "rupees" when nothing is loaded."""
+    row = con.execute(_DOCUMENT_UNIT_SQL).fetchone()
+    return UNIT_NAMES[row[0]] if row else "rupees"
+
+
+def in_unit(value: Decimal, unit: str) -> Decimal:
+    """A rupee value in `unit` (a document unit), two decimals; a per-share value as it is."""
+    if unit == PER_SHARE:
+        return value
+    return (value / RUPEES_PER_UNIT[unit]).quantize(Decimal("0.01"), ROUND_HALF_UP)
+
+
+def unit_title(unit: str) -> str:
+    """How a header names the unit: "₹ in lakh", or "₹" for rupees."""
+    return "₹" if unit == "rupees" else f"₹ in {unit}"
 
 
 def latest_annual_period(rows: list[dict[str, Any]]) -> str:
@@ -217,10 +258,12 @@ def _amount(value: Decimal) -> str:
 
 
 def format_statements(company: str, rows: list[dict[str, Any]]) -> str:
-    """Plain text: one block per scope, period and statement; amounts in rupees. A subtotal its
-    lines do not fully explain says how much they explain."""
+    """Plain text: one block per scope, period and statement; amounts in the document unit (named
+    in each header), per-share lines as printed. A subtotal its lines do not fully explain says
+    how much they explain."""
     out: list[str] = []
     block = None
+    money_unit = next((r["unit"] for r in rows if r["unit"] != PER_SHARE), "rupees")
     for row in rows:
         if (row["scope"], row["period"], row["statement"]) != block:
             block = (row["scope"], row["period"], row["statement"])
@@ -228,11 +271,12 @@ def format_statements(company: str, rows: list[dict[str, Any]]) -> str:
                 out.append("")
             out.append(
                 f"{company} {row['scope']} {row['period']}: "
-                f"{TITLES[row['statement']].lower()} (rupees)"
+                f"{TITLES[row['statement']].lower()} ({unit_title(money_unit)})"
             )
         label = "  " * row["depth"] + row["label"]
-        line = f"{label:<60} {_amount(row['value']):>20}"
+        line = f"{label:<60} {_amount(in_unit(row['value'], row['unit'])):>20}"
         if row["coverage"] is not None and row["coverage"] != 1:
-            line += f"  (lines explain {_amount(row['explained'])}, {row['coverage']:.2%})"
+            explained = _amount(in_unit(row["explained"], row["unit"]))
+            line += f"  (lines explain {explained}, {row['coverage']:.2%})"
         out.append(line.rstrip())
     return "\n".join(out)
