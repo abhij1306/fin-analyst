@@ -10,10 +10,13 @@ Each sheet is read top to bottom:
    "Half year ended" / "Nine months ended". Each such cell starts a value column, so any number of
    periods side by side works. A column's period length comes from the nearest heading naming one,
    from its period cell up: the words before the date, or a cell above that only names a length
-   ("Quarter ended", merged over several columns or not) (`fin.extract.periods`); ingest names the
-   period ("FY25", "FY26-Q1"). Its scope comes from the nearest "Standalone" / "Consolidated"
-   above it, else from the one scope the sheet names. E202 when a flow column names no length on
-   a sheet with quarter, half-year or nine-month columns, or names no scope on a sheet naming both.
+   ("Quarter ended") (`fin.extract.periods`); ingest names the period ("FY25", "FY26-Q1"). Its
+   scope comes from the nearest "Standalone" / "Consolidated" above it, else from the one scope
+   the sheet names. A heading covers the columns it is merged over, or, typed once and not
+   merged, the blank cells right of it in its row. A trailing "(Unaudited)" / "(Audited)" /
+   "(Reviewed)" is ignored, and a row of such words under the dates is not a value row. E202 when
+   a flow column names no length on a sheet with quarter, half-year or nine-month columns, or
+   names no scope on a sheet naming both.
 3. Below the header, a row with a label and numbers in the period columns is a value row; a row
    with a label and no numbers is a section heading for the rows under it.
 
@@ -72,6 +75,8 @@ _STATEMENTS = (
     ("profit_and_loss", re.compile(r"profit|p\s*&\s*l|\bloss\b|income\s+statement")),
 )
 _SCOPE_WORD = re.compile(r"\b(standalone|consolidated)\b")  # in lower-case text
+# An audit status after a heading or alone: "Quarter ended (Unaudited)", "(Audited)".
+_AUDIT_STATUS = re.compile(r"\s*\(\s*(?:audited|unaudited|reviewed)\s*\)$")  # in lower-case text
 
 
 @dataclass(frozen=True)
@@ -129,9 +134,7 @@ def parse_period(value: Any) -> date | None:
         return value.date()
     if isinstance(value, date):
         return value
-    if not isinstance(value, str):
-        return None
-    text = " ".join(value.lower().split())
+    text = _text_of(value)
     for pattern, order in _PERIOD_PATTERNS:
         match = pattern.match(text)
         if match is None:
@@ -202,22 +205,52 @@ def _value_at(sheet: Worksheet, row: int, column: int) -> Any:
     return sheet.cell(row, column).value
 
 
-def _headings(sheet: Worksheet, header_row: int, column: int) -> list[str]:
-    """A value column's header texts, nearest first: its period cell, then each cell above it
-    (lower case, spaces collapsed)."""
-    values = (_value_at(sheet, row, column) for row in range(header_row, 0, -1))
-    return [" ".join(v.lower().split()) for v in values if isinstance(v, str) and v.strip()]
+def _text_of(value: Any) -> str:
+    """A header cell's text: lower case, spaces collapsed, a trailing "(Unaudited)" / "(Audited)"
+    / "(Reviewed)" removed; '' for a blank or non-text cell."""
+    if not isinstance(value, str):
+        return ""
+    return _AUDIT_STATUS.sub("", " ".join(value.lower().split()))
+
+
+def _is_heading(text: str) -> bool:
+    """Whether a header cell names a period length or exactly one scope."""
+    return _length_named(text) is not None or len(set(_SCOPE_WORD.findall(text))) == 1
+
+
+def _headings(sheet: Worksheet, header: _Header, column: int) -> list[str]:
+    """A value column's header texts, nearest first: its period cell, then each cell above it. A
+    blank cell above the header takes the heading left of it in its row (a group heading typed
+    once, over the value columns, not merged)."""
+    first = min(header.periods)
+    texts = [_text_of(_value_at(sheet, header.row, column))]
+    for row in range(header.row - 1, 0, -1):
+        text = _text_of(_value_at(sheet, row, column))
+        if not text and column > first:
+            left = next(
+                (
+                    t
+                    for c in range(column - 1, first - 1, -1)
+                    if (t := _text_of(sheet.cell(row, c).value))
+                ),
+                "",
+            )
+            text = left if _is_heading(left) else ""
+        texts.append(text)
+    return [t for t in texts if t]
+
+
+def _length_named(text: str) -> int | None:
+    """The period length a heading names: a period cell ("Quarter ended 31.12.2025") or a cell
+    that only names a length ("Six months ended"). Titles are not headings."""
+    if parse_period(text) is not None or PHRASE.match(text):
+        return months_in(text)
+    return None
 
 
 def _length_of(headings: list[str]) -> int | None:
-    """The period length the nearest heading names: the period cell ("Quarter ended 31.12.2025")
-    or a cell that only names a length ("Six months ended"). Titles are not headings."""
-    for text in headings:
-        if parse_period(text) is not None or PHRASE.match(text):
-            months = months_in(text)
-            if months is not None:
-                return months
-    return None
+    """The period length the nearest heading naming one gives."""
+    return next((m for t in headings if (m := _length_named(t)) is not None), None)
 
 
 def _scope_of(headings: list[str]) -> str | None:
@@ -235,7 +268,7 @@ def _columns(
     """Per value column, its period length (None when no heading names one) and scope. Raises
     E202 when a flow column names no length on a sheet with quarter, half-year or nine-month
     columns, or a column has no scope heading on a sheet that names both scopes."""
-    headings = {c: _headings(sheet, header.row, c) for c in header.periods}
+    headings = {c: _headings(sheet, header, c) for c in header.periods}
     lengths = {c: _length_of(h) for c, h in headings.items()}
     unnamed = [c for c, months in lengths.items() if months is None]
     sheet_text = " ".join([title, *(t for texts in headings.values() for t in texts)])
@@ -271,8 +304,8 @@ def _label_of(row: tuple[Any, ...], first_value_column: int) -> str:
 def _filled_cells(
     row: tuple[Any, ...], periods: dict[int, date], formulas: Worksheet, where: str
 ) -> list[Any]:
-    """The row's value-column cells that hold a value. Raises E204 for a formula with no saved
-    value."""
+    """The row's value-column cells that hold a value (an audit status such as "(Unaudited)" is
+    not one). Raises E204 for a formula with no saved value."""
     cells = [row[column - 1] for column in periods if column <= len(row)]
     for cell in cells:
         if cell.value is None and str(formulas[cell.coordinate].value).startswith("="):
@@ -280,7 +313,11 @@ def _filled_cells(
                 f"{where} cell {cell.coordinate}: formula has no saved value; open the file "
                 "in Excel, save it and ingest it again"
             )
-    return [c for c in cells if c.value is not None and str(c.value).strip() != ""]
+    return [
+        c
+        for c in cells
+        if c.value is not None and (_text_of(c.value) or not isinstance(c.value, str))
+    ]
 
 
 def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[ExcelValue] | None:
