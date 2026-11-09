@@ -12,12 +12,11 @@ Show the status of the companies in fin: $ARGUMENTS
    - held documents and their open findings: not in figures or metrics until the user decides;
    - findings open and accepted;
    - mappings waiting for review;
-   - figures read by Claude or Docling that are not yet verified;
+   - how many figures were read by Claude or Docling (information, not something waiting);
    - files in the inbox not yet ingested.
 3. Then offer the next step for each item that is waiting, and run it only when the user says so:
    - inbox files not ingested: `/ingest <company>`;
    - held documents or open findings: show them with `uv run fin findings list <company>` and ask the user to save
      as is or have Claude fix them (step 7 of `/ingest`);
    - mappings waiting for review: `/review`;
-   - unverified figures read by Claude or Docling: `/verify <company> <file>`;
    - a gap: say which period's document seems to be missing; never fill a gap with assumptions.

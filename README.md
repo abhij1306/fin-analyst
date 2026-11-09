@@ -75,8 +75,7 @@ pages to [Docling](https://github.com/docling-project/docling), which reads thei
 | `./install.sh --docling` | about 650 MB more of Python packages (PyTorch, Docling) plus about 730 MB of Docling models, downloaded by the installer into `~/.cache/docling/models` | the first PDF with skipped pages loads the models (some seconds); each page takes about 15 seconds |
 
 The choice is saved in `config.toml` (`[pdf] docling = true`), so running `./install.sh` again or `uv run fin
-update` keeps it. Figures Docling reads are marked as such and count as unverified until a reading agrees
-(`/verify`). Intel Macs can't use it (PyTorch has no Intel Mac build); everything else works the same without it.
+update` keeps it. Figures Docling reads are marked as read by Docling. Intel Macs can't use it (PyTorch has no Intel Mac build); everything else works the same without it.
 
 To keep your data somewhere else, set `FIN_DATA_DIR` before installing (for example
 `export FIN_DATA_DIR="$HOME/Documents/FinAnalysis"`) and add that line to `~/.zshrc`.
@@ -97,7 +96,7 @@ Plain requests work; these are shortcuts. Each one runs `fin` (see `uv run fin -
 | `/report <company> [--peers a,b]` | Health report: key metrics, one section per category, latest quarters, peers, findings, data coverage. |
 | `/dashboard` | Dashboards at http://localhost:3000: Company, Compare and Data quality. |
 | `/audit <company> [metric year]` | Trace a figure back to its source, or show the company's history. |
-| `/verify <company> <file>` | Have Claude read pages independently and compare with what is loaded. |
+| `/verify <company> <file>` | Have Claude read a loaded or held document again and compare that reading with what is stored, whenever you want; each run is recorded. |
 | `/diligence <company>` | A diligence engagement: queries for the company's accountant and adjustments to EBITDA, with evidence, and the gates you approve. |
 
 ## Findings
@@ -165,8 +164,9 @@ analytics.
 fin reads Excel files and digital PDFs. When it can't read a statement page (an unusual layout, a scanned PDF)
 and the Docling add-on is installed, Docling reads that page automatically (a scanned PDF only up to 40 pages, such
 as a results filing). Whatever is still not read, fin lists by page. If you ask, Claude reads those pages and fin
-loads that reading through the same checks. Figures read by Docling or Claude are marked as such until a second,
-independent reading agrees (`/verify`).
+loads that reading through the same checks. Figures read by Docling or Claude are marked as such; whether you
+trust them is your call. Whenever you want, `/verify` has Claude read a document again and fin compare that reading
+with what is stored.
 
 ## Your data
 

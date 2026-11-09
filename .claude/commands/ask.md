@@ -51,13 +51,15 @@ Answer this question with `fin`: $ARGUMENTS
    |---|---|---|---|---|---|
    | one row per fact, from `source_file` and `source_ref` |
 
+   A row with `source_read_by` = `claude` or `docling` says "(read by Claude)" or "(read by Docling)" after its
+   source: information about where the figure came from, not a flag.
+
    **SQL:** the statement, in a `sql` code block.
 
    **Evidence:** the evidence page path and query_id.
 
-   **Flags:** every row with `source_confirmed` false (unconfirmed mapping), every row with
-   `source_read_by` = `claude` or `docling` and `source_verified` false (read by Claude or by the Docling PDF
-   add-on from a page fin could not read, not yet confirmed by an independent reading), missing data, an E604 on the evidence page, or "none". Also flag
+   **Flags:** every row with `source_confirmed` false (unconfirmed mapping), missing data, an E604 on the evidence
+   page, or "none". Also flag
    accepted findings that touch the figures used: run `uv run fin findings list <company> --json` and name each
    accepted finding with the same file, period and scope as a row (or the same label), with its code and both
    values, neutrally (the figure is used as filed). If the company has held documents, say their figures are not

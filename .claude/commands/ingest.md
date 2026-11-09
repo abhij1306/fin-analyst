@@ -45,14 +45,14 @@ Ingest documents for the company in `$ARGUMENTS`.
    them unasked. If the user agrees, follow "Claude reading" below. A failed file is not loaded; a file that loaded
    with unread pages is, and its reading is loaded with `--force`.
    With the optional Docling add-on on (`[pdf] docling = true`), fin has already tried Docling on those pages: the
-   outcome says how many figures Docling read (`read by Docling (unverified)`) and the pages still listed are the
+   outcome says how many figures Docling read (`read by Docling`) and the pages still listed are the
    ones neither read. Without it, the run log says the pages could also be read by installing the add-on
    (`./install.sh --docling`); mention that option, do not install it unasked.
 
 ## Claude reading (only when the user asked for it)
 
-fin stays the primary path. A reading fills in only what fin could not read, and nothing from it is trusted until a
-second, independent reading agrees and the document's validation gates pass.
+fin stays the primary path. A reading fills in only what fin could not read, through the same validation gates.
+Claude does not verify its own reading: whether a Claude-read figure is trusted is the user's decision.
 
 1. Read the source FIRST, before looking at any fin output for the document (no `fin sql`, no `fin findings`
    figures), so the reading is independent. PDF: use the Read tool with the `pages` parameter on the original file
@@ -81,11 +81,6 @@ second, independent reading agrees and the document's validation gates pass.
    that failed outright was never loaded, so it needs no `--force`. fin loads the reading only for the statements it
    could not read itself, through the same validation gates. Report the outcome. If the document is held with findings, follow step 7; do not edit the reading to
    make a check pass. Re-read the page and fix only a figure you misread, and say which.
-4. Second, independent reading: read the same pages again from scratch, without opening `reading1.csv`, and write
-   `review/<company>/<file stem>.reading2.csv` the same way.
-5. Run `uv run fin verify <company> <original file> --reading <reading2.csv>`. Report the counts and every line
-   that does not agree (a finding, not an error), with both values and their sources. Then ask the user, as in step
-   7: save as is (`uv run fin findings accept <company> <finding ids>`), or have Claude re-check the page and fix it
-   (`fin sql --write`, or a corrected reading and `fin ingest --force`).
-6. Say how many facts were read by Claude (or Docling) and how many are verified. Unverified Claude- or
-   Docling-read facts must be flagged in every answer that uses them.
+4. Say how many facts were read by Claude (or Docling). They feed metrics like any other figure; answers show them
+   as read by Claude or Docling (information, not a flag). If the user wants to check the document against a new
+   Claude reading, that is `/verify <company> <file>`, any time and as often as they like; do not start it unasked.

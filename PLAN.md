@@ -30,18 +30,24 @@ Claude readings (after 1.0.0, not a phase): fin's deterministic extraction stays
 Docling add-on (below) is the automatic fallback for PDF pages pdfplumber skips. Only when the user asks, Claude Code
 reads pages neither could read (scanned, E2xx, skipped statement pages) as images and writes a reading file (`fin.extract.reading`: one CSV row per figure, as printed, with the
 original page or cell). `fin ingest <co> <file> --reading <csv>` loads it for the statements and scopes neither fin nor
-Docling read, through the same stage, gates, commit. Facts carry `facts.read_by` (`fin` / `docling` / `claude`) and
-`facts.verified`.
-`fin verify <co> <file> --reading <csv>` compares an independent reading with what is loaded (agree / differ /
-missing in fin / missing in reading) and marks agreeing facts verified (a Claude-read fact only by a reading other
-than the one it was loaded from). It compares the value fin uses now (`facts.value`, so a figure corrected with
+Docling read, through the same stage, gates, commit. Facts carry `facts.read_by` (`fin` / `docling` / `claude`), as
+information: a Claude-read figure is not "unverified" (owner decision 2026-11-09); whether it is trusted is the
+user's decision.
+`fin verify <co> <file> --reading <csv>` is an on-demand check the user runs from `/verify` whenever they want, on
+any loaded or held document, any number of times: Claude reads the document again and fin compares that reading
+with what is stored (agree / differ / missing in fin / missing in reading). Any reading can be compared, the one the
+document was loaded with included. Each run on a loaded or held document is recorded in the company database:
+`verify_runs` (run, document, reading, the count of each outcome) and `verify_lines` (every line compared, both
+sides); this history replaces the former `facts.verified` flag (a company database made before it lacks the two
+tables and reports E002: re-create it, or run their `CREATE TABLE` statements from `company.sql`). It compares the value fin uses now (`facts.value`, so a figure corrected with
 `fin sql --write` is checked as corrected) with the reading's figure converted to rupees with the reading's own unit
 (EPS as printed), exactly. It works on loaded and held documents alike (on a held document, a reading tells whether
 a finding is a misread). Every disagreement is a finding, not a failure: it is shown to the user, kept with the
 document in the company `findings` table and recorded in `audit.findings` (check `verify_reading`), and it neither
-holds nor releases the document: a loaded document stays loaded, a held one stays held. Verify exits 0 and never
-changes a figure. Unverified
-Claude- or Docling-read facts still feed metrics; `/ask` flags them and the data quality page counts them.
+holds nor releases the document: a loaded document stays loaded, a held one stays held. Verify exits 0, never
+changes a figure, and refreshes `shared/analytics.duckdb` so its findings show on the data quality page.
+Claude- and Docling-read facts feed metrics like any other; `/ask` says "read by Claude" (or Docling) next to their
+source, as information, and `fin status` counts them.
 
 Docling PDF fallback (after 1.0.0, not a phase; owner decision 2026-11-07): an opt-in add-on, not a required
 dependency. `./install.sh --docling` installs the `docling` extra (`uv sync --extra docling`: Docling 2.148, PyTorch,
@@ -57,7 +63,7 @@ column's period end, length and scope ("Standalone" / "Consolidated" spanning th
 label is the text columns left of the first period column (a "Note" column kept as the note), headings are sections,
 the unit is the page's unit line, and the same guards apply (two columns with the same period and scope: E202; no
 unit: E203; misread figures: E204; no usable table: E201). Bboxes are converted to fin's top-left points, so evidence
-crops work. Facts it reads have `read_by = 'docling'` and are unverified until `fin verify` agrees, like Claude's;
+crops work. Facts it reads have `read_by = 'docling'`;
 the outcome and log say how many figures Docling read and from which pages. When no page could be read by
 pdfplumber, Docling still tries before the file fails. A scanned PDF (E104) of at most 40 pages (a results filing) is
 OCR'd by Docling and its statement pages found by fin's title rules; a longer scanned PDF stays E104. Docling failing
@@ -79,7 +85,7 @@ is (`fin findings accept`: loaded as filed, findings kept as accepted) or have C
 after each, and a finding no longer found is resolved). Only nothing readable (E1xx/E2xx) fails a document. Claude
 works without approval prompts: the guard hook is removed; `fin`'s backup and audit log are the safety net.
 `fin status` shows per company the periods loaded and gaps, held documents, findings, pending mappings,
-unverified Claude-read facts and inbox files not yet ingested.
+how many figures were read by Claude and by Docling (information) and inbox files not yet ingested.
 
 Unread statement pages (after 1.0.0, not a phase): a primary statement printed in a PDF but not read is never passed
 over in silence. Besides pages skipped for their header or unit (E202/E203), fin reports a titled statement page
@@ -126,17 +132,17 @@ Reports and dashboards by category (after 1.0.0, not a phase):
   section per metric category with data (trend table and an SVG chart drawn by `fin.report.chart`, no library);
   latest quarters (TTM, growth on the year before and the previous quarter) when quarters are loaded; a peer
   comparison with `fin report <co> --peers a,b` (key metrics for the latest fiscal year every company has); findings
-  with sources; data coverage (`statement_coverage` view: mapped share per statement and unverified Claude-read
-  figures; `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data for the
+  with sources; data coverage (`statement_coverage` view: mapped share per statement;
+  `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data for the
   years and quarters shown); and appendices (condensed standard statements: every printed subtotal, marked † when
   its mapped lines do not add up to it; metric definitions; facts behind the figures shown, for both scopes and the
   quarters, each line of a summed value listed, per-share facts unscaled; peers' facts are in their own reports).
   Narrative references accept quarter and half-year periods (`{{metric:ttm_revenue:FY26-Q2}}`).
 - Dashboards: `analytics.duckdb` also holds metric categories and definitions, the standard statements (in the
-  documents' unit), findings, coverage, unread pages and unverified Claude-read facts. Company page by category
+  documents' unit), findings, coverage and unread pages. Company page by category
   (trend charts, any metric, quarters, statements for a chosen period, findings, coverage); compare page (category,
-  then metric, across companies); data quality page (findings, held documents, coverage, unread pages, unverified
-  figures). An analytics file missing a table is made again at the next refresh (it is derived).
+  then metric, across companies); data quality page (findings, verify findings included; held documents, coverage, unread
+  pages). An analytics file missing a table is made again at the next refresh (it is derived).
 
 Simpler PDF parser (after 1.0.0, not a phase; owner decision): the product is the analysis, not the parsing. The
 parser reads clean, standard digital statements; a page it cannot read goes to the Docling add-on when it is
@@ -370,8 +376,8 @@ Every `fin` command:
   results, findings, queries, reports, deletions, diligence events), so a batch ingest stays after the company is
   deleted.
 - Lineage of a summed value: `current_facts.fact_ids` (and `standard_statements.fact_ids`) list every printed line
-  behind it. `fin sql` with a `fact_ids` column gives every line's source ("sum of N sources: ..."), confirmed or
-  verified only when every line is; the evidence page shows each line. Traces show a per-share fact in rupees per
+  behind it. `fin sql` with a `fact_ids` column gives every line's source ("sum of N sources: ..."), confirmed only
+  when every line is; the evidence page shows each line. Traces show a per-share fact in rupees per
   share.
 
 ## 9. Error handling
@@ -431,7 +437,7 @@ claude
 | `fin ingest <co> [path] [--force]` | `/ingest` | Either |
 | `fin ingest <co> <file> --reading <csv>` | `/ingest` (offered after a failure or skipped page) | Claude, when the user asks |
 | `fin ingest-batch [folder]` (default `inbox/`) | `/ingest-batch` | Either |
-| `fin verify <co> <file> --reading <csv>` | `/verify`, `/ingest` | Either |
+| `fin verify <co> <file> --reading <csv>` | `/verify` | Either (when the user asks) |
 | `fin map propose <co> <file.json>` | used inside `/ingest` | Claude |
 | `fin map set <co> --statement --label --account`, `fin map accounts` | `/ingest` (fixing a finding) | Either |
 | `fin review list [co]`, `fin review confirm\|reject <co> <ids>` | `/review` | Either (confirm when the user says) |
@@ -454,8 +460,8 @@ claude
 | `fin gate status <co> [--json]` | `/diligence` | Either |
 | `fin gate approve <co> <gate>` | `/diligence` | Human (Claude only when the user says; the PreToolUse hook asks) |
 
-Metrics are views in each company database; `shared/analytics.duckdb` is rebuilt after every ingest, data change
-and update.
+Metrics are views in each company database; `shared/analytics.duckdb` is rebuilt after every ingest, data change,
+verify and update.
 
 ## 12. Testing and CI
 

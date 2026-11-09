@@ -1,11 +1,14 @@
 ---
-description: Check loaded figures against an independent Claude reading of the source pages
+description: Compare what is loaded for a document with a new Claude reading of its pages
 argument-hint: <company> <file> [pages]
 ---
 
-Verify what is loaded for one document against a Claude reading of its pages: $ARGUMENTS
+Compare what is loaded for one document with a new Claude reading of its pages: $ARGUMENTS
 
-Use this only when the user asks for it. It is an on-demand check; fin's own extraction stays the primary path.
+Use this only when the user asks for it. It is an on-demand check the user can run on any loaded or held document,
+whenever they want and as often as they want; fin's own extraction stays the primary path. Each run is recorded
+(`verify_runs`, `verify_lines` in the company database). It does not mark figures as trusted: whether a figure read by
+Claude is trusted is the user's decision.
 
 1. Find the original file: the path the user gave, or `review/<company>/<file>` / `inbox/<company>/<file>` in the
    data folder. Agree with the user which pages to read (for example the standalone balance sheet page). If they did
@@ -23,7 +26,7 @@ Use this only when the user asks for it. It is an on-demand check; fin's own ext
 4. Run `uv run fin verify <company> <file> --reading <reading.csv>` (add `--json` for the full list). Lines that do
    not agree are findings, not errors (exit 0); they are kept with the document (`fin findings list <company>`). If the command itself fails
    (for example E205, a reading it cannot use), report the error code and run_id and stop.
-5. Report: the counts (agree, differ, missing in fin, missing in reading), how many facts were marked verified, and
+5. Report: the counts (agree, differ, missing in fin, missing in reading), the verify run it was recorded as, and
    every line that does not agree, with both values (fin's is the value it uses now, which may have been corrected
    since it was printed), as printed, and both sources. Only state numbers from the `fin` output. A verify finding
    does not hold or release the document: a loaded document stays loaded, a held one stays held.
@@ -38,3 +41,7 @@ Use this only when the user asks for it. It is an on-demand check; fin's own ext
      audit-logged), or `fin ingest --force` with a corrected reading. Run `fin verify` with the same reading again:
      a line that now agrees is resolved.
    `fin verify` itself never changes a figure.
+
+When the user asks how a document was checked before: `uv run fin sql <company> --sql "SELECT run_id, verified_at,
+reading_file, agree, differ, missing_in_fin, missing_in_reading FROM verify_runs WHERE file_name = '<file>' ORDER BY
+verified_at"`, and `verify_lines` (same `run_id`) for the lines of one run.
