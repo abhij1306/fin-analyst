@@ -61,9 +61,10 @@ def query(root: Path, sql: str) -> list[Any]:
         return con.execute(sql).fetchall()
 
 
-def test_scopes_stay_apart_and_a_reconciled_overdraft_passes_e403(
+def test_scopes_stay_apart_and_closing_cash_net_of_an_overdraft_is_an_e403_finding(
     root: Path, tmp_path: Path, audit_query: Any
 ) -> None:
+    # A cash flow line equal to balance-sheet cash does not make the difference go away.
     path = report(
         tmp_path / "acme_ar25.pdf",
         ("Cash and cash equivalents as above", "28.50", "25.62"),
@@ -84,17 +85,15 @@ def test_scopes_stay_apart_and_a_reconciled_overdraft_passes_e403(
         ("standalone", "total_equity_and_liabilities", "FY25", Decimal("10000000.00")),
     ]
     assert query(root, "SELECT scope FROM documents") == [("consolidated,standalone",)]
-    checks = audit_query(
-        "SELECT fiscal_year, scope, passed, message FROM validation_results "
+    assert audit_query(
+        "SELECT fiscal_year, scope, passed FROM validation_results "
         "WHERE check_name = 'cash_flow' ORDER BY fiscal_year"
-    )
-    assert [row[:3] for row in checks] == [
-        ("FY24", "standalone", True),
-        ("FY25", "standalone", True),
-    ]
-    assert checks[1][3].endswith(
-        "reconciled in the cash flow statement by the line 'Cash and cash equivalents as above'"
-    )
+    ) == [("FY24", "standalone", True), ("FY25", "standalone", False)]
+    assert query(
+        root,
+        "SELECT code, period, CAST(fin_value AS VARCHAR), CAST(other_value AS VARCHAR), status "
+        "FROM findings",
+    ) == [("E403", "FY25", "1820000.00", "2850000.00", "open")]
 
 
 def test_closing_cash_that_does_not_reconcile_is_an_e403_finding(

@@ -11,11 +11,12 @@ are ever compared. An account a document prints on several lines counts once, as
 - subtotal (E402): every balance-sheet and P&L subtotal the document reports = the sum of its lines,
   following `dictionary.accounts` (parent, sign). A subtotal the document does not show is
   replaced by the sum of its own lines.
-- cash_flow (E403): cash flow closing cash = balance-sheet cash, or the cash flow statement itself
-  reconciles the two: one of its lines naming cash shows the balance-sheet figure (Ind AS 7 lets
-  closing cash net off bank overdrafts, shown as "Cash and cash equivalents as above / Bank
-  overdraft / Total").
-  Runs only when the document has both, so a results statement without a cash flow skips it.
+- cash_flow (E403): the cash flow's closing cash (account closing_cash) = balance-sheet cash
+  (account cash). Runs only when the document has both, so a results statement without a cash flow
+  skips it, and so does an old-format balance sheet that prints one "cash and bank balances" line
+  (cash_and_bank_balances, which also holds other bank balances). Closing cash that nets off a bank
+  overdraft (Ind AS 7) differs from balance-sheet cash: that is a finding for the user to accept,
+  never matched away by another line of the statement.
 - cross_document (E404): every figure equals the same company / period / scope / account in
   each other loaded document (for example a comparative column vs that year's own document, or a
   half-year filing's Q1 column vs the Q1 filing).
@@ -105,6 +106,7 @@ class Result:
     passed: bool
     message: str
     accounts: tuple[str, ...] = ()  # the accounts whose lines the check used
+    lines: tuple[tuple[str, Decimal], ...] = ()  # subtotal: the (account, signed value) summed
     other_doc_id: int | None = None  # cross_document / unit_sanity: the document compared with
     other_file: str | None = None
 
@@ -146,6 +148,7 @@ def _compare(
     tolerances: dict[str, Decimal],
     what: str,
     accounts: tuple[str, ...],
+    lines: tuple[tuple[str, Decimal], ...] = (),
 ) -> Result:
     tolerance = tolerances[TOLERANCE.get(check, check)]
     difference = actual - expected
@@ -155,29 +158,34 @@ def _compare(
         f"{period} {scope}: {what}: expected ₹{expected:,}, actual ₹{actual:,}, "
         f"difference ₹{difference:,}, tolerance ₹{tolerance:,}"
     )
-    return Result(check, period, scope, expected, actual, tolerance, passed, message, accounts)
+    return Result(
+        check, period, scope, expected, actual, tolerance, passed, message, accounts, lines
+    )
 
 
-def _line_sum(
+def _lines(
     account: str,
     values: dict[str, Decimal],
     children: dict[str, list[str]],
     tree: dict[str, Account],
     flip: frozenset[str] = frozenset(),
-) -> Decimal | None:
-    """The sum of `account`'s lines: each child as reported, or, when the document does not show
-    it, the sum of its own lines. None when the document shows none of them. The accounts in
-    `flip` are added with the opposite of their dictionary sign."""
-    total, found = Decimal(0), False
+) -> tuple[tuple[str, Decimal], ...]:
+    """The lines that add up to `account`, as (account, value with its sign): each child as
+    reported, or, when the document does not show it, its own lines. Empty when the document shows
+    none of them. The accounts in `flip` are added with the opposite of their dictionary sign."""
+    lines: list[tuple[str, Decimal]] = []
     for child in children.get(account, []):
-        value = values.get(child)
-        if value is None:
-            value = _line_sum(child, values, children, tree, flip)
-        if value is not None:
-            sign = -tree[child].sign if child in flip else tree[child].sign
-            total += sign * value
-            found = True
-    return total if found else None
+        sign = -tree[child].sign if child in flip else tree[child].sign
+        if child in values:
+            lines.append((child, sign * values[child]))
+        else:
+            below = _lines(child, values, children, tree, flip)
+            lines += [(line, sign * value) for line, value in below]
+    return tuple(lines)
+
+
+def _total(lines: tuple[tuple[str, Decimal], ...]) -> Decimal:
+    return sum((value for _, value in lines), Decimal(0))
 
 
 def _subtotal(
@@ -190,23 +198,23 @@ def _subtotal(
 ) -> Result | None:
     """Check one reported subtotal against the sum of its lines; None when it has none. When that
     fails and the lines include exceptional or extraordinary items, try them added instead."""
-    total = _line_sum(account, values, children, tree)
-    if total is None:
+    lines = _lines(account, values, children, tree)
+    if not lines:
         return None
-    lines, i = [account], 0
-    while i < len(lines):  # the account and everything below it
-        lines += children.get(lines[i], [])
+    below, i = [account], 0
+    while i < len(below):  # the account and everything below it
+        below += children.get(below[i], [])
         i += 1
     what = f"{account} vs the sum of its lines"
-    used = tuple(lines)
-    result = _compare("subtotal", key, total, values[account], tolerances, what, used)
+    used, actual = tuple(below), values[account]
+    result = _compare("subtotal", key, _total(lines), actual, tolerances, what, used, lines)
     if result.passed or not EITHER_SIGN & values.keys():
         return result
-    added = _line_sum(account, values, children, tree, EITHER_SIGN)
-    if added is None or added == total:
+    added = _lines(account, values, children, tree, EITHER_SIGN)
+    if _total(added) == _total(lines):
         return result
     what += " (exceptional or extraordinary items printed as a gain and added)"
-    alternative = _compare("subtotal", key, added, values[account], tolerances, what, used)
+    alternative = _compare("subtotal", key, _total(added), actual, tolerances, what, used, added)
     return alternative if alternative.passed else result
 
 
@@ -322,23 +330,6 @@ def _unit_factor(a: Decimal, b: Decimal, tolerance: Decimal) -> bool:
     return any(abs(big - small * factor) <= tolerance for factor in UNIT_FACTORS)
 
 
-def _reconciled(con: duckdb.DuckDBPyConnection, doc_id: int, result: Result) -> Result:
-    """A failed cash_flow check passes when a cash flow line of the same document, year and scope
-    that names cash shows the balance-sheet cash figure: the statement reconciles the two."""
-    if result.check_name != "cash_flow" or result.passed:
-        return result
-    row = con.execute(
-        "SELECT r.raw_label FROM facts f JOIN raw_values r USING (raw_id) "
-        "WHERE f.doc_id = ? AND f.period = ? AND f.scope = ? AND r.statement = 'cash_flow' "
-        "AND r.raw_label ILIKE '%cash%' AND f.value = ? ORDER BY f.raw_id LIMIT 1",
-        [doc_id, result.period, result.scope, result.expected],
-    ).fetchone()
-    if row is None:
-        return result
-    message = f"{result.message}; reconciled in the cash flow statement by the line {row[0]!r}"
-    return Result(**{**vars(result), "passed": True, "message": message})
-
-
 def validate_document(
     run: "Run", company: str, con: duckdb.DuckDBPyConnection, doc_id: int
 ) -> list[dict[str, Any]]:
@@ -353,7 +344,6 @@ def validate_document(
     results = _in_document(
         run, file, figures, _unmapped(con, doc_id), load_accounts(run.root), tolerances
     )
-    results = [_reconciled(con, doc_id, r) for r in results]
     results += _across_documents(run, file, con, doc_id, figures, tolerances)
 
     failures = []
@@ -401,6 +391,17 @@ def _printed(
     return rows[0][0], " + ".join(r[1] for r in rows), ", ".join(r[2] for r in rows)
 
 
+def _sum_of_lines(con: duckdb.DuckDBPyConnection, doc_id: int, r: Result) -> str:
+    """The lines a subtotal was compared with, each with its signed value in rupees and where the
+    document prints it, so the computed side can be rebuilt: "sum of its lines: revenue
+    +1,000.00 at Sheet!B5; ..."."""
+    parts = [
+        f"{account} {value:+,} at {_printed(con, doc_id, r.period, r.scope, account)[2]}"
+        for account, value in r.lines
+    ]
+    return "sum of its lines: " + "; ".join(parts)
+
+
 def _finding(
     con: duckdb.DuckDBPyConnection, doc_id: int, file_name: str, r: Result
 ) -> dict[str, Any]:
@@ -416,7 +417,7 @@ def _finding(
     statement, fin_printed, fin_source = _printed(con, doc_id, r.period, r.scope, account)
     other_printed, other_source = None, None
     if r.check_name == "subtotal":
-        other_source = "sum of its lines"
+        other_source = _sum_of_lines(con, doc_id, r)
     elif other_doc is not None:
         _, other_printed, other_source = _printed(con, other_doc, r.period, r.scope, other_account)
     return {

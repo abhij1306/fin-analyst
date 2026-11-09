@@ -571,6 +571,10 @@ Done when:
 - `fin review confirm` run by Claude asks the user first and records `actor=claude (on user request)` in `mapping_decisions`
 - `facts.confirmed` reflects review state
 
+`fin review confirm|reject <ids>` is all or nothing: every id is checked before anything is written. After a
+confirmation, held documents and every document whose facts it mapped are checked again (a loaded one that now fails
+a check, such as a subtotal that could not run while a line was unmapped, is held), and analytics are refreshed.
+
 After 1.0.0 (real annual reports): `fin map set` maps a label to an account for one company without a pending item,
 which is how a document a gate rejected gets fixed (its `.error.json` lists the lines each failed check used, the
 unmapped labels and the commands); then the `review/` copy is ingested again. `fin map accounts` lists the accounts.
@@ -609,7 +613,9 @@ extraordinary items, total tax, continuing and discontinued operations, OCI and 
 nil lines, per-share lines and P&L "attributable to" lines do not stop E402. Exceptional and extraordinary items are
 stored as printed; E402 tries them subtracted (Schedule III) and then added (a gain printed as positive), and says
 which. Old-format "Cash and bank balances" can be mapped to `cash_and_bank_balances`, which E403 does not compare with
-closing cash.
+closing cash. E403 compares only the mapped `closing_cash` with balance-sheet `cash`: closing cash netted of a bank
+overdraft is a finding to accept, not matched away by another cash-flow line. An E402 finding lists the lines summed,
+each with its signed value and cell or page (`other_source`).
 
 ### Phase 7 — Metrics and analytics export
 Build:

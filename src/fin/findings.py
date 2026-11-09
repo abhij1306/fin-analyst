@@ -15,12 +15,15 @@ audit table `findings`.
 - Save as is: `fin findings accept` marks findings accepted. A held document with no open findings
   left is loaded exactly as filed; its accepted findings stay attached and visible.
 - Fix: Claude changes the data with the existing tools. Every held document of the company is
-  checked again after `fin sql --write` and `fin review confirm` (`recheck_held`), and a new version
-  from `fin ingest --force` is checked like any document (it supersedes the earlier version and its
-  findings). A finding a check no longer finds becomes resolved; a held document with no open
-  findings is loaded. `fin verify` resolves its own findings the same way when run again.
+  checked again after `fin sql --write` and `fin review confirm` (`recheck_held`), and so is every
+  loaded document whose facts a confirmation mapped (a check that could not run before may run now;
+  a loaded document that fails it is held). A new version from `fin ingest --force` is checked like
+  any document (it supersedes the earlier version and its findings). A finding a check no longer
+  finds becomes resolved; a held document with no open findings is loaded. `fin verify` resolves
+  its own findings the same way when run again.
 """
 
+from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any
 
@@ -183,16 +186,19 @@ def supersede(
         set_status(run, company, con, [i for (i,) in ids], "superseded")
 
 
-def recheck_held(run: Run, company: str) -> list[dict[str, Any]]:
-    """Check every held document of the company again (after a fix). Returns one row per document:
-    doc_id, file, open findings, status now."""
+def recheck_held(run: Run, company: str, changed: Iterable[int] = ()) -> list[dict[str, Any]]:
+    """Check every held document of the company again (after a fix), and the loaded documents in
+    `changed` (whose facts the fix changed): a loaded one that now fails is held. Returns one row
+    per document: doc_id, file, open findings, status now."""
     path = company_db_path(run.root, company)
     if not path.is_file():
         return []
     ensure_database(path, "company")
     with connect(path, write=True) as con:
         held = con.execute(
-            "SELECT doc_id, file_name FROM documents WHERE status = 'held' ORDER BY doc_id"
+            "SELECT doc_id, file_name FROM documents WHERE status = 'held' "
+            "OR (status = 'loaded' AND list_contains(?::BIGINT[], doc_id)) ORDER BY doc_id",
+            [list(changed)],
         ).fetchall()
         out = []
         for doc_id, file_name in held:

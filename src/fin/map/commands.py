@@ -213,23 +213,24 @@ def review_confirm(
         str | None, typer.Option(help="New-account proposal: add it under this parent instead.")
     ] = None,
 ) -> None:
-    """Confirm items: the label joins the dictionary and the company's matching facts are
-    confirmed. The item must have a proposed account, or pass --account. A proposed new account
-    is added to the dictionary first (--name and --parent change it; --account uses an existing
-    account instead). Held documents are then checked again (a fix that clears their findings
-    loads them)."""
+    """Confirm items, all or nothing: the label joins the dictionary and the company's matching
+    facts are confirmed. The item must have a proposed account, or pass --account. A proposed new
+    account is added to the dictionary first (--name and --parent change it; --account uses an
+    existing account instead). Held documents and the documents whose facts changed are then
+    checked again (a fix that clears a held document's findings loads it; a loaded document that
+    now fails a check is held)."""
 
     def body(run: Run) -> None:
-        for item_id in ids:
-            facts = review.confirm(run, company, item_id, account, scope, name, parent)
+        confirmed, changed = review.confirm(run, company, ids, account, scope, name, parent)
+        for item_id, facts in confirmed:
             typer.echo(f"#{item_id} confirmed ({scope} scope); {facts} facts updated")
-        rechecked = recheck_held(run, company)
+        rechecked = recheck_held(run, company, changed)
         for doc in rechecked:
             typer.echo(
-                f"held doc_id {doc['doc_id']} {doc['file']} checked again: {doc['open']} open "
+                f"doc_id {doc['doc_id']} {doc['file']} checked again: {doc['open']} open "
                 f"findings, {doc['status']}"
             )
-        if any(doc["status"] == "loaded" for doc in rechecked):
+        if changed or any(doc["status"] == "loaded" for doc in rechecked):
             refresh_analytics(run)
 
     execute(
@@ -251,11 +252,11 @@ def review_reject(
     company: CompanyArg,
     ids: Annotated[list[int], typer.Argument(help="Item ids from `fin review list`.")],
 ) -> None:
-    """Reject items: their facts stay unconfirmed."""
+    """Reject items, all or nothing: their facts stay unconfirmed."""
 
     def body(run: Run) -> None:
-        for item_id in ids:
-            review.reject(run, company, item_id)
+        review.reject(run, company, ids)
+        for item_id in dict.fromkeys(ids):
             typer.echo(f"#{item_id} rejected")
 
     execute("review reject", {"ids": ids, "company": company}, body)
