@@ -143,7 +143,8 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   (`fin gate approve <company> <gate>`; when Claude runs it, Claude Code asks you first). An approved gate reopens
   on its own when the data under it changes, and you approve it again.
   - **G1 Data:** every year in scope has a loaded document, no held documents, no mappings waiting for review.
-  - **G2 Queries:** no query in draft. Needed by `fin adjust accept|reject`.
+  - **G2 Queries:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
+    approved query does not. Needed by `fin adjust accept|reject`.
   - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
     `fin engagement close`.
 

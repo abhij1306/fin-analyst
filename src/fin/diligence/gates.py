@@ -16,7 +16,10 @@ E801 until it is approved (`require`), checked in the same transaction as their 
 Gates in this build (docs/DILIGENCE_BUILD.md); G3 (recast) and G5 (report) come later:
     G1 Data         every annual period in scope has a loaded document with figures for it, no
                     held documents, no mapping items waiting for review;
-    G2 Queries      no query in draft. Unlocks `fin adjust accept|reject`;
+    G2 Queries      no query in draft: every query's wording is reviewed. Its inputs are each
+                    query's id, wording and whether it is a draft, so a new or edited query
+                    reopens it; sending, answering, closing or withdrawing an approved one does
+                    not. Unlocks `fin adjust accept|reject`;
     G4 Adjustments  no proposed adjustment, and every accepted one has evidence. Unlocks
                     `fin engagement close`.
 """
@@ -158,8 +161,8 @@ def _queries_inputs(ctx: Context) -> dict[str, Any]:
     return {
         "queries": _rows(
             ctx,
-            "SELECT query_id, status, question FROM accountant_queries WHERE engagement_id = ? "
-            "ORDER BY query_id",
+            "SELECT query_id, question, status = 'draft' FROM accountant_queries "
+            "WHERE engagement_id = ? ORDER BY query_id",
             [ctx.engagement["engagement_id"]],
         )
     }

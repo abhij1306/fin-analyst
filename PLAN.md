@@ -159,7 +159,8 @@ line not mapped is 0 only when CFO equals cash generated from operations). `fin 
 [--scope] [--json]` shows them (money in the documents' unit as `fin statements`; JSON in rupees); E803 when the
 company has no engagement. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): G1 Data
 (every annual period in scope has a loaded document with figures for it, no held documents, no mapping items
-waiting for review), G2 Queries (no query in draft; unlocks `fin adjust accept|reject`), G4 Adjustments (no
+waiting for review), G2 Queries (no query in draft; its inputs are each query's id, wording and whether it is a draft, so a new or
+edited query reopens it and sending, answering or closing one does not; unlocks `fin adjust accept|reject`), G4 Adjustments (no
 proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 and G5 come later.
 `fin gate approve <co> <gate>` appends a row to `gate_approvals` (company database) with the sha256 of the gate's
 inputs, and a `gate` row to `diligence_events`; it refuses (E802, exit 3) while the checklist fails or an earlier gate

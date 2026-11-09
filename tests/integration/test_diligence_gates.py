@@ -150,3 +150,24 @@ def test_unknown_gate_is_a_usage_error(root: Path) -> None:
 
     assert result.exit_code == 2
     assert "use one of: G1, G2, G4" in result.output
+
+
+def test_sending_an_approved_query_keeps_g2_approved(root: Path) -> None:
+    raised = fin(
+        "query", "raise", "bluepeak", "--finding", "2", "--question", "Why does it differ?"
+    )
+    assert raised.exit_code == 0, raised.output
+    assert fin("query", "approve", "bluepeak", "1").exit_code == 0
+    assert fin("findings", "accept", "bluepeak", "1", "2", "3", "4").exit_code == 0
+    assert fin("gate", "approve", "bluepeak", "G1").exit_code == 0
+    assert fin("gate", "approve", "bluepeak", "G2").exit_code == 0
+
+    sent = fin("query", "sent", "bluepeak", "1")
+
+    assert sent.exit_code == 0, sent.output
+    status = json.loads(fin("gate", "status", "bluepeak", "--json").stdout)
+    assert [(g["gate"], g["state"]) for g in status["gates"]] == [
+        ("G1", "approved"),
+        ("G2", "approved"),
+        ("G4", "open"),
+    ]
