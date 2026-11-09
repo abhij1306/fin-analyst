@@ -2,6 +2,15 @@
 
 Local financial health analysis tool. Ingests company financial documents into DuckDB, answers questions with evidence, generates reports and dashboards. Spec: `PLAN.md`.
 
+## Purpose and focus
+
+- fin stores and analyses the financial data that established private companies send for their own business
+  (mostly Excel, some PDF). Their documents are well formatted: extraction is not a problem to solve.
+- The focus areas are mapping, analysis (metrics), diligence, and reports and dashboards. Put the work there.
+- Keep extraction simple. Do not add parsing heuristics, layout special cases or new extraction code for unusual
+  formats. When fin cannot read something, Claude reads it (`fin ingest --reading`), and that is the fallback.
+- Claude does not verify its own reading. Whether a Claude-read figure is trusted is the user's decision.
+
 ## Using the tool
 
 - Use `fin` (`uv run fin ...`) for all data access. Change data only when the user asks, and through `fin` (`fin sql --write`, `fin review confirm`, `fin delete`), which backs up and logs.
@@ -42,7 +51,7 @@ This app is meant to be modified with Claude Code. Keep modules small and readab
 - Every `fin` command creates a run record and logs through `src/fin/audit/logger.py`. No `print` for logging.
 - Database access only through `src/fin/db/conn.py`: short-lived connections, read-only unless the command writes.
 - Each document loads in one transaction: stage → validate → commit or roll back.
-- Tests required for every change. Only synthetic fixtures in the repo; never commit anything from the data folder.
+- Only synthetic fixtures in the repo; never commit anything from the data folder.
 - Prefer the simplest working design. No speculative features.
 
 ## Quick reference
