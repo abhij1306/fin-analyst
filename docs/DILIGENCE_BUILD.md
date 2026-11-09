@@ -16,7 +16,7 @@ gates. Everything is greenfield: new tables go straight into the schema files, w
 | 3b | CI: split the test job across 3 runners (pytest-split) | main session | none | Merged | [#47](https://github.com/abhij1306/fin-analyst/pull/47) |
 | 4 | Docs: DILIGENCE_PLAN.md and README updated to what was built; PLAN.md section | main session | 2, 3 | Merged (wording: [#50](https://github.com/abhij1306/fin-analyst/pull/50)) | [#48](https://github.com/abhij1306/fin-analyst/pull/48) |
 | 5 | Sonar: fix the 3 real issues (S8786 regexes in `map/normalize.py` and `report/lint.py`, S3776 `doctor`); the 19 S8541 are false positives the owner marks in SonarCloud. Also fix any new Sonar issues PRs 1–3 raise | Sonnet (medium) | 4 | Merged | [#49](https://github.com/abhij1306/fin-analyst/pull/49) |
-| 6 | Review: Opus (high) code review of PRs 1–5, 3a and 3b as one diff (`f753747..main`; everything before today, including #41 Docling and #42, is already reviewed), then fixes for what it confirms: `fin sql --write` refuses the diligence tables (E806), the hook asks for anything that looks like a gate approval, G1 reopens when a figure changes, amount and option checks | Opus (high) review, fixes by a builder | 5 | In review | this PR |
+| 6 | Review: Opus (high) code review of PRs 1–5, 3a and 3b as one diff (`f753747..main`; everything before today, including #41 Docling and #42, is already reviewed), then fixes for what it confirms: `fin sql --write` refuses the diligence tables (E806), the hook asks for anything that looks like a gate approval, G1 reopens when a figure changes, amount and option checks | Opus (high) review, fixes by a builder | 5 | Merged | [#51](https://github.com/abhij1306/fin-analyst/pull/51) |
 
 ## Decisions (fixed for this build)
 
