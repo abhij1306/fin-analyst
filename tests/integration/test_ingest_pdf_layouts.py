@@ -96,11 +96,12 @@ def test_scopes_stay_apart_and_closing_cash_net_of_an_overdraft_passes_e403(
 def test_an_overdraft_line_that_does_not_make_up_the_difference_is_an_e403_finding(
     root: Path, tmp_path: Path
 ) -> None:
-    # 28.50 less 9.30 is 19.20, not the 18.20 closing cash: the overdraft explains only part of it.
+    # 28.50 less 8.30 is 20.20, not the 18.20 closing cash: the overdraft explains only part of it
+    # (2 lakh left, over the 1 lakh cash_flow tolerance).
     path = report(
         tmp_path / "acme_ar25.pdf",
         ("Cash and cash equivalents as above", "28.50", "25.62"),
-        ("Bank overdraft", "(9.30)", "-"),
+        ("Bank overdraft", "(8.30)", "-"),
     )
 
     result = runner.invoke(app, ["ingest", "acme", str(path)])
@@ -111,7 +112,7 @@ def test_an_overdraft_line_that_does_not_make_up_the_difference_is_an_e403_findi
         root,
         "SELECT code, period, CAST(fin_value AS VARCHAR), CAST(other_value AS VARCHAR), status "
         "FROM findings",
-    ) == [("E403", "FY25", "1820000.00", "1920000.00", "open")]
+    ) == [("E403", "FY25", "1820000.00", "2020000.00", "open")]
 
 
 def test_closing_cash_that_does_not_reconcile_is_an_e403_finding(
