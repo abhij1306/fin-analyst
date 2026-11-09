@@ -96,6 +96,39 @@ def _ratio(label: str, value: Any, note: str) -> str:
     return f"  {label:<56} {shown:>16}{note}"
 
 
+def _bridge_block(
+    company: str, unit: str, summary: dict[str, Any], steps: list[dict[str, Any]]
+) -> list[str]:
+    """One period and scope's bridge: its steps, then the proposed adjustments not applied."""
+    title = f"{company} {summary['scope']} {summary['period']}: EBITDA bridge"
+    out = ["", f"{title} ({unit_title(unit)})"]
+    for step in steps:
+        label = step["description"]
+        if step["kind"] == "adjustment":
+            label = f"#{step['adj_id']} {step['category']}: {label}"
+        note = missing(summary, ("reported_ebitda",)) if step["amount"] is None else ""
+        out.append(_line(label, step["amount"], unit, note))
+    if summary["proposed_count"]:
+        out.append(
+            f"  not applied: {summary['proposed_count']} proposed, "
+            f"{amount(in_unit(summary['proposed_adjustments'], unit))}"
+        )
+    return out
+
+
+def _walk_block(company: str, unit: str, walk: dict[str, Any]) -> list[str]:
+    """One period and scope's EBITDA-to-cash walk; a line without a value names what is missing."""
+    title = f"{company} {walk['scope']} {walk['period']}: EBITDA to cash"
+    out = [f"{title} ({unit_title(unit)})"]
+    for name, label, inputs in WALK_LINES:
+        note = missing(walk, inputs) if walk[name] is None else ""
+        out.append(_line(label, walk[name], unit, note))
+    for name, label, inputs in WALK_RATIOS:
+        note = missing(walk, inputs) if walk[name] is None else ""
+        out.append(_ratio(label, walk[name], note))
+    return out
+
+
 def format_bridge(result: dict[str, Any]) -> str:
     """Plain text: the engagement, then per period and scope the bridge steps (accepted
     adjustments only; proposed ones are named, not applied) and the EBITDA-to-cash walk."""
@@ -103,28 +136,10 @@ def format_bridge(result: dict[str, Any]) -> str:
     out = [f"{company}: {format_engagement(result['engagement'])}"]
     if not result["adjusted_ebitda"]:
         out.append("no periods to show")
-        return "\n".join(out)
     walks = {(w["period"], w["scope"]): w for w in result["walk"]}
     for summary in result["adjusted_ebitda"]:
         key = (summary["period"], summary["scope"])
-        out += ["", f"{company} {key[1]} {key[0]}: EBITDA bridge ({unit_title(unit)})"]
-        for step in (s for s in result["bridge"] if (s["period"], s["scope"]) == key):
-            label = step["description"]
-            if step["kind"] == "adjustment":
-                label = f"#{step['adj_id']} {step['category']}: {label}"
-            note = missing(summary, ("reported_ebitda",)) if step["amount"] is None else ""
-            out.append(_line(label, step["amount"], unit, note))
-        if summary["proposed_count"]:
-            out.append(
-                f"  not applied: {summary['proposed_count']} proposed, "
-                f"{amount(in_unit(summary['proposed_adjustments'], unit))}"
-            )
-        walk = walks[key]
-        out.append(f"{company} {key[1]} {key[0]}: EBITDA to cash ({unit_title(unit)})")
-        for name, label, inputs in WALK_LINES:
-            note = missing(walk, inputs) if walk[name] is None else ""
-            out.append(_line(label, walk[name], unit, note))
-        for name, label, inputs in WALK_RATIOS:
-            note = missing(walk, inputs) if walk[name] is None else ""
-            out.append(_ratio(label, walk[name], note))
+        steps = [s for s in result["bridge"] if (s["period"], s["scope"]) == key]
+        out += _bridge_block(company, unit, summary, steps)
+        out += _walk_block(company, unit, walks[key])
     return "\n".join(line.rstrip() for line in out)
