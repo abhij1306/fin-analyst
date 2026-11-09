@@ -13,7 +13,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
   database from its schema file.
   `db/schema/<kind>.sql`: the schema (`audit`, `dictionary`, `analytics`, `company`; the company metric views are
-  in `company_views.sql`, the diligence tables in `diligence.sql`).
+  in `company_views.sql`, the diligence tables in `diligence.sql` and its views in `diligence_views.sql`).
 - `ingest.py`: loads one document in one transaction (stage, check, commit, or roll back on an error).
 - `findings.py`: findings (what does not add up in a filing): `VALIDATORS` (the checks run on every staged
   document), holding a document with open findings, `fin findings list|accept`, and the re-check of held documents
@@ -29,8 +29,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `diligence/`: a diligence engagement on one company (`docs/DILIGENCE_PLAN.md`). `engagement.py` (`fin engagement
   open|status|close`, the open-engagement check (E803), and `record_event`, which appends every change to the audit
   table `diligence_events`), `queries.py` (accountant queries and their status flow, `TRANSITIONS`),
-  `adjustments.py` (adjustments to EBITDA with evidence, E804), `cli.py` (the `fin engagement`, `fin query` and
-  `fin adjust` Typer groups). Tables: `db/schema/diligence.sql`.
+  `adjustments.py` (adjustments to EBITDA with evidence, E804), `bridge.py` (`fin engagement bridge`: reads and
+  formats the EBITDA bridge and EBITDA-to-cash walk views), `cli.py` (the `fin engagement`, `fin query` and
+  `fin adjust` Typer groups). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
@@ -194,8 +195,9 @@ gets a `## <Title>` heading for it, and `{{narrative:<key>}}` in the template pl
 
 Each database has one schema file with its final tables and views, in `src/fin/db/schema/`: `audit.sql`,
 `dictionary.sql`, `analytics.sql`, `company.sql` (tables), `company_views.sql` (metric macros and views) and
-`diligence.sql` (diligence tables). `fin init` creates the shared databases from them, and a company database is
-created from `company.sql`, `company_views.sql` and `diligence.sql` the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
+`diligence.sql` (diligence tables) and `diligence_views.sql` (EBITDA bridge and walk views). `fin init` creates the
+shared databases from them, and a company database is created from `company.sql`, `company_views.sql`,
+`diligence.sql` and `diligence_views.sql` the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
 numbers.
 
 To change a schema, edit its file. Then either re-create the data folder (move `~/FinAnalysis` away, run `fin init` and

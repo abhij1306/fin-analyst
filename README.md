@@ -133,6 +133,11 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   (`--query`, `--finding` or `--source`) and optionally `--account`. The amount is the signed effect on EBITDA. Then
   `fin adjust accept <ids>` or `reject <ids> --reason`; `list [--status]`. Categories are `adjustment_categories`
   in `config.toml`.
+- `fin engagement bridge <company> [--period FY25] [--scope standalone] [--json]`: per period and scope of the
+  latest engagement, the EBITDA bridge (reported EBITDA, each accepted adjustment, adjusted EBITDA; proposed ones are
+  listed as not applied) and the EBITDA-to-cash walk down to CFO and free cash flow, with cash conversion. Money in
+  the documents' unit, as `fin statements`; `--json` in rupees. A line whose input is missing shows `-` and names it.
+  The same figures are the views `adjusted_ebitda`, `ebitda_bridge` and `ebitda_to_cash`, queryable with `fin sql`.
 
 Every change is recorded in the audit table `diligence_events`.
 

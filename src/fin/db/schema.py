@@ -1,9 +1,9 @@
 """Creating the databases from their schema files (PLAN.md §10).
 
-Each database kind has one schema file (three for `company`: tables, metric views, diligence
-tables) in `schema/`, holding its final tables and views: `audit` for `shared/audit.duckdb`,
-`dictionary` for `shared/dictionary.duckdb`, `analytics` for `shared/analytics.duckdb`, `company`
-for each `companies/<company>.duckdb`. A
+Each database kind has one schema file (four for `company`: tables, metric views, diligence
+tables, diligence views) in `schema/`, holding its final tables and views: `audit` for
+`shared/audit.duckdb`, `dictionary` for `shared/dictionary.duckdb`, `analytics` for
+`shared/analytics.duckdb`, `company` for each `companies/<company>.duckdb`. A
 database is created from its file once, when it does not exist yet. There are no migrations: to
 change a schema, edit its file and re-create the data folder (docs/CUSTOMISING.md).
 """
@@ -23,7 +23,7 @@ SCHEMA_FILES = {
     "audit": ["audit.sql"],
     "dictionary": ["dictionary.sql"],
     "analytics": ["analytics.sql"],
-    "company": ["company.sql", "company_views.sql", "diligence.sql"],
+    "company": ["company.sql", "company_views.sql", "diligence.sql", "diligence_views.sql"],
 }
 
 

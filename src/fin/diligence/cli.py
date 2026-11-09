@@ -1,7 +1,8 @@
-"""`fin engagement open|status|close`,
+"""`fin engagement open|status|close|bridge`,
 `fin query list|raise|edit|approve|sent|answer|close|withdraw` and
-`fin adjust propose|list|accept|reject`. The logic is in `engagement.py`, `queries.py` and
-`adjustments.py`. fin never sends a query: `fin query sent` records that the user sent it."""
+`fin adjust propose|list|accept|reject`. The logic is in `engagement.py`, `queries.py`,
+`adjustments.py` and `bridge.py`. fin never sends a query: `fin query sent` records that the user
+sent it."""
 
 import json
 from decimal import Decimal
@@ -11,7 +12,7 @@ import typer
 
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
-from fin.diligence import adjustments, engagement, queries
+from fin.diligence import adjustments, bridge, engagement, queries
 from fin.paths import COMPANY_NAME
 
 engagement_app = typer.Typer(
@@ -148,6 +149,35 @@ def engagement_close(company: CompanyArg) -> None:
         typer.echo(f"{company}: {engagement.format_engagement(row)}")
 
     execute("engagement close", {"company": company}, body)
+
+
+@engagement_app.command("bridge")
+def engagement_bridge(
+    company: CompanyArg,
+    period: Annotated[
+        str | None, typer.Option("--period", callback=_period, help="Only this period, e.g. FY25.")
+    ] = None,
+    scope: Annotated[
+        str | None,
+        typer.Option("--scope", callback=_choice(SCOPES), help="Only standalone or consolidated."),
+    ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Print JSON rows, in rupees.")
+    ] = False,
+) -> None:
+    """The latest engagement's EBITDA bridge (reported EBITDA, accepted adjustments, adjusted
+    EBITDA) and EBITDA-to-cash walk, per period and scope. Money in the documents' unit, as
+    `fin statements`."""
+
+    def body(run: Run) -> None:
+        result = bridge.bridge(run, company, period, scope)
+        if json_output:
+            typer.echo(json.dumps(result, indent=2, default=str))
+        else:
+            typer.echo(bridge.format_bridge(result))
+
+    args = {"company": company, "period": period, "scope": scope, "json": json_output}
+    execute("engagement bridge", args, body)
 
 
 # fin query

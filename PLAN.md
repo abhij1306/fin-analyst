@@ -149,7 +149,15 @@ audit table `diligence_events`. `config.toml` gets a required `[diligence]` tabl
 list|raise|edit|approve|sent|answer|close|withdraw`, `fin adjust propose|list|accept|reject`; every one but
 `engagement open` needs an open engagement (E803); an invalid adjustment is E804; an unknown id or a status change
 not allowed is E805. fin never sends a query: `fin query sent` records that the user sent it. Rules in `CLAUDE.md`
-("Diligence") and `/diligence`. The EBITDA bridge and gates follow in the next PRs.
+("Diligence") and `/diligence`. Views (`db/schema/diligence_views.sql`, run after `diligence.sql`; also in `fin sql`),
+on the latest engagement (open or closed) and its annual periods: `adjusted_ebitda` (reported EBITDA, exactly the
+`ebitda` metric, plus accepted adjustments; proposed ones summed beside it, not applied; margins), `ebitda_bridge`
+(reported EBITDA, one step per accepted adjustment by id, adjusted EBITDA) and `ebitda_to_cash` (EBITDA, non-cash and
+other, working capital change, taxes paid, other operating, CFO, capex, free cash flow, cash conversion on reported
+and adjusted EBITDA; the lines add up to CFO exactly; a missing input makes the lines using it NULL, and a taxes-paid
+line not mapped is 0 only when CFO equals cash generated from operations). `fin engagement bridge <co> [--period]
+[--scope] [--json]` shows them (money in the documents' unit as `fin statements`; JSON in rupees); E803 when the
+company has no engagement. Gates follow in the next PR.
 
 ---
 
@@ -272,6 +280,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `notes` — doc_id, section, markdown_path
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
+- Diligence: `engagement`, `accountant_queries`, `adjustments` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash` (views on the latest engagement)
 
 **Shared**
 
@@ -393,6 +402,7 @@ claude
 | `fin delete <co> [--yes]` | — | Either (typed confirmation, or `--yes` when the user asked) |
 | `fin update` | — | Human |
 | `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold]`, `fin engagement status\|close <co>` | `/diligence` | Either |
+| `fin engagement bridge <co> [--period] [--scope] [--json]` (views `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`) | `/diligence` | Either |
 | `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
 | `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
