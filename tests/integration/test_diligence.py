@@ -28,6 +28,15 @@ def root(data_root: Path, samples: Path) -> Path:
     return data_root
 
 
+def approve_gates(*names: str) -> None:
+    """Save the held document as filed (its findings accepted), so gate G1 passes, then approve
+    the gates named, in order."""
+    assert fin("findings", "accept", "bluepeak", "1", "2", "3", "4").exit_code == 0
+    for name in names:
+        approved = fin("gate", "approve", "bluepeak", name)
+        assert approved.exit_code == 0, approved.output
+
+
 def test_every_command_needs_an_open_engagement(root: Path) -> None:
     for args in (
         ("engagement", "status", "bluepeak"),
@@ -53,6 +62,7 @@ def test_engagement_opens_once_and_closes(root: Path, audit_query: Any) -> None:
         "E803: bluepeak already has an open engagement (#1, periods FY24,FY25); nothing changed."
     )
 
+    approve_gates("G1", "G2", "G4")
     closed = fin("engagement", "close", "bluepeak")
     assert closed.exit_code == 0, closed.output
     reopened = fin("engagement", "open", "bluepeak", "--periods", "FY25", "--threshold", "5000")
@@ -61,7 +71,8 @@ def test_engagement_opens_once_and_closes(root: Path, audit_query: Any) -> None:
     assert (status["engagement"]["engagement_id"], status["engagement"]["periods"]) == (2, "FY25")
     assert status["engagement"]["query_threshold"] == "5000.00"
     assert audit_query(
-        "SELECT engagement_id, kind, item_id, status FROM diligence_events ORDER BY recorded_at"
+        "SELECT engagement_id, kind, item_id, status FROM diligence_events "
+        "WHERE kind = 'engagement' ORDER BY recorded_at"
     ) == [
         (1, "engagement", "1", "open"),
         (1, "engagement", "1", "closed"),
@@ -187,6 +198,7 @@ def test_adjustments_need_evidence_and_are_accepted_or_rejected(
     )
     assert second.exit_code == 0, second.output
 
+    approve_gates("G1", "G2")  # accepting and rejecting need gate G2
     assert fin("adjust", "accept", "bluepeak", "1").exit_code == 0
     rejected = fin("adjust", "reject", "bluepeak", "2", "--reason", "not recurring")
     assert rejected.exit_code == 0, rejected.output

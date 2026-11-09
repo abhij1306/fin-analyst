@@ -23,7 +23,7 @@ from fin.dashboard import build as build_dashboard
 from fin.dashboard import serve as serve_dashboard
 from fin.db.schema import ensure_database
 from fin.delete import delete_company
-from fin.diligence.cli import adjust_app, engagement_app, query_app
+from fin.diligence.cli import adjust_app, engagement_app, gate_app, query_app
 from fin.doctor import Check, run_checks
 from fin.findings import accept, format_finding, list_findings
 from fin.ingest import files_in, ingest_file
@@ -59,6 +59,7 @@ app.add_typer(review_app, name="review")
 app.add_typer(engagement_app, name="engagement")
 app.add_typer(query_app, name="query")
 app.add_typer(adjust_app, name="adjust")
+app.add_typer(gate_app, name="gate")
 
 
 def _version_callback(value: bool) -> None:
@@ -385,7 +386,8 @@ def status_command(
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
 ) -> None:
     """Per company: periods loaded and gaps, held documents, open and accepted findings, mappings
-    waiting for review, unverified figures read by Claude, and inbox files not yet ingested."""
+    waiting for review, unverified figures read by Claude, inbox files not yet ingested, and an
+    open diligence engagement's queries, proposed adjustments and gates."""
 
     def body(run: Run) -> None:
         result = status(run, company)

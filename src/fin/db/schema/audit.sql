@@ -151,8 +151,9 @@ CREATE TABLE findings (
 );
 
 -- Diligence (fin.diligence): every engagement, accountant query and adjustment added, and every status change.
--- kind: 'engagement', 'query' or 'adjustment' ('gate' is reserved for gates); item_id: its id in the company database
--- (engagement_id, query_id or adj_id); status: its status after the change; detail: the whole row as it is now (JSON).
+-- kind: 'engagement', 'query', 'adjustment' or 'gate'; item_id: its id in the company database (engagement_id, query_id
+-- or adj_id), or for a gate its name ('G1'); status: its status after the change ('approved' for a gate approval);
+-- detail: the whole row as it is now (JSON; for a gate, its gate_approvals row).
 CREATE TABLE diligence_events (
     run_id VARCHAR NOT NULL,
     recorded_at TIMESTAMP NOT NULL,

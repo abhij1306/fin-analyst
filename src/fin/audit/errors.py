@@ -11,8 +11,10 @@ a command returns when the error ends it:
 - E401-E405 are not errors: they are the codes of validation checks whose failures are findings
   (`fin.findings`), shown to the user; the document is held, not rejected.
 - E701 (action needs user confirmation; the CLI refused without it): exit 3.
+- E801-E802 (diligence gates: a command needs a gate that is not approved, or a gate cannot be
+  approved yet) are refusals: exit 3.
 - E803-E805 (diligence: no open engagement or one already open, an invalid adjustment, an unknown
-  id or a status change not allowed) stop the command: exit 2. E801-E802 are reserved for gates.
+  id or a status change not allowed) stop the command: exit 2.
 """
 
 # Exit codes
@@ -213,7 +215,23 @@ class GuardBlocked(FinError):
     exit_code = EXIT_BLOCKED
 
 
-# E8xx: diligence (fin.diligence). E801 and E802 are reserved for gates. Stop the command.
+# E8xx: diligence (fin.diligence). E801-E802 (gates) refuse: exit 3. E803-E805 stop the command.
+
+
+class GateNotApproved(FinError):
+    """E801. The command needs a gate (fin.diligence.gates) that is not approved: never approved
+    (open), or approved before and its data changed since (reopened). Nothing changed."""
+
+    code = "E801"
+    exit_code = EXIT_BLOCKED
+
+
+class GateNotReady(FinError):
+    """E802. `fin gate approve` refused: the gate's checklist fails, or an earlier gate is not
+    approved. Nothing changed."""
+
+    code = "E802"
+    exit_code = EXIT_BLOCKED
 
 
 class EngagementState(FinError):

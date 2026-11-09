@@ -35,7 +35,7 @@ KINDS = {
     "engagement": ("engagement", "engagement_id"),
     "query": ("accountant_queries", "query_id"),
     "adjustment": ("adjustments", "adj_id"),
-}
+}  # 'gate' rows (approvals) are recorded by fin.diligence.gates
 
 
 def parse_periods(text: str) -> list[str]:
@@ -149,9 +149,13 @@ def open_engagement(
 
 
 def close_engagement(run: Run, company: str) -> dict[str, Any]:
-    """Close the open engagement. E803 when there is none."""
+    """Close the open engagement. E803 when there is none; E801 unless gate G4 (and every gate
+    before it) is approved."""
+    from fin.diligence import gates  # gates imports this module
+
     with company_database(run, company, write=True) as con, transaction(con):
         engagement_id = require_open(con, company)["engagement_id"]
+        gates.require(gates.context(con, run.root, company), "G4", "fin engagement close")
         con.execute(
             "UPDATE engagement SET status = 'closed', closed_run_id = ?, closed_at = ? "
             "WHERE engagement_id = ?",

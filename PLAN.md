@@ -157,7 +157,18 @@ other, working capital change, taxes paid, other operating, CFO, capex, free cas
 and adjusted EBITDA; the lines add up to CFO exactly; a missing input makes the lines using it NULL, and a taxes-paid
 line not mapped is 0 only when CFO equals cash generated from operations). `fin engagement bridge <co> [--period]
 [--scope] [--json]` shows them (money in the documents' unit as `fin statements`; JSON in rupees); E803 when the
-company has no engagement. Gates follow in the next PR.
+company has no engagement. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): G1 Data
+(every annual period in scope has a loaded document with figures for it, no held documents, no mapping items
+waiting for review), G2 Queries (no query in draft; its inputs are each query's id, wording and whether it is a draft, so a new or
+edited query reopens it and sending, answering or closing one does not; unlocks `fin adjust accept|reject`), G4 Adjustments (no
+proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 and G5 come later.
+`fin gate approve <co> <gate>` appends a row to `gate_approvals` (company database) with the sha256 of the gate's
+inputs, and a `gate` row to `diligence_events`; it refuses (E802, exit 3) while the checklist fails or an earlier gate
+is not approved. A gate is approved while its inputs still hash to the latest approval's and every earlier gate is
+approved, reopened when they changed (`fin gate status` says which input), open when never approved. A command whose
+gate is not approved refuses (E801, exit 3), checked in the same transaction as its change. `fin status` shows an
+open engagement's queries by status, proposed adjustments and gate states. Only the user approves a gate: the
+PreToolUse hook `gate_guard.py` asks the user before any Bash command running `fin gate approve`.
 
 ---
 
@@ -229,7 +240,7 @@ fin-analyst/
   .claude/
     settings.json        # hooks
     commands/            # ingest, ingest-batch, review, ask, statements, report, dashboard, audit, status, verify
-    hooks/               # log_action.py
+    hooks/               # log_action.py, gate_guard.py
   src/fin/
     cli.py  config.py  paths.py  ingest.py  statements.py  workbook.py
     audit/     logger.py  errors.py
@@ -318,13 +329,15 @@ Every `fin` command:
 | `queries` | query_id, question, SQL, row count, result hash, evidence path |
 | `reports` | company, output paths, template commit, data hash, narrative path |
 | `deletions` | company, files removed, row counts, backup path, timestamp |
-| `diligence_events` | every engagement, accountant query and adjustment added, and every status change: kind, id, status, the row as JSON |
+| `diligence_events` | every engagement, accountant query and adjustment added, every status change, and every gate approval: kind, id (a gate's name), status, the row as JSON |
 
 **Claude Code actions**
 
 - `PostToolUse` hook (`log_action.py`): every tool call → `logs/claude_actions.jsonl` (timestamp, session id, tool, command).
-- No approval prompts (the `PreToolUse` guard hook was removed on 2026-11-07): data changes go through `fin`, which
-  backs up and records them.
+- One approval prompt: the `PreToolUse` hook `gate_guard.py` (matcher `Bash`) asks the user before any command
+  running `fin gate approve`, since only the user approves a diligence gate. It prints nothing for any other command
+  or for input it cannot read, so it never blocks anything else. Every other data change goes through `fin`, which
+  backs up and records it, without a prompt (the general guard hook was removed on 2026-11-07).
 
 **Traceability**
 
@@ -401,12 +414,14 @@ claude
 | `fin audit <co> [metric period \| --fact id]` | `/audit` | Either |
 | `fin delete <co> [--yes]` | — | Either (typed confirmation, or `--yes` when the user asked) |
 | `fin update` | — | Human |
-| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold]`, `fin engagement status\|close <co>` | `/diligence` | Either |
+| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold]`, `fin engagement status\|close <co>` | `/diligence` | Either (`close` needs gate G4 approved) |
 | `fin engagement bridge <co> [--period] [--scope] [--json]` (views `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`) | `/diligence` | Either |
 | `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
 | `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
-| `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says) |
+| `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
+| `fin gate status <co> [--json]` | `/diligence` | Either |
+| `fin gate approve <co> <gate>` | `/diligence` | Human (Claude only when the user says; the PreToolUse hook asks) |
 
 Metrics are views in each company database; `shared/analytics.duckdb` is rebuilt after every ingest, data change
 and update.
