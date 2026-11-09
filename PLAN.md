@@ -603,7 +603,9 @@ Done when:
 - `fin review confirm` run by Claude asks the user first and records `actor=claude (on user request)` in `mapping_decisions`
 - `facts.confirmed` reflects review state
 
-`fin review confirm|reject <ids>` is all or nothing: every id is checked before anything is written. After a
+`fin review confirm|reject <ids>` is all or nothing: every id is checked before anything is written. The dictionary
+is written before the facts (two databases); when confirming the facts fails (E501, for example), the labels and
+accounts that run added are removed again, so the item stays as it was and a retry or reject starts clean. After a
 confirmation, held documents and every document whose facts it mapped are checked again (a loaded one that now fails
 a check, such as a subtotal that could not run while a line was unmapped, is held), and analytics are refreshed.
 

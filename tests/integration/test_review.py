@@ -9,6 +9,7 @@ import pytest
 from openpyxl import load_workbook
 from typer.testing import CliRunner, Result
 
+from fin.audit.errors import DatabaseLocked
 from fin.cli import app
 from fin.db.conn import connect
 from fin.map.dictionary import find, load_label_map
@@ -374,6 +375,29 @@ def test_rejected_new_account_adds_nothing(root: Path) -> None:
     assert dictionary(root, "SELECT account FROM accounts WHERE source = 'review'") == []
     assert dictionary(root, "SELECT label FROM label_map WHERE source = 'review'") == []
     assert [(f[1], f[2]) for f in facts(root)] == [(None, False)] * 2
+
+
+def test_a_confirm_that_fails_on_the_facts_leaves_the_dictionary_as_it_was(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fin("map", "propose", "bluepeak", propose_file(root, new_account()))
+
+    def locked(*_: Any) -> None:
+        raise DatabaseLocked("companies/bluepeak.duckdb is locked by another process")
+
+    with monkeypatch.context() as patch:
+        patch.setattr("fin.map.review._confirm_facts", locked)
+        failed = fin("review", "confirm", "bluepeak", "1")
+
+    assert failed.exit_code == 2
+    assert failed.stderr.startswith("E501: ")
+    assert dictionary(root, "SELECT account FROM accounts WHERE source = 'review'") == []
+    assert dictionary(root, "SELECT label FROM label_map WHERE source = 'review'") == []
+    assert pending(root)[0]["status"] == "proposed"
+    # A retry with another (existing) account starts clean: no E303 from the failed run.
+    retried = fin("review", "confirm", "bluepeak", "1", "--account", "trade_receivables")
+    assert retried.exit_code == 0, retried.output
+    assert {f[1] for f in facts(root)} == {"trade_receivables"}
 
 
 @pytest.mark.parametrize(
