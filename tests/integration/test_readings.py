@@ -198,7 +198,8 @@ def test_verify_marks_agreeing_facts_and_reports_every_outcome(
     assert "agree 2, differ 1, missing in fin 1, missing in reading 1" in differs.stdout
     assert (
         "differ             balance_sheet standalone FY25 'Cash and cash equivalents': "
-        "fin 28.50 (page 1); reading 28.60 (page 1, reading line 2)"
+        "fin 2850000.00 (printed 28.50, page 1); "
+        "reading 2860000.00 (printed 28.60, page 1, reading line 2)"
     ) in differs.stdout
     assert "missing_in_fin     balance_sheet standalone FY25 'Other equity'" in differs.stdout
     assert "missing_in_reading balance_sheet standalone FY25 'Security deposits'" in differs.stdout
@@ -239,6 +240,76 @@ def test_verify_marks_agreeing_facts_and_reports_every_outcome(
     assert accepted.exit_code == 0, accepted.output
     assert "acme/ar25.pdf (doc_id 1): loaded, 0 open findings left" in accepted.stdout
     assert query(root, "SELECT status, count(*) FROM findings GROUP BY ALL") == [("accepted", 3)]
+
+
+def test_verify_checks_a_corrected_figure_as_corrected(root: Path, tmp_path: Path) -> None:
+    pdf = mixed_report(tmp_path / "ar25.pdf")
+    first = write_reading(tmp_path / "r1.csv", BALANCE_SHEET + PROFIT_AND_LOSS)
+    assert runner.invoke(app, ["ingest", "acme", str(pdf), "--reading", str(first)]).exit_code == 0
+    # Printed 28.50 lakh; corrected to 28.60 lakh (and the total with it).
+    fixed = runner.invoke(
+        app,
+        ["sql", "acme", "--write", "--sql", "UPDATE facts SET value = value + 10000 WHERE "
+         "period = 'FY25' AND account IN ('cash', 'total_assets', 'total_equity_and_liabilities')"],
+    )  # fmt: skip
+    assert fixed.exit_code == 0, fixed.output
+    corrected = [
+        (*BALANCE_SHEET[0][:5], "28.60", 1),
+        BALANCE_SHEET[1],
+        (*BALANCE_SHEET[2][:5], "100.10", 1),
+        (*BALANCE_SHEET[3][:5], "100.10", 1),
+    ]
+
+    agreed = verify(str(pdf), "--reading", str(write_reading(tmp_path / "r2.csv", corrected)))
+    as_printed = verify(
+        str(pdf), "--reading", str(write_reading(tmp_path / "r3.csv", BALANCE_SHEET))
+    )
+
+    assert "agree 4, differ 0, missing in fin 0, missing in reading 0" in agreed.stdout
+    assert "agree 1, differ 3, missing in fin 0, missing in reading 0" in as_printed.stdout
+    assert (
+        "differ             balance_sheet standalone FY25 'Cash and cash equivalents': "
+        "fin 2860000.00 (printed 28.50, page 1); "
+        "reading 2850000.00 (printed 28.50, page 1, reading line 2)"
+    ) in as_printed.stdout
+
+
+def test_verify_on_a_held_document_verifies_and_leaves_it_held(
+    root: Path, tmp_path: Path, scanned: Path
+) -> None:
+    unbalanced = [*BALANCE_SHEET[:3], (*BALANCE_SHEET[3][:5], "90.00", 1)]
+    loaded_with = write_reading(tmp_path / "scan.reading.csv", unbalanced)
+    held = runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(loaded_with)])
+    assert held.exit_code == 0, held.output
+    # A second, independent reading (its own file: lines in another order) reads the same figures.
+    second = write_reading(tmp_path / "r2.csv", list(reversed(unbalanced)))
+
+    result = verify(str(scanned), "--reading", str(second))
+
+    assert result.exit_code == 0, result.output
+    assert "agree 4, differ 0, missing in fin 0, missing in reading 0" in result.stdout
+    assert query(root, "SELECT count(*) FROM facts WHERE verified") == [(4,)]
+    assert query(root, "SELECT status FROM documents") == [("held",)]
+    assert query(root, "SELECT code, status FROM findings") == [("E401", "open")]
+
+
+def test_verify_disagreement_on_a_loaded_document_is_a_finding_that_does_not_hold_it(
+    root: Path, tmp_path: Path, scanned: Path
+) -> None:
+    reading = write_reading(tmp_path / "scan.reading.csv", BALANCE_SHEET)
+    assert (
+        runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(reading)]).exit_code
+        == 0
+    )
+    misread = [(*BALANCE_SHEET[0][:5], "28.60", 1), *BALANCE_SHEET[1:]]
+
+    result = verify(str(scanned), "--reading", str(write_reading(tmp_path / "r2.csv", misread)))
+
+    assert result.exit_code == 0, result.output
+    assert query(root, "SELECT status FROM documents") == [("loaded",)]
+    assert query(root, "SELECT check_name, finding, label, status FROM findings") == [
+        ("verify_reading", "differ", "Cash and cash equivalents", "open")
+    ]
 
 
 def test_verify_does_not_flag_a_figure_that_differs_only_by_rounding(

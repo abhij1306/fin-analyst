@@ -4,7 +4,10 @@ document.
 The document is found by the sha256 of the original file (its current version). Lines are matched
 by statement, scope, period and normalized label (`fin.map.normalize`); a label printed more than
 once in one statement, scope and period (under different headings) is matched in printed order.
-Values are compared in rupees after unit scaling, exactly: a figure copied as printed agrees to the
+fin's side is the value fin uses now (`facts.value`, in rupees), not what it first transcribed,
+so a figure corrected with `fin sql --write` is checked as corrected. The reading's figure is
+converted to rupees with the reading's own unit line (a per-share figure, EPS, is compared as
+printed, as fin stores it). The comparison is exact: a figure copied as printed agrees to the
 paisa, so there is no tolerance. Outcomes per line and column:
 
 - agree: same value;
@@ -19,7 +22,9 @@ user, stored with the document (open until accepted with `fin findings accept`, 
 later verify with the same reading no longer finds it) and appended to the audit table `findings`.
 It is not a failure, and the command exits 0 when it ran. fin is an analysis tool: differences are
 for the user to decide, and to fix through `fin sql --write` or a new ingest; verify never changes
-a figure. A document that is not loaded has its findings in the audit log only.
+a figure. A verify finding neither holds nor releases a document: a loaded document stays loaded
+and a held one stays held (verify works on held documents too, to tell whether a held document's
+finding is a misread). A document that is not loaded has its findings in the audit log only.
 
 The only thing verify writes to the company database is the `facts.verified` flag. A fact that
 agrees becomes verified (in a loaded or a held document). A fact read by
@@ -40,14 +45,17 @@ from fin.extract.reading import ReadingLine, printed_value, read_reading
 from fin.extract.units import to_rupees
 from fin.findings import record
 from fin.ingest import sha256_of
+from fin.map.dictionary import load_accounts
 from fin.map.normalize import normalize_label
 from fin.paths import company_db_path
 
+PER_SHARE = "rupees_per_share"
 OUTCOMES = ("agree", "differ", "missing_in_fin", "missing_in_reading")
 
 _LOADED_LINES = """
 SELECT f.fact_id, f.read_by, r.statement, f.scope, f.period, r.section, r.raw_label,
-       r.raw_value_text, r.rupees_per_unit, coalesce(r.sheet || '!' || r.cell, 'page ' || r.page)
+       r.raw_value_text, f.value, f.account IN (SELECT unnest(?)),
+       coalesce(r.sheet || '!' || r.cell, 'page ' || r.page)
 FROM facts f
 JOIN raw_values r ON r.raw_id = f.raw_id
 WHERE f.doc_id = ?
@@ -66,8 +74,9 @@ class Loaded:
     period: str
     section: str
     label: str
-    raw: str
-    rupees: Decimal
+    raw: str  # as printed
+    value: Decimal  # facts.value: rupees, or rupees per share for a per-share account
+    per_share: bool
     source: str
 
 
@@ -75,10 +84,11 @@ def _key(statement: str, scope: str, period: str, label: str) -> tuple[str, str,
     return statement, scope, period, normalize_label(label)
 
 
-def _loaded(row: tuple[Any, ...]) -> Loaded:
-    fact_id, read_by, statement, scope, period, section, label, raw, per_unit, source = row
-    rupees = to_rupees(printed_value(raw, f"fact {fact_id}"), per_unit)
-    return Loaded(fact_id, read_by, statement, scope, period, section, label, raw, rupees, source)
+def reading_value(line: ReadingLine, fact: Loaded | None) -> Decimal:
+    """The reading's figure in the fact's unit: rupees, or as printed for a per-share fact."""
+    if fact is not None and fact.per_share:
+        return to_rupees(printed_value(line.raw, f"reading line {line.line}"), 1)
+    return line.rupees
 
 
 def compare(
@@ -100,7 +110,8 @@ def compare(
             results.append(("missing_in_fin", line, None))
             continue
         fact = candidates.pop(0)
-        results.append(("agree" if fact.rupees == line.rupees else "differ", line, fact))
+        agrees = fact.value == reading_value(line, fact)
+        results.append(("agree" if agrees else "differ", line, fact))
     leftover = sorted((f for facts in pool.values() for f in facts), key=lambda f: f.fact_id)
     results.extend(("missing_in_reading", None, fact) for fact in leftover)
     return results
@@ -138,15 +149,25 @@ def _finding(
         "other_sha256": reading_sha,
         "fact_id": row["fact_id"],
         "read_by": row["read_by"],
-        "message": f"{row['outcome']}: fin {row['fin_printed'] or '-'} ({row['fin_source'] or '-'})"
-        f", reading {row['reading_printed'] or '-'} ({row['reading_source'] or '-'})",
+        "message": f"{row['outcome']}: {_sides(row)}",
     }
+
+
+def _sides(row: dict[str, Any]) -> str:
+    """Both sides of a comparison: the value compared, then as printed and where."""
+    sides = []
+    for side in ("fin", "reading"):
+        value, printed, source = (row[f"{side}_{k}"] for k in ("value", "printed", "source"))
+        sides.append(
+            f"{side} -" if source is None else f"{side} {value} (printed {printed}, {source})"
+        )
+    return "; ".join(sides)
 
 
 Comparison = tuple[str, ReadingLine | None, Loaded | None]
 
 
-def _loaded_document(db: Path, sha256: str) -> tuple[Any, Any, list[Loaded]]:
+def _loaded_document(root: Path, db: Path, sha256: str) -> tuple[Any, Any, list[Loaded]]:
     """The newest loaded or held version of the document with this hash: its doc_id, the hash of
     the reading it was loaded with, and its loaded lines. (None, None, []) when it is not loaded."""
     if not db.is_file():
@@ -161,7 +182,9 @@ def _loaded_document(db: Path, sha256: str) -> tuple[Any, Any, list[Loaded]]:
         if doc is None:
             return None, None, []
         doc_id, loaded_reading = doc
-        loaded = [_loaded(row) for row in con.execute(_LOADED_LINES, [doc_id]).fetchall()]
+        per_share = [a for a, account in load_accounts(root).items() if account.unit == PER_SHARE]
+        rows = con.execute(_LOADED_LINES, [per_share, doc_id]).fetchall()
+        loaded = [Loaded(*row[:9], bool(row[9]), row[10]) for row in rows]
     return doc_id, loaded_reading, loaded
 
 
@@ -191,8 +214,8 @@ def _row(
         "scope": either.scope,
         "period": either.period,
         "label": either.label,
-        "fin_value": fact.rupees if fact else None,
-        "reading_value": line.rupees if line else None,
+        "fin_value": fact.value if fact else None,
+        "reading_value": reading_value(line, fact) if line else None,
         "fin_printed": fact.raw if fact else None,
         "reading_printed": line.raw if line else None,
         "fin_source": fact.source if fact else None,
@@ -251,7 +274,7 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
     lines = read_reading(reading, config.fiscal_year_start_month)
     sha256, reading_sha = sha256_of(path), sha256_of(reading)
     db = company_db_path(run.root, company)
-    doc_id, loaded_reading, loaded = _loaded_document(db, sha256)
+    doc_id, loaded_reading, loaded = _loaded_document(run.root, db, sha256)
     same_reading = loaded_reading == reading_sha
     results = compare(lines, loaded)
     verified, unverified = _marks(results, same_reading)
@@ -318,10 +341,5 @@ def format_result(result: dict[str, Any]) -> str:
         if row["outcome"] == "agree":
             continue
         where = f"{row['statement']} {row['scope']} {row['period']} {row['label']!r}"
-        fin, reading = "fin -", "reading -"
-        if row["fact_id"] is not None:
-            fin = f"fin {row['fin_printed']} ({row['fin_source']})"
-        if row["reading_source"] is not None:
-            reading = f"reading {row['reading_printed']} ({row['reading_source']})"
-        out.append(f"{row['outcome']:<18} {where}: {fin}; {reading}")
+        out.append(f"{row['outcome']:<18} {where}: {_sides(row)}")
     return "\n".join(out)

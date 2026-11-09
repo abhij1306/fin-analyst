@@ -33,10 +33,14 @@ original page or cell). `fin ingest <co> <file> --reading <csv>` loads it for th
 Docling read, through the same stage, gates, commit. Facts carry `facts.read_by` (`fin` / `docling` / `claude`) and
 `facts.verified`.
 `fin verify <co> <file> --reading <csv>` compares an independent reading with what is loaded (agree / differ /
-missing in fin / missing in reading, exact in rupees) and marks agreeing facts verified (a Claude-read fact only by
-a reading other than the one it was loaded from, in a document whose gates passed). Every disagreement is a finding,
-not a failure: it is shown to the user and recorded in `audit.findings` (check `verify_reading`; the table is
-general so other checks can record findings later), verify exits 0 and never changes a figure. Unverified
+missing in fin / missing in reading) and marks agreeing facts verified (a Claude-read fact only by a reading other
+than the one it was loaded from). It compares the value fin uses now (`facts.value`, so a figure corrected with
+`fin sql --write` is checked as corrected) with the reading's figure converted to rupees with the reading's own unit
+(EPS as printed), exactly. It works on loaded and held documents alike (on a held document, a reading tells whether
+a finding is a misread). Every disagreement is a finding, not a failure: it is shown to the user, kept with the
+document in the company `findings` table and recorded in `audit.findings` (check `verify_reading`), and it neither
+holds nor releases the document: a loaded document stays loaded, a held one stays held. Verify exits 0 and never
+changes a figure. Unverified
 Claude- or Docling-read facts still feed metrics; `/ask` flags them and the data quality page counts them.
 
 Docling PDF fallback (after 1.0.0, not a phase; owner decision 2026-11-07): an opt-in add-on, not a required
@@ -66,7 +70,8 @@ Docling found 99-100% of the figures of Claude's readings, at about 15 s a page 
 Findings instead of failures (after 1.0.0, not a phase; owner decision 2026-11-07): fin is an analysis tool, not an
 opinionated one. Conflicting data in what a company filed (balance sheet not tying, subtotals not adding up, cash
 not reconciling, a figure differing between documents such as a restatement or a quarter vs its year, fin vs a
-Claude reading) is a finding to show, never a failure that rejects data. A failed check (E401-E405) is stored in
+Claude reading) is a finding to show, never a failure that rejects data. A fin-vs-reading finding (`fin verify`,
+above) is kept with the document but does not hold it. A failed check (E401-E405) is stored in
 the company `findings` table (and appended to `audit.findings`); the document is committed but held
 (`documents.status = 'held'`, out of `current_facts` and metrics) until the user decides through Claude: save as
 is (`fin findings accept`: loaded as filed, findings kept as accepted) or have Claude fix it with the existing tools
