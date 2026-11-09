@@ -404,7 +404,8 @@ claude
 
 1. Check macOS and architecture.
 2. Install Homebrew if missing (asks first).
-3. `brew bundle --file=Brewfile` (uv, node, quarto, poppler).
+3. `brew bundle --file=Brewfile` (uv, node, quarto, poppler); tried up to 3 times, a minute apart, since GitHub
+   release downloads sometimes fail for a minute or two.
 4. `uv sync --frozen` (with `--extra docling` and the Docling model download when `--docling` is given or
    `config.toml` already has `[pdf] docling = true`; `--no-docling` removes it).
 5. `npm ci --prefix dashboards`
