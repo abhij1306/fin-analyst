@@ -27,6 +27,27 @@ reports and results filings:
 2. Remove the rules no real document needs, together with their tests.
 3. Where a rule is fragile, replace it with "page not read" and let Claude read the page.
 
+## To decide with the golden set
+
+### Which line is the total when several lines map to one account (audit F01)
+
+`document_facts` (`src/fin/db/schema/company_views.sql`) gives one value per document, account, period and scope.
+When a document maps several lines to the same account, the rule is:
+- With three or more lines, a line equal to the sum of the others is taken as their total, and the others are dropped.
+- With two lines, a line is the total only when the document marks it: its label starts with "Total", or the other
+  line sits under it.
+
+Each choice of rule fails in a different case:
+- **Current rule:** genuine lines that add up by coincidence lose all but one line. Example: current tax 217.03
+  beside MAT credit 117.03 and earlier years' tax 100.00. The subtotal check then usually holds the document with
+  an E402 that blames the filing. Only a hand-built document has shown this.
+- **"Total only with evidence, for any number of lines"** (built and reverted on 2026-11-09): a total printed on
+  its heading row above its parts, with no "Total" label and no section link, is counted twice. Example:
+  "Trade payables 30" above "Sundry creditors 12" and "Trade payables 18" gives 60.
+
+Decide when real documents show which layout actually occurs. Count how many golden-set documents have several
+lines mapped to one account, and how fin's value compares with the hand-checked figure in each.
+
 ## Seen on synthetic documents only (unconfirmed)
 
 Found in a dry run on 2026-11-09 with documents generated for that purpose (`/data/workspace/fin-samples`, not
