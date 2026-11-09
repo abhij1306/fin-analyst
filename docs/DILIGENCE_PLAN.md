@@ -107,7 +107,7 @@ to a reconciliation or a contract once those exist.
 
 | Gate | Checklist fin evaluates | Unlocks | Status |
 |---|---|---|---|
-| G1 Data | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it. D2 adds: a trial balance per period, every ledger mapped, TB ties to the statements (differences become queries) | approving G2 | **Built** (statement checks) |
+| G1 Data | Every annual period in scope has mapped figures (`current_facts`); no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it; so does a checklist that fails after approval. D2 adds: a trial balance per period, every ledger mapped, TB ties to the statements (differences become queries) | approving G2 | **Built** (statement checks) |
 | G2 Queries | No query in draft. A new or reworded query reopens it; sending, answering, closing or withdrawing one does not. D4–D5 add: every required reconciliation ran, every difference above the threshold has a query | `fin adjust accept\|reject` | **Built** |
 | G3 Recast | Every contract above the threshold has a schedule; recast differences have proposed adjustments | adjustments | Planned (D6) |
 | G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |

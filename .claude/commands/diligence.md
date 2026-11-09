@@ -54,11 +54,11 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    - a line shown as `-`: its input is missing (named in "missing: ..."); say which, never treat it as zero or fill
      it in;
    - open or accepted findings and unconfirmed mappings in those periods, as for any answer.
-9. **Gates.** Gates are approved in order, by the user only: G1 Data (every period in scope has a loaded document,
-   no held documents, no mappings waiting for review), G2 Queries (no query in draft; unlocks `fin adjust
-   accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence; unlocks
-   `fin engagement close`). A gate reopens on its own when the data under it changes (G1 also when a figure
-   changes).
+9. **Gates.** Gates are approved in order, by the user only: G1 Data (every period in scope has mapped figures
+   from a loaded document, no held documents, no mappings waiting for review), G2 Queries (no query in draft;
+   unlocks `fin adjust accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence;
+   unlocks `fin engagement close`; an engagement with no queries and no adjustments closes without its gates). A
+   gate reopens on its own when the data under it changes (G1 also when a figure changes) or its checklist fails.
    - Run `uv run fin gate status <company>` and show each gate's state, its checklist lines and what it unlocks.
    - Fix what a failing line says through the usual commands: held documents and mappings through `/ingest` and
      `/review` (the user decides findings and mappings), drafts through step 3, proposed adjustments through
