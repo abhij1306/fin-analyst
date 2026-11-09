@@ -305,7 +305,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `documents` — doc_id, file_name, sha256, version, fiscal_year, period_end (latest in the document), scope (standalone/consolidated), status, run_id, superseded_by, ingested_at
 - `raw_values` — raw_id, doc_id, sheet, cell, page, bbox, raw_label, raw_value_text, raw_unit, run_id
 - `facts` — fact_id, raw_id, account, fiscal_year, period, period_months, period_end, scope, value `DECIMAL(20,2)` in rupees, mapping_id, confirmed, run_id
-- `document_facts` and `current_facts` (views): one value per account, period and scope (lines a document maps to the same account are summed, a total line is not added to its parts)
+- `document_facts` and `current_facts` (views): one value per account, period and scope (lines a document maps to the same account are summed, a total line is not added to its parts; of just two equal lines, one is the total only when it is labelled "Total..." or the other sits under it)
 - `notes` — doc_id, section, markdown_path
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
@@ -622,17 +622,23 @@ After 1.0.0 (real annual reports): the subtotal tree covers total liabilities, p
 extraordinary items, total tax, continuing and discontinued operations, OCI and total comprehensive income. Unmapped
 nil lines, per-share lines and P&L "attributable to" lines do not stop E402. Exceptional and extraordinary items are
 stored as printed; E402 tries them subtracted (Schedule III) and then added (a gain printed as positive), and says
-which. Old-format "Cash and bank balances" can be mapped to `cash_and_bank_balances`, which E403 does not compare with
-closing cash. E403 compares only mapped accounts, never label text: `closing_cash` = balance-sheet `cash`, or, when the
-cash flow prints the bank overdrafts netted in closing cash (Ind AS 7; memo account `cf_overdraft_in_cash`, "Bank
-overdraft" under "Cash and cash equivalents as above"), `cash` less those overdrafts. An E402 finding lists the lines summed,
-each with its signed value and cell or page (`other_source`).
+which. Old-format "Cash & bank balances" maps to `cash_and_bank_balances` in the seed (it also holds deposits), which
+E403 does not compare with closing cash; cash ratio and net debt use it as a stand-in for cash only when no cash and
+cash equivalents line is printed (shown in `metric_inputs`). E403 compares only mapped accounts, never label text:
+`closing_cash` = balance-sheet `cash`, or, when the cash flow prints the bank overdrafts netted in closing cash (Ind AS
+7; memo account `cf_overdraft_in_cash`, "Bank overdraft" under "Cash and cash equivalents as above"), `cash` less those
+overdrafts. An E402 finding lists the lines summed, each with its signed value and cell or page (`other_source`).
 
 ### Phase 7 — Metrics and analytics export
 Build:
 - SQL views: revenue growth; gross, EBITDA, PAT margins; CFO/EBITDA; free cash flow; capex/revenue; receivable, inventory, payable days; cash conversion cycle; debt/EBITDA; interest cover; current ratio; debt/equity; ROCE; ROE
 - `metric_inputs` lineage
 - Export to `analytics.duckdb` after every ingest
+
+Gross margin is on the cost of goods sold: (revenue - cost of materials - purchases of stock-in-trade - changes in
+inventories) / revenue; no value without cost of materials, the other two nil when not printed. Current assets and
+liabilities not printed are the sum of every current line of the dictionary (cash and other bank balances not added
+again when "Cash and bank balances" is printed). Cost to income has no value without an impairment or provisions line.
 
 Done when:
 - Synthetic metrics equal precomputed expected values exactly

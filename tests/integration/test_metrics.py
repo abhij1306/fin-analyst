@@ -157,7 +157,7 @@ def test_metric_inputs_trace_each_metric_to_its_facts(ingested: Path) -> None:
     ) == [
         ("total_current_assets", None, False),
         ("total_current_liabilities", None, False),
-        ("cash", "total_current_assets", True),
+        ("cash_and_bank_balances", "total_current_assets", True),
         ("inventories", "total_current_assets", True),
         ("other_current_assets", "total_current_assets", True),
         ("trade_receivables", "total_current_assets", True),
@@ -184,8 +184,9 @@ def test_a_data_change_rebuilds_analytics(root: Path) -> None:
         analytics,
         "SELECT company, scope, count(*), count(value) FROM metrics GROUP BY ALL ORDER BY ALL",
     ) == [
-        ("bluepeak", "consolidated", 169, 161),
-        ("bluepeak", "standalone", 169, 161),
+        # Bluepeak prints cash and bank balances, not cash: no cash ratio or net debt.
+        ("bluepeak", "consolidated", 169, 149),
+        ("bluepeak", "standalone", 169, 149),
         ("kestrel", "standalone", 123, 104),
         ("tarang", "standalone", 123, 115),
     ]

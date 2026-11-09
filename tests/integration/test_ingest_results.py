@@ -380,6 +380,8 @@ def balance_sheet(path: Path, *lines: tuple[str, str, str]) -> Path:
     [
         # Two lines for one account: their sum.
         [("Sundry creditors", "12.00", "10.00"), ("Trade payables", "18.00", "15.00")],
+        # Two equal lines and no total: still their sum, neither is taken for a total.
+        [("Sundry creditors", "15.00", "12.50"), ("Trade payables", "15.00", "12.50")],
         # A total line above its two parts: the total, not the total plus the parts.
         [
             ("(b) Trade payables", "30.00", "25.00"),
