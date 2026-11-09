@@ -146,6 +146,40 @@ def test_cash_and_bank_balances_is_not_added_to_its_own_parts(company: Path) -> 
     ) == [("cash_and_bank_balances", "300.00"), ("inventories", "100.00")]
 
 
+BORROWINGS = (
+    ("lt_borrowings", "Long-term borrowings", "", "700.00"),
+    ("st_borrowings", "Short-term borrowings", "", "300.00"),
+)
+
+
+def net_debt_cash_inputs(path: Path) -> list[Any]:
+    return query(
+        path,
+        "SELECT account, stands_in_for, CAST(value AS VARCHAR) FROM metric_inputs "
+        "WHERE metric = 'net_debt' AND account LIKE 'cash%' ORDER BY stands_in_for NULLS FIRST",
+    )
+
+
+def test_net_debt_falls_back_to_cash_and_bank_balances_and_says_so(company: Path) -> None:
+    load(company, *BORROWINGS, ("cash_and_bank_balances", "Cash & bank balances", "", "300.00"))
+    assert metric(company, "net_debt") == Decimal("700.000000")
+    assert net_debt_cash_inputs(company) == [
+        ("cash", None, None),
+        ("cash_and_bank_balances", "cash", "300.00"),
+    ]
+
+
+def test_net_debt_uses_cash_when_both_are_printed(company: Path) -> None:
+    load(
+        company,
+        *BORROWINGS,
+        ("cash_and_bank_balances", "Cash and bank balances", "", "300.00"),
+        ("cash", "Cash and cash equivalents", "Cash and bank balances", "200.00"),
+    )
+    assert metric(company, "net_debt") == Decimal("800.000000")
+    assert net_debt_cash_inputs(company) == [("cash", None, "200.00")]
+
+
 def test_current_liabilities_not_printed_include_liabilities_held_for_sale(
     company: Path,
 ) -> None:

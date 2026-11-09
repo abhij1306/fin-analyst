@@ -184,9 +184,8 @@ def test_a_data_change_rebuilds_analytics(root: Path) -> None:
         analytics,
         "SELECT company, scope, count(*), count(value) FROM metrics GROUP BY ALL ORDER BY ALL",
     ) == [
-        # Bluepeak prints cash and bank balances, not cash: no cash ratio or net debt.
-        ("bluepeak", "consolidated", 169, 149),
-        ("bluepeak", "standalone", 169, 149),
+        ("bluepeak", "consolidated", 169, 161),
+        ("bluepeak", "standalone", 169, 161),
         ("kestrel", "standalone", 123, 104),
         ("tarang", "standalone", 123, 115),
     ]

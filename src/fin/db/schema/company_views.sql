@@ -16,7 +16,9 @@
 --   the printed "Profit before exceptional items and tax" plus any share of associates and joint ventures (which
 --   PBT includes). Exceptional items are stored as printed, with either sign, so their sign is never guessed.
 --   EBIT = PBT + finance cost.
--- - Debt = long-term borrowings + short-term borrowings. Net debt = debt - cash and cash equivalents.
+-- - Debt = long-term borrowings + short-term borrowings. Net debt = debt - cash and cash equivalents. Cash is cash and
+--   cash equivalents; when a period prints only old-format "Cash and bank balances", that line stands in (stand_ins),
+--   and metric_inputs shows it.
 -- - Inventory days and payable days are on cost of materials consumed. Gross margin is on the cost of goods sold:
 --   cost of materials consumed + purchases of stock-in-trade + changes in inventories (the last two nil when not
 --   printed; changes in inventories as printed, negative when inventories rose).
@@ -169,7 +171,8 @@ FROM (VALUES ('revenue', 'revenue', 'Revenue', 1), ('ebitda', 'EBITDA', 'EBITDA'
 
 -- Totals a document may not print, and the lines summed in their place when it does not: the metrics view uses the
 -- sum (metrics_wide, its `paise` step), and metric_input_accounts lists the lines (stands_in_for) for every metric using the total.
--- The lines are the accounts whose parent is the total in templates/dictionary/schedule_iii.csv. part_of: a line
+-- The lines are the accounts whose parent is the total in templates/dictionary/schedule_iii.csv; cash (cash and cash
+-- equivalents) is not a total, but old-format "Cash and bank balances" stands in for it. part_of: a line
 -- printed that already holds this one; when the document prints it, this line is not added again (old-format
 -- "Cash and bank balances" holds cash and cash equivalents and other bank balances).
 CREATE VIEW stand_ins AS
@@ -183,7 +186,8 @@ FROM (
         ('total_current_liabilities', ['st_borrowings', 'lease_liabilities_current', 'trade_payables',
             'other_financial_liabilities_current', 'other_current_liabilities', 'st_provisions',
             'current_tax_liabilities', 'liabilities_held_for_sale']),
-        ('total_tax_expense', ['tax_expense', 'deferred_tax'])
+        ('total_tax_expense', ['tax_expense', 'deferred_tax']),
+        ('cash', ['cash_and_bank_balances'])
     ) AS t(total, accounts)
 );
 
@@ -251,14 +255,18 @@ SELECT row_number() OVER () AS position, * FROM (VALUES
         'Current assets other than inventories over current liabilities.',
         '(total_current_assets - inventories) / total_current_liabilities'),
     ('cash_ratio', 'liquidity', 'ratio', 'annual', 'null', 'Cash ratio', true,
-        'Cash and cash equivalents over current liabilities.', 'cash / total_current_liabilities'),
+        'Cash and cash equivalents over current liabilities. When cash and cash equivalents are not printed, '
+        || 'cash and bank balances (old format, which also holds bank deposits) stand in.',
+        'cash / total_current_liabilities'),
     -- solvency
     ('debt_to_equity', 'solvency', 'ratio', 'annual', 'null', 'Debt / equity', true,
         'Borrowings over equity.', 'debt / total_equity'),
     ('debt_to_ebitda', 'solvency', 'ratio', 'annual', 'null', 'Debt / EBITDA', true,
         'Borrowings over a year''s EBITDA.', 'debt / ebitda'),
     ('net_debt', 'solvency', 'rupees', 'annual', 'null', 'Net debt', false,
-        'Borrowings less cash and cash equivalents (negative when cash is larger).', 'debt - cash'),
+        'Borrowings less cash and cash equivalents (negative when cash is larger). When cash and cash equivalents '
+        || 'are not printed, cash and bank balances (old format, which also holds bank deposits) stand in.',
+        'debt - cash'),
     ('net_debt_to_ebitda', 'solvency', 'ratio', 'annual', 'null', 'Net debt / EBITDA', true,
         'Net debt over a year''s EBITDA.', 'net_debt / ebitda'),
     ('interest_cover', 'solvency', 'ratio', 'annual', 'null', 'Interest cover', true,
