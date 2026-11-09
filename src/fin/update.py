@@ -11,6 +11,7 @@
 Each step is logged as an event. A failing step stops the update with E005.
 """
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -40,9 +41,12 @@ def _run(
     program = shutil.which(command[0])
     if program is None:
         raise UpdateFailed(f"{step}: {command[0]} not found; run `uv run fin doctor`")
-    result = subprocess.run(
-        [program, *command[1:]], cwd=cwd, capture_output=True, text=True, check=False
-    )
+    try:
+        result = subprocess.run(
+            [program, *command[1:]], cwd=cwd, capture_output=True, text=True, check=False
+        )
+    except OSError as exc:
+        raise UpdateFailed(f"{step}: cannot start {command[0]}: {exc}") from exc
     output = (result.stdout + result.stderr).strip()[-500:]
     if must_succeed and result.returncode != 0:
         raise UpdateFailed(f"{step} failed (exit {result.returncode}): {output}")
@@ -53,8 +57,18 @@ def _run(
     return result
 
 
-def update(run: Run) -> None:
-    """Run the update steps in order. Sets exit code 1 if `fin doctor` reports problems."""
+def _doctor_diagnostics(doctor: subprocess.CompletedProcess[str]) -> list[str]:
+    """What the user needs from a failed `fin doctor`: each failed check (with its code and fix),
+    and the doctor's own run id (the nested run, apart from the update's)."""
+    lines = [line for line in doctor.stdout.splitlines() if line.startswith("FAIL")]
+    found = re.search(r"run_id (\S+)", doctor.stderr)
+    lines.append(f"fin doctor run_id {found[1]}" if found else "fin doctor run_id not printed")
+    return lines
+
+
+def update(run: Run) -> list[str]:
+    """Run the update steps in order. If `fin doctor` reports problems, sets exit code 1 and
+    returns its failed checks and run id; otherwise returns an empty list."""
     repo = REPO
     changes = _run(run, "git status", [GIT, "status", "--porcelain"], repo).stdout.strip()
     if changes:
@@ -74,6 +88,8 @@ def update(run: Run) -> None:
     refresh = refresh_analytics(run)
     run.event("update", f"metrics refreshed: {refresh.companies} companies")
     doctor = _run(run, "fin doctor", [*FIN, "doctor"], repo, must_succeed=False)
-    if doctor.returncode != 0:
-        run.failed += 1
-        run.exit_code = EXIT_FAILURES
+    if doctor.returncode == 0:
+        return []
+    run.failed += 1
+    run.exit_code = EXIT_FAILURES
+    return _doctor_diagnostics(doctor)

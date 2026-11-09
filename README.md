@@ -205,6 +205,7 @@ database first (`backups/<run_id>/`) and records the change in the audit log; ev
 When a command fails it prints an error code and a run id; Claude reports both. Exit codes: 0 success (held
 documents and findings included), 1 finished but some files failed, 2 the command could not run, 3 refused until you
 confirm. Every run is logged in `~/FinAnalysis/logs/<date>/<run_id>.jsonl`.
+A command-line usage error (a wrong option, argument or value, exit 2) is reported by the parser before a run starts, so it has no error code, run id or log.
 
 | Code | Meaning | What to do |
 |---|---|---|

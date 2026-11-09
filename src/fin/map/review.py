@@ -263,6 +263,9 @@ def _check_proposal(
     for field in ("label", "account", "confidence", "reason"):
         if field not in proposal:
             raise InvalidMapping(f"proposal {number}: missing {field!r}")
+    for field in ("label", "account", "reason", "statement", "section"):
+        if field in proposal and not isinstance(proposal[field], str):
+            raise InvalidMapping(f"proposal {number}: {field!r} must be text")
     confidence = proposal["confidence"]
     if isinstance(confidence, bool) or not isinstance(confidence, int | float):
         raise InvalidMapping(f"proposal {number}: confidence must be a number from 0 to 1")

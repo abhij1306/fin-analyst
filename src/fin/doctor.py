@@ -92,7 +92,16 @@ def check_python() -> Check:
 
 
 def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
-    output = tool_version(tool)
+    try:
+        output = tool_version(tool)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return Check(
+            tool,
+            False,
+            f"`{tool} --version` did not run ({exc})",
+            DependencyMissing.code,
+            f"reinstall with `brew reinstall {tool}`",
+        )
     if output is None:
         return Check(
             tool,
@@ -124,7 +133,16 @@ def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
 def check_poppler() -> Check:
     """poppler's pdftoppm lets Claude Code read PDF pages as images for readings (`fin ingest
     --reading`). fin itself does not need it, so a missing poppler is a warning."""
-    output = tool_version("pdftoppm")
+    try:
+        output = tool_version("pdftoppm")
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return Check(
+            "poppler",
+            True,
+            f"`pdftoppm --version` did not run ({exc}): Claude cannot read PDF pages as images",
+            fix="run `brew reinstall poppler`",
+            warning=True,
+        )
     if output is None:
         return Check(
             "poppler",

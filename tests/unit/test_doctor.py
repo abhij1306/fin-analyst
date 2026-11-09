@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -5,7 +6,14 @@ from typer.testing import CliRunner
 
 from fin.cli import app
 from fin.db.conn import connect
-from fin.doctor import Check, check_audit_schema, check_docling, check_tool, parse_version
+from fin.doctor import (
+    Check,
+    check_audit_schema,
+    check_docling,
+    check_tool,
+    parse_version,
+    run_checks,
+)
 from fin.paths import audit_db_path
 
 
@@ -41,6 +49,25 @@ def test_tool_at_or_above_minimum_passes(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr("fin.doctor.tool_version", lambda tool: "v26.8.1")
     check = check_tool("node", (24,))
     assert (check.ok, check.code, check.detail) == (True, None, "26.8.1")
+
+
+def test_tool_version_timeout_fails_that_check_and_the_rest_still_run(
+    data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    CliRunner().invoke(app, ["init"])
+    monkeypatch.setattr("fin.doctor.shutil.which", lambda tool: tool)
+
+    def hang(command: list[str], **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(command, 60)
+
+    monkeypatch.setattr("fin.doctor.subprocess.run", hang)
+
+    checks = {check.name: check for check in run_checks(data_root)}
+
+    assert (checks["node"].ok, checks["node"].code) == (False, "E001")
+    assert "did not run" in checks["node"].detail
+    assert (checks["poppler"].ok, checks["poppler"].warning) == (True, True)
+    assert checks["config"].ok is True
 
 
 def test_audit_schema_check_names_the_fix(data_root: Path) -> None:

@@ -21,6 +21,8 @@ from fin.paths import analytics_db_path
 
 PROJECT_DIR = Path(__file__).resolve().parents[2] / "dashboards"
 DEV_URL = "http://localhost:3000"
+# npm run dev exits 0, or with SIGINT (-2, or 130 through a shell), when the user stops it.
+STOPPED_BY_CTRL_C = (0, -2, 130)
 
 
 def dashboard_dir(root: Path) -> Path:
@@ -85,7 +87,12 @@ def serve(root: Path) -> None:
     """Refresh the sources, then run the dev server until it is stopped (Ctrl-C)."""
     snapshot = _refresh_sources(root)
     typer.echo(f"dashboard: {DEV_URL}  (Ctrl-C to stop; run `fin dashboard` again to refresh data)")
-    _npm(snapshot, "dev", "--", "--port", "3000")
+    try:
+        result = _npm(snapshot, "dev", "--", "--port", "3000")
+    except KeyboardInterrupt:
+        return  # Ctrl-C is how the server is meant to stop
+    if result.returncode not in STOPPED_BY_CTRL_C:
+        raise DashboardBuildFailed(f"`npm run dev` failed (exit {result.returncode})")
 
 
 def build(root: Path) -> Path:
