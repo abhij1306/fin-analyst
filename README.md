@@ -153,10 +153,9 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
 
 Every change, and every gate approval, is recorded in the audit table `diligence_events`.
 
-Not built yet (they wait on the open questions in the plan, §9): loading trial balances, Tally ledgers, sales and
+Planned (they wait on the open questions in the plan, §9): loading trial balances, Tally ledgers, sales and
 purchase registers, bank statements and payroll; reconciliations; contract recast; a query letter export; customer
-analytics. A data folder made before diligence has no `[diligence]` table in `config.toml` (E002): move the folder
-away and run `uv run fin init`.
+analytics.
 
 ## Pages fin can't read
 
