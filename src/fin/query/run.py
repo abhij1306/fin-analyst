@@ -1,10 +1,14 @@
 """`fin sql` without --write: answer a question with one read-only SELECT on a company database.
 
 The statement must be a single SELECT (or WITH ... SELECT); anything else is rejected with E502 and
-still logged. When the result has a `fact_id` or `raw_id` column, every row gets provenance columns:
-the source file, `sheet!cell` or `page N`, whether the fact's mapping is confirmed, who read the
-figure (`fin`, `docling` from the PDF add-on, or `claude` from a reading file) and whether `fin
-verify` verified it.
+still logged. When the result has a `fact_ids`, `fact_id` or `raw_id` column (the first one found),
+every row gets provenance columns: the source file, `sheet!cell` or `page N`, whether the fact's
+mapping is confirmed, who read the figure (`fin`, `docling` from the PDF add-on, or `claude` from a
+reading file) and whether `fin verify` verified it.
+
+`fact_ids` (in `current_facts`, `document_facts` and `standard_statements`) lists every fact behind
+a value. A value summed from several printed lines gets every line's source: `source_ref` starts
+with "sum of N sources:", and the value counts as confirmed or verified only when every line is.
 """
 
 import hashlib
@@ -61,8 +65,8 @@ def check_select(con: duckdb.DuckDBPyConnection, sql: str) -> None:
 
 def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
     """Run one SELECT on a read-only connection and return the rows, with provenance columns added
-    when the result has `fact_id` or `raw_id`. The `standard_statements` view (fin.statements) is
-    available to it."""
+    when the result has `fact_ids`, `fact_id` or `raw_id`. The `standard_statements` view
+    (fin.statements) is available to it."""
     with connect(company_db_path(root, company)) as con:
         check_select(con, sql)
         add_view(con, root)  # standard_statements
@@ -71,18 +75,39 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
         except duckdb.Error as exc:
             raise SqlFailed(f"the query failed: {' '.join(str(exc).split())}") from exc
         columns = rows[0] if rows else {}
-        key = next((name for name in ("fact_id", "raw_id") if name in columns), None)
+        key = next((name for name in ("fact_ids", "fact_id", "raw_id") if name in columns), None)
         if key is None:
             return rows
         sources = {}
         for source in con.execute(SOURCE_SQL).fetchall():
             raw_id, fact_id, *provenance = source
-            source_key = fact_id if key == "fact_id" else raw_id
+            source_key = raw_id if key == "raw_id" else fact_id
             if source_key is None:
                 continue  # a raw value mapped to no fact: no row's fact_id points to it
             sources[source_key] = dict(zip(PROVENANCE_COLUMNS, provenance, strict=True))
+    if key == "fact_ids":
+        return [{**row, **_combined([sources[i] for i in row[key] or []])} for row in rows]
     empty = dict.fromkeys(PROVENANCE_COLUMNS)
     return [{**row, **sources.get(row[key], empty)} for row in rows]
+
+
+def _combined(lines: list[dict[str, Any]]) -> dict[str, Any]:
+    """The provenance of a value from `lines` (one source each): a single line's as it is; for a
+    sum, every line's source, confirmed or verified only when every line is."""
+    if len(lines) <= 1:
+        return lines[0] if lines else dict.fromkeys(PROVENANCE_COLUMNS)
+
+    def joined(column: str) -> str:
+        return "; ".join(dict.fromkeys(str(line[column]) for line in lines))
+
+    return {
+        "source_file": joined("source_file"),
+        "source_ref": f"sum of {len(lines)} sources: "
+        + "; ".join(line["source_ref"] for line in lines),
+        "source_confirmed": all(line["source_confirmed"] for line in lines),
+        "source_read_by": joined("source_read_by"),
+        "source_verified": all(line["source_verified"] for line in lines),
+    }
 
 
 def _plain(value: object) -> object:

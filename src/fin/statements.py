@@ -15,6 +15,8 @@ account tree (`shared/dictionary.duckdb` accounts), whatever labels the filing u
   'other', account NULL) carries the difference, just above the subtotal, so nothing is hidden.
   Exceptional and extraordinary items count with either sign, as in the subtotal check
   (`fin.validate.gates`).
+- lineage: `fact_ids`, every fact behind the value (a document that prints an account on two lines
+  has two, and the value is their sum); `fact_id` is the first of them.
 
 Amounts: the view and `--json` are in rupees. The text output and the Excel export show money in
 the unit the company's documents use (`document_unit`: lakh, crore, ...; the most recent document's
@@ -68,7 +70,7 @@ CREATE OR REPLACE TEMP VIEW standard_statements AS
 WITH vals AS (
     SELECT
         f.period, f.period_months, f.fiscal_year, f.period_end, f.scope, f.account, f.value,
-        f.fact_id
+        f.fact_id, f.fact_ids
     FROM current_facts f
     JOIN statement_accounts a USING (account)
 ),
@@ -99,7 +101,7 @@ above AS (
 lines AS (
     SELECT
         v.period, v.period_months, v.fiscal_year, v.period_end, v.scope, a.statement, a.position,
-        a.account, a.label, v.value, v.fact_id,
+        a.account, a.label, v.value, v.fact_id, v.fact_ids,
         CASE
             WHEN NOT a.running THEN coalesce(n.n, 0)
             WHEN s.explained IS NOT NULL OR a.is_root THEN 0
@@ -119,12 +121,13 @@ lines AS (
 SELECT
     period, period_months, fiscal_year, period_end, scope, statement, 2 * position AS line_no,
     depth, 'line' AS line_type, account, label, value, explained,
-    div6(CAST(explained * 100 AS HUGEINT), CAST(value * 100 AS HUGEINT)) AS coverage, fact_id
+    div6(CAST(explained * 100 AS HUGEINT), CAST(value * 100 AS HUGEINT)) AS coverage, fact_id,
+    fact_ids
 FROM lines
 UNION ALL
 SELECT
     period, period_months, fiscal_year, period_end, scope, statement, 2 * position - 1, lines_depth,
-    'other', NULL, '{other}', value - explained, NULL, NULL, NULL
+    'other', NULL, '{other}', value - explained, NULL, NULL, NULL, NULL
 FROM lines
 WHERE explained IS NOT NULL AND explained <> value
 """

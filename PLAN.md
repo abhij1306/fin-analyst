@@ -118,9 +118,11 @@ Reports and dashboards by category (after 1.0.0, not a phase):
   latest quarters (TTM, growth on the year before and the previous quarter) when quarters are loaded; a peer
   comparison with `fin report <co> --peers a,b` (key metrics for the latest fiscal year every company has); findings
   with sources; data coverage (`statement_coverage` view: mapped share per statement and unverified Claude-read
-  figures; `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data); and
-  appendices (condensed standard statements, metric definitions, facts behind the metrics). Narrative references
-  accept quarter and half-year periods (`{{metric:ttm_revenue:FY26-Q2}}`).
+  figures; `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data for the
+  years and quarters shown); and appendices (condensed standard statements: every printed subtotal, marked † when
+  its mapped lines do not add up to it; metric definitions; facts behind the figures shown, for both scopes and the
+  quarters, each line of a summed value listed, per-share facts unscaled; peers' facts are in their own reports).
+  Narrative references accept quarter and half-year periods (`{{metric:ttm_revenue:FY26-Q2}}`).
 - Dashboards: `analytics.duckdb` also holds metric categories and definitions, the standard statements (in the
   documents' unit), findings, coverage, unread pages and unverified Claude-read facts. Company page by category
   (trend charts, any metric, quarters, statements for a chosen period, findings, coverage); compare page (category,
@@ -349,7 +351,14 @@ Every `fin` command:
 **Traceability**
 
 - `fin audit <company> <metric> <fy>`: metric → facts → mapping decisions → raw values → file + sheet!cell or page, plus the ingest run.
-- `fin audit <company>`: full history of ingests, reviews, queries, reports, failures.
+- `fin audit <company>`: full history of ingests, reviews, queries, reports, failures. A run belongs to the company
+  when its args name it or an audit row names it (events about `<company>/<file>`, mapping decisions, validation
+  results, findings, queries, reports, deletions, diligence events), so a batch ingest stays after the company is
+  deleted.
+- Lineage of a summed value: `current_facts.fact_ids` (and `standard_statements.fact_ids`) list every printed line
+  behind it. `fin sql` with a `fact_ids` column gives every line's source ("sum of N sources: ..."), confirmed or
+  verified only when every line is; the evidence page shows each line. Traces show a per-share fact in rupees per
+  share.
 
 ## 9. Error handling
 

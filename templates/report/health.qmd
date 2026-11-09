@@ -78,13 +78,13 @@ Statement pages fin could not read in the loaded documents.
 
 ### Missing data
 
-Metrics with no value, and the inputs they lack.
+Metrics with no value in the years and quarters shown, and the inputs they lack.
 
 {{table:missing}}
 
 ## Appendix: standard statements
 
-Condensed: the subtotals of each statement, in the standard order.
+Condensed: the printed subtotals of each statement, in the standard order.
 
 {{table:statements}}
 
@@ -94,6 +94,9 @@ Condensed: the subtotals of each statement, in the standard order.
 
 ## Appendix: facts behind the metrics
 
-Every fact the metrics use, with its source file and sheet!cell or page.
+Every fact behind the figures in this report's tables (the years and quarters shown, for each set
+of statements, and the earlier periods their growth uses), with its source file and sheet!cell or
+page. A value the document prints on several lines is their sum, and lists each line. Peer
+companies' facts are in their own reports.
 
 {{table:facts}}

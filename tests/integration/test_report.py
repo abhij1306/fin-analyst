@@ -170,7 +170,10 @@ def test_render_substitutes_references_and_logs_the_report(root: Path, fake_quar
     assert "| Total assets | ₹98.75 Cr | ₹116.44 Cr | ₹128.64 Cr |" in html
     assert "| Inventories |" not in html  # condensed: subtotals only
     assert "| profitability | EBITDA margin (`ebitda_margin`) | EBITDA as a fraction of" in html
-    assert "| `revenue` | FY25 | ₹134.09 Cr | Kestrel_Forgings_Financials_FY23-FY25.xlsx" in html
+    assert (
+        "| standalone | `revenue` | FY25 | ₹134.09 Cr | Kestrel_Forgings_Financials_FY23-FY25.xlsx"
+        in html
+    )
     assert "{{" not in html
 
     data = json.loads((folder(root) / "report_data.json").read_text(encoding="utf-8"))
@@ -307,6 +310,9 @@ def test_latest_quarters_and_peer_comparison(root: Path, tmp_path: Path, fake_qu
     assert "Fiscal year FY25, standalone.\n\n|  | acme | kestrel |" in html
     assert "| Revenue | ₹41.00 Cr | ₹134.09 Cr |" in html
     assert "| Profit after tax | ₹29.00 Cr | ₹12.90 Cr |" in html
+    # The appendix and the missing data cover the quarters the report shows, not only years.
+    assert "| standalone | `revenue` | FY26-Q2 | ₹12.10 Cr | q2.pdf |" in html
+    assert "| FY25-Q2 | Revenue, last four quarters | revenue (FY24-Q3) |" in html
 
     # Without --peers the narrative's peer section has nowhere to go.
     result = runner.invoke(app, ["report", "acme"])
@@ -316,6 +322,20 @@ def test_latest_quarters_and_peer_comparison(root: Path, tmp_path: Path, fake_qu
     result = runner.invoke(app, ["report", "acme", "--peers", "nobody"])
     assert result.exit_code == 2
     assert "E601: no database for peer nobody" in result.stderr
+
+
+def test_appendix_covers_the_other_scope_in_the_summary(
+    clean_root: Callable[..., Path], fake_quarto: None
+) -> None:
+    root = clean_root("bluepeak")
+    assert runner.invoke(app, ["report", "bluepeak"]).exit_code == 0  # writes the stub
+    result = runner.invoke(app, ["report", "bluepeak"])
+    assert result.exit_code == 0, result.output
+
+    html = (root / "reports" / "bluepeak" / "standalone" / "health.html").read_text("utf-8")
+    assert "**Consolidated**" in html
+    assert "| consolidated | `revenue` | FY25 |" in html
+    assert "| standalone | `revenue` | FY25 |" in html
 
 
 @pytest.mark.quarto
