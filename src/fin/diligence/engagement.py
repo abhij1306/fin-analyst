@@ -65,7 +65,7 @@ def parse_rupees(text: str) -> Decimal:
         amount = Decimal(text.strip())
     except InvalidOperation as exc:
         raise ValueError(f"{text!r} is not an amount in rupees (e.g. 350000 or -1250.50)") from exc
-    if amount.is_finite() and abs(amount) >= AMOUNT_LIMIT:
+    if amount.is_finite() and amount.copy_abs() >= AMOUNT_LIMIT:  # copy_abs cannot overflow
         raise ValueError(f"{text!r} is too large for an amount in rupees (below 10^18)")
     try:
         exact = amount.is_finite() and amount == amount.quantize(Decimal("0.01"))

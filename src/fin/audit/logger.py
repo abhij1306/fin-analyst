@@ -239,10 +239,18 @@ class Run:
 
     def finish(self, exit_code: int) -> int:
         """Write everything out, then append the end row with the exit code that results and write
-        it too, and print the summary. Returns the final exit code."""
+        it too, and print the summary. Returns the final exit code. When writing the end row fails,
+        the code rises after the row was made: both codes are printed."""
         exit_code = self._write_out(exit_code)
         self._records.append(("runs", {"run_id": self.run_id, **self._run_row("end", exit_code)}))
+        recorded = exit_code
         exit_code = self._write_out(exit_code)
+        if exit_code != recorded:
+            typer.echo(
+                f"run {self.run_id} exits {exit_code}, but its end row records exit {recorded} "
+                "where it was written: writing the end row failed",
+                err=True,
+            )
         if self._db_problem is not None:
             typer.echo(
                 f"run {self.run_id} not recorded in the audit database: {self._db_problem}",

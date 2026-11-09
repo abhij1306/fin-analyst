@@ -209,7 +209,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 
 | Code | Meaning | What to do |
 |---|---|---|
-| E001 | A required program (uv, node, quarto), `config.toml` or the audit database is missing | Run the fix `fin doctor` shows (`./install.sh` or `uv run fin init`) |
+| E001 | A required program (uv, node, quarto), `config.toml` or the audit database is missing, or a program cannot be started | Run the fix `fin doctor` shows (`./install.sh` or `uv run fin init`) |
 | E002 | A program is the wrong version, `config.toml` is invalid, or a database was made by an older fin | Run the fix shown (`brew upgrade`, correct `config.toml`, or move the data folder away and run `uv run fin init`) |
 | E003 | The data folder is missing or not writable | Run `uv run fin init`, or fix the folder permissions |
 | E005 | `fin update` stopped: local changes in this folder, or a git, uv or npm step failed | Commit or discard local changes, or fix the failing step, and run it again. The backup is in `backups/<run_id>/` |

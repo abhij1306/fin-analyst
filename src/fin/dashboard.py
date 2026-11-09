@@ -59,14 +59,19 @@ def _npm(snapshot: Path, script: str, *extra: str) -> subprocess.CompletedProces
     # Evidence resolves the filename relative to the source folder.
     filename = os.path.relpath(snapshot, PROJECT_DIR / "sources" / "analytics")
     env = {**os.environ, "EVIDENCE_SOURCE__analytics__filename": filename}
-    return subprocess.run(
-        [npm, "run", script, *extra],
-        cwd=PROJECT_DIR,
-        env=env,
-        capture_output=script != "dev",
-        text=True,
-        check=False,
-    )
+    try:
+        return subprocess.run(
+            [npm, "run", script, *extra],
+            cwd=PROJECT_DIR,
+            env=env,
+            capture_output=script != "dev",
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise DependencyMissing(
+            f"npm ({npm}) cannot be started: {exc}; run ./install.sh (installs node)"
+        ) from exc
 
 
 def _refresh_sources(root: Path) -> Path:

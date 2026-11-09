@@ -348,7 +348,9 @@ Every `fin` command:
 - Gets a `run_id`; writes a `runs` row at start and end.
 - Writes structured events to `audit.events` and to `logs/<date>/<run_id>.jsonl`. If writing the log fails (E003),
   it is not retried for that run; the run's exit code reflects it, and the end row is written after everything else, so
-  it records the exit code the command returns.
+  it records the exit code the command returns. The one limit: when writing the end row itself fails, the exit code
+  rises after the row was made, so a copy of it written to the other log records the lower code; fin then prints both
+  codes on stderr.
 - Ends with a summary: loaded, skipped, failed, pending review, held, run_id.
 
 **Tables in `shared/audit.duckdb`** (append-only; rows never updated or deleted)
@@ -433,7 +435,7 @@ claude
 2. Back up all databases to `backups/<run_id>/`.
 3. `git pull`, `uv sync --frozen` (with `--extra docling` when `config.toml` has the add-on on), `npm ci`.
 4. Refresh the metrics export.
-5. `fin doctor`. If it fails, `fin update` prints each failed check (code and fix) and the doctor's own run id, with the update's run id.
+5. `fin doctor`. If it fails, `fin update` prints each failed check (code and fix), or the last lines of the doctor's output when it stopped before listing any (an error code, a crash), and the doctor's own run id, with the update's run id.
 
 **Uninstall:** delete the repo. The data folder is never touched by uninstall.
 

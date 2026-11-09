@@ -69,7 +69,7 @@ def test_existing_database_missing_a_column_is_e002(tmp_path: Path) -> None:
     )
 
 
-def test_existing_database_missing_a_view_is_e002(tmp_path: Path) -> None:
+def test_existing_database_missing_a_view_or_a_view_column_is_e002(tmp_path: Path) -> None:
     path = tmp_path / "acme.duckdb"
     ensure_database(path, "company")
     with connect(path, write=True) as con:
@@ -77,9 +77,11 @@ def test_existing_database_missing_a_view_is_e002(tmp_path: Path) -> None:
 
     with pytest.raises(DependencyVersionMismatch):
         ensure_database(path, "company")
+    # The view of an older fin, with other columns.
     with connect(path, write=True) as con:
         con.execute("CREATE VIEW ebitda_to_cash AS SELECT 1 AS x")
-    assert ensure_database(path, "company") is False
+    with pytest.raises(DependencyVersionMismatch):
+        ensure_database(path, "company")
 
 
 def test_existing_database_with_an_extra_table_is_accepted(tmp_path: Path) -> None:

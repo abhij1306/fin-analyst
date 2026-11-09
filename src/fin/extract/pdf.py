@@ -60,6 +60,7 @@ from pdfminer.psexceptions import PSException
 from pdfplumber.utils.exceptions import PdfminerException
 
 from fin.audit.errors import (
+    DataFolderNotWritable,
     DocumentFailure,
     FileEncrypted,
     FileUnreadable,
@@ -1119,7 +1120,8 @@ CROP_RESOLUTION = 150  # dpi of an evidence crop
 def render_crop(path: Path, page: int, bbox: tuple[float, float, float, float], out: Path) -> Path:
     """Write a PNG of the full-width band around `bbox` on `page` (1-based), bbox highlighted.
 
-    The band spans the page width so the row label shows next to the value.
+    The band spans the page width so the row label shows next to the value. E003 when the PNG
+    cannot be written.
     """
     with open_pdf(path, text_layer=False) as pdf:
         p = pdf.pages[page - 1]
@@ -1132,6 +1134,9 @@ def render_crop(path: Path, page: int, bbox: tuple[float, float, float, float], 
         )
         image = p.crop(region).to_image(resolution=CROP_RESOLUTION)
         image.draw_rect(bbox, stroke=(220, 0, 0), fill=(255, 230, 0, 60), stroke_width=2)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        image.save(out)
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            image.save(out)
+        except OSError as exc:
+            raise DataFolderNotWritable(f"cannot write {out}: {exc}") from exc
     return out
