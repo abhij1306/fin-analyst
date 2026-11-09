@@ -146,6 +146,32 @@ def test_a_row_with_no_comparative_loads_the_figure_printed(tmp_path: Path) -> N
     assert result.skipped == []
 
 
+def test_an_integer_row_with_no_comparative_loads_inside_the_table_only(tmp_path: Path) -> None:
+    page: Page = [
+        (50, 50, "Statement of Profit and Loss for the year ended 31 March 2025"),
+        (50, 65, "(Rs. in Crores)"),
+        *HEADER,
+        (50, 105, "Income"),
+        (50, 120, "Other income"),
+        (390, 120, "45"),  # nothing printed for the year before
+        (50, 135, "Revenue from operations"),
+        (390, 135, "900"),
+        (480, 135, "800"),
+        (50, 165, "Annual Report 2024-25"),
+        (480, 165, "12"),  # a page number below the table, under the last column
+    ]
+    path = write_pdf(tmp_path / "pl.pdf", page)
+
+    result = extract_pdf(path)
+
+    assert [(v.label, v.period, v.raw, v.section) for v in result.values] == [
+        ("Other income", "FY25", "45", "Income"),
+        ("Revenue from operations", "FY25", "900", "Income"),
+        ("Revenue from operations", "FY24", "800", "Income"),
+    ]
+    assert result.skipped == []
+
+
 def test_a_figure_that_cannot_be_placed_under_a_column_makes_the_page_unread(
     tmp_path: Path,
 ) -> None:

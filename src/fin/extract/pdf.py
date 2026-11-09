@@ -24,7 +24,8 @@ is read as two halves. On each statement page (balance sheet, profit and loss, c
    consolidated printed side by side).
 4. A line whose trailing numbers sit under every period column is a value row. So is a line with
    figures under some columns and nothing under the others (a new item with no comparative): the
-   figures printed load, a blank cell is no value. A line with a figure fin cannot place under
+   figures printed load, a blank cell is no value; one with plain integers loads only when a
+   full row below it shows it is in the table body. A line with a figure fin cannot place under
    its columns makes the page misread (E204), never a heading. The words to their left are the
    label, minus a note reference when the header has a "Note" column. A row with no
    label takes its label from a line just above it (a label wrapped around its figures, whose tail
@@ -795,15 +796,20 @@ def _trailing_values(line: Line, columns: list[Column]) -> tuple[int, dict[str, 
     return cut, values
 
 
-def _is_partial_row(label: Line, values: dict[str, Word], columns: list[Column]) -> bool:
+def _is_partial_row(
+    label: Line, values: dict[str, Word], columns: list[Column], *, integers: bool = False
+) -> bool:
     """True for a line with figures under some columns and nothing printed under the others: it
     has a label of its own, wholly left of the columns, and each figure has a comma or decimal
-    point or is a nil dash (so a page number or a registration number is not a row)."""
+    point or is a nil dash (so a page number or a registration number is not a row). `integers`:
+    plain integers count too (`_read_line` keeps such a row only inside the table body)."""
     if not values or not label:
         return False
     if max(w["x1"] for w in label) >= columns[0].x0 - COLUMN_TOLERANCE:
         return False
-    return all(FIGURE_TEXT.search(w["text"]) or _DASH.match(w["text"]) for w in values.values())
+    return integers or all(
+        FIGURE_TEXT.search(w["text"]) or _DASH.match(w["text"]) for w in values.values()
+    )
 
 
 def _is_note(word: Word) -> bool:
@@ -860,6 +866,9 @@ class _Reader:
     section: str = ""  # the heading the next row sits under
     before_heading: str = ""  # the section before the last heading line, to undo a wrapped label
     last_text: Line | None = None  # the line just read, when it was a text line
+    # Partial rows of plain integers, kept once a full row below shows they are in the table body
+    # (a page number or footer below the table is not a row).
+    pending: list[_Row] = field(default_factory=list)
 
 
 def read_page(
@@ -936,7 +945,10 @@ def _read_line(
     """Take in one line that is not a header: a row of figures, a heading or text. `below`: the
     next line, if any. True when the line ends the table (a "Notes:" line)."""
     words, row = split_row(line, columns) if columns else (line, {})
-    if not row:
+    pending = _integer_row(line, columns) if columns and not row else None
+    if pending is not None:
+        words, row = pending
+    elif not row:
         if columns and _unplaced_figures(line, columns, statement, page):
             state.last_text = None
             return False
@@ -948,13 +960,28 @@ def _read_line(
         # A heading printed with nil dashes ("Current assets - -"), items indented below it.
         state.last_text, state.before_heading, state.section = words, state.section, label
         return False
-    if statement != "notes":
-        _check_figures(label, row, page)
-    state.rows.append(
-        _Row(label, row, columns, state.section, note, line[0]["top"], height, wrapped)
-    )
+    new = _Row(label, row, columns, state.section, note, line[0]["top"], height, wrapped)
     state.last_text = None
+    if pending is not None:
+        state.pending.append(new)
+        return False
+    kept = [new]
+    if len(row) == len(columns):  # a full row: the integer rows above it are in the table body
+        kept = [*state.pending, new]
+        state.pending.clear()
+    for r in kept if statement != "notes" else []:
+        _check_figures(r.label, r.values, page)
+    state.rows = sorted([*state.rows, *kept], key=lambda r: r.top)
     return False
+
+
+def _integer_row(line: Line, columns: list[Column]) -> tuple[Line, dict[str, Word]] | None:
+    """(label words, values) for a line with a label of its own and plain integers under some
+    columns (`_is_partial_row` with integers); None otherwise."""
+    cut, values = _trailing_values(line, columns)
+    if not _is_partial_row(line[:cut], values, columns, integers=True):
+        return None
+    return line[:cut], values
 
 
 def _unplaced_figures(line: Line, columns: list[Column], statement: str, page: int) -> bool:

@@ -90,7 +90,8 @@ first figure). Such a page is not taken as the previous statement carried on. Ev
 page is listed under the file's outcome on screen (`not read: <statement> page N: <code> <reason>`) and, when the
 file fails, as `unread_pages` in its error.json, so `/ingest` can offer a Claude reading of exactly those pages.
 A row with figures under some columns and a blank under others (a new item with no comparative) loads the figures
-printed; a blank is no value. A figure fin cannot place under a column (no label of its own, or text across the
+printed; a blank is no value. Such a row of plain integers loads only above a full row (inside the table body, not
+a page number or footer below it). A figure fin cannot place under a column (no label of its own, or text across the
 columns) makes the page unread (E204); a line with figures is never taken as a heading.
 
 Chart of accounts (after 1.0.0, not a phase): the seed dictionary covers Schedule III Divisions I, II and III
