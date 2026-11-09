@@ -45,18 +45,6 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 step "fin-analyst install: macOS $(sw_vers -productVersion) on $ARCH, repo $REPO_DIR, data $DATA_DIR"
 
-# The Docling add-on: the flag, or what config.toml already says (a plain sync would remove it).
-DOCLING=false
-if [[ "$DOCLING_FLAG" == "--docling" ]]; then
-  DOCLING=true
-elif [[ -z "$DOCLING_FLAG" ]] && grep -Eq '^docling[[:space:]]*=[[:space:]]*true' "$DATA_DIR/config.toml" 2>/dev/null; then
-  DOCLING=true
-fi
-if [[ "$DOCLING" == true && "$ARCH" == x86_64 ]]; then
-  die "the Docling add-on needs an Apple silicon Mac (PyTorch has no Intel macOS build); run ./install.sh --no-docling"
-fi
-echo "Docling add-on: $DOCLING"
-
 # 2. Homebrew (ask before installing)
 load_brew() {
   local candidate
@@ -88,6 +76,27 @@ else
 fi
 
 cd "$REPO_DIR"
+
+# The Docling add-on: the flag, or what config.toml already says (a plain sync would remove it).
+# config.toml is read as TOML (uv is installed by now; --no-project needs no sync).
+docling_in_config() {
+  [[ -f "$DATA_DIR/config.toml" ]] || { echo false; return; }
+  uv run --no-project python -I -c '
+import sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    print(str(tomllib.load(f).get("pdf", {}).get("docling") is True).lower())
+' "$DATA_DIR/config.toml"
+}
+DOCLING=false
+if [[ "$DOCLING_FLAG" == "--docling" ]]; then
+  DOCLING=true
+elif [[ -z "$DOCLING_FLAG" ]]; then
+  DOCLING="$(docling_in_config)" || die "cannot read $DATA_DIR/config.toml; fix it or run ./install.sh --docling or --no-docling"
+fi
+if [[ "$DOCLING" == true && "$ARCH" == x86_64 ]]; then
+  die "the Docling add-on needs an Apple silicon Mac (PyTorch has no Intel macOS build); run ./install.sh --no-docling"
+fi
+echo "Docling add-on: $DOCLING"
 
 # 4. Python environment (exact versions from uv.lock)
 if [[ "$DOCLING" == true ]]; then

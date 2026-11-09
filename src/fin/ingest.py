@@ -33,7 +33,7 @@ import hashlib
 import json
 import shutil
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -56,7 +56,7 @@ from fin.audit.errors import (
 )
 from fin.audit.logger import Run
 from fin.config import Config
-from fin.db.conn import connect
+from fin.db.conn import connect, utcnow
 from fin.extract import docling_run
 from fin.extract.excel import ExcelValue, extract_workbook
 from fin.extract.pdf import PdfValue, SkippedPage, extract_pdf
@@ -422,10 +422,6 @@ def _copy(source: Path, target: Path) -> None:
         raise DataFolderNotWritable(f"cannot copy {source} to {target}: {exc}") from exc
 
 
-def _now() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
-
-
 RAW_VALUE_COLUMNS = (
     "raw_id, doc_id, sheet, cell, page, bbox, statement, section, raw_label, raw_value_text, "
     "raw_unit, rupees_per_unit, run_id"
@@ -484,7 +480,7 @@ def _load(
                     ",".join(sorted({r.scope for r in rows})),
                     archive,
                     run.run_id,
-                    _now(),
+                    utcnow(),
                     *(reading or (None, None)),
                     json.dumps(document.unread) if document.unread else None,
                 ],

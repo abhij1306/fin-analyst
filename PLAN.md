@@ -409,7 +409,7 @@ claude
 2. Back up all databases to `backups/<run_id>/`.
 3. `git pull`, `uv sync --frozen` (with `--extra docling` when `config.toml` has the add-on on), `npm ci`.
 4. Refresh the metrics export.
-5. `fin doctor`.
+5. `fin doctor`. If it fails, `fin update` prints each failed check (code and fix) and the doctor's own run id, with the update's run id.
 
 **Uninstall:** delete the repo. The data folder is never touched by uninstall.
 

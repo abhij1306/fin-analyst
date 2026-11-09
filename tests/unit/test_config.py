@@ -65,6 +65,42 @@ def test_set_docling_adds_the_pdf_table_to_an_older_config(tmp_path: Path) -> No
     assert load_config(tmp_path).docling is True
 
 
+@pytest.mark.parametrize(
+    ("written", "result"),
+    [
+        ("  docling = false", "  docling = true"),
+        ('"docling" = false', "docling = true"),
+        ("docling=false # off", "docling = true # off"),
+    ],
+)
+def test_set_docling_edits_the_pdf_table_however_it_is_written(
+    tmp_path: Path, written: str, result: str
+) -> None:
+    write_default_config(tmp_path)
+    path = tmp_path / "config.toml"
+    path.write_text(DEFAULT_CONFIG_TOML.replace("docling = false", written), encoding="utf-8")
+
+    set_docling(tmp_path, True)
+
+    assert path.read_text(encoding="utf-8") == DEFAULT_CONFIG_TOML.replace(
+        "docling = false", result
+    )
+    assert load_config(tmp_path).docling is True
+
+
+def test_set_docling_refuses_a_table_it_cannot_edit_and_keeps_the_file(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    inline = OLDER_CONFIG + "pdf = { docling = false }\n"
+    path.write_text(inline, encoding="utf-8")
+
+    with pytest.raises(FinError) as caught:
+        set_docling(tmp_path, True)
+
+    assert caught.value.code == "E002"
+    assert path.read_text(encoding="utf-8") == inline
+    assert not list(tmp_path.glob("*.tmp"))
+
+
 def test_docling_must_be_true_or_false(tmp_path: Path) -> None:
     (tmp_path / "config.toml").write_text(
         DEFAULT_CONFIG_TOML.replace("docling = false", 'docling = "yes"'), encoding="utf-8"

@@ -76,8 +76,10 @@ class Config:
     docling: bool = False  # [pdf] docling: run the Docling fallback on pages pdfplumber skips
 
 
-# The value only, so a trailing comment ("docling = false  # off") is kept.
-_DOCLING_LINE = re.compile(r"^docling\s*=\s*(?:true|false)(?=[ \t]*(?:#.*)?$)", re.M)
+# The value only, so indentation, a quoted key and a trailing comment are kept.
+_DOCLING_LINE = re.compile(
+    r"""^([ \t]*)(["']?)docling\2[ \t]*=[ \t]*(?:true|false)(?=[ \t]*(?:#.*)?$)""", re.M
+)
 _PDF_TABLE = """
 [pdf]
 # Docling, the optional PDF add-on (`./install.sh --docling` / `--no-docling`).
@@ -87,22 +89,33 @@ docling = {value}
 
 def set_docling(root: Path, on: bool) -> None:
     """Record whether the Docling add-on is installed: `[pdf] docling` in config.toml (`fin init
-    --docling` / `--no-docling`, run by install.sh). Every other line is kept as written. Raises
-    E001 if config.toml is missing, E002 if it is invalid."""
+    --docling` / `--no-docling`, run by install.sh). Every other line is kept as written. The new
+    text is checked (it must parse, with only that value changed) before it replaces the file, so
+    a failure leaves config.toml as it was. Raises E001 if config.toml is missing, E002 if it is
+    invalid or its `[pdf]` table is written in a form this cannot edit."""
     load_config(root)
     path = config_path(root)
     text = path.read_text(encoding="utf-8")
+    data = tomllib.loads(text)
     value = "true" if on else "false"
-    if _DOCLING_LINE.search(text):
-        text = _DOCLING_LINE.sub(f"docling = {value}", text, count=1)
+    if "pdf" in data:
+        candidate = _DOCLING_LINE.sub(lambda m: f"{m[1]}docling = {value}", text, count=1)
     else:
-        text = text.rstrip("\n") + "\n" + _PDF_TABLE.format(value=value)
+        candidate = text.rstrip("\n") + "\n" + _PDF_TABLE.format(value=value)
+    expected = {**data, "pdf": {"docling": on}}
     try:
-        with path.open("w", encoding="utf-8") as handle:
-            handle.write(text)
+        ok = tomllib.loads(candidate) == expected
+    except tomllib.TOMLDecodeError:
+        ok = False
+    if not ok:
+        raise _invalid(path, "cannot set [pdf] docling; write it as `docling = true` or `false`")
+    temp = path.with_name(path.name + ".tmp")
+    try:
+        with temp.open("w", encoding="utf-8") as handle:
+            handle.write(candidate)
+        temp.replace(path)
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
-    load_config(root)
 
 
 def write_default_config(root: Path) -> bool:

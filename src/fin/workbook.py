@@ -19,6 +19,7 @@ from openpyxl.utils import get_column_letter
 
 from fin.audit.errors import DataFolderNotWritable
 from fin.db.conn import connect
+from fin.db.rows import fetch_dicts
 from fin.paths import company_db_path
 from fin.statements import (
     OTHER_LABEL,
@@ -109,9 +110,7 @@ def export_workbook(root: Path, company: str) -> Path:
     has no figures."""
     lines = statement_rows(root, company)
     with connect(company_db_path(root, company)) as con:
-        result = con.execute(_METRICS_SQL)
-        columns = [column[0] for column in result.description or []]
-        metrics = [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+        metrics = fetch_dicts(con, _METRICS_SQL)
 
     unit = next((r["unit"] for r in lines if r["unit"] != PER_SHARE), "rupees")
     book = Workbook()

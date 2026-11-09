@@ -248,6 +248,23 @@ def _find_item(pending: Pending, item_id: int) -> Item:
     raise InvalidMapping(f"no item with id {item_id} for {pending['company']}")
 
 
+def _check_fields(number: int, proposal: Any) -> None:
+    """The proposal has its keys, with text where text is expected and confidence in 0-1 (E304)."""
+    if not isinstance(proposal, dict):
+        raise InvalidMapping(f"proposal {number}: expected an object")
+    for field in ("label", "account", "confidence", "reason"):
+        if field not in proposal:
+            raise InvalidMapping(f"proposal {number}: missing {field!r}")
+    for field in ("label", "account", "reason", "statement", "section"):
+        if field in proposal and not isinstance(proposal[field], str):
+            raise InvalidMapping(f"proposal {number}: {field!r} must be text")
+    confidence = proposal["confidence"]
+    if isinstance(confidence, bool) or not isinstance(confidence, int | float):
+        raise InvalidMapping(f"proposal {number}: confidence must be a number from 0 to 1")
+    if not 0 <= confidence <= 1:
+        raise InvalidMapping(f"proposal {number}: confidence must be from 0 to 1")
+
+
 def _check_proposal(
     number: int,
     proposal: Any,
@@ -258,16 +275,7 @@ def _check_proposal(
     """Check proposal `number` and return the pending item it is for (E304 when it is bad). A new
     account it defines is added to `new_rows`."""
     company = pending["company"]
-    if not isinstance(proposal, dict):
-        raise InvalidMapping(f"proposal {number}: expected an object")
-    for field in ("label", "account", "confidence", "reason"):
-        if field not in proposal:
-            raise InvalidMapping(f"proposal {number}: missing {field!r}")
-    confidence = proposal["confidence"]
-    if isinstance(confidence, bool) or not isinstance(confidence, int | float):
-        raise InvalidMapping(f"proposal {number}: confidence must be a number from 0 to 1")
-    if not 0 <= confidence <= 1:
-        raise InvalidMapping(f"proposal {number}: confidence must be from 0 to 1")
+    _check_fields(number, proposal)
     matches = [
         item
         for item in pending["items"]

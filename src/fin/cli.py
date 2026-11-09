@@ -265,9 +265,11 @@ def ingest(
 ) -> None:
     """Load Excel and PDF documents for one company. Files already loaded are skipped (E105)."""
 
+    # A usage error, before the run starts (like the option callbacks).
+    if reading is not None and (path is None or not path.is_file()):
+        raise typer.BadParameter("--reading needs PATH to be the one file it was read from")
+
     def body(run: Run) -> None:
-        if reading is not None and (path is None or not path.is_file()):
-            raise typer.BadParameter("--reading needs PATH to be the one file it was read from")
         source = path if path is not None else inbox_dir(run.root, company)
         _ingest_files(run, [(company, files_in(source))], force, reading)
 
@@ -513,9 +515,11 @@ def audit_command(
     """Trace a figure to its file and cell or page (`--fact ID`, or METRIC FISCAL_YEAR), or with
     neither, list the company's history: ingests, reviews, queries, writes, reports, failures."""
 
+    # A usage error, before the run starts (like the option callbacks).
+    if (metric is None) != (fiscal_year is None):
+        raise typer.BadParameter("give both METRIC and FISCAL_YEAR, or neither")
+
     def body(run: Run) -> None:
-        if (metric is None) != (fiscal_year is None):
-            raise typer.BadParameter("give both METRIC and FISCAL_YEAR, or neither")
         if fact is not None:
             result, text = fact_trace(run.root, company, fact), format_fact_trace
         elif metric is not None and fiscal_year is not None:
@@ -567,8 +571,14 @@ def update_command() -> None:
     """Update fin: back up databases, git pull, uv sync, npm ci, refresh metrics, run fin doctor."""
 
     def body(run: Run) -> None:
-        run_update(run)
-        typer.echo("update finished" if not run.failed else "update finished; fin doctor failed")
+        problems = run_update(run)
+        for line in problems:
+            typer.echo(line, err=True)
+        typer.echo(
+            "update finished"
+            if not run.failed
+            else f"update finished; fin doctor failed (update run_id {run.run_id})"
+        )
 
     execute("update", {}, body)
 
