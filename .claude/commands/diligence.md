@@ -43,7 +43,17 @@ fixed; you draft and propose, the user decides; fin never sends anything.
 7. **Decisions are the user's.** Show the proposed adjustments (`uv run fin adjust list <company> --status
    proposed`) and accept or reject only the ones the user names: `uv run fin adjust accept <company> <ids...>`,
    `uv run fin adjust reject <company> <ids...> --reason "..."`.
-8. **Never** approve, mark sent, close or withdraw a query, accept or reject an adjustment, or approve a gate on your
+8. **Bridge and walk.** `uv run fin engagement bridge <company> [--period FY25] [--scope standalone|consolidated]`
+   (`--json` for rupees) shows, per period and scope of the latest engagement, the EBITDA bridge (reported EBITDA,
+   each accepted adjustment, adjusted EBITDA) and the EBITDA-to-cash walk (non-cash and other, working capital
+   change, taxes paid, other operating, CFO, capex, free cash flow, cash conversion). Report the figures from that
+   output (or `fin sql` on the views `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`), and flag:
+   - proposed adjustments: shown as "not applied" with their sum; they are not in adjusted EBITDA until the user
+     accepts them;
+   - a line shown as `-`: its input is missing (named in "missing: ..."); say which, never treat it as zero or fill
+     it in;
+   - open or accepted findings and unconfirmed mappings in those periods, as for any answer.
+9. **Never** approve, mark sent, close or withdraw a query, accept or reject an adjustment, or approve a gate on your
    own. Never change the company's data to make a difference go away; fixing fin's own reading (a wrong mapping, a
    misread figure) is still done through `/ingest` and `/review`. If a command fails (E803 no open engagement, E804
    an adjustment that is not valid, E805 an unknown id or a status change not allowed), report the error code and
