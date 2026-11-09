@@ -105,7 +105,7 @@ OLD_FORMAT = (
         ("Sundry creditors", "10.00", "10.00"),
         ("TOTAL SOURCES", "50.00", "40.00"),
         ("Fixed assets (net block)", "20.00", "20.00"),
-        ("Cash & bank balances", "30.00", "20.00"),
+        ("Cash and cash equivalents", "30.00", "20.00"),  # holds bank deposits too
         ("TOTAL APPLICATION", "50.00", "40.00"),
     ),
     statement(
@@ -143,7 +143,7 @@ def test_a_held_document_loads_after_a_company_mapping_fix(
             "--statement",
             "balance_sheet",
             "--label",
-            "Cash & bank balances",
+            "Cash and cash equivalents",
             "--account",
             "cash_and_bank_balances",
         ],
@@ -151,7 +151,7 @@ def test_a_held_document_loads_after_a_company_mapping_fix(
     loaded = runner.invoke(app, ["ingest", "acme", str(path), "--force"])
 
     assert mapped.exit_code == 0, mapped.stdout
-    assert "acme: balance_sheet 'Cash & bank balances' -> cash_and_bank_balances (added)" in (
+    assert "acme: balance_sheet 'Cash and cash equivalents' -> cash_and_bank_balances (added)" in (
         mapped.stdout
     )
     assert loaded.exit_code == 0, loaded.stdout
@@ -166,7 +166,7 @@ def test_a_held_document_loads_after_a_company_mapping_fix(
         root,
         "acme",
         "SELECT account, value FROM facts WHERE doc_id = 2 AND raw_id IN (SELECT raw_id FROM "
-        "raw_values WHERE raw_label = 'Cash & bank balances') ORDER BY value",
+        "raw_values WHERE raw_label = 'Cash and cash equivalents') ORDER BY value",
     ) == [
         ("cash_and_bank_balances", Decimal("2000000.00")),
         ("cash_and_bank_balances", Decimal("3000000.00")),
@@ -181,7 +181,7 @@ def test_a_held_document_loads_after_a_company_mapping_fix(
     ]
     assert audit_query(
         "SELECT company, raw_label, account, scope, decision FROM mapping_decisions"
-    ) == [("acme", "Cash & bank balances", "cash_and_bank_balances", "company", "confirmed")]
+    ) == [("acme", "Cash and cash equivalents", "cash_and_bank_balances", "company", "confirmed")]
     # Other companies keep the global mapping.
     other = runner.invoke(app, ["ingest", "other", str(path)])
     assert "held as doc_id 1" in other.stdout

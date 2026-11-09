@@ -160,7 +160,7 @@ def test_clean_fixtures_pass_every_gate(root: Path, samples: Path, audit_query: 
         "FROM validation_results GROUP BY ALL ORDER BY ALL"
     ) == [
         ("bluepeak", "balance_sheet", 0, True),
-        ("bluepeak", "cash_flow", 0, True),
+        # No bluepeak cash_flow check: it prints cash and bank balances, not cash (E403 not run).
         ("bluepeak", "cross_document", 0, True),
         ("bluepeak", "subtotal", 0, True),
         ("kestrel", "balance_sheet", 0, True),

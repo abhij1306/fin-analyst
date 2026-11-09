@@ -157,7 +157,7 @@ def test_metric_inputs_trace_each_metric_to_its_facts(ingested: Path) -> None:
     ) == [
         ("total_current_assets", None, False),
         ("total_current_liabilities", None, False),
-        ("cash", "total_current_assets", True),
+        ("cash_and_bank_balances", "total_current_assets", True),
         ("inventories", "total_current_assets", True),
         ("other_current_assets", "total_current_assets", True),
         ("trade_receivables", "total_current_assets", True),

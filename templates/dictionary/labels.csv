@@ -61,7 +61,7 @@ TOTAL SOURCES,balance_sheet,,total_equity_and_liabilities
 Fixed assets (net block),balance_sheet,,ppe_net
 Stock in trade,balance_sheet,,inventories
 Sundry debtors,balance_sheet,,trade_receivables
-Cash & bank balances,balance_sheet,,cash
+Cash & bank balances,balance_sheet,,cash_and_bank_balances
 "Loans, advances & other current assets",balance_sheet,,other_current_assets
 TOTAL APPLICATION,balance_sheet,,total_assets
 Sales / Income from operations,profit_and_loss,,revenue

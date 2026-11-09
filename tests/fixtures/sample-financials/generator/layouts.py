@@ -101,7 +101,7 @@ OLD = {
         ("Current Assets, Loans & Advances", None, "h", 1),
         ("Stock in trade", "inventories", "v", 2),
         ("Sundry debtors", "trade_receivables", "v", 2),
-        ("Cash & bank balances", "cash", "v", 2),
+        ("Cash & bank balances", "cash_and_bank_balances", "v", 2),
         ("Loans, advances & other current assets", "other_current_assets", "v", 2),
         ("TOTAL APPLICATION", "total_assets", "t", 0),
     ],

@@ -80,6 +80,14 @@ def test_statement_tells_apart_the_same_label(initialised: Path) -> None:
     assert (pl and pl.account, cf and cf.account) == ("pbt", "cf_pbt")
 
 
+def test_old_format_cash_and_bank_balances_is_not_read_as_cash_equivalents(
+    seed_map: LabelMap,
+) -> None:
+    mapping = find(seed_map, "balance_sheet", "", "Cash & bank balances")
+    assert mapping is not None
+    assert mapping.account == "cash_and_bank_balances"
+
+
 def test_unknown_label_is_not_mapped(initialised: Path) -> None:
     label_map = load_label_map(initialised, "kestrel")
     assert find(label_map, "balance_sheet", "", "Capital reserve on amalgamation") is None

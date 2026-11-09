@@ -88,7 +88,8 @@ for co, c in KEY["companies"].items():
         for y, f in years.items():
             ok(f["total_assets"] == f["total_equity_and_liabilities"], f"key {co} {scope} {y} BS")
             if "revenue" in f:
-                ok(f["closing_cash"] == f["cash"], f"key {co} {scope} {y} CF")
+                cash = f.get("cash", f.get("cash_and_bank_balances"))  # bluepeak: cash and bank balances
+                ok(f["closing_cash"] == cash, f"key {co} {scope} {y} CF")
 
 # Broken files show exactly the intended defect
 b = {Path(x["file"]).name: x for x in KEY["broken_files"]}

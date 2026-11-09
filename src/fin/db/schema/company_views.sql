@@ -16,8 +16,12 @@
 --   the printed "Profit before exceptional items and tax" plus any share of associates and joint ventures (which
 --   PBT includes). Exceptional items are stored as printed, with either sign, so their sign is never guessed.
 --   EBIT = PBT + finance cost.
--- - Debt = long-term borrowings + short-term borrowings. Net debt = debt - cash and cash equivalents.
--- - Inventory days and payable days are on cost of materials consumed.
+-- - Debt = long-term borrowings + short-term borrowings. Net debt = debt - cash and cash equivalents. Cash is cash and
+--   cash equivalents; when a period prints only old-format "Cash and bank balances", that line stands in (stand_ins),
+--   and metric_inputs shows it.
+-- - Inventory days and payable days are on cost of materials consumed. Gross margin is on the cost of goods sold:
+--   cost of materials consumed + purchases of stock-in-trade + changes in inventories (the last two nil when not
+--   printed; changes in inventories as printed, negative when inventories rose).
 -- - Cash flow outflows are negative, so capex (cf_capex) is negative.
 -- - Each metric is per period and scope. Standalone and consolidated are never mixed.
 --
@@ -71,20 +75,38 @@ CREATE MACRO cagr6(x, earlier, n) AS
 -- One value per document, account, period and scope. When a document maps two or more lines to the same account
 -- (trade payables printed as "dues of micro and small enterprises" and "dues of others"), the value is their sum.
 -- A line equal to the sum of the other lines is their total ("Trade payables" above its two parts): then the total
--- alone is used, so nothing is counted twice. fact_ids lists the lines used; fact_id is the first of them.
+-- alone is used, so nothing is counted twice. With only two lines, equal values are as likely two equal parts with
+-- no total printed, so one is the total only when the document says so: its label starts with "Total", or the other
+-- line sits under it (raw_values.section is its label, list marker and colon aside); otherwise both are summed.
+-- fact_ids lists the lines used; fact_id is the first of them.
 CREATE VIEW document_facts AS
 WITH lines AS (
     SELECT
         f.doc_id, f.account, f.fiscal_year, f.period, f.period_months, f.period_end, f.scope, f.fact_id, f.value,
-        sum(f.value) OVER (PARTITION BY f.doc_id, f.account, f.period, f.scope) AS lines_total
+        -- label and heading without a list marker ("(b)", "ii)", "b.") or a trailing colon
+        regexp_replace(lower(trim(r.raw_label)), '^(\([a-z0-9]{1,4}\)|[a-z0-9]{1,4}[.)])\s*|\s*:$', '', 'g') AS label,
+        regexp_replace(lower(trim(r.section)), '^(\([a-z0-9]{1,4}\)|[a-z0-9]{1,4}[.)])\s*|\s*:$', '', 'g') AS section,
+        sum(f.value) OVER w AS lines_total,
+        count(*) OVER w AS line_count
     FROM facts f
+    LEFT JOIN raw_values r ON r.raw_id = f.raw_id
     WHERE f.confirmed AND f.account IS NOT NULL
+    WINDOW w AS (PARTITION BY f.doc_id, f.account, f.period, f.scope)
 ),
 totals AS (
-    SELECT doc_id, account, period, scope, min(fact_id) AS total_id
-    FROM lines
-    WHERE value * 2 = lines_total
-    GROUP BY doc_id, account, period, scope
+    SELECT t.doc_id, t.account, t.period, t.scope, min(t.fact_id) AS total_id
+    FROM lines t
+    WHERE t.value * 2 = t.lines_total
+        AND (
+            t.line_count > 2
+            OR t.label LIKE 'total%'
+            OR EXISTS (
+                SELECT 1 FROM lines o
+                WHERE o.doc_id = t.doc_id AND o.account = t.account AND o.period = t.period AND o.scope = t.scope
+                    AND o.fact_id <> t.fact_id AND o.section = t.label
+            )
+        )
+    GROUP BY t.doc_id, t.account, t.period, t.scope
 )
 SELECT
     l.doc_id,
@@ -149,15 +171,25 @@ FROM (VALUES ('revenue', 'revenue', 'Revenue', 1), ('ebitda', 'EBITDA', 'EBITDA'
 
 -- Totals a document may not print, and the lines summed in their place when it does not: the metrics view uses the
 -- sum (metrics_wide, its `paise` step), and metric_input_accounts lists the lines (stands_in_for) for every metric using the total.
+-- The lines are the accounts whose parent is the total in templates/dictionary/schedule_iii.csv; cash (cash and cash
+-- equivalents) is not a total, but old-format "Cash and bank balances" stands in for it. part_of: a line
+-- printed that already holds this one; when the document prints it, this line is not added again (old-format
+-- "Cash and bank balances" holds cash and cash equivalents and other bank balances).
 CREATE VIEW stand_ins AS
-SELECT total, unnest(accounts) AS account FROM (VALUES
-    ('total_current_assets', ['inventories', 'current_investments', 'trade_receivables', 'cash', 'other_bank_balances',
-        'other_current_assets']),
-    ('total_current_liabilities', ['st_borrowings', 'lease_liabilities_current', 'trade_payables',
-        'other_financial_liabilities_current', 'other_current_liabilities', 'st_provisions',
-        'current_tax_liabilities']),
-    ('total_tax_expense', ['tax_expense', 'deferred_tax'])
-) AS t(total, accounts);
+SELECT total, account,
+    CASE WHEN account IN ('cash', 'other_bank_balances') THEN 'cash_and_bank_balances' END AS part_of
+FROM (
+    SELECT total, unnest(accounts) AS account FROM (VALUES
+        ('total_current_assets', ['inventories', 'current_investments', 'trade_receivables', 'cash',
+            'other_bank_balances', 'cash_and_bank_balances', 'loans_current', 'other_financial_assets_current',
+            'tax_assets_current', 'other_current_assets', 'assets_held_for_sale']),
+        ('total_current_liabilities', ['st_borrowings', 'lease_liabilities_current', 'trade_payables',
+            'other_financial_liabilities_current', 'other_current_liabilities', 'st_provisions',
+            'current_tax_liabilities', 'liabilities_held_for_sale']),
+        ('total_tax_expense', ['tax_expense', 'deferred_tax']),
+        ('cash', ['cash_and_bank_balances'])
+    ) AS t(total, accounts)
+);
 
 -- Where a raw value was printed: `sheet!cell` for Excel, `page N` for PDF.
 CREATE MACRO source_ref(sheet, cell, page) AS coalesce(sheet || '!' || cell, 'page ' || page);
@@ -176,8 +208,10 @@ SELECT row_number() OVER () AS position, * FROM (VALUES
         'Profit after tax of the period.', 'pat'),
     -- profitability
     ('gross_margin', 'profitability', 'ratio', 'all', 'null', 'Gross margin', false,
-        'Revenue left after cost of materials consumed, as a fraction of revenue.',
-        '(revenue - cost_of_materials) / revenue'),
+        'Revenue left after the cost of goods sold, as a fraction of revenue: cost of materials consumed, plus '
+        || 'purchases of stock-in-trade and changes in inventories when printed (counted as nil when not). No value '
+        || 'without cost of materials consumed.',
+        '(revenue - cost_of_materials - purchases_stock_in_trade - change_in_inventories) / revenue'),
     ('ebitda', 'profitability', 'rupees', 'all', 'null', 'EBITDA', false,
         'Operating profit before depreciation, interest and tax, without other income and without exceptional or '
         || 'extraordinary items.',
@@ -221,14 +255,18 @@ SELECT row_number() OVER () AS position, * FROM (VALUES
         'Current assets other than inventories over current liabilities.',
         '(total_current_assets - inventories) / total_current_liabilities'),
     ('cash_ratio', 'liquidity', 'ratio', 'annual', 'null', 'Cash ratio', true,
-        'Cash and cash equivalents over current liabilities.', 'cash / total_current_liabilities'),
+        'Cash and cash equivalents over current liabilities. When cash and cash equivalents are not printed, '
+        || 'cash and bank balances (old format, which also holds bank deposits) stand in.',
+        'cash / total_current_liabilities'),
     -- solvency
     ('debt_to_equity', 'solvency', 'ratio', 'annual', 'null', 'Debt / equity', true,
         'Borrowings over equity.', 'debt / total_equity'),
     ('debt_to_ebitda', 'solvency', 'ratio', 'annual', 'null', 'Debt / EBITDA', true,
         'Borrowings over a year''s EBITDA.', 'debt / ebitda'),
     ('net_debt', 'solvency', 'rupees', 'annual', 'null', 'Net debt', false,
-        'Borrowings less cash and cash equivalents (negative when cash is larger).', 'debt - cash'),
+        'Borrowings less cash and cash equivalents (negative when cash is larger). When cash and cash equivalents '
+        || 'are not printed, cash and bank balances (old format, which also holds bank deposits) stand in.',
+        'debt - cash'),
     ('net_debt_to_ebitda', 'solvency', 'ratio', 'annual', 'null', 'Net debt / EBITDA', true,
         'Net debt over a year''s EBITDA.', 'net_debt / ebitda'),
     ('interest_cover', 'solvency', 'ratio', 'annual', 'null', 'Interest cover', true,
@@ -300,7 +338,8 @@ SELECT row_number() OVER () AS position, * FROM (VALUES
         'interest_income - interest_expense'),
     ('cost_to_income', 'lender', 'ratio', 'all', 'absent', 'Cost to income', false,
         'Operating expenses over net total income: total expenses less interest expense and impairment or '
-        || 'provisions, over total income less interest expense.',
+        || 'provisions, over total income less interest expense. No value when neither impairment nor provisions '
+        || 'is printed.',
         '(total_expenses - interest_expense - impairment or provisions) / (total_income - interest_expense)'),
     ('credit_cost', 'lender', 'ratio', 'annual', 'absent', 'Credit cost', false,
         'Impairment on financial instruments (NBFC) or provisions and contingencies (bank) over average loans '
@@ -347,7 +386,8 @@ inputs(metric, input_periods, accounts) AS (
     SELECT * FROM (VALUES
         ('revenue', ['same'], ['revenue']),
         ('pat', ['same'], ['pat']),
-        ('gross_margin', ['same'], ['revenue', 'cost_of_materials']),
+        ('gross_margin', ['same'], ['revenue', 'cost_of_materials', 'purchases_stock_in_trade',
+            'change_in_inventories']),
         ('ebitda', ['same'], (FROM ebitda)),
         ('ebitda_margin', ['same'], list_concat((FROM ebitda), ['revenue'])),
         ('ebit', ['same'], ['pbt', 'finance_cost']),
@@ -438,14 +478,16 @@ WITH printed AS (
     FROM current_facts
 ),
 paise AS (
-    -- Plus, for a total in stand_ins the document does not print, the sum of its lines printed.
+    -- Plus, for a total in stand_ins the document does not print, the sum of its lines printed (a line is left out
+    -- when the line it is part of is printed).
     FROM printed
     UNION ALL
     SELECT s.total, x.fiscal_year, x.period, x.period_months, x.scope, max(x.period_end), CAST(sum(x.p) AS HUGEINT)
     FROM printed x
     JOIN stand_ins s ON s.account = x.account
     WHERE NOT EXISTS (
-        SELECT 1 FROM printed t WHERE t.account = s.total AND t.period = x.period AND t.scope = x.scope
+        SELECT 1 FROM printed t
+        WHERE t.account IN (s.total, s.part_of) AND t.period = x.period AND t.scope = x.scope
     )
     GROUP BY s.total, x.fiscal_year, x.period, x.period_months, x.scope
 ),
@@ -461,6 +503,8 @@ period_inputs AS (
         max(p) FILTER (WHERE account = 'total_income') AS total_income,
         max(p) FILTER (WHERE account = 'total_expenses') AS total_expenses,
         max(p) FILTER (WHERE account = 'cost_of_materials') AS cost_of_materials,
+        max(p) FILTER (WHERE account = 'purchases_stock_in_trade') AS purchases_stock_in_trade,
+        max(p) FILTER (WHERE account = 'change_in_inventories') AS change_in_inventories,
         max(p) FILTER (WHERE account = 'finance_cost') AS finance_cost,
         max(p) FILTER (WHERE account = 'depreciation') AS depreciation,
         max(p) FILTER (WHERE account = 'profit_before_exceptional_items') AS profit_before_exceptional_items,
@@ -551,7 +595,11 @@ SELECT
     rupees(revenue) AS revenue,
     rupees(pat) AS pat,
     -- profitability
-    div6(revenue - cost_of_materials, revenue) AS gross_margin,
+    -- gross margin: changes in inventories as printed (an increase in inventories is negative, lowering the cost)
+    div6(
+        revenue - cost_of_materials - coalesce(purchases_stock_in_trade, 0) - coalesce(change_in_inventories, 0),
+        revenue
+    ) AS gross_margin,
     rupees(ebitda) AS ebitda,
     div6(ebitda, revenue) AS ebitda_margin,
     rupees(ebit) AS ebit,
@@ -621,7 +669,7 @@ SELECT
     -- lenders
     CASE WHEN lender THEN rupees(interest_earned - interest_expense) END AS net_interest_income,
     CASE WHEN lender THEN div6(
-        total_expenses - interest_expense - coalesce(credit_charge, 0), total_income - interest_expense
+        total_expenses - interest_expense - credit_charge, total_income - interest_expense
     ) END AS cost_to_income,
     CASE WHEN lender THEN div6(2 * credit_charge, loans + prev_loans) END AS credit_cost,
     CASE WHEN lender THEN div6(total_assets, lender_equity) END AS assets_to_equity,
@@ -668,10 +716,11 @@ WHERE CASE d.periods
 
 -- Lineage: metric -> the facts it used, one row per input line (an account a document prints on two lines has two
 -- rows). fact_id is NULL when an input is missing (which is why the metric is NULL), or for an input that does not
--- apply to this company (a lender metric lists both the NBFC and the bank lines). input_period is the period the
+-- apply to this company (a lender metric lists both the NBFC and the bank lines) or is not printed and counts as nil
+-- (gross margin's purchases of stock-in-trade and changes in inventories). input_period is the period the
 -- input comes from (metric_input_accounts.input_period). When a total that has stand-in lines is not reported, its
 -- row has fact_id NULL and the reported lines summed in its place follow (rows with stands_in_for set appear only
--- then). EBITDA's PBT before exceptional items lists only the lines that period uses (metric_input_accounts
+-- then; a line held in another reported line, as cash in cash and bank balances, does not). EBITDA's PBT before exceptional items lists only the lines that period uses (metric_input_accounts
 -- exceptional).
 CREATE VIEW metric_inputs AS
 WITH wanted AS (
@@ -716,7 +765,8 @@ WHERE (
             f.fact_id IS NOT NULL
             AND NOT EXISTS (
                 SELECT 1 FROM current_facts t
-                WHERE t.account = w.stands_in_for AND t.scope = w.scope AND t.period = w.period
+                LEFT JOIN stand_ins s ON s.total = w.stands_in_for AND s.account = w.account
+                WHERE t.account IN (w.stands_in_for, s.part_of) AND t.scope = w.scope AND t.period = w.period
             )
         )
     )
