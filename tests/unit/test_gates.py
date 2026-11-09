@@ -1,6 +1,7 @@
 """Gates (fin.diligence.gates) on a small company database: checklists, approval in order, and a
 gate reopening when the data under it changes."""
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -40,9 +41,9 @@ def add_document(
         [doc_id, name, f"sha-{doc_id}", period, status],
     )
     con.execute(
-        "INSERT INTO facts (raw_id, doc_id, fiscal_year, period_end, scope, value, confirmed, "
-        "run_id, period, period_months) VALUES (?, ?, ?, DATE '2024-03-31', 'standalone', 1, "
-        "true, 'r0', ?, 12)",
+        "INSERT INTO facts (raw_id, doc_id, account, fiscal_year, period_end, scope, value, "
+        "confirmed, run_id, period, period_months) VALUES (?, ?, 'revenue', ?, "
+        "DATE '2024-03-31', 'standalone', 1, true, 'r0', ?, 12)",
         [doc_id, doc_id, period, period],
     )
 
@@ -73,8 +74,8 @@ def test_g1_checklist_names_what_is_missing(con: duckdb.DuckDBPyConnection) -> N
     [g1, g2, g4] = evaluate(ctx(con, pending))
 
     assert [(line["ok"], line["text"]) for line in g1["checklist"]] == [
-        (True, "FY24: a loaded document has figures for it"),
-        (False, "FY25: no loaded document has figures for it"),
+        (True, "FY24: a loaded document has mapped figures for it"),
+        (False, "FY25: no loaded document has mapped figures for it"),
         (False, "held documents: doc_id 2 b.xlsx (`fin findings list acme`)"),
         (False, "1 mapping items waiting for review (`fin review list acme`)"),
     ]
@@ -105,7 +106,7 @@ def test_gates_are_approved_in_order_and_only_when_the_checklist_passes(
     )
     assert str(failing.value) == (
         "E802: gate G1 (Data) of acme cannot be approved; its checklist fails: FY25: no loaded "
-        "document has figures for it; held documents: doc_id 2 b.xlsx (`fin findings list "
+        "document has mapped figures for it; held documents: doc_id 2 b.xlsx (`fin findings list "
         "acme`). Nothing approved"
     )
     assert con.execute("SELECT count(*) FROM gate_approvals").fetchall() == [(0,)]
@@ -159,6 +160,29 @@ def test_a_gate_reopens_when_its_data_changes(
     add_document(con, 3, "c.xlsx", "loaded", "FY25")
 
     assert states(ctx(con))[0] == ("G1", "reopened", "changed since it was approved: documents")
+
+
+def test_g1_counts_only_mapped_figures_and_an_approved_gate_whose_checklist_fails_reopens(
+    con: duckdb.DuckDBPyConnection, tmp_path: Path
+) -> None:
+    con.execute("UPDATE documents SET status = 'loaded' WHERE doc_id = 2")
+    con.execute("UPDATE facts SET account = NULL, confirmed = false WHERE doc_id = 2")
+    [g1, *_] = evaluate(ctx(con))
+    assert g1["checklist"][1] == {
+        "ok": False,
+        "text": "FY25: no loaded document has mapped figures for it",
+    }
+    # An approval whose inputs still match but whose checklist fails now (approved by an
+    # earlier build, or by a change the inputs do not cover) does not count.
+    con.execute(
+        "INSERT INTO gate_approvals (engagement_id, gate, input_hash, input_hashes, checklist, "
+        "approved_run_id, approved_at) VALUES (1, 'G1', ?, ?, '[]', 'r0', now())",
+        [g1["input_hash"], json.dumps(g1["input_hashes"])],
+    )
+
+    assert states(ctx(con))[0] == ("G1", "reopened", "its checklist fails now")
+    with pytest.raises(GateNotApproved):
+        require(ctx(con), "G1", "fin gate approve G2")
 
 
 def test_g1_reopens_when_a_figure_changes(con: duckdb.DuckDBPyConnection, tmp_path: Path) -> None:

@@ -5,17 +5,19 @@ A gate has a checklist fin evaluates and inputs: the rows its checklist depends 
 row to `gate_approvals` (db/schema/diligence.sql) with the sha256 of its inputs, and a `gate` row to
 the audit table `diligence_events`. A gate is then
 
-    approved  the hash of its inputs now equals the one recorded at its latest approval, and every
-              earlier gate is approved;
-    reopened  approved before, but its inputs changed since (or an earlier gate is not approved);
+    approved  the hash of its inputs now equals the one recorded at its latest approval, its
+              checklist passes, and every earlier gate is approved;
+    reopened  approved before, but its inputs changed since, its checklist fails now (a change its
+              inputs do not cover), or an earlier gate is not approved;
     open      never approved.
 
 So a gate reopens on its own when the data under it changes. Commands a gate unlocks refuse with
 E801 until it is approved (`require`), checked in the same transaction as their change.
 
 Gates in this build (docs/DILIGENCE_BUILD.md); G3 (recast) and G5 (report) come later:
-    G1 Data         every annual period in scope has a loaded document with figures for it, no
-                    held documents, no mapping items waiting for review. Its inputs are the
+    G1 Data         every annual period in scope has figures in current_facts (a loaded document,
+                    mapped and confirmed: what the metrics use), no held documents, no mapping
+                    items waiting for review. Its inputs are the
                     periods, the documents, the mapping items and the figures (every
                     current_facts value by account, period and scope), so a changed figure
                     (`fin sql --write` on facts, a review that maps a line) reopens it;
@@ -96,15 +98,12 @@ def _periods(ctx: Context) -> list[str]:
 def _data_checklist(ctx: Context) -> list[Line]:
     covered = {
         period
-        for (period,) in ctx.con.execute(
-            "SELECT DISTINCT f.period FROM facts f JOIN documents d USING (doc_id) "
-            "WHERE d.status = 'loaded'"
-        ).fetchall()
+        for (period,) in ctx.con.execute("SELECT DISTINCT period FROM current_facts").fetchall()
     }
     lines = [
-        (True, f"{period}: a loaded document has figures for it")
+        (True, f"{period}: a loaded document has mapped figures for it")
         if period in covered
-        else (False, f"{period}: no loaded document has figures for it")
+        else (False, f"{period}: no loaded document has mapped figures for it")
         for period in _periods(ctx)
     ]
     held = _rows(
@@ -252,6 +251,7 @@ def evaluate(ctx: Context) -> list[dict[str, Any]]:
     for gate in GATES:
         hashes = {name: digest(rows) for name, rows in gate.inputs(ctx).items()}
         input_hash = digest(hashes)
+        checklist = gate.checklist(ctx)
         approval = approvals.get(gate.name)
         reason = None
         if approval is None:
@@ -260,6 +260,8 @@ def evaluate(ctx: Context) -> list[dict[str, Any]]:
             before = json.loads(approval["input_hashes"])
             changed = [name for name in hashes if before.get(name) != hashes[name]]
             state, reason = "reopened", f"changed since it was approved: {', '.join(changed)}"
+        elif not all(ok for ok, _ in checklist):
+            state, reason = "reopened", "its checklist fails now"
         elif blocker is not None:
             state, reason = "reopened", f"{blocker} is not approved"
         else:
@@ -272,7 +274,7 @@ def evaluate(ctx: Context) -> list[dict[str, Any]]:
                 "title": gate.title,
                 "state": state,
                 "reason": reason,
-                "checklist": [{"ok": ok, "text": text} for ok, text in gate.checklist(ctx)],
+                "checklist": [{"ok": ok, "text": text} for ok, text in checklist],
                 "unlocks": gate.unlocks,
                 "input_hash": input_hash,
                 "input_hashes": hashes,

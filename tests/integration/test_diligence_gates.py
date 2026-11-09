@@ -59,7 +59,7 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
     assert held.exit_code == 3
     assert held.stderr.startswith(
         "E802: gate G1 (Data) of bluepeak cannot be approved; its checklist fails: FY25: no "
-        f"loaded document has figures for it; held documents: doc_id 2 {SECOND} "
+        f"loaded document has mapped figures for it; held documents: doc_id 2 {SECOND} "
         "(`fin findings list bluepeak`). Nothing approved\n"
     )
 
@@ -69,8 +69,8 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
     assert g1.exit_code == 0, g1.output
     assert g1.stdout == (
         "bluepeak: G1 Data: approved\n"
-        "    pass: FY24: a loaded document has figures for it\n"
-        "    pass: FY25: a loaded document has figures for it\n"
+        "    pass: FY24: a loaded document has mapped figures for it\n"
+        "    pass: FY25: a loaded document has mapped figures for it\n"
         "    pass: no held documents\n"
         "    pass: no mapping items waiting for review\n"
         "    unlocks: approving G2\n"
