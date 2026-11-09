@@ -72,7 +72,14 @@ step "Installing system dependencies (Brewfile: uv, node, quarto, poppler)"
 if brew bundle check --file="$REPO_DIR/Brewfile" >/dev/null; then
   echo "all Brewfile dependencies already installed"
 else
-  brew bundle install --file="$REPO_DIR/Brewfile"
+  # GitHub release downloads (the quarto cask) sometimes answer 504 for a minute or two; brew's own
+  # retries come within seconds, so try the whole bundle again after a pause before giving up.
+  for attempt in 1 2 3; do
+    brew bundle install --file="$REPO_DIR/Brewfile" && break
+    [[ $attempt -lt 3 ]] || die "brew bundle failed 3 times; check the network and run ./install.sh again"
+    echo "brew bundle failed (attempt $attempt of 3); trying again in 60 seconds"
+    sleep 60
+  done
 fi
 
 cd "$REPO_DIR"
