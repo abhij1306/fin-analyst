@@ -111,7 +111,8 @@ def set_docling(root: Path, on: bool) -> None:
         raise _invalid(path, "cannot set [pdf] docling; write it as `docling = true` or `false`")
     temp = path.with_name(path.name + ".tmp")
     try:
-        temp.write_text(candidate, encoding="utf-8")
+        with temp.open("w", encoding="utf-8") as handle:
+            handle.write(candidate)
         temp.replace(path)
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
