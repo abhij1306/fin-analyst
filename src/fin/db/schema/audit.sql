@@ -149,3 +149,17 @@ CREATE TABLE findings (
     code VARCHAR,
     status VARCHAR
 );
+
+-- Diligence (fin.diligence): every engagement, accountant query and adjustment added, and every status change.
+-- kind: 'engagement', 'query' or 'adjustment' ('gate' is reserved for gates); item_id: its id in the company database
+-- (engagement_id, query_id or adj_id); status: its status after the change; detail: the whole row as it is now (JSON).
+CREATE TABLE diligence_events (
+    run_id VARCHAR NOT NULL,
+    recorded_at TIMESTAMP NOT NULL,
+    company VARCHAR NOT NULL,
+    engagement_id INTEGER NOT NULL,
+    kind VARCHAR NOT NULL CHECK (kind IN ('engagement', 'query', 'adjustment', 'gate')),
+    item_id VARCHAR NOT NULL,
+    status VARCHAR NOT NULL,
+    detail VARCHAR NOT NULL
+);

@@ -14,6 +14,11 @@ from fin.config import (
 
 # config.toml as written before the Docling add-on: no [pdf] table.
 OLDER_CONFIG = DEFAULT_CONFIG_TOML[: DEFAULT_CONFIG_TOML.index("\n\n[pdf]")] + "\n"
+CATEGORIES = (
+    "adjustment_categories = [\n"
+    '    "management", "normalisation", "reclassification", "run_rate", "pro_forma", "recast", '
+    '"error",\n]'
+)
 
 
 def test_docling_is_off_by_default_and_without_a_pdf_table(tmp_path: Path) -> None:
@@ -82,6 +87,16 @@ def test_default_config_round_trips(tmp_path: Path) -> None:
             "cash_flow": Decimal("100000.00"),
             "cross_document": Decimal("100000.00"),
         },
+        query_threshold=Decimal("100000.00"),
+        adjustment_categories=(
+            "management",
+            "normalisation",
+            "reclassification",
+            "run_rate",
+            "pro_forma",
+            "recast",
+            "error",
+        ),
     )
 
 
@@ -96,6 +111,26 @@ def test_values_come_from_the_file(tmp_path: Path) -> None:
     assert config.display_unit == "lakhs"
     assert config.tolerances["subtotal"] == Decimal("0.5")
     assert config.tolerances["cash_flow"] == Decimal("7")
+
+
+def test_diligence_values_come_from_the_file(tmp_path: Path) -> None:
+    edited = DEFAULT_CONFIG_TOML.replace(
+        "query_threshold = 100000.00", "query_threshold = 250000"
+    ).replace('"recast", "error",\n]', '"recast", "error", "tax"]')
+    (tmp_path / "config.toml").write_text(edited, encoding="utf-8")
+    config = load_config(tmp_path)
+    assert config.query_threshold == Decimal("250000")
+    assert config.adjustment_categories[-2:] == ("error", "tax")
+
+
+def test_a_config_without_the_diligence_table_is_e002(tmp_path: Path) -> None:
+    start = DEFAULT_CONFIG_TOML.index("[diligence]")
+    end = DEFAULT_CONFIG_TOML.index("[pdf]")
+    path = tmp_path / "config.toml"
+    path.write_text(DEFAULT_CONFIG_TOML[:start] + DEFAULT_CONFIG_TOML[end:], encoding="utf-8")
+    with pytest.raises(FinError) as caught:
+        load_config(tmp_path)
+    assert str(caught.value) == f"E002: {path} is invalid: the file is missing diligence"
 
 
 def test_write_default_never_overwrites(tmp_path: Path) -> None:
@@ -150,6 +185,34 @@ def test_missing_config_is_e001(tmp_path: Path) -> None:
             "config_version = 1",
             "config_version = 2",
             "config_version = 2; this fin reads version 1",
+        ),
+        (
+            "query_threshold = 100000.00",
+            "query_threshold = -5",
+            "diligence.query_threshold = -5; expected a number of rupees >= 0",
+        ),
+        (
+            "query_threshold = 100000.00\n",
+            "",
+            "[diligence] is missing query_threshold",
+        ),
+        (
+            CATEGORIES,
+            'adjustment_categories = ["management", "management"]',
+            "diligence.adjustment_categories = ['management', 'management']; expected a list of "
+            "distinct names in lower-case letters, digits and '_'",
+        ),
+        (
+            CATEGORIES,
+            "adjustment_categories = []",
+            "diligence.adjustment_categories = []; expected a list of distinct names in "
+            "lower-case letters, digits and '_'",
+        ),
+        (
+            CATEGORIES,
+            'adjustment_categories = "management"',
+            "diligence.adjustment_categories = 'management'; expected a list of distinct names "
+            "in lower-case letters, digits and '_'",
         ),
     ],
 )

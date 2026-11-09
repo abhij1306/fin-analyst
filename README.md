@@ -98,6 +98,7 @@ Plain requests work; these are shortcuts. Each one runs `fin` (see `uv run fin -
 | `/dashboard` | Dashboards at http://localhost:3000: Company, Compare and Data quality. |
 | `/audit <company> [metric year]` | Trace a figure back to its source, or show the company's history. |
 | `/verify <company> <file>` | Have Claude read pages independently and compare with what is loaded. |
+| `/diligence <company>` | A diligence engagement: queries for the company's accountant and adjustments to EBITDA, with evidence. |
 
 ## Findings
 
@@ -113,6 +114,27 @@ Claude shows each finding with both figures and where each came from, then asks 
   reports.
 - **Have Claude fix it**, for example a line mapped to the wrong account or a figure read wrongly. Fixes are backed
   up and logged, and held documents are checked again after each one.
+
+## Diligence
+
+A diligence engagement on one company keeps two things beside the reported figures, never changing them: questions
+for the company's accountant, and proposed adjustments to EBITDA. A difference is the company's to explain, so it
+becomes a query, not a fix. Claude drafts; you decide. fin never sends anything. Plan:
+[docs/DILIGENCE_PLAN.md](docs/DILIGENCE_PLAN.md).
+
+- `fin engagement open <company> --periods FY24,FY25,FY26 [--threshold N]`: one open engagement per company, with
+  the years in scope and the query threshold in rupees (default `query_threshold` in `config.toml`).
+  `fin engagement status <company>` counts queries and adjustments by status; `fin engagement close <company>`.
+- Queries: `fin query raise <company> --finding <id> --question "..."` (the finding's period, difference and
+  sources; the finding is not changed) or `--amount N --period P --source "file sheet!cell" --question "..."`.
+  A query starts as a draft (`fin query edit` changes its wording), then `fin query approve`, `sent` (when you have
+  sent it), `answer --text`, `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
+- Adjustments: `fin adjust propose <company> --period --scope --category --amount --description` with evidence
+  (`--query`, `--finding` or `--source`) and optionally `--account`. The amount is the signed effect on EBITDA. Then
+  `fin adjust accept <ids>` or `reject <ids> --reason`; `list [--status]`. Categories are `adjustment_categories`
+  in `config.toml`.
+
+Every change is recorded in the audit table `diligence_events`.
 
 ## Pages fin can't read
 
@@ -191,5 +213,8 @@ confirm. Every run is logged in `~/FinAnalysis/logs/<date>/<run_id>.jsonl`.
 | E603 | Dashboard build failed | The last good build is kept. Run `uv run fin doctor` (node) and try again |
 | E604 | An evidence source file is missing from the archive | The page is still produced and flags it. Restore the original into `archive/` |
 | E701 | The action needs your confirmation | `fin delete` run by hand exits 3 when the typed name does not match; Claude uses `--yes` when you asked |
+| E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
+| E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, or an unknown account | Nothing changed. Add the evidence or correct the value and run again |
+| E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |
 
 The code that raises each error is in `src/fin/audit/errors.py`.
