@@ -75,8 +75,7 @@ CREATE TABLE coverage (
     statement VARCHAR NOT NULL,
     figures BIGINT NOT NULL,
     mapped BIGINT NOT NULL,
-    mapped_share DECIMAL(38, 6),
-    claude_unverified BIGINT NOT NULL
+    mapped_share DECIMAL(38, 6)
 );
 
 -- Statement pages fin could not read in loaded and held documents (documents.unread_pages).
@@ -89,20 +88,6 @@ CREATE TABLE unread_pages (
     reason VARCHAR
 );
 
--- Facts read by Claude (`fin ingest --reading`) or Docling (the PDF add-on) in loaded and held documents, not yet
--- verified (`fin verify`).
-CREATE TABLE unverified_facts (
-    company VARCHAR NOT NULL,
-    file_name VARCHAR NOT NULL,
-    scope VARCHAR NOT NULL,
-    period VARCHAR,
-    statement VARCHAR NOT NULL,
-    label VARCHAR NOT NULL,
-    account VARCHAR,
-    value DECIMAL(20, 2) NOT NULL,
-    source VARCHAR                  -- page or sheet!cell
-);
-
 -- One row per company: what is loaded and its data quality.
 CREATE TABLE companies (
     company VARCHAR PRIMARY KEY,
@@ -113,7 +98,6 @@ CREATE TABLE companies (
     last_ingested_at TIMESTAMP,
     refreshed_at TIMESTAMP NOT NULL,
     run_id VARCHAR NOT NULL,
-    unverified_claude_facts BIGINT,       -- current facts read by Claude or Docling, not yet verified
     held_documents BIGINT,                -- documents held with open findings (kept out of the metrics)
     open_findings BIGINT,                 -- findings still open
     accepted_findings BIGINT              -- findings accepted, kept as filed

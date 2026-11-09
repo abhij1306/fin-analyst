@@ -65,10 +65,9 @@ CREATE TABLE raw_values (
 --
 -- read_by: 'fin' (fin's own extraction, pdfplumber or openpyxl), 'docling' (the optional Docling PDF add-on, on a
 -- page pdfplumber could not read) or 'claude' (from a reading file). Either way the fact points at the original
--- document's page or sheet!cell through raw_values. Facts not read by fin are unverified until `fin verify` agrees.
--- verified: true once `fin verify` found a reading that agrees with the fact in a loaded document. A fact read by
--- Claude is verified only by a reading other than the one it was loaded from. A later verify that differs sets it
--- back to false.
+-- document's page or sheet!cell through raw_values. read_by is information about the source; whether a figure read
+-- by Claude or Docling is trusted is the user's decision. The checks `fin verify` ran on a document are in
+-- verify_runs and verify_lines.
 CREATE TABLE facts (
     fact_id BIGINT PRIMARY KEY DEFAULT nextval('facts_seq'),
     raw_id BIGINT NOT NULL,
@@ -83,8 +82,7 @@ CREATE TABLE facts (
     run_id VARCHAR NOT NULL,
     period VARCHAR,
     period_months INTEGER,
-    read_by VARCHAR DEFAULT 'fin',
-    verified BOOLEAN DEFAULT false
+    read_by VARCHAR DEFAULT 'fin'
 );
 
 -- Notes to accounts and auditor's report sections, as Markdown files in notes/<company>/.
@@ -135,4 +133,44 @@ CREATE TABLE findings (
     recorded_at TIMESTAMP NOT NULL,
     status_run_id VARCHAR NOT NULL,
     status_at TIMESTAMP NOT NULL
+);
+
+-- `fin verify` (fin.verify): one row per run that compared a Claude reading with a loaded or held document, any
+-- number of times per document. The counts are the outcomes of its lines: agree, differ, missing_in_fin (the reading
+-- has a line the document did not load), missing_in_reading (a loaded line of a statement, scope and period the
+-- reading covers that the reading does not have). Every outcome other than agree is also a finding
+-- (check_name 'verify_reading').
+CREATE TABLE verify_runs (
+    run_id VARCHAR PRIMARY KEY,
+    doc_id INTEGER NOT NULL,
+    file_name VARCHAR NOT NULL,
+    reading_file VARCHAR NOT NULL,
+    reading_sha256 VARCHAR NOT NULL,
+    verified_at TIMESTAMP NOT NULL,
+    agree INTEGER NOT NULL,
+    differ INTEGER NOT NULL,
+    missing_in_fin INTEGER NOT NULL,
+    missing_in_reading INTEGER NOT NULL
+);
+
+-- Every line a verify run compared, in order (line_no). fin_* is what is loaded (fin_value: facts.value in rupees,
+-- or rupees per share for EPS); reading_* the reading's figure in the same unit, as printed, and where. A side
+-- that has no line is NULL. fact_id and read_by are the loaded fact's.
+CREATE TABLE verify_lines (
+    run_id VARCHAR NOT NULL,
+    line_no INTEGER NOT NULL,
+    outcome VARCHAR NOT NULL CHECK (outcome IN ('agree', 'differ', 'missing_in_fin', 'missing_in_reading')),
+    statement VARCHAR NOT NULL,
+    scope VARCHAR NOT NULL,
+    period VARCHAR NOT NULL,
+    label VARCHAR NOT NULL,
+    fact_id BIGINT,
+    read_by VARCHAR,
+    fin_value DECIMAL(20, 2),
+    reading_value DECIMAL(20, 2),
+    fin_printed VARCHAR,
+    reading_printed VARCHAR,
+    fin_source VARCHAR,
+    reading_source VARCHAR,
+    PRIMARY KEY (run_id, line_no)
 );

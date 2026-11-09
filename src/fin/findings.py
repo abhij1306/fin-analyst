@@ -20,7 +20,8 @@ audit table `findings`.
   a loaded document that fails it is held). A new version from `fin ingest --force` is checked like
   any document (it supersedes the earlier version and its findings). A finding a check no longer
   finds becomes resolved; a held document with no open findings is loaded. `fin verify` resolves
-  its own findings the same way when run again.
+  its own findings the same way when run again, and a line a later run agrees on resolves earlier
+  readings' open findings on it (`fin.verify`).
 """
 
 from collections.abc import Iterable

@@ -40,7 +40,7 @@ the facts behind the metrics. fin builds every table and chart; you write the na
    - Findings: each open or accepted finding neutrally: which document, which line and period, and that the
      figure is used as filed (accepted) or waits for a decision (open); never say which side is right. Mention
      held documents as not included.
-   - Data coverage: unmapped figures, pages fin could not read, Claude-read figures not yet verified,
+   - Data coverage: unmapped figures, pages fin could not read,
      unconfirmed mappings and missing values (NULL metrics), if there are any.
    - Describe, don't judge: no recommendations, ratings, scores, or buy/sell language.
    - **Never type a number.** Write a reference and the renderer fills in the value from the
@@ -58,4 +58,4 @@ the facts behind the metrics. fin builds every table and chart; you write the na
    - E601: report the message and run_id; the last good report is kept. "the narrative has text under
      'Peer comparison'" means `--peers` was left out: add it, or empty that section.
 5. Reply with the output paths, the data hash, any `missing_values` (references shown as n/a), and
-   the data quality flags (findings, unmapped share, unread pages, unverified figures).
+   the data quality flags (findings, unmapped share, unread pages).

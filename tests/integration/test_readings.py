@@ -88,17 +88,16 @@ def test_reading_loads_a_scanned_pdf_when_the_gates_pass(
     result = runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(reading)])
 
     assert result.exit_code == 0, result.stderr
-    assert "4 facts, 1 unmapped labels, 4 read by Claude (unverified)" in result.stdout
+    assert "4 facts, 1 unmapped labels, 4 read by Claude" in result.stdout
     assert query(
         root,
-        "SELECT f.account, f.period, f.value, f.read_by, f.verified, r.page, r.raw_value_text "
+        "SELECT f.account, f.period, f.value, f.read_by, r.page, r.raw_value_text "
         "FROM facts f JOIN raw_values r USING (raw_id) ORDER BY f.fact_id",
     ) == [
-        ("cash", "FY25", Decimal("2850000.00"), "claude", False, 1, "28.50"),
-        (None, "FY25", Decimal("7150000.00"), "claude", False, 1, "71.50"),
-        ("total_assets", "FY25", Decimal("10000000.00"), "claude", False, 1, "100.00"),
-        ("total_equity_and_liabilities", "FY25", Decimal("10000000.00"), "claude", False, 1)
-        + ("100.00",),
+        ("cash", "FY25", Decimal("2850000.00"), "claude", 1, "28.50"),
+        (None, "FY25", Decimal("7150000.00"), "claude", 1, "71.50"),
+        ("total_assets", "FY25", Decimal("10000000.00"), "claude", 1, "100.00"),
+        ("total_equity_and_liabilities", "FY25", Decimal("10000000.00"), "claude", 1, "100.00"),
     ]
     [(file_name, reading_path)] = query(root, "SELECT file_name, reading_path FROM documents")
     assert file_name == "scan.pdf"
@@ -109,8 +108,6 @@ def test_reading_loads_a_scanned_pdf_when_the_gates_pass(
     assert audit_query("SELECT check_name, passed FROM validation_results ORDER BY check_name") == [
         ("balance_sheet", True)
     ]
-    with connect(analytics_db_path(root)) as con:
-        assert con.execute("SELECT unverified_claude_facts FROM companies").fetchall() == [(4,)]
 
 
 def test_reading_that_fails_a_gate_is_held_with_a_finding(
@@ -157,32 +154,40 @@ def verify(*args: str) -> Any:
     return runner.invoke(app, ["verify", "acme", *args])
 
 
-def test_verify_marks_agreeing_facts_and_reports_every_outcome(
+def test_verify_records_each_run_and_reports_every_outcome(
     root: Path, tmp_path: Path, audit_query: Any
 ) -> None:
     pdf = mixed_report(tmp_path / "ar25.pdf")
     first = write_reading(tmp_path / "r1.csv", BALANCE_SHEET + PROFIT_AND_LOSS)
     assert runner.invoke(app, ["ingest", "acme", str(pdf), "--reading", str(first)]).exit_code == 0
 
-    # The reading the document was loaded with agrees, but verifies only fin's own facts.
+    # Any reading can be compared, the one the document was loaded with included.
     same = verify(str(pdf), "--reading", str(first))
     assert same.exit_code == 0, same.stderr
     assert "agree 7, differ 0, missing in fin 0, missing in reading 0" in same.stdout
-    assert "marked verified: 4 facts (0 read by Claude)" in same.stdout
-    assert "a second, independent reading is needed" in same.stdout
+    assert "recorded as verify run" in same.stdout
+    assert "shared/analytics.duckdb refreshed" in same.stdout
 
-    # A second, independent reading (its own file) verifies the Claude-read facts too.
     second = write_reading(tmp_path / "r2.csv", PROFIT_AND_LOSS + BALANCE_SHEET)
     agreed = verify(str(pdf), "--reading", str(second), "--json")
     assert agreed.exit_code == 0, agreed.stderr
     payload = json.loads(agreed.stdout)
-    assert (payload["counts"], payload["verified_claude_facts"]) == (
-        {"agree": 7, "differ": 0, "missing_in_fin": 0, "missing_in_reading": 0},
-        3,
-    )
+    assert payload["counts"] == {
+        "agree": 7,
+        "differ": 0,
+        "missing_in_fin": 0,
+        "missing_in_reading": 0,
+    }
     assert query(
-        root, "SELECT read_by, verified, count(*) FROM facts GROUP BY ALL ORDER BY ALL"
-    ) == [("claude", True, 3), ("fin", False, 4), ("fin", True, 4)]  # FY24: not in the reading
+        root,
+        "SELECT reading_file, agree, differ, missing_in_fin, missing_in_reading FROM verify_runs "
+        "ORDER BY verified_at",
+    ) == [("r1.csv", 7, 0, 0, 0), ("r2.csv", 7, 0, 0, 0)]
+    assert query(
+        root,
+        "SELECT l.read_by, l.outcome, count(*) FROM verify_lines l JOIN verify_runs v USING "
+        "(run_id) WHERE v.reading_file = 'r2.csv' GROUP BY ALL ORDER BY ALL",
+    ) == [("claude", "agree", 3), ("fin", "agree", 4)]  # FY24: not in the reading
 
     # A third reading: cash differs, security deposits left out, a line fin does not have.
     third = write_reading(
@@ -203,8 +208,17 @@ def test_verify_marks_agreeing_facts_and_reports_every_outcome(
     ) in differs.stdout
     assert "missing_in_fin     balance_sheet standalone FY25 'Other equity'" in differs.stdout
     assert "missing_in_reading balance_sheet standalone FY25 'Security deposits'" in differs.stdout
-    cash = "SELECT verified FROM facts WHERE account = 'cash' AND period = 'FY25'"
-    assert query(root, cash) == [(False,)]
+    assert query(
+        root,
+        "SELECT l.outcome, l.fin_value, l.reading_value FROM verify_lines l JOIN verify_runs v "
+        "USING (run_id) WHERE v.reading_file = 'r3.csv' AND l.label = 'Cash and cash equivalents'",
+    ) == [("differ", Decimal("2850000.00"), Decimal("2860000.00"))]
+    with connect(analytics_db_path(root)) as con:  # analytics refreshed: the findings show
+        assert con.execute("SELECT code, finding FROM findings ORDER BY finding").fetchall() == [
+            ("verify_reading", "differ"),
+            ("verify_reading", "missing_in_fin"),
+            ("verify_reading", "missing_in_reading"),
+        ]
     assert audit_query(
         "SELECT check_name, finding, label FROM findings WHERE other_file = 'r3.csv' ORDER BY ALL"
     ) == [
@@ -274,21 +288,21 @@ def test_verify_checks_a_corrected_figure_as_corrected(root: Path, tmp_path: Pat
     ) in as_printed.stdout
 
 
-def test_verify_on_a_held_document_verifies_and_leaves_it_held(
+def test_verify_on_a_held_document_is_recorded_and_leaves_it_held(
     root: Path, tmp_path: Path, scanned: Path
 ) -> None:
     unbalanced = [*BALANCE_SHEET[:3], (*BALANCE_SHEET[3][:5], "90.00", 1)]
     loaded_with = write_reading(tmp_path / "scan.reading.csv", unbalanced)
     held = runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(loaded_with)])
     assert held.exit_code == 0, held.output
-    # A second, independent reading (its own file: lines in another order) reads the same figures.
+    # Another reading (its own file: lines in another order) reads the same figures.
     second = write_reading(tmp_path / "r2.csv", list(reversed(unbalanced)))
 
     result = verify(str(scanned), "--reading", str(second))
 
     assert result.exit_code == 0, result.output
     assert "agree 4, differ 0, missing in fin 0, missing in reading 0" in result.stdout
-    assert query(root, "SELECT count(*) FROM facts WHERE verified") == [(4,)]
+    assert query(root, "SELECT doc_id, agree FROM verify_runs") == [(1, 4)]
     assert query(root, "SELECT status FROM documents") == [("held",)]
     assert query(root, "SELECT code, status FROM findings") == [("E401", "open")]
 
@@ -332,6 +346,35 @@ def test_verify_disagreement_on_a_loaded_document_is_a_finding_that_does_not_hol
     assert query(root, "SELECT check_name, finding, label, status FROM findings") == [
         ("verify_reading", "differ", "Cash and cash equivalents", "open")
     ]
+
+
+def test_a_later_verify_that_agrees_resolves_an_earlier_readings_open_finding(
+    root: Path, tmp_path: Path, scanned: Path
+) -> None:
+    reading = write_reading(tmp_path / "scan.reading.csv", BALANCE_SHEET)
+    assert (
+        runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(reading)]).exit_code
+        == 0
+    )
+    misread = [(*BALANCE_SHEET[0][:5], "28.60", 1), *BALANCE_SHEET[1:]]
+    misread_csv = str(write_reading(tmp_path / "r2.csv", misread))
+    assert verify(str(scanned), "--reading", misread_csv).exit_code == 0
+    findings = "SELECT finding, label, other_file, status FROM findings"
+    assert query(root, findings) == [("differ", "Cash and cash equivalents", "r2.csv", "open")]
+
+    # Another reading agrees on that line: the latest run wins.
+    agreed = verify(
+        str(scanned), "--reading", str(write_reading(tmp_path / "r3.csv", BALANCE_SHEET))
+    )
+
+    assert "agree 4, differ 0" in agreed.stdout
+    assert "resolved (this run agrees on their line): findings #1" in agreed.stdout
+    assert query(root, findings) == [("differ", "Cash and cash equivalents", "r2.csv", "resolved")]
+    assert query(  # the history keeps the earlier disagreement
+        root,
+        "SELECT v.reading_file, l.outcome FROM verify_lines l JOIN verify_runs v USING (run_id) "
+        "WHERE l.label = 'Cash and cash equivalents' ORDER BY v.verified_at",
+    ) == [("r2.csv", "differ"), ("r3.csv", "agree")]
 
 
 def test_verify_does_not_flag_a_figure_that_differs_only_by_rounding(

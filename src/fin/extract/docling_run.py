@@ -135,7 +135,7 @@ def read_skipped(path: Path, skipped: list[SkippedPage], start_month: int) -> Do
         pages = ", ".join(map(str, result.read_pages))
         result.notices.append(
             f"{len(result.values)} figures read by Docling from pages {pages} (pdfplumber could "
-            "not read them); unverified until `fin verify` with a reading agrees"
+            "not read them)"
         )
     return result
 
@@ -176,8 +176,7 @@ def read_scanned(path: Path, start_month: int) -> DoclingResult | None:
     if result.read_pages:
         pages = ", ".join(map(str, result.read_pages))
         result.notices.append(
-            f"scanned PDF: {len(result.values)} figures read by Docling (OCR) from pages {pages}; "
-            "unverified until `fin verify` with a reading agrees"
+            f"scanned PDF: {len(result.values)} figures read by Docling (OCR) from pages {pages}"
         )
     return result
 

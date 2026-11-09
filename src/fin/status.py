@@ -6,7 +6,8 @@ For each company (every company database and every inbox/ company folder, or the
 - held documents (fin.findings) with their open findings;
 - findings open and accepted;
 - mapping items waiting for review (review/<company>/pending.json);
-- figures read by Claude not yet verified by an independent reading (`fin verify`);
+- figures in loaded and held documents read by Claude (a reading file) or by the Docling add-on,
+  as information: whether they are trusted is the user's decision (`fin verify` checks them);
 - files in inbox/<company>/ not yet ingested (no document with the same sha256);
 - with an open diligence engagement: its queries by status, proposed adjustments, and each gate's
   state (fin.diligence.gates).
@@ -35,7 +36,9 @@ SELECT
     (SELECT count(*) FROM findings WHERE status = 'open'),
     (SELECT count(*) FROM findings WHERE status = 'accepted'),
     (SELECT count(*) FROM facts f JOIN documents d USING (doc_id)
-     WHERE f.read_by <> 'fin' AND NOT f.verified AND d.status IN ('loaded', 'held'))
+     WHERE f.read_by = 'claude' AND d.status IN ('loaded', 'held')),
+    (SELECT count(*) FROM facts f JOIN documents d USING (doc_id)
+     WHERE f.read_by = 'docling' AND d.status IN ('loaded', 'held'))
 """
 _HELD = """
 SELECT d.doc_id, d.file_name,
@@ -77,7 +80,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
     db = company_db_path(run.root, company)
     periods: dict[str, list[str]] = {kind: [] for kind in KINDS.values()}
     held: list[dict[str, Any]] = []
-    open_findings = accepted = unverified = 0
+    open_findings = accepted = by_claude = by_docling = 0
     known: set[str] = set()
     diligence = None
     pending = read_pending(run.root, company)
@@ -95,7 +98,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
             ]
             row = con.execute(_SUMMARY).fetchone()
             assert row is not None
-            open_findings, accepted, unverified = row
+            open_findings, accepted, by_claude, by_docling = row
             known = {sha for (sha,) in con.execute("SELECT sha256 FROM documents").fetchall()}
             diligence = _diligence(con, company, open_items(pending))
     inbox = inbox_dir(run.root, company)
@@ -110,7 +113,8 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
         "open_findings": open_findings,
         "accepted_findings": accepted,
         "pending_mappings": len(open_items(pending)),
-        "unverified_claude_facts": unverified,
+        "read_by_claude": by_claude,
+        "read_by_docling": by_docling,
         "inbox_not_ingested": waiting,
         "diligence": diligence,
     }
@@ -178,8 +182,7 @@ def format_status(result: list[dict[str, Any]]) -> str:
             f"  held documents: {_list(held)}",
             f"  findings: {s['open_findings']} open, {s['accepted_findings']} accepted",
             f"  mappings waiting for review: {s['pending_mappings']}",
-            "  figures read by Claude or Docling, not yet verified: "
-            f"{s['unverified_claude_facts']}",
+            f"  figures read by Claude: {s['read_by_claude']}, by Docling: {s['read_by_docling']}",
             f"  inbox files not ingested: {_list(s['inbox_not_ingested'])}",
         ]
         out += _format_diligence(s["diligence"])

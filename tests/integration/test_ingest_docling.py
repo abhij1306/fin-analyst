@@ -168,39 +168,25 @@ def test_docling_reads_the_page_pdfplumber_skipped(
 
     assert result.exit_code == 0, result.stdout
     assert "not read:" not in result.stdout
-    assert "24 read by Docling (unverified)" in result.stdout
+    assert "24 read by Docling" in result.stdout
     assert facts(
         data_root, "SELECT read_by, count(*) FROM facts GROUP BY read_by ORDER BY read_by"
     ) == [("docling", 24), ("fin", 40)]
     loaded = facts(
         data_root,
-        "SELECT r.raw_label, f.scope, f.period, f.value, r.raw_value_text, f.verified "
+        "SELECT r.raw_label, f.scope, f.period, f.value, r.raw_value_text "
         "FROM facts f JOIN raw_values r USING (raw_id) WHERE f.read_by = 'docling' "
         "AND r.raw_label IN ('Loans', 'Cash and cash equivalents') ORDER BY ALL",
     )
     assert loaded == [
-        ("Cash and cash equivalents", "consolidated", "FY25", Decimal("0.00"), "-", False),
-        (
-            "Cash and cash equivalents",
-            "consolidated",
-            "FY26-H1",
-            Decimal("-400000.00"),
-            "(4.00)",
-            False,
-        ),
-        ("Cash and cash equivalents", "standalone", "FY25", Decimal("4500000.00"), "45.00", False),
-        (
-            "Cash and cash equivalents",
-            "standalone",
-            "FY26-H1",
-            Decimal("3500000.00"),
-            "35.00",
-            False,
-        ),
-        ("Loans", "consolidated", "FY25", Decimal("600000.00"), "6.00", False),
-        ("Loans", "consolidated", "FY26-H1", Decimal("600000.00"), "6.00", False),
-        ("Loans", "standalone", "FY25", Decimal("500000.00"), "5.00", False),
-        ("Loans", "standalone", "FY26-H1", Decimal("500000.00"), "5.00", False),
+        ("Cash and cash equivalents", "consolidated", "FY25", Decimal("0.00"), "-"),
+        ("Cash and cash equivalents", "consolidated", "FY26-H1", Decimal("-400000.00"), "(4.00)"),
+        ("Cash and cash equivalents", "standalone", "FY25", Decimal("4500000.00"), "45.00"),
+        ("Cash and cash equivalents", "standalone", "FY26-H1", Decimal("3500000.00"), "35.00"),
+        ("Loans", "consolidated", "FY25", Decimal("600000.00"), "6.00"),
+        ("Loans", "consolidated", "FY26-H1", Decimal("600000.00"), "6.00"),
+        ("Loans", "standalone", "FY25", Decimal("500000.00"), "5.00"),
+        ("Loans", "standalone", "FY26-H1", Decimal("500000.00"), "5.00"),
     ]
     pages = facts(
         data_root,

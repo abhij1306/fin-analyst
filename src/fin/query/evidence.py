@@ -29,7 +29,7 @@ from fin.paths import company_db_path
 GRID_ROWS_AROUND = 2  # rows shown above and below an Excel value
 
 FACT_SQL = """
-SELECT f.fact_id, f.account, f.fiscal_year, f.period, f.scope, f.value, f.confirmed, f.verified,
+SELECT f.fact_id, f.account, f.fiscal_year, f.period, f.scope, f.value, f.confirmed, f.read_by,
        r.raw_label, r.raw_value_text, r.raw_unit, r.sheet, r.cell, r.page, r.bbox,
        source_ref(r.sheet, r.cell, r.page) AS source_ref,
        d.file_name, d.archive_path
@@ -96,7 +96,8 @@ def _fact_section(
     account's unit (an unmapped figure is in rupees)."""
     ref = fact["source_ref"]
     status = "confirmed" if fact["confirmed"] else "UNCONFIRMED mapping"
-    status += ", verified" if fact["verified"] else ""
+    readers = {"claude": "Claude", "docling": "Docling"}
+    status += f", read by {readers[fact['read_by']]}" if fact["read_by"] in readers else ""
     unit = units.get(fact["account"], "rupees").replace("_", " ")
     title = (
         f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['period']} "

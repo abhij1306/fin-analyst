@@ -390,6 +390,5 @@ def test_a_row_without_a_fact_id_gets_no_provenance(kestrel: Path) -> None:
             "source_ref": None,
             "source_confirmed": None,
             "source_read_by": None,
-            "source_verified": None,
         }
     ]

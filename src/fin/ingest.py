@@ -8,8 +8,8 @@ For each file, `ingest_file`:
    auditor's report also go to `notes/<company>/` as Markdown). With the Docling add-on on
    (`[pdf] docling = true`, `fin.extract.docling_run`), the statement pages pdfplumber skipped go
    to Docling, and a scanned results PDF is read by Docling's OCR; those facts have
-   `read_by = 'docling'` and are unverified until `fin verify` agrees. Without it, the run logs
-   which pages were not read and how to read them.
+   `read_by = 'docling'` (`fin verify` compares them with a Claude reading on request). Without
+   it, the run logs which pages were not read and how to read them.
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
 4. In ONE transaction: inserts the document, its raw values and their facts in rupees, marks
    earlier versions of the same file superseded, runs the checks (`fin.findings.check_document`:
@@ -25,8 +25,8 @@ file goes on.
 With a reading (`--reading`, `fin.extract.reading`): figures Claude read from the document's pages
 or cells are loaded for each statement and scope neither fin nor Docling read (all of them when
 the file could not be read at all), through the same stage -> validate -> commit. Their facts have
-`read_by = 'claude'` and point at the original document's page or cell; they stay unverified until
-`fin verify` finds an independent reading that agrees.
+`read_by = 'claude'` and point at the original document's page or cell. Whether they are trusted
+is the user's decision; `fin verify` compares the document with another reading whenever asked.
 """
 
 import hashlib
@@ -404,7 +404,7 @@ def read_with_reading(
     parts = sorted({f"{line.scope} {line.statement}" for line in used})
     notices.append(
         f"{len(used)} figures read by Claude from reading {reading.name} ({', '.join(parts)}); "
-        "unverified until `fin verify` with a second, independent reading agrees"
+        "check them against another reading with `fin verify` whenever wanted"
     )
     if len(used) < len(lines):
         notices.append(
@@ -615,9 +615,7 @@ def ingest_file(
     details = f"doc_id {doc_id} version {version}: {len(document.rows)} facts, " + (
         f"{len(unmapped)} unmapped labels"
     )
-    details += "".join(
-        f", {n} read by {readers[who]} (unverified)" for who, n in counts.items() if n
-    )
+    details += "".join(f", {n} read by {readers[who]}" for who, n in counts.items() if n)
     if open_findings:
         run.held += 1
         message = (

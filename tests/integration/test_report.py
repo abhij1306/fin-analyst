@@ -164,7 +164,7 @@ def test_render_substitutes_references_and_logs_the_report(root: Path, fake_quar
     assert "## Peer comparison" not in html
     # Findings, coverage and the appendices.
     assert "No open or accepted findings." in html
-    assert "| Balance sheet | 54 | 54 | 100.0% | 0 |" in html
+    assert "| Balance sheet | 54 | 54 | 100.0% |" in html
     assert "None: fin read every statement page of the loaded documents." in html
     assert "| FY23 | Revenue growth | revenue (FY22) |" in html
     assert "| Total assets | ₹98.75 Cr | ₹116.44 Cr | ₹128.64 Cr |" in html

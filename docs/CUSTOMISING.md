@@ -25,7 +25,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   skipped (and on short scanned PDFs), once per document with one converter per process; `docling_pages.py` reads
   Docling's table grids into `PdfValue`s with `pdf.py`'s and `periods.py`'s helpers and guards (no Docling needed,
   so its tests are fast). Ingest uses it only when `[pdf] docling = true` in `config.toml`.
-- `verify.py`: `fin verify`, compares a reading with what is loaded and marks agreeing facts verified.
+- `verify.py`: `fin verify`, compares a Claude reading with what is loaded for a document, records the run
+  (`verify_runs`, `verify_lines`) and its disagreements as findings.
 - `diligence/`: a diligence engagement on one company (`docs/DILIGENCE_PLAN.md`). `engagement.py` (`fin engagement
   open|status|close`, the open-engagement check (E803), and `record_event`, which appends every change to the audit
   table `diligence_events`), `queries.py` (accountant queries and their status flow, `TRANSITIONS`),
@@ -37,7 +38,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
 - `metrics/export.py`: copies every company's metrics, metric definitions, standard statements, findings,
-  coverage, unread pages and unverified facts to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
+  coverage and unread pages to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
 - `statements.py`: the `standard_statements` view (made per connection from the dictionary's account tree) and
   `fin statements`. `workbook.py`: `fin export` (the Excel workbook).
 - `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806), `evidence.py` (`fin sql --evidence` pages).
