@@ -513,6 +513,7 @@ Done when:
 Build:
 - Move `sample-financials/` to `tests/fixtures/sample-financials/` and commit the generated files (§12); its `generator/` is the fixture generator
 - Excel extractor: sheet/cell capture, header and period detection, unit detection ("₹ in lakhs", "in crores"), multi-year columns
+  - Each column's period length and scope come from the nearest heading above it ("Quarter ended", "Standalone"; a heading covers the columns it is merged over, or the blank cells right of it when typed once; a trailing "(Unaudited)" / "(Audited)" / "(Reviewed)" is ignored), else the sheet's one scope; a flow column naming no length on a sheet with interim columns, or naming no scope on a sheet naming both, is E202
 - Staging → commit; dedup by sha256; archive originals
 - `fin ingest`, `fin ingest-batch` with progress and resume
 

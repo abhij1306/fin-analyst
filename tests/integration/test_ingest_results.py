@@ -339,7 +339,12 @@ def test_a_workbook_with_quarter_columns(root: Path, tmp_path: Path) -> None:
     sheet.append(["Standalone Statement of Profit and Loss"])
     sheet.append(["(₹ in Lakhs)"])
     sheet.append(
-        ["Particulars", "Quarter ended 30.06.2025", "Quarter ended 30.06.2024", "31.03.2025"]
+        [
+            "Particulars",
+            "Quarter ended 30.06.2025",
+            "Quarter ended 30.06.2024",
+            "Year ended 31.03.2025",
+        ]
     )
     sheet.append(["Revenue from operations", 1100, 1000, 4100])
     path = tmp_path / "q1.xlsx"

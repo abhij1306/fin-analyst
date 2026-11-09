@@ -20,8 +20,8 @@ period column). Columns, in any order:
 - `label`: the line's label as printed.
 - `value_as_printed`: the figure exactly as printed: `1,234.56`, `(56.67)` for a negative, `-`
   for nil. Never computed or inferred.
-- `source`: where in the ORIGINAL document: a page number (`12`, `p12` or `page 12`) or
-  `Sheet!B7`.
+- `source`: where in the ORIGINAL document: a page number from 1 (`12`, `p12` or `page 12`) or
+  `Sheet!B7`, a cell within Excel's limits (A1 to XFD1048576).
 
 Errors: E205 for a file that cannot be used (missing columns, unknown statement or scope, bad
 date, figure or source, no rows), E203 for a unit line no unit can be read from, E202 for a
@@ -34,6 +34,8 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+
+from openpyxl.utils.cell import column_index_from_string
 
 from fin.audit.errors import ReadingInvalid, UnitNotDetected
 from fin.config import SCOPES
@@ -94,12 +96,17 @@ def _source(text: str, where: str) -> tuple[int | None, str | None, str | None]:
     """(page, sheet, cell) from 'page 12' / 'p12' / '12' or 'Sheet!B7'."""
     text = text.strip()
     page = _PAGE.match(text)
-    if page:
+    if page and int(page.group(1)) >= 1:
         return int(page.group(1)), None, None
     cell = _CELL.match(text)
-    if cell:
+    if cell and _in_sheet(cell.group(2), int(cell.group(3))):
         return None, cell.group(1).strip("'"), f"{cell.group(2)}{cell.group(3)}"
     raise ReadingInvalid(f"{where}: source {text!r} is not a page number or Sheet!Cell")
+
+
+def _in_sheet(column: str, row: int) -> bool:
+    """Whether a cell lies within Excel's worksheet limits (A1 to XFD1048576)."""
+    return 1 <= row <= 1_048_576 and column_index_from_string(column) <= 16_384
 
 
 def read_reading(path: Path, start_month: int) -> list[ReadingLine]:
