@@ -4,6 +4,7 @@ The auditor's report starts on a page titled "Independent Auditor's Report"; the
 page titled "Notes ...". Each runs until the next statement page. Bold lines become headings, note
 tables become Markdown tables (columns from the same period detection as the value extractor), and
 other lines are joined into paragraphs (a line ending well short of the right margin ends one).
+Each page's content starts with a `<!-- page N -->` line, so every disclosure traces to its page.
 """
 
 import re
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from fin.audit.errors import DataFolderNotWritable
 from fin.extract.pdf import (
     TITLE_LINES,
     Column,
@@ -31,7 +33,7 @@ def write_notes_markdown(path: Path, out_dir: Path) -> list[Path]:
     """Write `<pdf stem>.auditor_report.md` and `<pdf stem>.notes.md` into `out_dir`.
 
     Returns the files written; a section the PDF does not have is not written.
-    Raises E101/E102/E104 like the value extractor.
+    Raises E101/E102/E104 like the value extractor, and E003 when a file cannot be written.
     """
     pages: dict[str, list[tuple[int, list[list[dict[str, Any]]]]]] = {s: [] for s in SECTIONS}
     current: str | None = None
@@ -42,17 +44,24 @@ def write_notes_markdown(path: Path, out_dir: Path) -> list[Path]:
                 if current is not None:
                     pages[current].append((page.page_number, lines))
 
-    out_dir.mkdir(parents=True, exist_ok=True)
     written = []
     for section in SECTIONS:
         if not pages[section]:
             continue
         numbers = ", ".join(str(n) for n in dict.fromkeys(n for n, _ in pages[section]))
         blocks = [f"Source: {path.name}, page(s) {numbers}"]
-        for _, lines in pages[section]:
+        previous = None
+        for number, lines in pages[section]:
+            if number != previous:  # the two halves of a spread share one marker
+                blocks.append(f"<!-- page {number} -->")
+                previous = number
             blocks.extend(_markdown_blocks(lines))
         out = out_dir / f"{path.stem}.{section}.md"
-        out.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
+        except OSError as exc:
+            raise DataFolderNotWritable(f"cannot write {out}: {exc}") from exc
         written.append(out)
     return written
 

@@ -22,8 +22,11 @@ is read as two halves. On each statement page (balance sheet, profit and loss, c
    by default) and the page is not a results statement; otherwise the page
    is skipped (E202), as it is when two columns hold the same period (such as standalone and
    consolidated printed side by side).
-4. A line whose trailing numbers sit under every period column is a value row. The words to their
-   left are the label, minus a note reference when the header has a "Note" column. A row with no
+4. A line whose trailing numbers sit under every period column is a value row. So is a line with
+   figures under some columns and nothing under the others (a new item with no comparative): the
+   figures printed load, a blank cell is no value. A line with a figure fin cannot place under
+   its columns makes the page misread (E204), never a heading. The words to their left are the
+   label, minus a note reference when the header has a "Note" column. A row with no
    label takes its label from a line just above it (a label wrapped around its figures, whose tail
    just below is added too), or else from the heading it sits under (an unlabelled subtotal).
 5. Other lines are headings. A heading numbered "(a)" / "i)" is a sub-heading; the section of a row
@@ -192,7 +195,7 @@ class PdfValue:
 class SkippedPage:
     page: int
     statement: str
-    error: DocumentFailure  # E201 (no full row, unrecognised title), E202, E203, E204 (misread)
+    error: DocumentFailure  # E201 (no row, unrecognised title), E202, E203, E204 (misread)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -366,7 +369,8 @@ def _read_part(
 ) -> tuple[list[PdfValue], _Page]:
     """The values of one statement page part, and the page as read. `continues`: the page before,
     when this part carries on its statement (its unit and columns hold until replaced). Raises
-    E203 (no unit), E202 (no period columns), E201 (no full row on a primary statement) or E204."""
+    E203 (no unit), E202 (no period columns), E201 (no row of figures on a primary statement) or
+    E204."""
     unit = unit_of(lines) or (continues.unit if continues else None)
     if unit is None:
         raise UnitNotDetected(f"page {number}: no unit line such as '₹ in Lakhs'")
@@ -386,8 +390,7 @@ def _read_part(
         )
     if not page_values and statement in STATEMENTS and not continues:
         raise NoTablesFound(
-            f"page {number}: titled as a statement, but no line has a figure under every period "
-            "column"
+            f"page {number}: titled as a statement, but no line has a figure under a period column"
         )
     return page_values, _Page(number, statement, scope, unit, columns)
 
@@ -762,8 +765,18 @@ def split_row(line: Line, columns: list[Column]) -> tuple[Line, dict[str, Word]]
     Values are the trailing number words, each under a different period column. A column owns the
     band from halfway to its left neighbour to halfway to its right one; the first starts
     COLUMN_TOLERANCE left of its header and the last runs to the page edge. A line is a value row
-    only when every column has a value; otherwise the values are {}.
+    when every column has a value, or some do and it is plainly a row (`_is_partial_row`); a column
+    with no value is left out. Otherwise the values are {}.
     """
+    cut, values = _trailing_values(line, columns)
+    if len(values) < len(columns) and not _is_partial_row(line[:cut], values, columns):
+        return line, {}
+    return line[:cut], {c.key: values[c.key] for c in columns if c.key in values}
+
+
+def _trailing_values(line: Line, columns: list[Column]) -> tuple[int, dict[str, Word]]:
+    """The index where a line's trailing number words start, and those words {column key: word},
+    each under a different column (see `split_row`)."""
     values: dict[str, Word] = {}
     cut = len(line)
     for i in range(len(line) - 1, -1, -1):
@@ -779,9 +792,18 @@ def split_row(line: Line, columns: list[Column]) -> tuple[Line, dict[str, Word]]
             break
         values[column.key] = word
         cut = i
-    if len(values) < len(columns):
-        return line, {}
-    return line[:cut], {c.key: values[c.key] for c in columns}
+    return cut, values
+
+
+def _is_partial_row(label: Line, values: dict[str, Word], columns: list[Column]) -> bool:
+    """True for a line with figures under some columns and nothing printed under the others: it
+    has a label of its own, wholly left of the columns, and each figure has a comma or decimal
+    point or is a nil dash (so a page number or a registration number is not a row)."""
+    if not values or not label:
+        return False
+    if max(w["x1"] for w in label) >= columns[0].x0 - COLUMN_TOLERANCE:
+        return False
+    return all(FIGURE_TEXT.search(w["text"]) or _DASH.match(w["text"]) for w in values.values())
 
 
 def _is_note(word: Word) -> bool:
@@ -877,6 +899,7 @@ def read_page(
         _value(r, column, r.values[column.key], page, statement, scope, unit, start_month)
         for r in state.rows
         for column in r.columns
+        if column.key in r.values
     ]
     return found_values, columns
 
@@ -914,6 +937,9 @@ def _read_line(
     next line, if any. True when the line ends the table (a "Notes:" line)."""
     words, row = split_row(line, columns) if columns else (line, {})
     if not row:
+        if columns and _unplaced_figures(line, columns, statement, page):
+            state.last_text = None
+            return False
         return _text_line(state, line, columns, statement)
     words, note = _strip_note(words, state.note_x)
     height = max(w["bottom"] - w["top"] for w in line)
@@ -929,6 +955,21 @@ def _read_line(
     )
     state.last_text = None
     return False
+
+
+def _unplaced_figures(line: Line, columns: list[Column], statement: str, page: int) -> bool:
+    """True for a line that is not a row but ends in figures (with a comma or decimal point) under
+    the columns: never a heading. On a statement page fin cannot tell which column they belong
+    to, so it raises E204 rather than guess; on a notes page the line is passed over."""
+    found = _trailing_values(line, columns)[1]
+    if not any(FIGURE_TEXT.search(w["text"]) for w in found.values()):
+        return False
+    if statement != "notes":
+        raise ParseError(
+            f"page {page}: the figures of {line_text(line)[:60]!r} cannot be placed under the "
+            "period columns"
+        )
+    return True
 
 
 def _is_nil_heading(row: dict[str, Word], label: str, line: Line, below: Line | None) -> bool:

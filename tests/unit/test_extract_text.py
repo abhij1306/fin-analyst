@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from fin.audit.errors import FileEncrypted
+from fin.audit.errors import DataFolderNotWritable, FileEncrypted
 from fin.extract.text import write_notes_markdown
+from tests.synthetic_pdf import write_pdf
 
 SAMPLES = Path(__file__).parent.parent / "fixtures" / "sample-financials"
 FY24_PDF = SAMPLES / "clean/tarang/Tarang_Industrial_Services_Annual_Report_FY2023-24.pdf"
@@ -17,7 +18,7 @@ def test_writes_auditor_report_and_notes_markdown(tmp_path: Path) -> None:
     assert [p.name for p in written] == [f"{stem}.auditor_report.md", f"{stem}.notes.md"]
     report = written[0].read_text(encoding="utf-8")
     assert report.startswith(
-        f"Source: {FY25_PDF.name}, page(s) 2\n\n# INDEPENDENT AUDITOR'S REPORT\n"
+        f"Source: {FY25_PDF.name}, page(s) 2\n\n<!-- page 2 -->\n\n# INDEPENDENT AUDITOR'S REPORT\n"
     )
     assert (
         "## Emphasis of Matter\n\nWe draw attention to Note 10 to the financial statements, "
@@ -27,7 +28,9 @@ def test_writes_auditor_report_and_notes_markdown(tmp_path: Path) -> None:
     assert "## Basis for Opinion" in report
 
     notes = written[1].read_text(encoding="utf-8")
-    assert notes.startswith(f"Source: {FY25_PDF.name}, page(s) 6\n\n# Notes to the financial")
+    assert notes.startswith(
+        f"Source: {FY25_PDF.name}, page(s) 6\n\n<!-- page 6 -->\n\n# Notes to the financial"
+    )
     assert (
         "## 19. Related party transactions\n\n"
         "| Related party Relationship Nature | FY25 | FY24 |\n"
@@ -56,3 +59,29 @@ def test_encrypted_pdf_raises_e102_and_writes_nothing(tmp_path: Path) -> None:
     with pytest.raises(FileEncrypted):
         write_notes_markdown(SAMPLES / "broken/Tarang_FY2024-25_ENCRYPTED.pdf", tmp_path / "out")
     assert not (tmp_path / "out").exists()
+
+
+def test_each_notes_page_is_marked_with_its_page_number(tmp_path: Path) -> None:
+    path = write_pdf(
+        tmp_path / "ar.pdf",
+        [(50, 50, "Notes to the financial statements", "F2"), (50, 80, "1. Corporate information")],
+        [(50, 50, "2. Significant accounting policies", "F2"), (50, 80, "Revenue is recognised.")],
+    )
+
+    (notes,) = write_notes_markdown(path, tmp_path / "out")
+
+    assert notes.read_text(encoding="utf-8") == (
+        "Source: ar.pdf, page(s) 1, 2\n\n"
+        "<!-- page 1 -->\n\n# Notes to the financial statements\n\n1. Corporate information\n\n"
+        "<!-- page 2 -->\n\n# 2. Significant accounting policies\n\nRevenue is recognised.\n"
+    )
+
+
+def test_an_unwritable_output_folder_raises_e003(tmp_path: Path) -> None:
+    blocked = tmp_path / "notes"
+    blocked.write_text("a file where the folder should be", encoding="utf-8")
+
+    with pytest.raises(DataFolderNotWritable) as caught:
+        write_notes_markdown(FY25_PDF, blocked / "tarang")
+    assert caught.value.code == "E003"
+    assert isinstance(caught.value.__cause__, OSError)
