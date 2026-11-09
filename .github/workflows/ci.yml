@@ -6,6 +6,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch: # runs the store-durations job too
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -29,10 +30,18 @@ jobs:
       - run: uv run --frozen ruff format --check .
       - run: shellcheck install.sh
 
+  # The suite is split into 3 groups of about equal time (pytest-split, from .test_durations), each
+  # on its own runner with one pytest worker per core. Refresh the timings when they drift:
+  # run the CI workflow by hand (`gh workflow run CI --ref <branch>`) and commit the .test_durations
+  # its store-durations job uploads. Tests missing from the file count as the average test.
   test:
+    name: test (${{ matrix.group }}/3)
     runs-on: ubuntu-latest
-    # The full suite runs about 4-5 minutes on 4 workers; 10 leaves room as tests are added.
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
@@ -42,7 +51,29 @@ jobs:
       - run: uv sync --frozen
       # The real-Quarto test runs in the outputs job, which has Quarto; the real-Docling tests
       # (marked docling) skip here, without the add-on, and run in the docling job.
-      - run: uv run --frozen pytest -m "not quarto" -n auto --durations=10
+      - run: >-
+          uv run --frozen pytest -m "not quarto" -n auto --durations=10
+          --splits 3 --group ${{ matrix.group }} --splitting-algorithm least_duration
+
+  # On demand only: the whole suite on one runner, storing each test's time in .test_durations
+  # (uploaded as an artifact, to commit) for the test job's split.
+  store-durations:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen
+      - run: uv run --frozen pytest -m "not quarto" -n auto --store-durations --clean-durations
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-durations
+          path: .test_durations
+          include-hidden-files: true
 
   # The optional Docling add-on (uv sync --extra docling; CPU-only PyTorch on Linux, pyproject.toml):
   # the tests that run the real Docling on synthetic PDFs. Its models are cached between runs.
