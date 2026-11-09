@@ -312,7 +312,7 @@ def test_latest_quarters_and_peer_comparison(root: Path, tmp_path: Path, fake_qu
     assert "| Profit after tax | ₹29.00 Cr | ₹12.90 Cr |" in html
     # The appendix and the missing data cover the quarters the report shows, not only years.
     assert "| standalone | `revenue` | FY26-Q2 | ₹12.10 Cr | q2.pdf |" in html
-    assert "| FY25-Q2 | Revenue, last four quarters | revenue (FY24-Q3) |" in html
+    assert "| FY25-Q2 | Revenue growth | revenue (FY24-Q2) |" in html
 
     # Without --peers the narrative's peer section has nowhere to go.
     result = runner.invoke(app, ["report", "acme"])
