@@ -109,7 +109,9 @@ def main():
 
     # --- Bluepeak: yearly value-only workbooks, standalone + consolidated -----
     c = COMPANIES["bluepeak"]
-    mm = M["bluepeak"]
+    # Bluepeak's old-format "Cash & bank balances" line is the cash_and_bank_balances account.
+    mm = {s: {y: {("cash_and_bank_balances" if k == "cash" else k): v for k, v in m.items()}
+              for y, m in years.items()} for s, years in M["bluepeak"].items()}
     d = clean / "bluepeak"
     d.mkdir()
     docs = []

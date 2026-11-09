@@ -75,13 +75,15 @@ CREATE MACRO cagr6(x, earlier, n) AS
 -- A line equal to the sum of the other lines is their total ("Trade payables" above its two parts): then the total
 -- alone is used, so nothing is counted twice. With only two lines, equal values are as likely two equal parts with
 -- no total printed, so one is the total only when the document says so: its label starts with "Total", or the other
--- line sits under it (raw_values.section is its label); otherwise both are summed. fact_ids lists the lines used;
--- fact_id is the first of them.
+-- line sits under it (raw_values.section is its label, list marker and colon aside); otherwise both are summed.
+-- fact_ids lists the lines used; fact_id is the first of them.
 CREATE VIEW document_facts AS
 WITH lines AS (
     SELECT
         f.doc_id, f.account, f.fiscal_year, f.period, f.period_months, f.period_end, f.scope, f.fact_id, f.value,
-        lower(trim(r.raw_label)) AS label, lower(trim(r.section)) AS section,
+        -- label and heading without a list marker ("(b)", "ii)", "b.") or a trailing colon
+        regexp_replace(lower(trim(r.raw_label)), '^(\([a-z0-9]{1,4}\)|[a-z0-9]{1,4}[.)])\s*|\s*:$', '', 'g') AS label,
+        regexp_replace(lower(trim(r.section)), '^(\([a-z0-9]{1,4}\)|[a-z0-9]{1,4}[.)])\s*|\s*:$', '', 'g') AS section,
         sum(f.value) OVER w AS lines_total,
         count(*) OVER w AS line_count
     FROM facts f

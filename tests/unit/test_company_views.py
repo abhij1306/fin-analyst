@@ -79,11 +79,24 @@ def test_of_two_equal_lines_one_labelled_total_is_the_total(company: Path) -> No
     assert trade_payables(company) == [("500.00", 1)]
 
 
-def test_of_two_equal_lines_the_one_the_other_sits_under_is_the_total(company: Path) -> None:
+@pytest.mark.parametrize(
+    ("label", "heading"),
+    [
+        ("Trade payables", "Trade payables"),
+        ("(b) Trade payables", "Trade payables"),
+        ("Trade payables", "(b) Trade payables"),
+        ("Trade payables", "ii) Trade payables"),
+        ("Trade payables", "b. Trade payables"),
+        ("Trade payables", "(ii) Trade payables:"),
+    ],
+)
+def test_of_two_equal_lines_the_one_the_other_sits_under_is_the_total(
+    company: Path, label: str, heading: str
+) -> None:
     load(
         company,
-        ("trade_payables", "Trade payables", "Current liabilities", "500.00"),
-        ("trade_payables", "Dues of others", "Trade payables", "500.00"),
+        ("trade_payables", label, "Current liabilities", "500.00"),
+        ("trade_payables", "Dues of others", heading, "500.00"),
     )
     assert trade_payables(company) == [("500.00", 1)]
 
