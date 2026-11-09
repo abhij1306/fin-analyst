@@ -24,8 +24,9 @@ Use this only when the user asks for it. It is an on-demand check; fin's own ext
    not agree are findings, not errors (exit 0); they are kept with the document (`fin findings list <company>`). If the command itself fails
    (for example E205, a reading it cannot use), report the error code and run_id and stop.
 5. Report: the counts (agree, differ, missing in fin, missing in reading), how many facts were marked verified, and
-   every line that does not agree, with both values as printed and both sources. Only state numbers from the `fin`
-   output.
+   every line that does not agree, with both values (fin's is the value it uses now, which may have been corrected
+   since it was printed), as printed, and both sources. Only state numbers from the `fin` output. A verify finding
+   does not hold or release the document: a loaded document stays loaded, a held one stays held.
    - differ: one of the two is wrong. Offer to re-check that line on the page; do not resolve it yourself.
    - missing in fin: fin did not load that line (or the whole statement); a label fin read differently also shows
      here and as missing in reading.
