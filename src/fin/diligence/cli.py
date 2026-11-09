@@ -12,7 +12,7 @@ import typer
 
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
-from fin.diligence import adjustments, bridge, engagement, queries
+from fin.diligence import adjustments, bridge, engagement, gates, queries
 from fin.paths import COMPANY_NAME
 
 engagement_app = typer.Typer(
@@ -476,3 +476,46 @@ def adjust_reject(
             typer.echo(adjustments.format_adjustment(row))
 
     execute("adjust reject", {"company": company, "ids": ids, "reason": reason}, body)
+
+
+# fin gate (logic in gates.py)
+
+gate_app = typer.Typer(
+    no_args_is_help=True,
+    help="Diligence gates: fin checks each one's checklist; only the user approves a gate.",
+)
+
+
+def _gate(value: str) -> str:
+    name = value.upper()
+    if name not in gates.NAMES:
+        raise typer.BadParameter(f"use one of: {', '.join(gates.NAMES)}")
+    return name
+
+
+@gate_app.command("status")
+def gate_status(company: CompanyArg, json_output: JsonOption = False) -> None:
+    """Each gate in order: approved, reopened (and why) or open; its checklist; what it unlocks."""
+
+    def body(run: Run) -> None:
+        result = gates.gate_status(run, company)
+        if json_output:
+            typer.echo(json.dumps(result, indent=2, default=str))
+        else:
+            typer.echo(gates.format_status(result))
+
+    execute("gate status", {"company": company, "json": json_output}, body)
+
+
+@gate_app.command("approve")
+def gate_approve(
+    company: CompanyArg,
+    gate: Annotated[str, typer.Argument(callback=_gate, help="The gate, e.g. G1.")],
+) -> None:
+    """Approve a gate (only when the user says so). Refused (E802) while its checklist fails or an
+    earlier gate is not approved."""
+
+    def body(run: Run) -> None:
+        typer.echo(f"{company}: {gates.format_gate(gates.approve(run, company, gate))}")
+
+    execute("gate approve", {"company": company, "gate": gate}, body)

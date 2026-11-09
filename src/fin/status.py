@@ -7,16 +7,22 @@ For each company (every company database and every inbox/ company folder, or the
 - findings open and accepted;
 - mapping items waiting for review (review/<company>/pending.json);
 - figures read by Claude not yet verified by an independent reading (`fin verify`);
-- files in inbox/<company>/ not yet ingested (no document with the same sha256).
+- files in inbox/<company>/ not yet ingested (no document with the same sha256);
+- with an open diligence engagement: its queries by status, proposed adjustments, and each gate's
+  state (fin.diligence.gates).
 """
 
 import re
 from pathlib import Path
 from typing import Any
 
+import duckdb
+
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
+from fin.diligence.engagement import QUERY_STATUSES, open_engagement_row
+from fin.diligence.gates import Context, evaluate
 from fin.ingest import files_in, sha256_of
 from fin.map.review import open_items, read_pending
 from fin.paths import COMPANY_NAME, companies_dir, company_db_path, inbox_dir
@@ -73,6 +79,8 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
     held: list[dict[str, Any]] = []
     open_findings = accepted = unverified = 0
     known: set[str] = set()
+    diligence = None
+    pending = read_pending(run.root, company)
     if db.is_file():
         ensure_database(db, "company")
         with connect(db) as con:
@@ -89,11 +97,11 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
             assert row is not None
             open_findings, accepted, unverified = row
             known = {sha for (sha,) in con.execute("SELECT sha256 FROM documents").fetchall()}
+            diligence = _diligence(con, company, open_items(pending))
     inbox = inbox_dir(run.root, company)
     waiting = (
         [p.name for p in files_in(inbox) if sha256_of(p) not in known] if inbox.is_dir() else []
     )
-    pending = read_pending(run.root, company)
     return {
         "company": company,
         "periods": periods,
@@ -104,6 +112,38 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
         "pending_mappings": len(open_items(pending)),
         "unverified_claude_facts": unverified,
         "inbox_not_ingested": waiting,
+        "diligence": diligence,
+    }
+
+
+def _diligence(
+    con: duckdb.DuckDBPyConnection, company: str, pending: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """The open engagement in short (None when there is none): queries by status (those with any),
+    proposed adjustments, and each gate's state."""
+    engagement = open_engagement_row(con)
+    if engagement is None:
+        return None
+    engagement_id = engagement["engagement_id"]
+    by_status = dict(
+        con.execute(
+            "SELECT status, count(*) FROM accountant_queries WHERE engagement_id = ? "
+            "GROUP BY status",
+            [engagement_id],
+        ).fetchall()
+    )
+    proposed = con.execute(
+        "SELECT count(*) FROM adjustments WHERE engagement_id = ? AND status = 'proposed'",
+        [engagement_id],
+    ).fetchone()
+    assert proposed is not None
+    states = evaluate(Context(con, company, engagement, pending))
+    return {
+        "engagement_id": engagement_id,
+        "periods": engagement["periods"],
+        "queries": {s: by_status[s] for s in QUERY_STATUSES if by_status.get(s)},
+        "proposed_adjustments": proposed[0],
+        "gates": {gate["gate"]: gate["state"] for gate in states},
     }
 
 
@@ -142,4 +182,17 @@ def format_status(result: list[dict[str, Any]]) -> str:
             f"{s['unverified_claude_facts']}",
             f"  inbox files not ingested: {_list(s['inbox_not_ingested'])}",
         ]
+        out += _format_diligence(s["diligence"])
     return "\n".join(out)
+
+
+def _format_diligence(d: dict[str, Any] | None) -> list[str]:
+    if d is None:
+        return []
+    queries = ", ".join(f"{status} {n}" for status, n in d["queries"].items()) or "none"
+    gates = ", ".join(f"{name} {state}" for name, state in d["gates"].items())
+    return [
+        f"  engagement #{d['engagement_id']} ({d['periods']}): queries {queries}; "
+        f"proposed adjustments {d['proposed_adjustments']}",
+        f"  gates: {gates}",
+    ]

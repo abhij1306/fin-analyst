@@ -284,6 +284,10 @@ def test_taxes_paid_not_mapped(engaged: Path) -> None:
 
 
 def test_the_latest_engagement_is_shown(engaged: Path) -> None:
+    # Closing needs gate G4: no proposed adjustment left, and G1 and G2 approved before it.
+    execute(engaged, "UPDATE adjustments SET status = 'rejected' WHERE status = 'proposed'")
+    for gate in ("G1", "G2", "G4"):
+        assert fin("gate", "approve", "kestrel", gate).exit_code == 0, gate
     assert fin("engagement", "close", "kestrel").exit_code == 0
     closed = bridge_json("--period", "FY25")
     assert closed["engagement"]["status"] == "closed"

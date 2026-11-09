@@ -16,15 +16,18 @@ Local financial health analysis tool. Ingests company financial documents into D
 
 ## Diligence
 
-Rules for diligence work (`fin engagement`, `fin query`, `fin adjust`; `/diligence`; `docs/DILIGENCE_PLAN.md`):
+Rules for diligence work (`fin engagement`, `fin query`, `fin adjust`, `fin gate`; `/diligence`;
+`docs/DILIGENCE_PLAN.md`):
 
 - Differences in diligence data are queried, never fixed. A difference is the company's: raise a query
   (`fin query raise`) or propose an adjustment with evidence (`fin adjust propose`); never change the data to make it
   tie. Fixing fin's own reading errors (a wrong mapping, a misread figure) is still fine.
 - Queries: you draft them; the user approves them. fin never sends anything: run `fin query sent` only when the user
   says they sent it. Approve, close, withdraw, and accept or reject adjustments only when the user says so.
-- Gates stop the build: a command that needs an unapproved gate refuses. Only the user approves a gate; never run
-  `fin gate approve` yourself.
+- Gates stop the build: a command that needs a gate that is not approved refuses (E801), and a gate reopens on its
+  own when the data under it changes. You prepare a gate: run `fin gate status <co>`, fix what its checklist says
+  through the usual commands, and show the user the result. Only the user approves a gate: never run
+  `fin gate approve` unless the user says so; a hook asks the user before it runs.
 
 ## Customising
 

@@ -98,7 +98,7 @@ Plain requests work; these are shortcuts. Each one runs `fin` (see `uv run fin -
 | `/dashboard` | Dashboards at http://localhost:3000: Company, Compare and Data quality. |
 | `/audit <company> [metric year]` | Trace a figure back to its source, or show the company's history. |
 | `/verify <company> <file>` | Have Claude read pages independently and compare with what is loaded. |
-| `/diligence <company>` | A diligence engagement: queries for the company's accountant and adjustments to EBITDA, with evidence. |
+| `/diligence <company>` | A diligence engagement: queries for the company's accountant and adjustments to EBITDA, with evidence, and the gates you approve. |
 
 ## Findings
 
@@ -138,8 +138,19 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   listed as not applied) and the EBITDA-to-cash walk down to CFO and free cash flow, with cash conversion. Money in
   the documents' unit, as `fin statements`; `--json` in rupees. A line whose input is missing shows `-` and names it.
   The same figures are the views `adjusted_ebitda`, `ebitda_bridge` and `ebitda_to_cash`, queryable with `fin sql`.
+- Gates: checkpoints you approve, in order. fin checks each one's checklist; Claude prepares a gate and shows you
+  `fin gate status <company>` (each gate's state, its checklist lines and what it unlocks), and only you approve it
+  (`fin gate approve <company> <gate>`; when Claude runs it, Claude Code asks you first). An approved gate reopens
+  on its own when the data under it changes, and you approve it again.
+  - **G1 Data:** every year in scope has a loaded document, no held documents, no mappings waiting for review.
+  - **G2 Queries:** no query in draft. Needed by `fin adjust accept|reject`.
+  - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
+    `fin engagement close`.
 
-Every change is recorded in the audit table `diligence_events`.
+  A command that needs a gate that is not approved refuses with E801; a gate that cannot be approved yet, E802.
+  `fin status` shows an open engagement's queries, proposed adjustments and gates.
+
+Every change, and every gate approval, is recorded in the audit table `diligence_events`.
 
 ## Pages fin can't read
 
@@ -218,6 +229,8 @@ confirm. Every run is logged in `~/FinAnalysis/logs/<date>/<run_id>.jsonl`.
 | E603 | Dashboard build failed | The last good build is kept. Run `uv run fin doctor` (node) and try again |
 | E604 | An evidence source file is missing from the archive | The page is still produced and flags it. Restore the original into `archive/` |
 | E701 | The action needs your confirmation | `fin delete` run by hand exits 3 when the typed name does not match; Claude uses `--yes` when you asked |
+| E801 | A diligence gate this command needs is not approved: never approved (open), or its data changed since it was approved (reopened) | Nothing changed. See what the gate needs with `uv run fin gate status <company>`; once its checklist passes, you approve it with `uv run fin gate approve <company> <gate>` |
+| E802 | A gate cannot be approved: its checklist fails, or an earlier gate is not approved | Nothing approved. Fix the failing checklist lines shown (or approve the earlier gate first), then approve again |
 | E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
 | E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, or an unknown account | Nothing changed. Add the evidence or correct the value and run again |
 | E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |

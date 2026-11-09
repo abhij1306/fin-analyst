@@ -8,6 +8,8 @@ query, a finding or a source reference (at least one). Claude proposes; the user
 
     proposed -> accepted, or proposed -> rejected (with the reason).
 
+Accepting or rejecting needs gate G2 approved (fin.diligence.gates): E801 otherwise.
+
 Every adjustment proposed or decided is appended to the audit table `diligence_events`.
 """
 
@@ -21,6 +23,7 @@ from fin.audit.logger import Run
 from fin.config import load_config
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
+from fin.diligence import gates
 from fin.diligence.engagement import company_database, record_event, require_open, rupees
 from fin.map.dictionary import load_accounts
 
@@ -143,11 +146,13 @@ def propose(
 def decide(
     run: Run, company: str, ids: list[int], status: str, reason: str | None = None
 ) -> list[dict[str, Any]]:
-    """Accept or reject proposed adjustments, all or none. E805 for an unknown id or one that is
-    not proposed."""
+    """Accept or reject proposed adjustments, all or none. E801 unless gate G2 (and G1 before it)
+    is approved; E805 for an unknown id or one that is not proposed."""
     ids = list(dict.fromkeys(ids))
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
+        command = f"fin adjust {'accept' if status == 'accepted' else 'reject'}"
+        gates.require(gates.context(con, run.root, company), "G2", command)
         for row in [_get(con, engagement, company, adj_id) for adj_id in ids]:
             if row["status"] != "proposed":
                 raise DiligenceChangeRefused(
