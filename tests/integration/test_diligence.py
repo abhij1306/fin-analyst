@@ -164,6 +164,30 @@ def test_manual_query_and_withdrawal(root: Path) -> None:
     assert fin("query", "list", "bluepeak", "--status", "draft").stdout == "no queries\n"
 
 
+@pytest.mark.parametrize(
+    ("args", "problem"),
+    [
+        (("--finding", "2", "--amount", "100"), "--finding takes the amount, period, scope"),
+        (("--amount", "100", "--period", "FY25"), "give --finding, or --amount, --period and"),
+        (
+            ("--amount", "1e30", "--period", "FY25", "--source", "x.xlsx S!A1"),
+            "'1e30' is too large for an amount in rupees (below 10^18)",
+        ),
+    ],
+)
+def test_query_raise_options_are_usage_errors(
+    root: Path, audit_query: Any, args: tuple[str, ...], problem: str
+) -> None:
+    assert fin("engagement", "open", "bluepeak", "--periods", "FY25").exit_code == 0
+
+    result = fin("query", "raise", "bluepeak", "--question", "Why?", *args)
+
+    assert result.exit_code == 2
+    assert problem in " ".join(result.stderr.replace("│", " ").split())  # rich may box and wrap it
+    assert fin("query", "list", "bluepeak").stdout == "no queries\n"
+    assert audit_query("SELECT count(*) FROM events WHERE message LIKE 'unexpected%'") == [(0,)]
+
+
 def test_adjustments_need_evidence_and_are_accepted_or_rejected(
     root: Path, audit_query: Any
 ) -> None:

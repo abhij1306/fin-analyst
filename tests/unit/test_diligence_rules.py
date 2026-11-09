@@ -37,6 +37,17 @@ def test_amounts_that_would_be_rounded_or_are_not_numbers_are_refused(text: str)
         parse_rupees(text)
 
 
+@pytest.mark.parametrize("text", ["1e30", "123456789012345678901", "-1000000000000000000"])
+def test_amounts_too_large_for_the_database_are_refused(text: str) -> None:
+    with pytest.raises(ValueError) as caught:
+        parse_rupees(text)
+    assert str(caught.value) == f"{text!r} is too large for an amount in rupees (below 10^18)"
+
+
+def test_the_largest_amount_is_accepted() -> None:
+    assert parse_rupees("999999999999999999.99") == Decimal("999999999999999999.99")
+
+
 def test_amounts_display_with_sign_before_the_rupee() -> None:
     assert rupees(Decimal("-35000000.00")) == "-₹35,000,000.00"
     assert rupees(Decimal("1250.5")) == "₹1,250.5"

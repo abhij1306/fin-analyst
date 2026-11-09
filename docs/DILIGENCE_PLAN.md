@@ -40,8 +40,11 @@ They are in `CLAUDE.md`, "Diligence".
      changed.
 2. **Gates stop the build.** Commands behind a gate refuse (E801, exit 3) until the user approves it. Claude
    prepares a gate and shows `fin gate status`, but never approves one: a PreToolUse hook
-   (`.claude/hooks/gate_guard.py`) makes Claude Code ask the user before any `fin gate approve`. All other commands
-   run without prompts and are recorded in the audit log.
+   (`.claude/hooks/gate_guard.py`) makes Claude Code ask the user before any command that looks like a gate
+   approval (the word `gate` followed by `approve`, or a name such as `gate_approvals` or `gates.approve`, after
+   removing quotes and line breaks; when in doubt it asks). The diligence tables change only through `fin
+   engagement|query|adjust|gate`: `fin sql --write` refuses to write them (E806), so it cannot write gate
+   approvals. All other commands run without prompts and are recorded in the audit log.
 3. **Queries are drafted, never sent.** Claude drafts the wording, the user approves it, and the user sends it and
    marks it `sent`. fin never sends anything. (The Excel/Word letter export is D8.)
 
@@ -104,7 +107,7 @@ to a reconciliation or a contract once those exist.
 
 | Gate | Checklist fin evaluates | Unlocks | Status |
 |---|---|---|---|
-| G1 Data | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. D2 adds: a trial balance per period, every ledger mapped, TB ties to the statements (differences become queries) | approving G2 | **Built** (statement checks) |
+| G1 Data | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it. D2 adds: a trial balance per period, every ledger mapped, TB ties to the statements (differences become queries) | approving G2 | **Built** (statement checks) |
 | G2 Queries | No query in draft. A new or reworded query reopens it; sending, answering, closing or withdrawing one does not. D4–D5 add: every required reconciliation ran, every difference above the threshold has a query | `fin adjust accept\|reject` | **Built** |
 | G3 Recast | Every contract above the threshold has a schedule; recast differences have proposed adjustments | adjustments | Planned (D6) |
 | G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |
@@ -130,7 +133,8 @@ changed, with what changed, or an earlier gate not approved), `open` (never appr
 Error codes (README "Error codes"): E801 a gate the command needs is not approved; E802 a gate cannot be approved
 (checklist fails, or an earlier gate is not approved); E803 no open engagement, or one already open; E804 an
 adjustment is not valid (no evidence, category not in config, period not in the engagement, unknown account); E805
-an unknown query, adjustment or finding id, or a status change not allowed.
+an unknown query, adjustment or finding id, or a status change not allowed; E806 `fin sql --write` given a statement
+that writes to a diligence table.
 
 **Planned:**
 
@@ -142,7 +146,7 @@ an unknown query, adjustment or finding id, or a status change not allowed.
 | `fin query export <co>` (the letter) | D8 |
 | `fin report <co> --diligence` | D7 |
 
-New error codes start at E806 (e.g. an unknown column profile, a file period outside the engagement).
+New error codes start at E807 (e.g. an unknown column profile, a file period outside the engagement).
 
 ## 7. Phases
 

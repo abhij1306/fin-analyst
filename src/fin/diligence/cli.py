@@ -251,18 +251,20 @@ def query_raise(
     """Raise a draft query: from a finding (its period, scope, difference and sources; the finding
     is not changed), or with --amount, --period and --source."""
 
+    # Usage errors, before the run starts (like the option callbacks).
+    if finding is not None and any(value is not None for value in (amount, period, scope, source)):
+        raise typer.BadParameter(
+            "--finding takes the amount, period, scope and sources from the finding; "
+            "do not give them too"
+        )
+    if finding is None and (amount is None or period is None or source is None):
+        raise typer.BadParameter("give --finding, or --amount, --period and --source")
+
     def body(run: Run) -> None:
-        manual = (amount, period, scope, source)
         if finding is not None:
-            if any(value is not None for value in manual):
-                raise typer.BadParameter(
-                    "--finding takes the amount, period, scope and sources from the finding; "
-                    "do not give them too"
-                )
             row = queries.raise_from_finding(run, company, finding, question)
         else:
-            if amount is None or period is None or source is None:
-                raise typer.BadParameter("give --finding, or --amount, --period and --source")
+            assert amount is not None and period is not None and source is not None
             row = queries.raise_manual(
                 run,
                 company,

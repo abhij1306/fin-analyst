@@ -27,7 +27,9 @@ Rules for diligence work (`fin engagement`, `fin query`, `fin adjust`, `fin gate
 - Gates stop the build: a command that needs a gate that is not approved refuses (E801), and a gate reopens on its
   own when the data under it changes. You prepare a gate: run `fin gate status <co>`, fix what its checklist says
   through the usual commands, and show the user the result. Only the user approves a gate: never run
-  `fin gate approve` unless the user says so; a hook asks the user before it runs.
+  `fin gate approve` unless the user says so; a hook asks the user before any command that looks like a gate
+  approval. The diligence tables change only through `fin engagement|query|adjust|gate`: `fin sql --write` refuses
+  to write them (E806).
 
 ## Customising
 

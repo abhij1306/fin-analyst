@@ -140,9 +140,12 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   The same figures are the views `adjusted_ebitda`, `ebitda_bridge` and `ebitda_to_cash`, queryable with `fin sql`.
 - Gates: checkpoints you approve, in order. fin checks each one's checklist; Claude prepares a gate and shows you
   `fin gate status <company>` (each gate's state, its checklist lines and what it unlocks), and only you approve it
-  (`fin gate approve <company> <gate>`; when Claude runs it, Claude Code asks you first). An approved gate reopens
-  on its own when the data under it changes, and you approve it again.
-  - **G1 Data:** every year in scope has a loaded document, no held documents, no mappings waiting for review.
+  (`fin gate approve <company> <gate>`). A Claude Code hook asks you before any command Claude runs that looks like
+  a gate approval, and `fin sql --write` cannot write gate approvals, queries, adjustments or the engagement
+  (E806): they change only through `fin engagement|query|adjust|gate`. An approved gate reopens on its own when the
+  data under it changes, and you approve it again.
+  - **G1 Data:** every year in scope has a loaded document, no held documents, no mappings waiting for review. A
+    changed figure (for example a fix with `fin sql --write`) reopens it.
   - **G2 Queries:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
     approved query does not. Needed by `fin adjust accept|reject`.
   - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
@@ -240,5 +243,6 @@ confirm. Every run is logged in `~/FinAnalysis/logs/<date>/<run_id>.jsonl`.
 | E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
 | E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, or an unknown account | Nothing changed. Add the evidence or correct the value and run again |
 | E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |
+| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate` |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

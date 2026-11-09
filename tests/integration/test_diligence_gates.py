@@ -145,6 +145,86 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
     ]
 
 
+def test_a_changed_figure_reopens_g1(root: Path) -> None:
+    propose("-500000")
+    assert fin("findings", "accept", "bluepeak", "1", "2", "3", "4").exit_code == 0
+    assert fin("gate", "approve", "bluepeak", "G1").exit_code == 0
+    assert fin("gate", "approve", "bluepeak", "G2").exit_code == 0
+
+    fixed = fin(
+        "sql", "bluepeak", "--write", "--sql",
+        "UPDATE facts SET value = value + 5000000 WHERE account = 'depreciation' "
+        "AND period = 'FY25'",
+    )  # fmt: skip
+    assert fixed.exit_code == 0, fixed.output
+
+    status = json.loads(fin("gate", "status", "bluepeak", "--json").stdout)
+    assert [(g["gate"], g["state"], g["reason"]) for g in status["gates"]] == [
+        ("G1", "reopened", "changed since it was approved: figures"),
+        ("G2", "reopened", "G1 is not approved"),
+        ("G4", "open", None),
+    ]
+    refused = fin("adjust", "accept", "bluepeak", "1")
+    assert refused.exit_code == 3
+    assert refused.stderr.startswith(
+        "E801: `fin adjust accept` needs gate G2 (Queries) approved; gate G1 (Data) before it is "
+        "reopened (changed since it was approved: figures). Nothing changed. See `fin gate "
+        "status bluepeak`\n"
+    )
+
+
+DILIGENCE_ROWS = (
+    "SELECT (SELECT count(*) FROM gate_approvals) AS approvals, "
+    "(SELECT string_agg(status, ',') FROM adjustments) AS adjustments, "
+    "(SELECT string_agg(status, ',') FROM accountant_queries) AS queries"
+)
+UNCHANGED = [{"approvals": 0, "adjustments": "proposed", "queries": "draft"}]
+
+
+@pytest.mark.parametrize(
+    ("sql", "found"),
+    [
+        (
+            "INSERT INTO gate_approvals (engagement_id, gate, input_hash, input_hashes, "
+            "checklist, approved_run_id, approved_at) "
+            "VALUES (1, 'G2', 'h', '{}', '[]', 'x', now())",
+            "gate_approvals",
+        ),
+        ("UPDATE adjustments SET status = 'accepted'", "adjustments"),
+        (
+            "UPDATE facts SET value = 0.01; DELETE FROM main.Accountant_Queries",
+            "accountant_queries",
+        ),
+    ],
+)
+def test_sql_write_refuses_the_diligence_tables(
+    root: Path, audit_query: Any, sql: str, found: str
+) -> None:
+    propose("-500000")
+    raised = fin(
+        "query", "raise", "bluepeak", "--amount", "250000", "--period", "FY25",
+        "--source", "ledger.xlsx Sales!D40", "--question", "What is this credit?",
+    )  # fmt: skip
+    assert raised.exit_code == 0, raised.output
+    assert json.loads(fin("sql", "bluepeak", "--sql", DILIGENCE_ROWS).stdout)["rows"] == UNCHANGED
+    ones = "SELECT count(*) AS ones FROM facts WHERE value = 0.01"
+    assert json.loads(fin("sql", "bluepeak", "--sql", ones).stdout)["rows"] == [{"ones": 0}]
+
+    result = fin("sql", "bluepeak", "--write", "--sql", sql)
+
+    assert result.exit_code == 2
+    assert result.stderr.startswith(
+        f"E806: `fin sql --write` does not change the diligence tables (found: {found}); use "
+        "`fin engagement`, `fin query`, `fin adjust` or `fin gate`. Nothing was run\n"
+    )
+    assert json.loads(fin("sql", "bluepeak", "--sql", DILIGENCE_ROWS).stdout)["rows"] == UNCHANGED
+    assert json.loads(fin("sql", "bluepeak", "--sql", ones).stdout)["rows"] == [{"ones": 0}]
+    assert audit_query("SELECT mode, row_count, backup_path FROM queries WHERE sql = ?", [sql]) == [
+        ("write", None, None)
+    ]
+    assert audit_query("SELECT error_code FROM events WHERE error_code = 'E806'") == [("E806",)]
+
+
 def test_unknown_gate_is_a_usage_error(root: Path) -> None:
     result = fin("gate", "approve", "bluepeak", "G3")
 

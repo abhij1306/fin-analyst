@@ -15,7 +15,10 @@ E801 until it is approved (`require`), checked in the same transaction as their 
 
 Gates in this build (docs/DILIGENCE_BUILD.md); G3 (recast) and G5 (report) come later:
     G1 Data         every annual period in scope has a loaded document with figures for it, no
-                    held documents, no mapping items waiting for review;
+                    held documents, no mapping items waiting for review. Its inputs are the
+                    periods, the documents, the mapping items and the figures (every
+                    current_facts value by account, period and scope), so a changed figure
+                    (`fin sql --write` on facts, a review that maps a line) reopens it;
     G2 Queries      no query in draft: every query's wording is reviewed. Its inputs are each
                     query's id, wording and whether it is a draft, so a new or edited query
                     reopens it; sending, answering, closing or withdrawing an approved one does
@@ -129,6 +132,11 @@ def _data_inputs(ctx: Context) -> dict[str, Any]:
     return {
         "periods": _periods(ctx),
         "documents": _rows(ctx, "SELECT doc_id, sha256, status FROM documents ORDER BY doc_id"),
+        "figures": _rows(
+            ctx,
+            "SELECT account, period, scope, value FROM current_facts "
+            "ORDER BY account, period, scope",
+        ),
         "mapping items": sorted(
             [item["id"], item["status"], item["statement"], item["section"], item["label"]]
             for item in ctx.pending
