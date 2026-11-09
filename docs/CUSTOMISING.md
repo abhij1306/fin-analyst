@@ -8,7 +8,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 - `cli.py`: the `fin` commands (Typer). Each runs through the audit logger.
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
-- `audit/errors.py`: error classes and codes (E001 to E805). `audit/logger.py`: run records and logging.
+- `audit/errors.py`: error classes and codes (E001 to E806). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
   database from its schema file.
@@ -30,8 +30,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   open|status|close`, the open-engagement check (E803), and `record_event`, which appends every change to the audit
   table `diligence_events`), `queries.py` (accountant queries and their status flow, `TRANSITIONS`),
   `adjustments.py` (adjustments to EBITDA with evidence, E804), `bridge.py` (`fin engagement bridge`: reads and
-  formats the EBITDA bridge and EBITDA-to-cash walk views), `cli.py` (the `fin engagement`, `fin query` and
-  `fin adjust` Typer groups). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
+  formats the EBITDA bridge and EBITDA-to-cash walk views), `gates.py` (`fin gate status|approve`: the `GATES`
+  registry with each gate's checklist and inputs, the approved/reopened/open states, `require` (E801) and
+  approval (E802)), `cli.py` (the `fin engagement`, `fin query`, `fin adjust` and `fin gate` Typer groups). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
@@ -39,7 +40,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   coverage, unread pages and unverified facts to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
 - `statements.py`: the `standard_statements` view (made per connection from the dictionary's account tree) and
   `fin statements`. `workbook.py`: `fin export` (the Excel workbook).
-- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`), `evidence.py` (`fin sql --evidence` pages).
+- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806), `evidence.py` (`fin sql --evidence` pages).
 - `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
   Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).

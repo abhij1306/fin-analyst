@@ -25,7 +25,7 @@ def test_every_plan_code_has_one_error_class_and_its_exit_code() -> None:
         "E601": 2, "E602": 2, "E603": 2, "E604": 1,
         "E701": 3,
         "E801": 3, "E802": 3,
-        "E803": 2, "E804": 2, "E805": 2,
+        "E803": 2, "E804": 2, "E805": 2, "E806": 2,
     }  # fmt: skip
     codes = [cls.code for cls in _subclasses(errors.FinError) if cls.code]
     assert len(codes) == len(set(codes))

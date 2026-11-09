@@ -13,8 +13,9 @@ a command returns when the error ends it:
 - E701 (action needs user confirmation; the CLI refused without it): exit 3.
 - E801-E802 (diligence gates: a command needs a gate that is not approved, or a gate cannot be
   approved yet) are refusals: exit 3.
-- E803-E805 (diligence: no open engagement or one already open, an invalid adjustment, an unknown
-  id or a status change not allowed) stop the command: exit 2.
+- E803-E806 (diligence: no open engagement or one already open, an invalid adjustment, an unknown
+  id or a status change not allowed, `fin sql --write` on a diligence table) stop the command:
+  exit 2.
 """
 
 # Exit codes
@@ -215,7 +216,7 @@ class GuardBlocked(FinError):
     exit_code = EXIT_BLOCKED
 
 
-# E8xx: diligence (fin.diligence). E801-E802 (gates) refuse: exit 3. E803-E805 stop the command.
+# E8xx: diligence (fin.diligence). E801-E802 (gates) refuse: exit 3. E803-E806 stop the command.
 
 
 class GateNotApproved(FinError):
@@ -254,3 +255,11 @@ class DiligenceChangeRefused(FinError):
     approving a query that is not a draft). Nothing changed."""
 
     code = "E805"
+
+
+class DiligenceTableWrite(FinError):
+    """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
+    accountant_queries, adjustments, gate_approvals): those change only through `fin engagement`,
+    `fin query`, `fin adjust` and `fin gate`. Nothing was run."""
+
+    code = "E806"

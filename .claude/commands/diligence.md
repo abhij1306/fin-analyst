@@ -57,13 +57,15 @@ fixed; you draft and propose, the user decides; fin never sends anything.
 9. **Gates.** Gates are approved in order, by the user only: G1 Data (every period in scope has a loaded document,
    no held documents, no mappings waiting for review), G2 Queries (no query in draft; unlocks `fin adjust
    accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence; unlocks
-   `fin engagement close`). A gate reopens on its own when the data under it changes.
+   `fin engagement close`). A gate reopens on its own when the data under it changes (G1 also when a figure
+   changes).
    - Run `uv run fin gate status <company>` and show each gate's state, its checklist lines and what it unlocks.
    - Fix what a failing line says through the usual commands: held documents and mappings through `/ingest` and
      `/review` (the user decides findings and mappings), drafts through step 3, proposed adjustments through
      step 7. Run `fin gate status` again.
    - When the checklist passes, ask the user to approve the gate. Run `uv run fin gate approve <company> <gate>`
-     only when the user says so; a hook asks the user to confirm it. E802 means the checklist fails or an earlier
+     only when the user says so; a hook asks the user before any command that looks like a gate approval, and
+     `fin sql --write` cannot write gate approvals (E806). E802 means the checklist fails or an earlier
      gate is not approved: show the failing lines.
    - A command refused with E801 names the gate and its state (open or reopened, and what changed): show it and
      go back to `fin gate status`.
@@ -71,4 +73,4 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    own. Never change the company's data to make a difference go away; fixing fin's own reading (a wrong mapping, a
    misread figure) is still done through `/ingest` and `/review`. If a command fails (E801 a gate not approved, E802
    a gate not ready, E803 no open engagement, E804 an adjustment that is not valid, E805 an unknown id or a status
-   change not allowed), report the error code and run_id and stop.
+   change not allowed, E806 `fin sql --write` on a diligence table), report the error code and run_id and stop.

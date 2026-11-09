@@ -159,7 +159,8 @@ line not mapped is 0 only when CFO equals cash generated from operations). `fin 
 [--scope] [--json]` shows them (money in the documents' unit as `fin statements`; JSON in rupees); E803 when the
 company has no engagement. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): G1 Data
 (every annual period in scope has a loaded document with figures for it, no held documents, no mapping items
-waiting for review), G2 Queries (no query in draft; its inputs are each query's id, wording and whether it is a draft, so a new or
+waiting for review; its inputs include the figures, every `current_facts` value by account, period and scope, so a
+changed figure reopens it), G2 Queries (no query in draft; its inputs are each query's id, wording and whether it is a draft, so a new or
 edited query reopens it and sending, answering or closing one does not; unlocks `fin adjust accept|reject`), G4 Adjustments (no
 proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 and G5 come later.
 `fin gate approve <co> <gate>` appends a row to `gate_approvals` (company database) with the sha256 of the gate's
@@ -168,7 +169,10 @@ is not approved. A gate is approved while its inputs still hash to the latest ap
 approved, reopened when they changed (`fin gate status` says which input), open when never approved. A command whose
 gate is not approved refuses (E801, exit 3), checked in the same transaction as its change. `fin status` shows an
 open engagement's queries by status, proposed adjustments and gate states. Only the user approves a gate: the
-PreToolUse hook `gate_guard.py` asks the user before any Bash command running `fin gate approve`.
+PreToolUse hook `gate_guard.py` asks the user before any Bash command that looks like a gate approval (§8). The
+diligence tables (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`) change only through `fin
+engagement|query|adjust|gate`: `fin sql --write` refuses any statement other than a SELECT that names one (E806,
+exit 2; nothing is run, the refusal is logged in `queries`).
 
 ---
 
@@ -335,8 +339,11 @@ Every `fin` command:
 
 - `PostToolUse` hook (`log_action.py`): every tool call → `logs/claude_actions.jsonl` (timestamp, session id, tool, command).
 - One approval prompt: the `PreToolUse` hook `gate_guard.py` (matcher `Bash`) asks the user before any command
-  running `fin gate approve`, since only the user approves a diligence gate. It prints nothing for any other command
-  or for input it cannot read, so it never blocks anything else. Every other data change goes through `fin`, which
+  that looks like a gate approval, since only the user approves a diligence gate. It normalises the command (quotes
+  and backslashes removed, whitespace collapsed, lower case) and asks when it has the word `gate` followed later by
+  `approve`, or names `gate_approvals`, `approve_in`, `gates.approve` or `from fin.diligence.gates import`; when in
+  doubt it asks. It prints nothing for any other command or for input it cannot read, so it never blocks anything
+  else. `fin sql --write` cannot write gate approvals (E806, below). Every other data change goes through `fin`, which
   backs up and records it, without a prompt (the general guard hook was removed on 2026-11-07).
 
 **Traceability**

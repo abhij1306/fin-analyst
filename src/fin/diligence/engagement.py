@@ -52,14 +52,24 @@ def parse_periods(text: str) -> list[str]:
     return sorted(periods)
 
 
+AMOUNT_LIMIT = Decimal(10) ** 18  # adjustments.amount is DECIMAL(20,2)
+
+
 def parse_rupees(text: str) -> Decimal:
-    """An exact amount in rupees with at most two decimals, e.g. '-350000' or '1250.50'. Raises
-    ValueError otherwise (nothing is rounded)."""
+    """An exact amount in rupees with at most two decimals and less than 10^18 in size (what a
+    DECIMAL(20,2) column holds), e.g. '-350000' or '1250.50'. Raises ValueError otherwise
+    (nothing is rounded)."""
     try:
         amount = Decimal(text.strip())
     except InvalidOperation as exc:
         raise ValueError(f"{text!r} is not an amount in rupees (e.g. 350000 or -1250.50)") from exc
-    if not amount.is_finite() or amount != amount.quantize(Decimal("0.01")):
+    if amount.is_finite() and abs(amount) >= AMOUNT_LIMIT:
+        raise ValueError(f"{text!r} is too large for an amount in rupees (below 10^18)")
+    try:
+        exact = amount.is_finite() and amount == amount.quantize(Decimal("0.01"))
+    except InvalidOperation:
+        exact = False
+    if not exact:
         raise ValueError(f"{text!r} is not an amount in rupees with at most two decimals")
     return amount
 

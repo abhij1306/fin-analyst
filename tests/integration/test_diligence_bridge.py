@@ -176,6 +176,38 @@ def test_walk_lands_on_cfo(engaged: Path) -> None:
         assert total == D(row["cfo"]), row["period"]
 
 
+def test_walk_shows_non_cash_and_other_operating_lines(engaged: Path) -> None:
+    # FY25: operating profit before working capital changes 20 lakh above EBITDA (non-cash and
+    # other), and CFO 15 lakh above cash generated less taxes (another line between them).
+    standalone = "period = 'FY25' AND scope = 'standalone'"
+    execute(
+        engaged,
+        f"UPDATE facts SET value = value + 2000000 WHERE {standalone} "
+        "AND account = 'cf_op_profit_before_wc'",
+    )
+    execute(
+        engaged,
+        f"UPDATE facts SET value = value + 1500000 WHERE {standalone} AND account = 'cfo'",
+    )
+
+    fy25 = walk(bridge_json(), "FY25")
+
+    assert fy25 == {
+        "ebitda": "241367000.00",
+        "non_cash_and_other": "2000000.00",
+        "working_capital_change": "-96955000.00",
+        "taxes_paid": "-43406000.00",
+        "other_operating": "1500000.00",
+        "cfo": "104506000.00",
+        "capex": "-67046000.00",
+        "free_cash_flow": "37460000.00",
+        "cash_conversion": "0.432976",
+        "adjusted_cash_conversion": "0.426351",
+    }
+    lines = ("ebitda", "non_cash_and_other", "working_capital_change", "taxes_paid")
+    assert sum(D(fy25[name]) for name in (*lines, "other_operating")) == D("104506000.00")
+
+
 def test_bridge_text_in_the_document_unit(engaged: Path) -> None:
     result = fin("engagement", "bridge", "kestrel", "--period", "FY25")
 

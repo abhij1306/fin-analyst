@@ -161,6 +161,22 @@ def test_a_gate_reopens_when_its_data_changes(
     assert states(ctx(con))[0] == ("G1", "reopened", "changed since it was approved: documents")
 
 
+def test_g1_reopens_when_a_figure_changes(con: duckdb.DuckDBPyConnection, tmp_path: Path) -> None:
+    run = Run("gate approve", {}, tmp_path)
+    con.execute("UPDATE documents SET status = 'loaded' WHERE doc_id = 2")
+    con.execute("UPDATE facts SET account = 'revenue'")
+    approve_in(run, ctx(con), "G1")
+    approve_in(run, ctx(con), "G2")
+
+    con.execute("UPDATE facts SET value = 2 WHERE doc_id = 1")
+
+    assert states(ctx(con)) == [
+        ("G1", "reopened", "changed since it was approved: figures"),
+        ("G2", "reopened", "G1 is not approved"),
+        ("G4", "open", None),
+    ]
+
+
 def test_g2_stays_approved_as_an_approved_query_moves_on_and_reopens_when_reworded(
     con: duckdb.DuckDBPyConnection, tmp_path: Path
 ) -> None:
