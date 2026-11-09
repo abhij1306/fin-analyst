@@ -14,6 +14,18 @@ Local financial health analysis tool. Ingests company financial documents into D
 - Report narrative: describe, don't judge. No recommendations, ratings, or buy/don't-buy language. Numbers in narrative only as inline references, never typed.
 - If a command fails, report the error code and run_id. Don't work around a failure.
 
+## Diligence
+
+Rules for diligence work (`fin engagement`, `fin query`, `fin adjust`; `/diligence`; `docs/DILIGENCE_PLAN.md`):
+
+- Differences in diligence data are queried, never fixed. A difference is the company's: raise a query
+  (`fin query raise`) or propose an adjustment with evidence (`fin adjust propose`); never change the data to make it
+  tie. Fixing fin's own reading errors (a wrong mapping, a misread figure) is still fine.
+- Queries: you draft them; the user approves them. fin never sends anything: run `fin query sent` only when the user
+  says they sent it. Approve, close, withdraw, and accept or reject adjustments only when the user says so.
+- Gates stop the build: a command that needs an unapproved gate refuses. Only the user approves a gate; never run
+  `fin gate approve` yourself.
+
 ## Customising
 
 This app is meant to be modified with Claude Code. Keep modules small and readable, and update `PLAN.md` with every change that changes behaviour (`CHANGELOG.md` is written at release). How to add an account, metric, validation gate or report section, how the schema and tests work, and the module map: `docs/CUSTOMISING.md`.

@@ -23,6 +23,7 @@ from fin.dashboard import build as build_dashboard
 from fin.dashboard import serve as serve_dashboard
 from fin.db.schema import ensure_database
 from fin.delete import delete_company
+from fin.diligence.cli import adjust_app, engagement_app, query_app
 from fin.doctor import Check, run_checks
 from fin.findings import accept, format_finding, list_findings
 from fin.ingest import files_in, ingest_file
@@ -55,6 +56,9 @@ app = typer.Typer(
 )
 app.add_typer(map_app, name="map")
 app.add_typer(review_app, name="review")
+app.add_typer(engagement_app, name="engagement")
+app.add_typer(query_app, name="query")
+app.add_typer(adjust_app, name="adjust")
 
 
 def _version_callback(value: bool) -> None:

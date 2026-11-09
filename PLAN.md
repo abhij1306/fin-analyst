@@ -135,6 +135,22 @@ parser"). A page whose figures look misread (a row label holding a figure, a fig
 not read (E204), and so is an untitled page carrying on a page that was not read. Standalone and consolidated
 columns printed side by side are not read (E202).
 
+Diligence (D1) (after 1.0.0, not a phase; plan: [docs/DILIGENCE_PLAN.md](docs/DILIGENCE_PLAN.md), build tracker:
+[docs/DILIGENCE_BUILD.md](docs/DILIGENCE_BUILD.md)): a diligence engagement on one company, beside the statement
+layer, which is unchanged. New tables in each company database (`db/schema/diligence.sql`, run after
+`company_views.sql`; greenfield, no migrations): `engagement` (annual periods in scope, query threshold, open or
+closed; at most one open), `accountant_queries` (draft → approved → sent → answered → closed, or withdrawn before
+closed; raised from a finding, copying its period, scope, difference and sources without changing it, or by hand)
+and `adjustments` (signed effect on EBITDA in rupees for a period of the engagement, a scope and a category from
+`config.toml [diligence] adjustment_categories`, an optional dictionary account, and evidence: a query, a finding or
+a source reference; proposed → accepted or rejected). Every row added and every status change is appended to the
+audit table `diligence_events`. `config.toml` gets a required `[diligence]` table (`query_threshold`, default
+100000.00 rupees; `adjustment_categories`). Commands: `fin engagement open|status|close`, `fin query
+list|raise|edit|approve|sent|answer|close|withdraw`, `fin adjust propose|list|accept|reject`; every one but
+`engagement open` needs an open engagement (E803); an invalid adjustment is E804; an unknown id or a status change
+not allowed is E805. fin never sends a query: `fin query sent` records that the user sent it. Rules in `CLAUDE.md`
+("Diligence") and `/diligence`. The EBITDA bridge and gates follow in the next PRs.
+
 ---
 
 ## 1. What it does
@@ -293,6 +309,7 @@ Every `fin` command:
 | `queries` | query_id, question, SQL, row count, result hash, evidence path |
 | `reports` | company, output paths, template commit, data hash, narrative path |
 | `deletions` | company, files removed, row counts, backup path, timestamp |
+| `diligence_events` | every engagement, accountant query and adjustment added, and every status change: kind, id, status, the row as JSON |
 
 **Claude Code actions**
 
@@ -375,6 +392,11 @@ claude
 | `fin audit <co> [metric period \| --fact id]` | `/audit` | Either |
 | `fin delete <co> [--yes]` | — | Either (typed confirmation, or `--yes` when the user asked) |
 | `fin update` | — | Human |
+| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold]`, `fin engagement status\|close <co>` | `/diligence` | Either |
+| `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
+| `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
+| `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
+| `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says) |
 
 Metrics are views in each company database; `shared/analytics.duckdb` is rebuilt after every ingest, data change
 and update.

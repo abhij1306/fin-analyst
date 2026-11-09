@@ -11,6 +11,8 @@ a command returns when the error ends it:
 - E401-E405 are not errors: they are the codes of validation checks whose failures are findings
   (`fin.findings`), shown to the user; the document is held, not rejected.
 - E701 (action needs user confirmation; the CLI refused without it): exit 3.
+- E803-E805 (diligence: no open engagement or one already open, an invalid adjustment, an unknown
+  id or a status change not allowed) stop the command: exit 2. E801-E802 are reserved for gates.
 """
 
 # Exit codes
@@ -209,3 +211,28 @@ class GuardBlocked(FinError):
 
     code = "E701"
     exit_code = EXIT_BLOCKED
+
+
+# E8xx: diligence (fin.diligence). E801 and E802 are reserved for gates. Stop the command.
+
+
+class EngagementState(FinError):
+    """E803. The company has no open engagement (every diligence command but `fin engagement open`
+    needs one), or `fin engagement open` found one already open. Nothing changed."""
+
+    code = "E803"
+
+
+class AdjustmentInvalid(FinError):
+    """E804. An adjustment cannot be proposed: no evidence (query, finding or source), a category
+    not in config.toml [diligence], a period not in the engagement, or an account not in the
+    dictionary. Nothing changed."""
+
+    code = "E804"
+
+
+class DiligenceChangeRefused(FinError):
+    """E805. An unknown query, adjustment or finding id, or a status change not allowed (for example
+    approving a query that is not a draft). Nothing changed."""
+
+    code = "E805"

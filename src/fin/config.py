@@ -1,4 +1,4 @@
-"""`config.toml` in the data folder: tolerances, display unit, defaults (PLAN.md §6, §9).
+"""`config.toml` in the data folder: tolerances, display unit, defaults, diligence (PLAN.md §6, §9).
 
 `fin init` writes `DEFAULT_CONFIG_TOML` once and never overwrites it. After that the file is the
 only source of these values: `load_config` reads it strictly and raises a coded error when it is
@@ -50,6 +50,14 @@ subtotal = 100000.00
 cash_flow = 100000.00
 cross_document = 100000.00
 
+[diligence]
+# Accountant queries: a difference at or above this many rupees becomes a query.
+query_threshold = 100000.00
+# Categories an adjustment may have.
+adjustment_categories = [
+    "management", "normalisation", "reclassification", "run_rate", "pro_forma", "recast", "error",
+]
+
 [pdf]
 # Docling, the optional PDF add-on: reads the statement pages pdfplumber cannot (and scanned results
 # filings). `./install.sh --docling` installs it and sets this to true; `--no-docling` sets false.
@@ -63,6 +71,8 @@ class Config:
     default_scope: str
     fiscal_year_start_month: int
     tolerances: dict[str, Decimal]
+    query_threshold: Decimal  # [diligence]: a difference at or above it becomes a query
+    adjustment_categories: tuple[str, ...]  # [diligence]: the categories an adjustment may have
     docling: bool = False  # [pdf] docling: run the Docling fallback on pages pdfplumber skips
 
 
@@ -156,7 +166,7 @@ def _choice(
 def _parse(data: dict[str, Any], path: Path) -> Config:
     # [pdf] is optional: a config.toml written before the Docling add-on has none, and the add-on
     # is opt-in, so no table means "not opted in".
-    tables = ("config_version", "display", "defaults", "tolerances")
+    tables = ("config_version", "display", "defaults", "tolerances", "diligence")
     _keys(data, (*tables, "pdf") if "pdf" in data else tables, "the file", path)
     pdf = _table(data, "pdf", path) if "pdf" in data else {"docling": False}
     version = data["config_version"]
@@ -180,19 +190,25 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
 
     table = _table(data, "tolerances", path)
     _keys(table, TOLERANCE_CHECKS, "[tolerances]", path)
-    tolerances: dict[str, Decimal] = {}
-    for check in TOLERANCE_CHECKS:
-        value = table[check]
-        number = (
-            Decimal(value)
-            if isinstance(value, int | Decimal) and not isinstance(value, bool)
-            else None
+    tolerances = {
+        check: _rupees(table[check], f"tolerances.{check}", path) for check in TOLERANCE_CHECKS
+    }
+
+    diligence = _table(data, "diligence", path)
+    _keys(diligence, ("query_threshold", "adjustment_categories"), "[diligence]", path)
+    threshold = _rupees(diligence["query_threshold"], "diligence.query_threshold", path)
+    categories = diligence["adjustment_categories"]
+    if (
+        not isinstance(categories, list)
+        or not categories
+        or not all(isinstance(c, str) and _CATEGORY.match(c) for c in categories)
+        or len(set(categories)) != len(categories)
+    ):
+        raise _invalid(
+            path,
+            f"diligence.adjustment_categories = {categories!r}; expected a list of distinct "
+            "names in lower-case letters, digits and '_'",
         )
-        if number is None or not number.is_finite() or number < 0:
-            raise _invalid(
-                path, f"tolerances.{check} = {value!r}; expected a number of rupees >= 0"
-            )
-        tolerances[check] = number
 
     _keys(pdf, ("docling",), "[pdf]", path)
     if not isinstance(pdf["docling"], bool):
@@ -203,5 +219,20 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         default_scope=scope,
         fiscal_year_start_month=month,
         tolerances=tolerances,
+        query_threshold=threshold,
+        adjustment_categories=tuple(categories),
         docling=pdf["docling"],
     )
+
+
+_CATEGORY = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _rupees(value: Any, where: str, path: Path) -> Decimal:
+    """A number of rupees >= 0 (an integer or a decimal, not a string or a bool)."""
+    number = (
+        Decimal(value) if isinstance(value, int | Decimal) and not isinstance(value, bool) else None
+    )
+    if number is None or not number.is_finite() or number < 0:
+        raise _invalid(path, f"{where} = {value!r}; expected a number of rupees >= 0")
+    return number
