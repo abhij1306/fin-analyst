@@ -101,13 +101,12 @@ def test_a_page_that_only_mentions_a_statement_is_not_reported(tmp_path: Path) -
     assert unread(path) == []
 
 
-def test_a_titled_statement_with_no_full_row_is_reported(tmp_path: Path) -> None:
-    # Every row of page 2 has a figure under one column only: nothing can be read.
-    half = [(label, fy25, "") for label, fy25, _ in ROWS]
+def test_a_titled_statement_with_no_row_of_figures_is_reported(tmp_path: Path) -> None:
+    labels_only = [(label, "", "") for label, _, _ in ROWS]
     path = write_pdf(
-        tmp_path / "half.pdf",
+        tmp_path / "labels.pdf",
         statement("Statement of Profit and Loss for the year ended 31 March 2025"),
-        statement("Balance Sheet as at 31 March 2025", half),
+        statement("Balance Sheet as at 31 March 2025", labels_only),
     )
 
     assert unread(path) == [
@@ -115,8 +114,82 @@ def test_a_titled_statement_with_no_full_row_is_reported(tmp_path: Path) -> None
             "page": 2,
             "statement": "balance_sheet",
             "code": "E201",
-            "reason": "page 2: titled as a statement, but no line has a figure under every "
-            "period column",
+            "reason": "page 2: titled as a statement, but no line has a figure under a period "
+            "column",
+        }
+    ]
+
+
+def test_a_row_with_no_comparative_loads_the_figure_printed(tmp_path: Path) -> None:
+    page: Page = [
+        (50, 50, "Balance Sheet as at 31 March 2025"),
+        UNIT,
+        *HEADER,
+        (50, 105, "Current assets"),
+        (50, 120, "Right-of-use assets"),
+        (390, 120, "25.00"),  # new this year: nothing printed for 31 March 2024
+        (50, 135, "Inventories"),
+        (390, 135, "178.54"),
+        (480, 135, "150.94"),
+        (50, 150, "Annual Report 2024-25"),
+        (500, 150, "12"),  # a page number, not a figure
+    ]
+    path = write_pdf(tmp_path / "bs.pdf", page)
+
+    result = extract_pdf(path)
+
+    assert [(v.label, v.period, v.raw, v.section) for v in result.values] == [
+        ("Right-of-use assets", "FY25", "25.00", "Current assets"),
+        ("Inventories", "FY25", "178.54", "Current assets"),
+        ("Inventories", "FY24", "150.94", "Current assets"),
+    ]
+    assert result.skipped == []
+
+
+def test_an_integer_row_with_no_comparative_loads_inside_the_table_only(tmp_path: Path) -> None:
+    page: Page = [
+        (50, 50, "Statement of Profit and Loss for the year ended 31 March 2025"),
+        (50, 65, "(Rs. in Crores)"),
+        *HEADER,
+        (50, 105, "Income"),
+        (50, 120, "Other income"),
+        (390, 120, "45"),  # nothing printed for the year before
+        (50, 135, "Revenue from operations"),
+        (390, 135, "900"),
+        (480, 135, "800"),
+        (50, 165, "Annual Report 2024-25"),
+        (480, 165, "12"),  # a page number below the table, under the last column
+    ]
+    path = write_pdf(tmp_path / "pl.pdf", page)
+
+    result = extract_pdf(path)
+
+    assert [(v.label, v.period, v.raw, v.section) for v in result.values] == [
+        ("Other income", "FY25", "45", "Income"),
+        ("Revenue from operations", "FY25", "900", "Income"),
+        ("Revenue from operations", "FY24", "800", "Income"),
+    ]
+    assert result.skipped == []
+
+
+def test_a_figure_that_cannot_be_placed_under_a_column_makes_the_page_unread(
+    tmp_path: Path,
+) -> None:
+    # Page 2's first figure has no label of its own: fin cannot tell what it is, nor take it as
+    # a heading over the rows below.
+    rows = [("", "5.00", ""), *ROWS]
+    path = write_pdf(
+        tmp_path / "bs.pdf",
+        statement("Statement of Profit and Loss for the year ended 31 March 2025"),
+        statement("Balance Sheet as at 31 March 2025", rows),
+    )
+
+    assert unread(path) == [
+        {
+            "page": 2,
+            "statement": "balance_sheet",
+            "code": "E204",
+            "reason": "page 2: the figures of '5.00' cannot be placed under the period columns",
         }
     ]
 

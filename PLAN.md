@@ -83,12 +83,16 @@ unverified Claude-read facts and inbox files not yet ingested.
 
 Unread statement pages (after 1.0.0, not a phase): a primary statement printed in a PDF but not read is never passed
 over in silence. Besides pages skipped for their header or unit (E202/E203), fin reports a titled statement page
-with no row holding a figure under every column, and a page whose title fin does not recognise names a statement
+with no row of figures, and a page whose title fin does not recognise names a statement
 ("balance sheet", "statement of assets and liabilities", "profit and loss", "statement of cash flows", "financial
 results", ...) above five or more figure lines (E201; the title-like line is searched in the top 12 lines, above the
 first figure). Such a page is not taken as the previous statement carried on. Every unread
 page is listed under the file's outcome on screen (`not read: <statement> page N: <code> <reason>`) and, when the
 file fails, as `unread_pages` in its error.json, so `/ingest` can offer a Claude reading of exactly those pages.
+A row with figures under some columns and a blank under others (a new item with no comparative) loads the figures
+printed; a blank is no value. Such a row of plain integers loads only above a full row (inside the table body, not
+a page number or footer below it). A figure fin cannot place under a column (no label of its own, or text across the
+columns) makes the page unread (E204); a line with figures is never taken as a heading.
 
 Chart of accounts (after 1.0.0, not a phase): the seed dictionary covers Schedule III Divisions I, II and III
 (NBFCs), the bank Forms A and B, SEBI Reg 33 results and the indirect cash flow. Lines with no current / non-current
@@ -510,7 +514,7 @@ Done when:
 Build:
 - Bake-off script: pdfplumber vs pdf-inspector on synthetic PDFs + 3–5 real PDFs (local only); score exact-value match; check licenses; record decision and scores in this file
 - PDF extractor with page + bbox
-- Notes and auditor report sections → Markdown in `notes/`
+- Notes and auditor report sections → Markdown in `notes/`, each page's content after a `<!-- page N -->` line
 
 Done when:
 - Winner chosen with scores recorded
