@@ -15,7 +15,7 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 
 | Need | Status | Phase |
 |---|---|---|
-| Audited statements, checks, metrics | Built before diligence: the statement layer | — |
+| Audited statements, checks, metrics | **Built**: the statement layer | — |
 | Proposed adjustments kept separate from reported numbers | **Built** (EBITDA adjustments) | D1 |
 | Accountant queries (Rs 1 lakh threshold, drafted for approval) | **Built**, except the letter export | D1; export D8 |
 | Gates that stop the build for review | **Built**: G1, G2, G4 | D1; G3, G5 with D6, D7 |
@@ -41,7 +41,7 @@ They are in `CLAUDE.md`, "Diligence".
 2. **Gates stop the build.** Commands behind a gate refuse (E801, exit 3) until the user approves it. Claude
    prepares a gate and shows `fin gate status`, but never approves one: a PreToolUse hook
    (`.claude/hooks/gate_guard.py`) makes Claude Code ask the user before any `fin gate approve`. All other commands
-   run without prompts, with the audit log as today.
+   run without prompts and are recorded in the audit log.
 3. **Queries are drafted, never sent.** Claude drafts the wording, the user approves it, and the user sends it and
    marks it `sent`. fin never sends anything. (The Excel/Word letter export is D8.)
 
@@ -137,7 +137,7 @@ an unknown query, adjustment or finding id, or a status change not allowed.
 | CLI | Phase |
 |---|---|
 | `fin ingest <co> <file> --kind trial_balance\|ledger\|sales_register\|purchase_register\|bank\|payroll [--profile]` | D2, D3 |
-| `fin map ledgers <co>` (Tally ledger → account, through the existing review flow) | D2 |
+| `fin map ledgers <co>` (Tally ledger → account, through `fin review`) | D2 |
 | `fin reconcile <co> [name] [--period]`, `fin reconcile match --propose <file.json>` | D4, D5 |
 | `fin query export <co>` (the letter) | D8 |
 | `fin report <co> --diligence` | D7 |
@@ -159,9 +159,8 @@ Engagement, accountant queries, EBITDA adjustments with evidence, `diligence_eve
 `ebitda_bridge`, `ebitda_to_cash` and `fin engagement bridge`; gates G1, G2, G4 with `fin gate`, E801/E802 refusals
 and the approval hook; `fin status` summary; `CLAUDE.md` "Diligence" rules and `/diligence`.
 
-Decided while building: adjustments are effects on EBITDA, so the planned `adjusted_facts` / `adjusted_metrics`
-views (every metric on adjusted facts) were not built. Add them when a metric beyond EBITDA, its margin and cash
-conversion needs adjusting.
+Adjustments are effects on EBITDA, so there are no `adjusted_facts` / `adjusted_metrics` views (every metric on
+adjusted facts). Add them when a metric beyond EBITDA, its margin and cash conversion needs adjusting.
 
 ### D2: Trial balance and Tally ledgers
 - A tabular loader (`fin/extract/ledger.py`) driven by column **profiles** (`templates/profiles/*.toml`: header
@@ -213,7 +212,7 @@ threshold becomes a draft query, and one below it is listed in the "below thresh
 - Normalised working capital (monthly when monthly TBs exist). The EBITDA bridge and EBITDA-to-cash walk are built
   (D1).
 - A diligence report template (`templates/report/diligence.qmd`) and a dashboard page, with the same narrative
-  rules as today: describe, don't judge; numbers only as references.
+  rules as the health report: describe, don't judge; numbers only as references.
 - Gate G5.
 
 **Done when:** the synthetic engagement renders a diligence report whose every number traces to source rows.
@@ -234,11 +233,11 @@ threshold becomes a draft query, and one below it is listed in the "below thresh
 
 **Done when:** synthetic values match a precomputed answer key exactly.
 
-## 8. What stays the same
+## 8. Shared with the statement layer
 
-- The statement layer: ingest, mapping, E401–E405, metrics, reports and dashboards behave as before.
-- Lineage: every number traces to a file + sheet!cell/row or page. `fin audit` extends to query, adjustment and
-  reconciliation ids.
+- Diligence reads the statement layer (ingest, mapping, E401–E405, metrics) and never writes to it.
+- Lineage: every number traces to a file + sheet!cell/row or page. `fin audit` covers query, adjustment and
+  reconciliation ids too (planned).
 - Conventions: run records, error codes, `db/conn.py`, one transaction per change, synthetic fixtures only.
 - Claude does the judgement: proposing ledger mappings, unmatched matches, query wording, adjustments, reading
   contracts. Code does only the repeatable parts.
