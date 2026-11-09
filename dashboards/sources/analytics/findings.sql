@@ -1,5 +1,5 @@
 -- Evidence cannot load a source with no rows, so an empty table gives one placeholder row with company NULL;
--- pages filter on `company is not null`. Same in unread_pages.sql and unverified_facts.sql.
+-- pages filter on `company is not null`. Same in unread_pages.sql.
 select
     company, finding_id, status, document_status, file_name, code, statement, scope, period, label,
     cast(fin_value as double) as fin_value, cast(other_value as double) as other_value,

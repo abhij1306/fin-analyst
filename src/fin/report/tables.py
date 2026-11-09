@@ -253,7 +253,6 @@ def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
             "Figures read",
             "Mapped",
             "Mapped share",
-            "Read by Claude or Docling, unverified",
         ],
         [
             [
@@ -261,7 +260,6 @@ def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
                 str(row["figures"]),
                 str(row["mapped"]),
                 metric_text("ratio", row["mapped_share"], "rupees"),
-                str(row["claude_unverified"]),
             ]
             for row in data["coverage"]
         ],

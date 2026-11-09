@@ -226,7 +226,7 @@ order by status, file_name, period
 <DataTable data={company_findings} rows=all emptySet=pass emptyMessage="None loaded." />
 
 ```sql company_coverage
-select scope, statement, figures, mapped, mapped_share, claude_unverified
+select scope, statement, figures, mapped, mapped_share
 from analytics.coverage
 where company = '${inputs.company.value}'
 order by scope, statement
@@ -238,5 +238,4 @@ order by scope, statement
     <Column id=figures />
     <Column id=mapped />
     <Column id=mapped_share fmt=pct1 title="Mapped share" />
-    <Column id=claude_unverified title="Claude- or Docling-read, unverified" />
 </DataTable>

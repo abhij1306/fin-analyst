@@ -143,17 +143,14 @@ QUALIFY row_number() OVER (
 
 -- How much of what the loaded documents print is mapped, per scope and statement (report "Data coverage", the
 -- dashboard quality page). figures: values read (one per line and period); mapped: of those, confirmed to an
--- account (the rest are unmapped or waiting for review, and left out of every metric); claude_unverified: not
--- read by fin itself (read by Claude from a reading file, or by the Docling PDF add-on) and not yet verified by a
--- reading that agrees (`fin verify`). The name is kept from before Docling.
+-- account (the rest are unmapped or waiting for review, and left out of every metric).
 CREATE VIEW statement_coverage AS
 SELECT
     f.scope,
     r.statement,
     count(*) AS figures,
     count(*) FILTER (WHERE f.confirmed) AS mapped,
-    div6(count(*) FILTER (WHERE f.confirmed), count(*)) AS mapped_share,
-    count(*) FILTER (WHERE f.read_by <> 'fin' AND NOT f.verified) AS claude_unverified
+    div6(count(*) FILTER (WHERE f.confirmed), count(*)) AS mapped_share
 FROM facts f
 JOIN raw_values r ON r.raw_id = f.raw_id
 JOIN documents d ON d.doc_id = f.doc_id

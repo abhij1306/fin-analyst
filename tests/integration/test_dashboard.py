@@ -53,7 +53,6 @@ def test_snapshot_copies_the_analytics_tables(data_root: Path) -> None:
             "findings",
             "coverage",
             "unread_pages",
-            "unverified_facts",
         }
     # The live file is not held after the snapshot: a writer opens it at once.
     with connect(analytics_db_path(data_root), write=True):
@@ -101,12 +100,12 @@ def test_analytics_has_categories_statements_and_coverage(data_root: Path) -> No
             ),
         ]
         assert con.execute(
-            "SELECT scope, statement, figures, mapped, mapped_share, claude_unverified "
+            "SELECT scope, statement, figures, mapped, mapped_share "
             "FROM coverage WHERE scope = 'standalone' ORDER BY statement"
         ).fetchall() == [
-            ("standalone", "balance_sheet", 84, 84, Decimal("1"), 0),
-            ("standalone", "cash_flow", 144, 144, Decimal("1"), 0),
-            ("standalone", "profit_and_loss", 72, 72, Decimal("1"), 0),
+            ("standalone", "balance_sheet", 84, 84, Decimal("1")),
+            ("standalone", "cash_flow", 144, 144, Decimal("1")),
+            ("standalone", "profit_and_loss", 72, 72, Decimal("1")),
         ]
         assert con.execute("SELECT count(*) FROM findings").fetchone() == (0,)
 

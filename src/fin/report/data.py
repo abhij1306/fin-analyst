@@ -9,8 +9,8 @@
 - metric definitions (`metric_definitions`) for the metrics the report shows;
 - findings open or accepted (`fin.findings`): accepted ones are in the figures as filed; a held
   document (with open findings) is not;
-- data coverage: mapped share per statement and unverified Claude-read figures
-  (`statement_coverage`), statement pages fin could not read (`documents.unread_pages`),
+- data coverage: mapped share per statement (`statement_coverage`),
+  statement pages fin could not read (`documents.unread_pages`),
   unconfirmed mappings, and NULL metrics of the periods shown (years and quarters) with their
   missing inputs;
 - peers (optional): the key metrics of other companies for the latest fiscal year all have.
@@ -182,7 +182,7 @@ ORDER BY f.status, f.file_name, f.period, f.finding_id
 """
 
 _COVERAGE_SQL = """
-SELECT statement, figures, mapped, mapped_share, claude_unverified
+SELECT statement, figures, mapped, mapped_share
 FROM statement_coverage WHERE scope = ?
 ORDER BY array_position(?, statement)
 """

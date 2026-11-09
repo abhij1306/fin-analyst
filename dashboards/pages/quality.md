@@ -3,9 +3,7 @@ title: Data quality
 ---
 
 What is not yet settled, per company. Unconfirmed facts (unmapped labels or mappings still pending review)
-are left out of every metric. Unverified Claude- or Docling-read facts were read from pages fin could not read,
-by Claude (`fin ingest --reading`) or by the Docling PDF add-on, and no reading has agreed with them yet
-(`fin verify`).
+are left out of every metric.
 
 Findings are figures in what a company filed that do not add up, or that differ between documents or from a
 reading. A held document has open findings and is left out of the metrics until they are accepted (kept as
@@ -14,7 +12,7 @@ from the audit log.
 
 ```sql quality
 select company, documents, held_documents, open_findings, accepted_findings, facts, unconfirmed_facts,
-    unverified_claude_facts, failed_validations, last_ingested_at, refreshed_at
+    failed_validations, last_ingested_at, refreshed_at
 from analytics.companies
 order by company
 ```
@@ -41,7 +39,7 @@ order by company, status, file_name, period
 The share of each statement's figures in loaded documents that is mapped to an account.
 
 ```sql coverage
-select company, scope, statement, figures, mapped, mapped_share, claude_unverified
+select company, scope, statement, figures, mapped, mapped_share
 from analytics.coverage
 order by company, scope, statement
 ```
@@ -53,7 +51,6 @@ order by company, scope, statement
     <Column id=figures />
     <Column id=mapped />
     <Column id=mapped_share fmt=pct1 title="Mapped share" />
-    <Column id=claude_unverified title="Claude- or Docling-read, unverified" />
 </DataTable>
 
 ## Unread pages
@@ -68,16 +65,5 @@ order by company, file_name, page
 
 <DataTable data={unread} rows=all emptySet=pass emptyMessage="None loaded." />
 
-## Unverified Claude-read facts
-
-```sql unverified
-select company, file_name, scope, period, statement, label, account, value, source
-from analytics.unverified_facts
-where company is not null
-order by company, file_name, period
-```
-
-<DataTable data={unverified} rows=all emptySet=pass emptyMessage="None loaded." />
-
-Resolve unconfirmed items with `/review`; see each finding with `fin findings list`; verify Claude-read
-figures with `fin verify`.
+Resolve unconfirmed items with `/review`; see each finding with `fin findings list`; compare a document with
+a new Claude reading with `/verify`.

@@ -3,8 +3,8 @@ Phase 7), for the dashboards.
 
 The metrics are SQL views in each company database (`db/schema/company_views.sql`).
 `refresh_analytics` reads them from every `companies/<company>.duckdb`, with the standard statements
-(`fin.statements`, in the company's document unit), open and accepted findings, statement coverage,
-unread pages and unverified Claude-read facts, then rewrites the analytics tables in one short
+(`fin.statements`, in the company's document unit), open and accepted findings, statement coverage
+and unread pages, then rewrites the analytics tables in one short
 transaction, so a dashboard reading analytics.duckdb sees either the old or the new rows and the
 file is locked only for that moment. Everything in analytics.duckdb is derived, so a file made by an
 older fin (a table missing) is deleted and created again from `analytics.sql`.
@@ -31,7 +31,7 @@ TABLES: dict[str, list[str]] = {
     ],
     "companies": [
         "company", "documents", "facts", "unconfirmed_facts", "failed_validations",
-        "last_ingested_at", "refreshed_at", "run_id", "unverified_claude_facts", "held_documents",
+        "last_ingested_at", "refreshed_at", "run_id", "held_documents",
         "open_findings", "accepted_findings",
     ],
     "metric_definitions": ["metric", "category", "unit", "periods", "definition", "formula"],
@@ -45,13 +45,9 @@ TABLES: dict[str, list[str]] = {
         "other_file", "finding",
     ],
     "coverage": [
-        "company", "scope", "statement", "figures", "mapped", "mapped_share", "claude_unverified",
+        "company", "scope", "statement", "figures", "mapped", "mapped_share",
     ],
     "unread_pages": ["company", "file_name", "page", "statement", "code", "reason"],
-    "unverified_facts": [
-        "company", "file_name", "scope", "period", "statement", "label", "account", "value",
-        "source",
-    ],
 }  # fmt: skip
 
 
@@ -66,7 +62,6 @@ SELECT
     (SELECT count(*) FROM documents WHERE status = 'loaded'),
     count(f.fact_id),
     count(f.fact_id) FILTER (WHERE NOT f.confirmed),
-    count(f.fact_id) FILTER (WHERE f.read_by <> 'fin' AND NOT f.verified),
     (SELECT max(ingested_at) FROM documents WHERE status = 'loaded'),
     (SELECT count(*) FROM documents WHERE status = 'held'),
     (SELECT count(*) FROM findings WHERE status = 'open'),
@@ -93,21 +88,12 @@ _QUERIES = {
         ORDER BY f.finding_id
     """,
     "coverage": """
-        SELECT scope, statement, figures, mapped, mapped_share, claude_unverified
+        SELECT scope, statement, figures, mapped, mapped_share
         FROM statement_coverage ORDER BY scope, statement
     """,
     "unread_pages": """
         SELECT file_name, unread_pages FROM documents
         WHERE status IN ('loaded', 'held') AND unread_pages IS NOT NULL ORDER BY doc_id
-    """,
-    "unverified_facts": """
-        SELECT d.file_name, f.scope, f.period, r.statement, r.raw_label, f.account, f.value,
-               source_ref(r.sheet, r.cell, r.page)
-        FROM facts f
-        JOIN documents d ON d.doc_id = f.doc_id
-        JOIN raw_values r ON r.raw_id = f.raw_id
-        WHERE f.read_by <> 'fin' AND NOT f.verified AND d.status IN ('loaded', 'held')
-        ORDER BY d.doc_id, f.fact_id
     """,
 }
 
@@ -170,14 +156,14 @@ def refresh_analytics(run: Run) -> Refresh:
             summary = con.execute(_COMPANY_SUMMARY).fetchone()
         assert summary is not None
         rows["metrics"].extend([company, *row] for row in fetched["metrics"])
-        documents, facts, unconfirmed, unverified_claude, last_ingested, *findings = summary
+        documents, facts, unconfirmed, last_ingested, *findings = summary
         rows["companies"].append(
             [company, documents, facts, unconfirmed, failed.get(company, 0), last_ingested]
-            + [now, run.run_id, unverified_claude, *findings]
+            + [now, run.run_id, *findings]
         )
         for row in fetched["metric_definitions"]:
             definitions.setdefault(row[0], list(row))
-        for table in ("findings", "coverage", "unverified_facts"):
+        for table in ("findings", "coverage"):
             rows[table].extend([company, *row] for row in fetched[table])
         for file_name, unread in fetched["unread_pages"]:
             rows["unread_pages"].extend(

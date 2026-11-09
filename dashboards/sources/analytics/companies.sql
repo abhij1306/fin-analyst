@@ -3,7 +3,6 @@ select
     documents,
     facts,
     unconfirmed_facts,
-    unverified_claude_facts,
     held_documents,
     open_findings,
     accepted_findings,

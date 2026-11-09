@@ -318,17 +318,19 @@ def verify_command(
     ],
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
 ) -> None:
-    """Compare an independent reading with what is loaded for a document: agree, differ,
-    missing in fin, missing in reading. Lines that do not agree are findings (shown, and recorded
-    in the audit log), not errors. Agreeing facts are marked verified (a fact read by Claude only by
-    a reading other than the one it was loaded from); no figure is changed."""
+    """Compare a Claude reading of a document with what is loaded for it: agree, differ,
+    missing in fin, missing in reading. Run it on any loaded or held document, any number of times;
+    each run and its lines are recorded (verify_runs, verify_lines). Lines that do not agree are
+    findings (shown, and recorded in the audit log), not errors. No figure is changed."""
 
     def body(run: Run) -> None:
         result = verify(run, company, path, reading)
         if json_output:
+            refresh_analytics(run)
             typer.echo(json.dumps(result, indent=2, default=str))
         else:
             typer.echo(format_result(result))
+            _echo_refresh(run)
 
     execute(
         "verify",
@@ -393,7 +395,7 @@ def status_command(
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
 ) -> None:
     """Per company: periods loaded and gaps, held documents, open and accepted findings, mappings
-    waiting for review, unverified figures read by Claude, inbox files not yet ingested, and an
+    waiting for review, figures read by Claude or Docling, inbox files not yet ingested, and an
     open diligence engagement's queries, proposed adjustments and gates."""
 
     def body(run: Run) -> None:
