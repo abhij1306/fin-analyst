@@ -81,6 +81,22 @@ def test_lines_get_period_rupees_and_source(tmp_path: Path) -> None:
             "E205: r.csv line 2: source 'top of page' is not a page number or Sheet!Cell",
         ),
         (
+            "balance_sheet,standalone,2025-03-31,,in lakhs,,Cash,1.00,page 0",
+            "E205: r.csv line 2: source 'page 0' is not a page number or Sheet!Cell",
+        ),
+        (
+            "balance_sheet,standalone,2025-03-31,,in lakhs,,Cash,1.00,BS!C0",
+            "E205: r.csv line 2: source 'BS!C0' is not a page number or Sheet!Cell",
+        ),
+        (
+            "balance_sheet,standalone,2025-03-31,,in lakhs,,Cash,1.00,BS!XFE1",
+            "E205: r.csv line 2: source 'BS!XFE1' is not a page number or Sheet!Cell",
+        ),
+        (
+            "balance_sheet,standalone,2025-03-31,,in lakhs,,Cash,1.00,BS!A1048577",
+            "E205: r.csv line 2: source 'BS!A1048577' is not a page number or Sheet!Cell",
+        ),
+        (
             "profit_and_loss,standalone,2025-12-31,6,in lakhs,,Revenue,1.00,3",
             "E202: r.csv line 2: a 6-month period ending 2025-12-31 does not line up",
         ),
@@ -91,6 +107,13 @@ def test_bad_lines_name_the_line_and_code(tmp_path: Path, row: str, error: str) 
     with pytest.raises(FinError) as raised:
         read_reading(path, 4)
     assert str(raised.value).startswith(error)
+
+
+def test_last_cell_of_a_worksheet_is_a_source(tmp_path: Path) -> None:
+    row = "balance_sheet,standalone,2025-03-31,,in lakhs,,Cash,1.00,BS!XFD1048576"
+    path = reading(tmp_path, row)
+    (line,) = read_reading(path, 4)
+    assert line.source == "BS!XFD1048576"
 
 
 def test_empty_reading_is_e205(tmp_path: Path) -> None:

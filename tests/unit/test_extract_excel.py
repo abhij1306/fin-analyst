@@ -97,6 +97,92 @@ def test_values_get_sheet_cell_period_section_and_rupees(tmp_path: Path) -> None
     ]  # fmt: skip
 
 
+def write_merged(
+    path: Path, rows: list[list[object]], merges: list[str], title: str = "Results"
+) -> Path:
+    book = Workbook()
+    sheet = book.active
+    assert sheet is not None
+    sheet.title = title
+    for row in rows:
+        sheet.append(row)
+    for span in merges:
+        sheet.merge_cells(span)
+    book.save(path)
+    return path
+
+
+def test_merged_length_headings_give_each_column_its_length(tmp_path: Path) -> None:
+    path = write_merged(
+        tmp_path / "t.xlsx",
+        [
+            ["Statement of Profit and Loss"],
+            ["(₹ in Lakhs)"],
+            ["Particulars", "Quarter ended", None, "Six months ended", "Year ended"],
+            ["", "31.03.2025", "31.03.2024", "30.09.2025", "31.03.2025"],
+            ["Revenue", 1, 2, 3, 4],
+        ],
+        ["B3:C3"],
+    )
+    values = extract_workbook(path).values
+    assert [(v.cell, v.period_end, v.months) for v in values] == [
+        ("B5", date(2025, 3, 31), 3),
+        ("C5", date(2024, 3, 31), 3),
+        ("D5", date(2025, 9, 30), 6),
+        ("E5", date(2025, 3, 31), 12),
+    ]
+
+
+def test_column_naming_no_length_on_an_interim_sheet_is_e202(tmp_path: Path) -> None:
+    path = write_sheet(
+        tmp_path / "t.xlsx",
+        [
+            ["Statement of Profit and Loss"],
+            ["(₹ in Lakhs)"],
+            ["Particulars", "Quarter ended 31.03.2025", "31.03.2024"],
+            ["Revenue", 1, 2],
+        ],
+        title="Results",
+    )
+    assert error_code(path) == "E202"
+
+
+def test_scope_headings_give_each_column_its_scope(tmp_path: Path) -> None:
+    path = write_merged(
+        tmp_path / "t.xlsx",
+        [
+            ["Statement of Profit and Loss"],
+            ["(₹ in Lakhs)"],
+            ["Particulars", "Standalone", None, "Consolidated", None],
+            ["", "31.03.2025", "31.03.2024", "31.03.2025", "31.03.2024"],
+            ["Revenue", 1, 2, 3, 4],
+        ],
+        ["B3:C3", "D3:E3"],
+    )
+    values = extract_workbook(path).values
+    assert [(v.cell, v.scope) for v in values] == [
+        ("B5", "standalone"),
+        ("C5", "standalone"),
+        ("D5", "consolidated"),
+        ("E5", "consolidated"),
+    ]
+
+
+def test_column_without_scope_on_a_sheet_naming_both_is_e202(tmp_path: Path) -> None:
+    path = write_sheet(
+        tmp_path / "t.xlsx",
+        [
+            ["Statement of Profit and Loss"],
+            ["(₹ in Lakhs)"],
+            ["Particulars", "Standalone", None, "Consolidated"],
+            ["", "31.03.2025", "31.03.2024", "31.03.2025"],
+            ["Revenue", 1, 2, 3],
+        ],
+        title="Results",
+    )
+    assert error_code(path) == "E202"
+
+
 def test_kestrel_formula_cells_use_saved_values(samples: Path) -> None:
     extraction = extract_workbook(
         samples / "clean" / "kestrel" / "Kestrel_Forgings_Financials_FY23-FY25.xlsx"
