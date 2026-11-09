@@ -51,6 +51,10 @@ from fin.map.normalize import normalize_label
         ("(b) Provisions 15", "provisions"),
         ("Ind AS 116 adjustments", "ind as 116 adjustments"),
         ("Total income 2025", "total income 2025"),
+        ("Revenue ( in )", "revenue"),
+        ("Revenue (in)", "revenue"),
+        ("Revenue ( )", "revenue"),
+        ("Revenue ()", "revenue"),
     ],
 )
 def test_normalize_label(label: str, expected: str) -> None:

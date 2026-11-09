@@ -20,7 +20,7 @@ import unicodedata
 
 _APOSTROPHES = re.compile(r"['’‘`]")
 _CURRENCY = re.compile(r"₹|\brs\b\.?|\binr\b")
-_EMPTY_BRACKET = re.compile(r"\(\s*(?:in)?\s*\)")
+_EMPTY_BRACKET = re.compile(r"\(\s*(?:in\s*)?\)")
 _NOTE_REF = re.compile(
     r"(?:\(\s*)?(?:refer\s+)?\bnotes?\b(?:\s*no)?\.?\s*\d+[a-z]?"
     r"(?:\s*(?:,|and|&)\s*\d+[a-z]?)*\s*\)?"

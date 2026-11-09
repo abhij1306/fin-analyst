@@ -158,6 +158,17 @@ def _check_line(check: Check) -> str:
     return f"FAIL  {check.name}: {check.detail} [{check.code}] fix: {check.fix}"
 
 
+def _print_checks(checks: list[Check], failed: int, json_output: bool) -> None:
+    """Print the doctor results as JSON or as plain text."""
+    if json_output:
+        payload = {"ok": not failed, "checks": [check.as_dict() for check in checks]}
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    for check in checks:
+        typer.echo(_check_line(check))
+    typer.echo("all checks passed" if not failed else f"{failed} check(s) failed")
+
+
 @app.command()
 def doctor(
     json_output: Annotated[bool, typer.Option("--json", help="Print results as JSON.")] = False,
@@ -175,13 +186,7 @@ def doctor(
                 code=check.code,
                 context=None if check.fix is None else {"fix": check.fix},
             )
-        if json_output:
-            payload = {"ok": not failed, "checks": [check.as_dict() for check in checks]}
-            typer.echo(json.dumps(payload, indent=2))
-        else:
-            for check in checks:
-                typer.echo(_check_line(check))
-            typer.echo("all checks passed" if not failed else f"{len(failed)} check(s) failed")
+        _print_checks(checks, len(failed), json_output)
         if failed:
             run.failed = len(failed)
             run.exit_code = EXIT_FAILURES
