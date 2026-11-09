@@ -182,8 +182,7 @@ def format_status(result: list[dict[str, Any]]) -> str:
             f"  held documents: {_list(held)}",
             f"  findings: {s['open_findings']} open, {s['accepted_findings']} accepted",
             f"  mappings waiting for review: {s['pending_mappings']}",
-            f"  figures read by Claude: {s['read_by_claude']}, by Docling: "
-            f"{s['read_by_docling']}",
+            f"  figures read by Claude: {s['read_by_claude']}, by Docling: {s['read_by_docling']}",
             f"  inbox files not ingested: {_list(s['inbox_not_ingested'])}",
         ]
         out += _format_diligence(s["diligence"])

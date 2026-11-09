@@ -348,6 +348,35 @@ def test_verify_disagreement_on_a_loaded_document_is_a_finding_that_does_not_hol
     ]
 
 
+def test_a_later_verify_that_agrees_resolves_an_earlier_readings_open_finding(
+    root: Path, tmp_path: Path, scanned: Path
+) -> None:
+    reading = write_reading(tmp_path / "scan.reading.csv", BALANCE_SHEET)
+    assert (
+        runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(reading)]).exit_code
+        == 0
+    )
+    misread = [(*BALANCE_SHEET[0][:5], "28.60", 1), *BALANCE_SHEET[1:]]
+    misread_csv = str(write_reading(tmp_path / "r2.csv", misread))
+    assert verify(str(scanned), "--reading", misread_csv).exit_code == 0
+    findings = "SELECT finding, label, other_file, status FROM findings"
+    assert query(root, findings) == [("differ", "Cash and cash equivalents", "r2.csv", "open")]
+
+    # Another reading agrees on that line: the latest run wins.
+    agreed = verify(
+        str(scanned), "--reading", str(write_reading(tmp_path / "r3.csv", BALANCE_SHEET))
+    )
+
+    assert "agree 4, differ 0" in agreed.stdout
+    assert "resolved (this run agrees on their line): findings #1" in agreed.stdout
+    assert query(root, findings) == [("differ", "Cash and cash equivalents", "r2.csv", "resolved")]
+    assert query(  # the history keeps the earlier disagreement
+        root,
+        "SELECT v.reading_file, l.outcome FROM verify_lines l JOIN verify_runs v USING (run_id) "
+        "WHERE l.label = 'Cash and cash equivalents' ORDER BY v.verified_at",
+    ) == [("r2.csv", "differ"), ("r3.csv", "agree")]
+
+
 def test_verify_does_not_flag_a_figure_that_differs_only_by_rounding(
     root: Path, tmp_path: Path, scanned: Path
 ) -> None:

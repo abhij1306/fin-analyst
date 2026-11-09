@@ -615,9 +615,7 @@ def ingest_file(
     details = f"doc_id {doc_id} version {version}: {len(document.rows)} facts, " + (
         f"{len(unmapped)} unmapped labels"
     )
-    details += "".join(
-        f", {n} read by {readers[who]}" for who, n in counts.items() if n
-    )
+    details += "".join(f", {n} read by {readers[who]}" for who, n in counts.items() if n)
     if open_findings:
         run.held += 1
         message = (

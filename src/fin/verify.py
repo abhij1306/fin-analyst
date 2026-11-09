@@ -19,8 +19,13 @@ paisa, so there is no tolerance. Outcomes per line and column:
   reading does not have.
 
 Every outcome other than agree is a finding (check `verify_reading`, `fin.findings`): shown to the
-user, stored with the document (open until accepted with `fin findings accept`, or resolved when a
-later verify with the same reading no longer finds it) and appended to the audit table `findings`.
+user, stored with the document and appended to the audit table `findings`. It stays open until
+the user accepts it (`fin findings accept`) or a later run settles it: the latest run wins. A run
+resolves an open finding of the same reading that it no longer finds, and any open verify finding
+of the document on a loaded line (`fact_id`: differ, missing_in_reading) that it agrees on,
+whatever reading that finding came from. A missing_in_fin finding has no loaded line to agree on,
+so only a run of its own reading resolves it. Accepted findings stay accepted, and the earlier
+disagreement stays in `verify_lines`.
 It is not a failure, and the command exits 0 when it ran. fin is an analysis tool: differences are
 for the user to decide, and to fix through `fin sql --write` or a new ingest; verify never changes
 a figure. A verify finding neither holds nor releases a document: a loaded document stays loaded
@@ -44,7 +49,7 @@ from fin.db.conn import connect, transaction, utcnow
 from fin.db.schema import ensure_database
 from fin.extract.reading import ReadingLine, printed_value, read_reading
 from fin.extract.units import to_rupees
-from fin.findings import record
+from fin.findings import record, set_status
 from fin.ingest import sha256_of
 from fin.map.dictionary import load_accounts
 from fin.map.normalize import normalize_label
@@ -220,8 +225,9 @@ def _save(
     verify_run: dict[str, Any],
     rows: list[dict[str, Any]],
     findings: list[dict[str, Any]],
-) -> None:
-    """In one transaction: record the run and its lines, and the findings for the document."""
+) -> list[int]:
+    """In one transaction: record the run and its lines, and the findings for the document.
+    Returns the ids of earlier readings' open findings this run resolved (lines it agrees on)."""
     with connect(db, write=True) as con, transaction(con):
         con.execute(
             f"INSERT INTO verify_runs ({', '.join(verify_run)}) "
@@ -238,9 +244,18 @@ def _save(
                 ],
             )
         where = "doc_id = ? AND check_name = 'verify_reading' AND other_sha256 = ?"
-        record(
-            run, company, con, findings, where, [verify_run["doc_id"], verify_run["reading_sha256"]]
-        )
+        doc_id = verify_run["doc_id"]
+        record(run, company, con, findings, where, [doc_id, verify_run["reading_sha256"]])
+        # The latest run wins: a line it agrees on settles earlier readings' open findings on it.
+        agreed = [row["fact_id"] for row in rows if row["outcome"] == "agree"]
+        settled = con.execute(
+            "SELECT finding_id FROM findings WHERE doc_id = ? AND check_name = 'verify_reading' "
+            "AND status = 'open' AND fact_id IN (SELECT unnest(?)) ORDER BY finding_id",
+            [doc_id, agreed],
+        ).fetchall()
+        resolved = [finding_id for (finding_id,) in settled]
+        set_status(run, company, con, resolved, "resolved")
+    return resolved
 
 
 def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
@@ -261,7 +276,8 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
         if row["outcome"] != "agree"
     ]
     counts = {outcome: sum(1 for r in rows if r["outcome"] == outcome) for outcome in OUTCOMES}
-    notes = []
+    notes: list[str] = []
+    resolved: list[int] = []
     if doc_id is None:  # nothing loaded to attach them to: the audit log only
         notes.append(f"{path.name} is not loaded for {company}: every reading line is missing")
         for finding in findings:
@@ -276,7 +292,7 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
             "verified_at": utcnow(),
             **counts,
         }
-        _save(run, company, db, verify_run, rows, findings)
+        resolved = _save(run, company, db, verify_run, rows, findings)
     run.event(
         "verify",
         f"{name} against {reading.name}: "
@@ -291,6 +307,7 @@ def verify(run: Run, company: str, path: Path, reading: Path) -> dict[str, Any]:
         "reading": reading.name,
         "run_id": run.run_id,
         "recorded": doc_id is not None,
+        "resolved_findings": resolved,
         "counts": counts,
         "notes": notes,
         "lines": rows,
@@ -308,6 +325,14 @@ def format_result(result: dict[str, Any]) -> str:
         *(
             [f"recorded as verify run {result['run_id']} (verify_runs, verify_lines)"]
             if result["recorded"]
+            else []
+        ),
+        *(
+            [
+                "resolved (this run agrees on their line): findings "
+                + ", ".join(f"#{i}" for i in result["resolved_findings"])
+            ]
+            if result["resolved_findings"]
             else []
         ),
         *(f"note: {note}" for note in result["notes"]),

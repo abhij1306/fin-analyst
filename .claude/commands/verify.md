@@ -34,6 +34,9 @@ Claude is trusted is the user's decision.
    - missing in fin: fin did not load that line (or the whole statement); a label fin read differently also shows
      here and as missing in reading.
    - missing in reading: you did not copy that line; re-check whether it is on the page.
+   The latest run wins: when this run agrees on a line, open verify findings from earlier readings on that same
+   loaded line are resolved (their disagreement stays in the run history). Say which findings this run resolved (the
+   `resolved ... findings #N` line). A missing-in-fin finding is resolved only by a run of its own reading.
 6. Ask the user: **save as is, or have Claude fix it?**
    - Save as is: `uv run fin findings accept <company> <finding ids>` (ids from `uv run fin findings list
      <company>`). The figures stay as loaded; the findings stay listed, marked accepted.

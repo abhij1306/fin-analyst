@@ -39,12 +39,18 @@ with what is stored (agree / differ / missing in fin / missing in reading). Any 
 document was loaded with included. Each run on a loaded or held document is recorded in the company database:
 `verify_runs` (run, document, reading, the count of each outcome) and `verify_lines` (every line compared, both
 sides); this history replaces the former `facts.verified` flag (a company database made before it lacks the two
-tables and reports E002: re-create it, or run their `CREATE TABLE` statements from `company.sql`). It compares the value fin uses now (`facts.value`, so a figure corrected with
+tables and reports E002: re-create the data folder, which the owner accepted on 2026-11-09, or run their `CREATE TABLE`
+statements from `company.sql`). It compares the value fin uses now (`facts.value`, so a figure corrected with
 `fin sql --write` is checked as corrected) with the reading's figure converted to rupees with the reading's own unit
 (EPS as printed), exactly. It works on loaded and held documents alike (on a held document, a reading tells whether
 a finding is a misread). Every disagreement is a finding, not a failure: it is shown to the user, kept with the
 document in the company `findings` table and recorded in `audit.findings` (check `verify_reading`), and it neither
-holds nor releases the document: a loaded document stays loaded, a held one stays held. Verify exits 0, never
+holds nor releases the document: a loaded document stays loaded, a held one stays held. The latest run wins
+(owner decision 2026-11-09): a verify finding stays open until the user accepts it or a later run settles it. A run
+resolves the open findings of its own reading that it no longer finds, and every open verify finding of the
+document on a loaded line (differ, missing in reading: the finding's `fact_id`) that it agrees on, whatever reading
+that finding came from; the earlier disagreement stays in `verify_lines`. A missing-in-fin finding has no loaded
+line to agree on, so only a run of its own reading resolves it; accepted findings stay accepted. Verify exits 0, never
 changes a figure, and refreshes `shared/analytics.duckdb` so its findings show on the data quality page.
 Claude- and Docling-read facts feed metrics like any other; `/ask` says "read by Claude" (or Docling) next to their
 source, as information, and `fin status` counts them.
