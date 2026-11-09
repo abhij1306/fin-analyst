@@ -1,6 +1,7 @@
 """`fin sql --evidence`: an HTML page showing where every fact behind a query result came from.
 
-For each fact: a highlighted crop of the PDF row, or a small grid of the Excel cells around the
+For each fact: a highlighted crop of the PDF row (the whole page for a figure Claude read from
+the page image, which has no position), or a small grid of the Excel cells around the
 value (read from the archived workbook). A value summed from several lines (a `fact_ids` column)
 has a section per line. An archived source file that is missing or cannot be opened is flagged on
 the page with E604; the page is still written. Output: `evidence/<query_id>.html`, with crops in
@@ -63,8 +64,9 @@ def _grid(workbook: Workbook, sheet: str, cell: str) -> str:
 
 
 def _source_view(run: Run, fact: dict[str, Any], folder: Path, books: dict[Path, Workbook]) -> str:
-    """The crop or grid of a fact's archived source. Raises E604 when the archived file is missing
-    or cannot be opened."""
+    """The crop or grid of a fact's archived source; the whole page for a PDF figure with no
+    position (read by Claude from the page image). Raises E604 when the archived file is missing
+    or cannot be opened, or has no such page."""
     source = run.root / fact["archive_path"]
     if not source.is_file():
         raise EvidenceSourceMissing(
@@ -81,8 +83,12 @@ def _source_view(run: Run, fact: dict[str, Any], folder: Path, books: dict[Path,
                 ) from exc
         return _grid(books[source], fact["sheet"], fact["cell"])
     image = folder / f"fact_{fact['fact_id']}.png"
-    render_crop(source, fact["page"], tuple(json.loads(fact["bbox"])), image)
-    return f"<img src='{folder.name}/{image.name}' alt='{html.escape(fact['source_ref'])}'>"
+    bbox = None if fact["bbox"] is None else tuple(json.loads(fact["bbox"]))
+    render_crop(source, fact["page"], bbox, image)
+    img = f"<img src='{folder.name}/{image.name}' alt='{html.escape(fact['source_ref'])}'>"
+    if bbox is None:
+        return f"<p>No position on the page was recorded for this figure: the whole page.</p>{img}"
+    return img
 
 
 def _fact_section(

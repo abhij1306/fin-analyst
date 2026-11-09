@@ -37,7 +37,9 @@ def test_amounts_that_would_be_rounded_or_are_not_numbers_are_refused(text: str)
         parse_rupees(text)
 
 
-@pytest.mark.parametrize("text", ["1e30", "123456789012345678901", "-1000000000000000000"])
+@pytest.mark.parametrize(
+    "text", ["1e30", "123456789012345678901", "-1000000000000000000", "1e999999999999999999"]
+)
 def test_amounts_too_large_for_the_database_are_refused(text: str) -> None:
     with pytest.raises(ValueError) as caught:
         parse_rupees(text)

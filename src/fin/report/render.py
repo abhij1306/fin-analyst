@@ -10,7 +10,8 @@ Files, in `reports/<company>/<scope>/` in the data folder:
 The report: a summary of key metrics (both scopes where present), one section per metric category
 (trend table and a chart), the latest quarters (when quarters are loaded), a peer comparison (with
 `--peers`), findings, data coverage, and appendices: condensed statements, metric definitions and
-the facts behind the metrics. A section with no data is left out.
+the facts behind the figures (the tables' and the narrative references'). A section with no data is
+left out.
 
 Rendering happens in a temporary folder next to them. Only when Quarto has produced all three files
 are they moved into place, so a failed render (E601) keeps the last good report.
@@ -40,7 +41,7 @@ from fin.report.data import (
     fact_row,
     to_json,
 )
-from fin.report.lint import REFERENCE, lint, split_sections, strip_comments
+from fin.report.lint import REFERENCE, lint, references, split_sections, strip_comments
 from fin.report.tables import (
     MONEY_UNITS,
     category_rows,
@@ -384,9 +385,16 @@ def make_report(
     ensure_database(db, "company")
     folder = report_dir(root, company, scope)
     narrative_path = folder / "narrative.md"
-    data = collect(root, company, scope, peers)
+    narrative = None
+    if narrative_path.is_file():
+        try:
+            narrative = narrative_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ReportRenderFailed(f"cannot read {narrative_path}: {exc}") from exc
+    # The narrative's references add their facts to the appendix and their gaps to missing data.
+    data = collect(root, company, scope, peers, references(narrative or ""))
 
-    if not narrative_path.is_file():
+    if narrative is None:
         if render_only:
             raise ReportRenderFailed(
                 f"{narrative_path} does not exist; run `uv run fin report {company}` to write the "
@@ -410,10 +418,6 @@ def make_report(
             ),
         }
 
-    try:
-        narrative = narrative_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise ReportRenderFailed(f"cannot read {narrative_path}: {exc}") from exc
     lint(narrative, str(narrative_path))
     built = build(company, scope, config.display_unit, narrative, data)
     report_data = {

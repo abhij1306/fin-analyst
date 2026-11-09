@@ -76,7 +76,8 @@ Statement pages fin could not read in the loaded documents.
 
 ### Missing data
 
-Metrics with no value in the years and quarters shown, and the inputs they lack.
+Metrics the report shows with no value (in its tables, for each set of statements, and in the
+narrative), and the inputs they lack.
 
 {{table:missing}}
 
@@ -93,8 +94,8 @@ Condensed: the printed subtotals of each statement, in the standard order.
 ## Appendix: facts behind the metrics
 
 Every fact behind the figures in this report's tables (the years and quarters shown, for each set
-of statements, and the earlier periods their growth uses), with its source file and sheet!cell or
-page. A value the document prints on several lines is their sum, and lists each line. Peer
+of statements, the earlier periods their growth uses, and the condensed statements) and behind the
+figures its narrative refers to, with its source file and sheet!cell or page. A value the document prints on several lines is their sum, and lists each line. Peer
 companies' facts are in their own reports.
 
 {{table:facts}}

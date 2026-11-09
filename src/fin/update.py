@@ -57,10 +57,17 @@ def _run(
     return result
 
 
+DOCTOR_TAIL = 10  # lines of a failed `fin doctor`'s output shown when it lists no failed check
+
+
 def _doctor_diagnostics(doctor: subprocess.CompletedProcess[str]) -> list[str]:
     """What the user needs from a failed `fin doctor`: each failed check (with its code and fix),
+    or, when it stopped before listing any (an error code, a crash), the last lines of its output;
     and the doctor's own run id (the nested run, apart from the update's)."""
     lines = [line for line in doctor.stdout.splitlines() if line.startswith("FAIL")]
+    if not lines:
+        output = (doctor.stdout + "\n" + doctor.stderr).splitlines()
+        lines = [line for line in output if line.strip()][-DOCTOR_TAIL:]
     found = re.search(r"run_id (\S+)", doctor.stderr)
     lines.append(f"fin doctor run_id {found[1]}" if found else "fin doctor run_id not printed")
     return lines

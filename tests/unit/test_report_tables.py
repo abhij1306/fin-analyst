@@ -101,12 +101,19 @@ def test_missing_data_lists_a_quarter() -> None:
         "coverage": [],
         "unread": [],
         "unconfirmed": [],
-        "missing": [{"period": "FY25-Q2", "metric": "roce", "missing_inputs": "revenue (FY24-Q3)"}],
+        "missing": [
+            {
+                "scope": "standalone",
+                "period": "FY25-Q2",
+                "metric": "roce",
+                "missing_inputs": "revenue (FY24-Q3)",
+            }
+        ],
     }
 
     assert coverage_tables(report)["missing"] == (
-        "| Period | Metric | Missing inputs |\n|---|---|---|\n"
-        "| FY25-Q2 | ROCE | revenue (FY24-Q3) |"
+        "| Scope | Period | Metric | Missing inputs |\n|---|---|---|---|\n"
+        "| standalone | FY25-Q2 | ROCE | revenue (FY24-Q3) |"
     )
 
 

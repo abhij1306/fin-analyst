@@ -139,10 +139,12 @@ Reports and dashboards by category (after 1.0.0, not a phase):
   latest quarters (TTM, growth on the year before and the previous quarter) when quarters are loaded; a peer
   comparison with `fin report <co> --peers a,b` (key metrics for the latest fiscal year every company has); findings
   with sources; data coverage (`statement_coverage` view: mapped share per statement;
-  `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data for the
-  years and quarters shown); and appendices (condensed standard statements: every printed subtotal, marked † when
-  its mapped lines do not add up to it; metric definitions; facts behind the figures shown, for both scopes and the
-  quarters, each line of a summed value listed, per-share facts unscaled; peers' facts are in their own reports).
+  `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data, with its scope:
+  the years and quarters shown, the other scope's summary table and the narrative's metric references); and
+  appendices (condensed standard statements: every printed subtotal, marked † when the mapped lines under it do not
+  add up to it exactly, a subtotal with no mapped line under it as printed; metric definitions; facts behind the
+  figures shown, for both scopes and the quarters, the condensed statements' subtotals and the narrative's
+  references, each line of a summed value listed, per-share facts unscaled; peers' facts are in their own reports).
   Narrative references accept quarter and half-year periods (`{{metric:ttm_revenue:FY26-Q2}}`).
 - Dashboards: `analytics.duckdb` also holds metric categories and definitions, the standard statements (in the
   documents' unit), findings, coverage and unread pages. Company page by category
@@ -346,7 +348,9 @@ Every `fin` command:
 - Gets a `run_id`; writes a `runs` row at start and end.
 - Writes structured events to `audit.events` and to `logs/<date>/<run_id>.jsonl`. If writing the log fails (E003),
   it is not retried for that run; the run's exit code reflects it, and the end row is written after everything else, so
-  it records the exit code the command returns.
+  it records the exit code the command returns. The one limit: when writing the end row itself fails, the exit code
+  rises after the row was made, so a copy of it written to the other log records the lower code; fin then prints both
+  codes on stderr.
 - Ends with a summary: loaded, skipped, failed, pending review, held, run_id.
 
 **Tables in `shared/audit.duckdb`** (append-only; rows never updated or deleted)
@@ -431,7 +435,7 @@ claude
 2. Back up all databases to `backups/<run_id>/`.
 3. `git pull`, `uv sync --frozen` (with `--extra docling` when `config.toml` has the add-on on), `npm ci`.
 4. Refresh the metrics export.
-5. `fin doctor`. If it fails, `fin update` prints each failed check (code and fix) and the doctor's own run id, with the update's run id.
+5. `fin doctor`. If it fails, `fin update` prints each failed check (code and fix), or the last lines of the doctor's output when it stopped before listing any (an error code, a crash), and the doctor's own run id, with the update's run id.
 
 **Uninstall:** delete the repo. The data folder is never touched by uninstall.
 
@@ -660,7 +664,7 @@ Done when:
 Build:
 - `fin sql` (read): rejects anything but one SELECT without `--write` (E502), returns JSON with provenance columns, logs to `queries`
 - `fin sql <co> --write --sql "…"`: applies a user-requested data change to one company DB. Refuses BEGIN/COMMIT/ROLLBACK, ATTACH/DETACH, COPY FROM DATABASE and LOAD/INSTALL before anything runs (E504). Backs up first, runs in one transaction, records the statement and rows affected in the audit log, and refreshes metrics
-- `fin sql --evidence`: HTML page with highlighted PDF crops and Excel context grids
+- `fin sql --evidence`: HTML page with highlighted PDF crops and Excel context grids; a figure Claude read from a PDF page (no position) shows the whole page
 - `/ask` command with fixed answer format: answer, calculation, source table, SQL, flags
 
 Done when:

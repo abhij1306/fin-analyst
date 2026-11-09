@@ -8,6 +8,7 @@ import pytest
 from PIL import Image
 
 from fin.audit.errors import (
+    EvidenceSourceMissing,
     FileEncrypted,
     FileUnreadable,
     NoTablesFound,
@@ -103,6 +104,18 @@ def test_render_crop_writes_a_png_of_the_row_band(tmp_path: Path) -> None:
         assert image.format == "PNG"
         assert image.width == 1241  # the full A4 page width, 595.28 pt, at 150 dpi
         assert 100 < image.height < 130  # the value's line plus 24 pt above and below
+
+
+def test_render_crop_without_a_position_shows_the_whole_page(tmp_path: Path) -> None:
+    # A figure Claude read from the page image has a page but no bbox.
+    out = render_crop(FY25_PDF, 3, None, tmp_path / "page.png")
+
+    with Image.open(out) as image:
+        assert image.width == 1241
+        assert 1750 < image.height < 1760  # the whole A4 page, 841.89 pt, at 150 dpi
+
+    with pytest.raises(EvidenceSourceMissing, match="has no page 99"):
+        render_crop(FY25_PDF, 99, None, tmp_path / "none.png")
 
 
 def test_encrypted_pdf_raises_e102() -> None:

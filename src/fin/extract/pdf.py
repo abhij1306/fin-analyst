@@ -60,7 +60,9 @@ from pdfminer.psexceptions import PSException
 from pdfplumber.utils.exceptions import PdfminerException
 
 from fin.audit.errors import (
+    DataFolderNotWritable,
     DocumentFailure,
+    EvidenceSourceMissing,
     FileEncrypted,
     FileUnreadable,
     NoTablesFound,
@@ -1116,22 +1118,34 @@ CROP_MARGIN = 24.0  # points above and below the value in an evidence crop
 CROP_RESOLUTION = 150  # dpi of an evidence crop
 
 
-def render_crop(path: Path, page: int, bbox: tuple[float, float, float, float], out: Path) -> Path:
-    """Write a PNG of the full-width band around `bbox` on `page` (1-based), bbox highlighted.
+def render_crop(
+    path: Path, page: int, bbox: tuple[float, float, float, float] | None, out: Path
+) -> Path:
+    """Write a PNG of the full-width band around `bbox` on `page` (1-based), bbox highlighted; the
+    whole page when `bbox` is None (a figure read by Claude has no position).
 
-    The band spans the page width so the row label shows next to the value.
+    The band spans the page width so the row label shows next to the value. E604 when the PDF has
+    no such page (a reading can name any page), E003 when the PNG cannot be written.
     """
     with open_pdf(path, text_layer=False) as pdf:
+        if not 1 <= page <= len(pdf.pages):
+            raise EvidenceSourceMissing(f"archived source {path.name} has no page {page}")
         p = pdf.pages[page - 1]
-        _, top, _, bottom = bbox
-        region = (
-            0.0,
-            max(0.0, top - CROP_MARGIN),
-            float(p.width),
-            min(float(p.height), bottom + CROP_MARGIN),
-        )
-        image = p.crop(region).to_image(resolution=CROP_RESOLUTION)
-        image.draw_rect(bbox, stroke=(220, 0, 0), fill=(255, 230, 0, 60), stroke_width=2)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        image.save(out)
+        if bbox is None:
+            image = p.to_image(resolution=CROP_RESOLUTION)
+        else:
+            _, top, _, bottom = bbox
+            region = (
+                0.0,
+                max(0.0, top - CROP_MARGIN),
+                float(p.width),
+                min(float(p.height), bottom + CROP_MARGIN),
+            )
+            image = p.crop(region).to_image(resolution=CROP_RESOLUTION)
+            image.draw_rect(bbox, stroke=(220, 0, 0), fill=(255, 230, 0, 60), stroke_width=2)
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            image.save(out)
+        except OSError as exc:
+            raise DataFolderNotWritable(f"cannot write {out}: {exc}") from exc
     return out
