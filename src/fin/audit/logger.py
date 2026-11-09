@@ -23,6 +23,7 @@ import subprocess
 import uuid
 from collections import Counter
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -106,6 +107,7 @@ class Run:
         self._jsonl_done = 0
         self._db_done = 0
         self._db_problem: FinError | None = None
+        self._jsonl_problem: FinError | None = None
 
     @property
     def jsonl_path(self) -> Path:
@@ -144,6 +146,12 @@ class Run:
             },
         )
 
+    def log_error(self, stage: str, message: str, code: str | None = None) -> None:
+        """Record an error event. A failure to write the JSONL log here is not raised again:
+        `finish` reports it and raises the exit code."""
+        with suppress(DataFolderNotWritable):
+            self.event(stage, message, level="error", code=code)
+
     def _run_row(self, record: str, exit_code: int | None) -> dict[str, Any]:
         end = record == "end"
         return {
@@ -165,7 +173,9 @@ class Run:
         }
 
     def _write_jsonl(self) -> None:
-        if not (self.root / "logs").is_dir():
+        """Append the pending records to the JSONL file. A failure raises E003 once and is not
+        retried (the records stay pending): logging that error must not fail the same way again."""
+        if self._jsonl_problem is not None or not (self.root / "logs").is_dir():
             return
         pending = self._records[self._jsonl_done :]
         try:
@@ -175,7 +185,8 @@ class Run:
                     line = {"table": table, **row}
                     handle.write(json.dumps(line, default=_json_default) + "\n")
         except OSError as exc:
-            raise DataFolderNotWritable(f"cannot write {self.jsonl_path}: {exc}") from exc
+            self._jsonl_problem = DataFolderNotWritable(f"cannot write {self.jsonl_path}: {exc}")
+            raise self._jsonl_problem from exc
         self._jsonl_done = len(self._records)
 
     def flush(self, *, required: bool = False) -> None:
@@ -188,7 +199,7 @@ class Run:
             )
         else:
             with connect(path, write=True) as con:
-                if not is_old_format(con):
+                if not is_old_format(con, "audit"):
                     self._insert(con)
                     self._db_problem = None
                     return
@@ -213,22 +224,33 @@ class Run:
         self.record("runs", self._run_row("start", None))
         self.flush(required=required)
 
+    def _write_out(self, exit_code: int) -> int:
+        """Write every pending record to the JSONL file and the audit database. A failure is
+        printed and raises the exit code, which is returned."""
+        for write in (self._write_jsonl, self.flush):
+            try:
+                write()
+            except FinError as exc:
+                typer.echo(f"{exc} (while writing the audit log)", err=True)
+                exit_code = max(exit_code, exc.exit_code)
+        if self._jsonl_problem is not None:
+            exit_code = max(exit_code, self._jsonl_problem.exit_code)
+        return exit_code
+
     def finish(self, exit_code: int) -> int:
-        """Append the end row, write everything out, and print the summary. Returns the final exit
-        code."""
-        self.record("runs", self._run_row("end", exit_code))
-        try:
-            self.flush()
-        except FinError as exc:
-            typer.echo(f"{exc} (while writing the audit log)", err=True)
-            exit_code = max(exit_code, exc.exit_code)
+        """Write everything out, then append the end row with the exit code that results and write
+        it too, and print the summary. Returns the final exit code."""
+        exit_code = self._write_out(exit_code)
+        self._records.append(("runs", {"run_id": self.run_id, **self._run_row("end", exit_code)}))
+        exit_code = self._write_out(exit_code)
         if self._db_problem is not None:
             typer.echo(
                 f"run {self.run_id} not recorded in the audit database: {self._db_problem}",
                 err=True,
             )
         if self._jsonl_done < len(self._records):
-            typer.echo(f"run {self.run_id} not written to logs/: no logs folder", err=True)
+            why = self._jsonl_problem or "no logs folder"
+            typer.echo(f"run {self.run_id} not written to logs/: {why}", err=True)
         codes = Counter(self.failure_codes)
         by_code = ", ".join(f"{code} x{n}" if n > 1 else code for code, n in sorted(codes.items()))
         failed = f"{self.failed} ({by_code})" if by_code else str(self.failed)
@@ -261,10 +283,10 @@ def execute(
         exit_code = run.exit_code
     except FinError as exc:
         typer.echo(str(exc), err=True)
-        run.event(command, exc.message, level="error", code=exc.code)
+        run.log_error(command, exc.message, exc.code)
         exit_code = exc.exit_code
     except BaseException as exc:
-        run.event(command, f"unexpected {type(exc).__name__}: {exc}", level="error")
+        run.log_error(command, f"unexpected {type(exc).__name__}: {exc}")
         run.finish(EXIT_COMMAND_ERROR)
         raise
     exit_code = run.finish(exit_code)

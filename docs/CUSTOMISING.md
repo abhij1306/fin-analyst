@@ -203,8 +203,9 @@ shared databases from them, and a company database is created from `company.sql`
 numbers.
 
 To change a schema, edit its file. Then either re-create the data folder (move `~/FinAnalysis` away, run `fin init` and
-ingest again), or make the same change to the existing databases with `fin sql --write` (it backs up and logs). A data
-folder made by an older fin that had migrations is detected (E002) and has to be re-created.
+ingest again), or make the same change to the existing databases with `fin sql --write` (it backs up and logs). A database
+that lacks a table, view or column its schema files create (made by an older fin) is detected (E002) and has to be
+re-created or changed to match.
 
 ## Tests and fixtures
 

@@ -181,7 +181,8 @@ open engagement's queries by status, proposed adjustments and gate states. Only 
 PreToolUse hook `gate_guard.py` asks the user before any Bash command that looks like a gate approval (§8). The
 diligence tables (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`) change only through `fin
 engagement|query|adjust|gate`: `fin sql --write` refuses any statement other than a SELECT that names one (E806,
-exit 2; nothing is run, the refusal is logged in `queries`).
+exit 2; nothing is run, the refusal is logged in `queries`). Every diligence command that changes data first backs
+up the company database to `backups/<run_id>/`.
 
 ---
 
@@ -329,7 +330,9 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 Every `fin` command:
 
 - Gets a `run_id`; writes a `runs` row at start and end.
-- Writes structured events to `audit.events` and to `logs/<date>/<run_id>.jsonl`.
+- Writes structured events to `audit.events` and to `logs/<date>/<run_id>.jsonl`. If writing the log fails (E003),
+  it is not retried for that run; the run's exit code reflects it, and the end row is written after everything else, so
+  it records the exit code the command returns.
 - Ends with a summary: loaded, skipped, failed, pending review, held, run_id.
 
 **Tables in `shared/audit.duckdb`** (append-only; rows never updated or deleted)
@@ -620,7 +623,7 @@ Done when:
 ### Phase 8 — Query and evidence
 Build:
 - `fin sql` (read): rejects anything but one SELECT without `--write` (E502), returns JSON with provenance columns, logs to `queries`
-- `fin sql <co> --write --sql "…"`: applies a user-requested data change to one company DB. Backs up first, runs in one transaction, records the statement and rows affected in the audit log, and refreshes metrics
+- `fin sql <co> --write --sql "…"`: applies a user-requested data change to one company DB. Refuses BEGIN/COMMIT/ROLLBACK, ATTACH/DETACH, COPY FROM DATABASE and LOAD/INSTALL before anything runs (E504). Backs up first, runs in one transaction, records the statement and rows affected in the audit log, and refreshes metrics
 - `fin sql --evidence`: HTML page with highlighted PDF crops and Excel context grids
 - `/ask` command with fixed answer format: answer, calculation, source table, SQL, flags
 
