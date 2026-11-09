@@ -6,7 +6,8 @@ Expected values come from answer_key.json; every answer gets a working evidence 
 import html
 import json
 import re
-from collections.abc import Iterator
+import shutil
+from collections.abc import Callable, Iterator
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -149,15 +150,15 @@ def invoke(*args: str) -> Result:
 
 
 @pytest.fixture(scope="module")
-def ingested(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
-    """A data folder with the clean synthetic documents of all three companies ingested."""
+def ingested(
+    tmp_path_factory: pytest.TempPathFactory, clean_template: Callable[..., Path]
+) -> Iterator[Path]:
+    """A data folder with the clean synthetic documents of all three companies ingested (this
+    module's copy: its tests add evidence pages and audit rows)."""
     root = (tmp_path_factory.mktemp("query") / "FinAnalysis").resolve()
+    shutil.copytree(clean_template("kestrel", "bluepeak", "tarang"), root)
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("FIN_DATA_DIR", str(root))
-        assert invoke("init").exit_code == 0
-        for company in ("kestrel", "bluepeak", "tarang"):
-            result = invoke("ingest", company, str(SAMPLES / "clean" / company))
-            assert result.exit_code == 0, result.output
         yield root
 
 
@@ -307,10 +308,8 @@ def test_evidence_flags_a_missing_source_file_with_e604(
 
 
 @pytest.fixture
-def kestrel(data_root: Path) -> Path:
-    invoke("init")
-    assert invoke("ingest", "kestrel", str(SAMPLES / "clean" / "kestrel")).exit_code == 0
-    return data_root
+def kestrel(clean_root: Callable[..., Path]) -> Path:
+    return clean_root("kestrel")
 
 
 def test_sql_write_changes_a_value_with_backup_and_audit_row(kestrel: Path) -> None:

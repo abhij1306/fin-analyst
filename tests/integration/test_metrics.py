@@ -3,6 +3,7 @@ analytics export (refreshed after every ingest and data change)."""
 
 import json
 import shutil
+from collections.abc import Callable
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
@@ -27,20 +28,16 @@ NOT_IN_DOCUMENTS = {
 
 
 @pytest.fixture(scope="module")
-def ingested(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def ingested(clean_template: Callable[..., Path]) -> Path:
     """A data folder with every clean synthetic document ingested (shared, do not change it)."""
-    root = (tmp_path_factory.mktemp("metrics") / "FinAnalysis").resolve()
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setenv("FIN_DATA_DIR", str(root))
-        assert runner.invoke(app, ["init"]).exit_code == 0
-        for company in ("kestrel", "bluepeak", "tarang"):
-            result = runner.invoke(app, ["ingest", company, str(SAMPLES / "clean" / company)])
-            assert result.exit_code == 0, result.output
-        # The last ingest exported all three companies.
-        assert result.stdout.splitlines()[-1] == (
-            "metrics: shared/analytics.duckdb refreshed, 3 companies, 584 metric rows"
-        )
-    return root
+    return clean_template("kestrel", "bluepeak", "tarang")
+
+
+def test_the_last_ingest_exported_every_company(ingested: Path) -> None:
+    with connect(analytics_db_path(ingested)) as con:
+        assert con.execute("SELECT count(DISTINCT company), count(*) FROM metrics").fetchall() == [
+            (3, 584)
+        ]
 
 
 @pytest.fixture

@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -47,15 +48,9 @@ for name in ("health.html", "health.docx", "health.pdf"):
 
 
 @pytest.fixture(scope="module")
-def ingested(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def ingested(clean_template: Callable[..., Path]) -> Path:
     """A data folder with Kestrel ingested (shared, do not change it)."""
-    root = (tmp_path_factory.mktemp("report") / "FinAnalysis").resolve()
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setenv("FIN_DATA_DIR", str(root))
-        assert runner.invoke(app, ["init"]).exit_code == 0
-        result = runner.invoke(app, ["ingest", "kestrel", str(SAMPLES / "clean" / "kestrel")])
-        assert result.exit_code == 0, result.output
-    return root
+    return clean_template("kestrel")
 
 
 @pytest.fixture

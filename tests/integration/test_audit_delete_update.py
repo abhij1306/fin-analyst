@@ -28,12 +28,9 @@ def invoke(*args: str, input: str | None = None) -> Result:
 
 
 @pytest.fixture
-def kestrel(data_root: Path) -> Path:
-    """A data folder with Kestrel ingested and one question answered."""
-    assert invoke("init").exit_code == 0
-    result = invoke("ingest", "kestrel", str(SAMPLES / "clean" / "kestrel"))
-    assert result.exit_code == 0, result.output
-    return data_root
+def kestrel(clean_root: Callable[..., Path]) -> Path:
+    """A data folder with Kestrel ingested."""
+    return clean_root("kestrel")
 
 
 def fact_id(root: Path, account: str, year: str) -> int:
