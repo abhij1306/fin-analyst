@@ -24,7 +24,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from fin.audit.errors import DependencyMissing, ReportRenderFailed
+from fin.audit.errors import DataFolderNotWritable, DependencyMissing, ReportRenderFailed
 from fin.audit.logger import Run
 from fin.config import load_config
 from fin.db.schema import ensure_database
@@ -37,7 +37,7 @@ from fin.report.data import (
     YEARS_SHOWN,
     collect,
     data_hash,
-    fact_value,
+    fact_row,
     to_json,
 )
 from fin.report.lint import REFERENCE, lint, split_sections, strip_comments
@@ -46,12 +46,12 @@ from fin.report.tables import (
     category_rows,
     coverage_tables,
     definitions_table,
+    fact_text,
     facts_table,
     findings_table,
     is_times,
     label,
     metric_value_text,
-    money,
     peers_table,
     quarters_table,
     statements_tables,
@@ -142,7 +142,7 @@ def substitute(text: str, data: dict[str, Any], display_unit: str) -> tuple[str,
                 value = data["metrics"][name].get(period)
                 values[match.group()] = metric_value_text(data, name, value, display_unit)
             else:
-                values[match.group()] = money(fact_value(data, name, period), display_unit)
+                values[match.group()] = fact_text(fact_row(data, name, period), display_unit)
     if problems:
         raise ReportRenderFailed(
             "the narrative has references that cannot be filled:\n"
@@ -334,6 +334,39 @@ def quarto_render(qmd: Path) -> None:
         raise ReportRenderFailed(f"quarto render did not produce {', '.join(missing)}")
 
 
+def _render_files(folder: Path, temp_name: str, built: Built, report_data: str) -> list[str]:
+    """Render in `folder/temp_name`, then move the outputs and `report_data` into `folder`; the
+    temporary folder is removed either way. Raises E003 when a file cannot be written, moved or
+    removed, and E001 or E601 from Quarto."""
+    temp = folder / temp_name
+    outputs = []
+    try:
+        try:
+            temp.mkdir(parents=True)
+            (temp / QMD_FILE).write_text(built.qmd, encoding="utf-8")
+            for name, svg in built.charts.items():
+                (temp / name).write_text(svg, encoding="utf-8")
+            (temp / DATA_FILE).write_text(report_data, encoding="utf-8")
+        except OSError as exc:
+            raise DataFolderNotWritable(f"cannot write the report files in {temp}: {exc}") from exc
+        quarto_render(temp / QMD_FILE)
+        for name in (*OUTPUTS, DATA_FILE):
+            try:
+                (temp / name).replace(folder / name)
+            except OSError as exc:
+                raise DataFolderNotWritable(f"cannot move {name} into {folder}: {exc}") from exc
+            outputs.append(str(folder / name))
+    except BaseException:
+        # The error raised is the one to report; removing the temporary folder is best effort.
+        shutil.rmtree(temp, ignore_errors=True)
+        raise
+    try:
+        shutil.rmtree(temp)
+    except OSError as exc:
+        raise DataFolderNotWritable(f"cannot remove {temp}: {exc}") from exc
+    return outputs
+
+
 def make_report(
     run: Run,
     company: str,
@@ -359,8 +392,11 @@ def make_report(
                 f"{narrative_path} does not exist; run `uv run fin report {company}` to write the "
                 "stub, then fill it with /report"
             )
-        folder.mkdir(parents=True, exist_ok=True)
-        narrative_path.write_text(stub(company, scope, data), encoding="utf-8")
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            narrative_path.write_text(stub(company, scope, data), encoding="utf-8")
+        except OSError as exc:
+            raise DataFolderNotWritable(f"cannot write {narrative_path}: {exc}") from exc
         run.event("report", f"wrote narrative stub {narrative_path}", file=str(narrative_path))
         return {
             "company": company,
@@ -374,32 +410,21 @@ def make_report(
             ),
         }
 
-    narrative = narrative_path.read_text(encoding="utf-8")
+    try:
+        narrative = narrative_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ReportRenderFailed(f"cannot read {narrative_path}: {exc}") from exc
     lint(narrative, str(narrative_path))
     built = build(company, scope, config.display_unit, narrative, data)
-
-    temp = folder / f".render-{run.run_id}"
-    temp.mkdir(parents=True)
-    try:
-        (temp / QMD_FILE).write_text(built.qmd, encoding="utf-8")
-        for name, svg in built.charts.items():
-            (temp / name).write_text(svg, encoding="utf-8")
-        report_data = {
-            "company": company,
-            "scope": scope,
-            "display_unit": config.display_unit,
-            "data_hash": built.data_hash,
-            "references": built.references,
-            "data": built.data,
-        }
-        (temp / DATA_FILE).write_text(to_json(report_data) + "\n", encoding="utf-8")
-        quarto_render(temp / QMD_FILE)
-        outputs = []
-        for name in (*OUTPUTS, DATA_FILE):
-            (temp / name).replace(folder / name)
-            outputs.append(str(folder / name))
-    finally:
-        shutil.rmtree(temp)
+    report_data = {
+        "company": company,
+        "scope": scope,
+        "display_unit": config.display_unit,
+        "data_hash": built.data_hash,
+        "references": built.references,
+        "data": built.data,
+    }
+    outputs = _render_files(folder, f".render-{run.run_id}", built, to_json(report_data) + "\n")
 
     run.record(
         "reports",

@@ -16,6 +16,7 @@ from typing import Any
 from fin.audit.errors import SqlFailed
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
+from fin.map.dictionary import load_accounts
 from fin.map.normalize import normalize_label
 from fin.paths import audit_db_path, company_db_path, dictionary_db_path
 
@@ -46,9 +47,12 @@ def fact_trace(root: Path, company: str, fact_id: int) -> dict[str, Any]:
             [fact["doc_id"]],
         )[0]
     document["archive_exists"] = (root / document["archive_path"]).is_file()
+    # The account's unit: rupees, or rupees_per_share (EPS, stored as printed). Unmapped: rupees.
+    unit = load_accounts(root)[fact["account"]].unit if fact["account"] else "rupees"
     return {
         "company": company,
-        "fact": {key: fact[key] for key in fact if key not in ("raw_id", "doc_id")},
+        "fact": {key: fact[key] for key in fact if key not in ("raw_id", "doc_id")}
+        | {"unit": unit},
         "raw_value": raw,
         "document": document,
         "mapping": _mapping(root, company, fact["mapping_id"], raw),
@@ -162,15 +166,33 @@ def format_metric_trace(trace: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# Runs whose audit rows name the company, whatever their args (`fin ingest-batch` names only a
+# folder). Events about a company's documents have file `<company>/<file name>`.
+_TAGGED_RUNS_SQL = """
+SELECT run_id FROM events WHERE starts_with(file, $prefix)
+UNION SELECT run_id FROM mapping_decisions WHERE company = $company
+UNION SELECT run_id FROM validation_results WHERE company = $company
+UNION SELECT run_id FROM findings WHERE company = $company
+UNION SELECT run_id FROM queries WHERE company = $company
+UNION SELECT run_id FROM reports WHERE company = $company
+UNION SELECT run_id FROM deletions WHERE company = $company
+UNION SELECT run_id FROM diligence_events WHERE company = $company
+"""
+
+
 def company_history(root: Path, company: str) -> dict[str, Any]:
-    """Everything the audit database holds about a company, oldest first."""
-    ingest_runs: set[str] = set()
-    if company_db_path(root, company).is_file():
-        with connect(company_db_path(root, company)) as con:
-            ingest_runs = {
-                r[0] for r in con.execute("SELECT DISTINCT run_id FROM documents").fetchall()
-            }
+    """Everything the audit database holds about a company, oldest first. A run belongs to the
+    company when its args name it or an audit row of it does (so a batch ingest stays in the history
+    after the company is deleted). A run that did not name the company shows only the problems with
+    the company's files."""
+    prefix = f"{company}/"
     with connect(audit_db_path(root)) as con:
+        tagged = {
+            r[0]
+            for r in con.execute(
+                _TAGGED_RUNS_SQL, {"prefix": prefix, "company": company}
+            ).fetchall()
+        }
         runs = fetch_dicts(
             con,
             "SELECT s.run_id, s.command, s.args, s.started_at, e.status, e.exit_code, "
@@ -178,22 +200,20 @@ def company_history(root: Path, company: str) -> dict[str, Any]:
             "FROM runs s LEFT JOIN runs e ON e.run_id = s.run_id AND e.record = 'end' "
             "WHERE s.record = 'start' AND s.command <> 'audit' ORDER BY s.started_at",
         )
-        runs = [
-            r
-            for r in runs
-            if json.loads(r["args"]).get("company") == company or r["run_id"] in ingest_runs
-        ]
-        problems = fetch_dicts(
+        named = {r["run_id"] for r in runs if json.loads(r["args"]).get("company") == company}
+        runs = [r for r in runs if r["run_id"] in named or r["run_id"] in tagged]
+        problems: dict[str, list[dict[str, Any]]] = {}
+        for p in fetch_dicts(
             con,
             "SELECT run_id, stage, level, error_code, file, message FROM events "
             "WHERE level IN ('warning', 'error') ORDER BY run_id, seq",
-        )
+        ):
+            if p["run_id"] in named or (p["file"] or "").startswith(prefix):
+                problems.setdefault(p["run_id"], []).append(p)
         by_company = "WHERE company = ? ORDER BY recorded_at"
         return {
             "company": company,
-            "runs": [
-                r | {"problems": [p for p in problems if p["run_id"] == r["run_id"]]} for r in runs
-            ],
+            "runs": [r | {"problems": problems.get(r["run_id"], [])} for r in runs],
             "mapping_decisions": fetch_dicts(
                 con, f"SELECT * FROM mapping_decisions {by_company}", [company]
             ),
@@ -214,7 +234,8 @@ def format_fact_trace(trace: dict[str, Any]) -> str:
     run, mapping = trace["ingest_run"], trace["mapping"]
     lines = [
         f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['period']} "
-        f"{fact['scope']} = {fact['value']} rupees (mapping confirmed: {fact['confirmed']})",
+        f"{fact['scope']} = {fact['value']} {fact['unit'].replace('_', ' ')} "
+        f"(mapping confirmed: {fact['confirmed']})",
         f"raw value: {raw['raw_label']!r} = {raw['raw_value_text']} {raw['raw_unit']} "
         f"under {raw['section']!r} ({raw['statement']})",
         f"source: {doc['file_name']} {raw['source']} (version {doc['version']}, {doc['status']})",

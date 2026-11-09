@@ -465,7 +465,8 @@ def sql_command(
     ] = False,
 ) -> None:
     """Read: run one SELECT and print JSON rows, with provenance columns (source_file,
-    source_ref, source_confirmed, ...) when the result has fact_id or raw_id. --evidence writes a
+    source_ref, source_confirmed, ...) when the result has fact_ids (every line of a summed
+    value), fact_id or raw_id. --evidence writes a
     page showing the source of every fact (a missing source is flagged, E604, exit 1). Anything but
     one SELECT is rejected (E502) unless --write is given. With --write: back up the company
     database, run the SQL in one transaction, and log the statement, rows affected and backup."""

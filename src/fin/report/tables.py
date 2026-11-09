@@ -57,6 +57,12 @@ def metric_text(unit: str, value: Decimal | None, display_unit: str, times: bool
     return f"{(value * 100).quantize(Decimal('0.1'), ROUND_HALF_UP)}%"
 
 
+def fact_text(row: dict[str, Any] | None, display_unit: str) -> str:
+    """A fact (a `data["facts"]` row) for display in its account's unit: money in `display_unit`,
+    earnings per share in rupees as printed."""
+    return "n/a" if row is None else metric_text(row["unit"], row["value"], display_unit)
+
+
 def _definition(data: dict[str, Any], metric: str) -> dict[str, Any]:
     return data["metric_info"][metric]
 
@@ -175,22 +181,29 @@ def peers_table(data: dict[str, Any], display_unit: str) -> str:
 
 
 def statements_tables(data: dict[str, Any], display_unit: str) -> str:
-    """The condensed statements: subtotals only, one table per statement."""
+    """The condensed statements: printed subtotals only, one table per statement. A subtotal its
+    mapped lines do not add up to is marked †, with a note."""
     parts = []
     years = data["years"][-YEARS_SHOWN:]
     for statement in STATEMENTS:
-        lines: dict[tuple[int, str], dict[str, Decimal]] = {}
+        lines: dict[tuple[int, str], dict[str, str]] = {}
         for r in data["statements"]:
             if r["statement"] == statement:
-                lines.setdefault((r["line_no"], r["label"]), {})[r["period"]] = r["value"]
+                text = money(r["value"], display_unit) + ("" if r["complete"] else " †")
+                lines.setdefault((r["line_no"], r["label"]), {})[r["period"]] = text
         if not lines:
             continue
         body = [
-            [name, *(money(by_year.get(y), display_unit) for y in years)]
+            [name, *(by_year.get(y, "n/a") for y in years)]
             for (_, name), by_year in sorted(lines.items())
         ]
         title = STATEMENT_TITLES[statement]
         parts.append(f"### {title}\n\n" + table(["", *years], body, ""))
+    if any(not r["complete"] for r in data["statements"]):
+        parts.append(
+            "† As printed; the lines under it that are mapped do not add up to it (some are not "
+            "mapped, or not printed). `fin statements` shows what the lines explain."
+        )
     return "\n\n".join(parts) or "No statements."
 
 
@@ -268,31 +281,30 @@ def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
         "No unconfirmed mappings.",
     )
     missing = table(
-        ["Year", "Metric", "Missing inputs"],
+        ["Period", "Metric", "Missing inputs"],
         [
-            [row["fiscal_year"], label(data, row["metric"]), row["missing_inputs"]]
+            [row["period"], label(data, row["metric"]), row["missing_inputs"]]
             for row in data["missing"]
         ],
-        "No missing data: every metric has a value.",
+        "No missing data: every metric of the years and quarters shown has a value.",
     )
     return {"coverage": coverage, "unread": unread, "unconfirmed": unconfirmed, "missing": missing}
 
 
 def facts_table(data: dict[str, Any], display_unit: str) -> str:
-    used = set(data["metric_accounts"])
-    years = set(data["years"])
+    """The appendix facts (`data["appendix"]`), each in its account's unit, with its source."""
     return table(
-        ["Account", "Year", "Value", "File", "Source"],
+        ["Scope", "Account", "Period", "Value", "File", "Source"],
         [
             [
+                row["scope"],
                 f"`{row['account']}`",
                 row["period"],
-                money(row["value"], display_unit),
+                fact_text(row, display_unit),
                 row["file_name"],
                 row["source_ref"],
             ]
-            for row in data["facts"]
-            if row["account"] in used and row["period"] in years
+            for row in data["appendix"]
         ],
         "No facts.",
     )

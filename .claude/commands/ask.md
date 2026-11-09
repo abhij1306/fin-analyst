@@ -24,7 +24,8 @@ Answer this question with `fin`: $ARGUMENTS
      no `fact_id`); never fill it in.
    - Select `metric_inputs.fact_id` with a metric (`JOIN metric_inputs USING (period, scope, metric)`), so each
      input gets its source.
-   - Select `f.fact_id` (or `current_facts.fact_id`) for every fact you use, so each row gets its source.
+   - Select `f.fact_id` (or `current_facts.fact_ids`) for every fact you use, so each row gets its source. A
+     `current_facts` value can be the sum of several printed lines: `fact_ids` gives every line's source.
    - Compute ratios, sums and growth in the SQL. Never do arithmetic yourself.
    - Never mix `standalone` and `consolidated`. If a period appears in two documents (comparatives), pick one
      with `d.file_name` and say which, or use `current_facts`.
