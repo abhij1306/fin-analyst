@@ -153,6 +153,11 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
 
 Every change, and every gate approval, is recorded in the audit table `diligence_events`.
 
+Not built yet (they wait on the open questions in the plan, §9): loading trial balances, Tally ledgers, sales and
+purchase registers, bank statements and payroll; reconciliations; contract recast; a query letter export; customer
+analytics. A data folder made before diligence has no `[diligence]` table in `config.toml` (E002): move the folder
+away and run `uv run fin init`.
+
 ## Pages fin can't read
 
 fin reads Excel files and digital PDFs. When it can't read a statement page (an unusual layout, a scanned PDF)
@@ -168,7 +173,8 @@ it.
 
 ```
 ~/FinAnalysis/
-  config.toml           # display unit, default scope, fiscal year start, check tolerances, Docling add-on
+  config.toml           # display unit, default scope, fiscal year start, check tolerances, Docling add-on,
+                        # diligence query threshold and adjustment categories
   inbox/<company>/      # drop documents here
   companies/            # one database per company
   shared/               # chart of accounts, audit log, dashboard data
