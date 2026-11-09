@@ -185,7 +185,7 @@ def test_query_raise_options_are_usage_errors(
 
     assert result.exit_code == 2
     # rich colours, boxes and wraps the message: compare the words only
-    words = re.sub(r"\x1b\[[0-9;]*m|│", " ", result.stderr).split()
+    words = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr).replace("│", " ").split()
     assert problem in " ".join(words)
     assert fin("query", "list", "bluepeak").stdout == "no queries\n"
     assert audit_query("SELECT count(*) FROM events WHERE message LIKE 'unexpected%'") == [(0,)]
