@@ -8,9 +8,11 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from layouts import MODERN
+from preflight import find_fonts
 
-pdfmetrics.registerFont(TTFont("DejaVu", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"))
-pdfmetrics.registerFont(TTFont("DejaVu-Bold", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
+_regular, _bold = find_fonts()
+pdfmetrics.registerFont(TTFont("DejaVu", str(_regular)))
+pdfmetrics.registerFont(TTFont("DejaVu-Bold", str(_bold)))
 
 BANNER = "SYNTHETIC TEST DATA - fictitious company, generated for software testing"
 FY_LABEL = {"FY23": "2022-23", "FY24": "2023-24", "FY25": "2024-25"}

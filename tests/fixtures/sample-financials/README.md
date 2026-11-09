@@ -42,7 +42,7 @@ python generate.py ..     # rebuilds clean/, broken/, answer_key.json
 python verify.py ..       # reads every file back and checks it against the key
 ```
 
-Needs `openpyxl`, `reportlab`, `pypdf`, `pypdfium2`, `pdfplumber`. LibreOffice is used to cache formula values in the Kestrel workbook; without it, formula cells have no stored values until opened in Excel.
+Needs `openpyxl`, `reportlab`, `pypdf`, `pypdfium2`, `pdfplumber`, the DejaVu Sans fonts and LibreOffice with a `recalc.py` script that caches formula values in the Kestrel workbooks. The generator looks for the fonts in the usual Linux and macOS folders (`FIN_FIXTURE_FONT_DIR` names another folder) and for the script at `/mnt/skills/public/xlsx/scripts/recalc.py` (`FIN_FIXTURE_RECALC_SCRIPT` names another path). If either is missing it exits with a message before replacing any file.
 
 ## Limits — real documents are messier
 

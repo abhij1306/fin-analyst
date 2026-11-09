@@ -25,7 +25,8 @@ select
     fiscal_year,
     category,
     metric,
-    case when unit = 'rupees' then value / 10000000 else value end as value
+    case when unit = 'rupees' then value / 10000000 else value end as value,
+    case when unit = 'rupees' then '₹ crore' else unit end as unit
 from analytics.metrics
 where company = '${inputs.company.value}' and scope = '${inputs.scope.value}'
   and period_months = 12
@@ -111,12 +112,24 @@ select distinct category from ${annual} order by category
 <Dropdown name=category data={category_list} value=category title="Category" />
 
 ```sql category_metrics
-select fiscal_year, metric, value from ${annual}
+select fiscal_year, metric, value, unit from ${annual}
 where category = '${inputs.category.value}'
 order by fiscal_year, metric
 ```
 
-<LineChart data={category_metrics} x=fiscal_year y=value series=metric sort=false title="{inputs.category.value}" emptySet=pass emptyMessage="None loaded." />
+A chart has one unit on its axis; pick the unit to chart. The table lists every metric of the category with its unit.
+
+```sql unit_list
+select distinct unit from ${category_metrics} order by unit
+```
+
+<Dropdown name=unit data={unit_list} value=unit title="Unit" />
+
+```sql unit_metrics
+select * from ${category_metrics} where unit = '${inputs.unit.value}'
+```
+
+<LineChart data={unit_metrics} x=fiscal_year y=value series=metric sort=false title="{inputs.category.value} ({inputs.unit.value})" emptySet=pass emptyMessage="None loaded." />
 
 <DataTable data={category_metrics} rows=all emptySet=pass emptyMessage="None loaded." />
 
@@ -199,13 +212,14 @@ select line, value, unit from ${statement_lines} where statement = 'cash_flow' o
 ## Findings and coverage
 
 Findings are figures in what the company filed that do not add up, or that differ between documents or from
-a reading: open ones wait for a decision, accepted ones are kept as filed. Coverage is the share of each
+a reading: open ones wait for a decision, accepted ones are kept as filed. Findings are for the selected scope,
+plus any that name no scope; coverage lists both scopes. Coverage is the share of each
 statement's figures that is mapped to an account (the rest is left out of every metric).
 
 ```sql company_findings
-select status, document_status, file_name, code, period, label, finding, fin_source, other_source
+select status, document_status, file_name, code, scope, period, label, finding, fin_source, other_source
 from analytics.findings
-where company = '${inputs.company.value}'
+where company = '${inputs.company.value}' and (scope = '${inputs.scope.value}' or scope is null)
 order by status, file_name, period
 ```
 
