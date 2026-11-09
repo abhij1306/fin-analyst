@@ -7,7 +7,9 @@ company is checked again (`fin.findings.recheck_held`): a fix that clears its fi
 
 A statement other than a SELECT that names a diligence table (engagement, accountant_queries,
 adjustments, gate_approvals) is refused with E806 before the backup: those tables change only
-through `fin engagement|query|adjust|gate`, which check the gates and log every change.
+through `fin engagement|query|adjust|gate`, which check the gates and log every change. A statement
+that would end the transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH,
+DETACH, COPY FROM DATABASE, LOAD/INSTALL) is refused with E504, also before the backup.
 """
 
 import re
@@ -31,6 +33,15 @@ from fin.paths import backups_dir, company_db_path
 
 # Tables only the diligence commands change (`fin engagement|query|adjust|gate`).
 DILIGENCE_TABLE = re.compile(r"\b(engagement|accountant_queries|adjustments|gate_approvals)\b")
+
+# Statements that would end the wrapping transaction or reach past the company database.
+REFUSED = {
+    duckdb.StatementType.TRANSACTION: "BEGIN, COMMIT and ROLLBACK",
+    duckdb.StatementType.ATTACH: "ATTACH",
+    duckdb.StatementType.DETACH: "DETACH",
+    duckdb.StatementType.COPY_DATABASE: "COPY FROM DATABASE",
+    duckdb.StatementType.LOAD: "LOAD and INSTALL",
+}
 
 COUNTED = {
     duckdb.StatementType.INSERT,
@@ -65,14 +76,20 @@ def _changed_rows(con: duckdb.DuckDBPyConnection, statement: Any) -> int:
     return len(result)
 
 
-def check_not_diligence(con: duckdb.DuckDBPyConnection, sql: str) -> None:
-    """E806 when a statement other than a SELECT names a diligence table. A name match is enough:
-    when in doubt, refuse. E504 when the SQL does not parse."""
+def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
+    """Check every statement before any runs. E504 when the SQL does not parse or a statement is
+    one of REFUSED; E806 when a statement other than a SELECT names a diligence table (a name match
+    is enough: when in doubt, refuse)."""
     try:
         statements = con.extract_statements(sql)
     except duckdb.Error as exc:
         raise SqlFailed(f"cannot parse the SQL: {' '.join(str(exc).split())}") from exc
     for statement in statements:
+        if statement.type in REFUSED:
+            raise SqlFailed(
+                f"`fin sql --write` runs the SQL in its own transaction on the company database; "
+                f"{REFUSED[statement.type]} are not allowed. Nothing was run"
+            )
         if statement.type == duckdb.StatementType.SELECT:
             continue
         named = sorted(set(DILIGENCE_TABLE.findall((statement.query or sql).lower())))
@@ -86,14 +103,14 @@ def check_not_diligence(con: duckdb.DuckDBPyConnection, sql: str) -> None:
 
 def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> dict[str, Any]:
     """Back up the company database, run `sql` in one transaction and log it. Returns the JSON
-    payload. A failing statement rolls everything back and raises E504. A statement that writes to
-    a diligence table is refused (E806) and logged before anything runs."""
+    payload. A failing statement rolls everything back and raises E504. SQL that `check_write_sql`
+    refuses (E504, E806) is logged before anything runs."""
     path = company_db_path(run.root, company)
     if not path.is_file():
         raise DependencyMissing(f"no database for company {company!r} ({path}); ingest first")
     with connect(path) as con:
         try:
-            check_not_diligence(con, sql)
+            check_write_sql(con, sql)
         except (DiligenceTableWrite, SqlFailed):
             run.record(
                 "queries",
@@ -116,10 +133,15 @@ def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> 
                 rows_affected += _changed_rows(con, statement)
             con.execute("COMMIT")
         except duckdb.Error as exc:
-            con.execute("ROLLBACK")
-            raise SqlFailed(
-                f"the change failed and was rolled back: {' '.join(str(exc).split())}"
-            ) from exc
+            cause = " ".join(str(exc).split())
+            try:
+                con.execute("ROLLBACK")
+            except duckdb.Error as rollback:
+                raise SqlFailed(
+                    f"the change failed ({cause}) and rolling it back failed too "
+                    f"({' '.join(str(rollback).split())}); the backup is {saved}"
+                ) from exc
+            raise SqlFailed(f"the change failed and was rolled back: {cause}") from exc
     backup_path = saved.relative_to(run.root).as_posix()
     run.record(
         "queries",

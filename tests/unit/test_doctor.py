@@ -48,7 +48,7 @@ def test_audit_schema_check_names_the_fix(data_root: Path) -> None:
     assert check_audit_schema(data_root) == Check("audit schema", True, "present")
 
     with connect(audit_db_path(data_root), write=True) as con:
-        con.execute("CREATE TABLE schema_version (version INTEGER)")
+        con.execute("DROP TABLE deletions")  # a table this fin's schema creates
     assert check_audit_schema(data_root) == Check(
         "audit schema",
         False,

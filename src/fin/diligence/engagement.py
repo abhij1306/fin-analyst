@@ -6,7 +6,8 @@ command works on the open one and stops with E803 when there is none.
 
 Every engagement, query and adjustment added, and every status change, is appended to the audit
 table `diligence_events` (`record_event`) in the same unit of work as the change, as `fin.findings`
-does for findings.
+does for findings. A command that changes them first backs up the company database to
+`backups/<run_id>/` (`company_database(write=True)`, once per command), as `fin sql --write` does.
 """
 
 import json
@@ -25,6 +26,7 @@ from fin.db.conn import connect, transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
 from fin.paths import company_db_path
+from fin.query.write import backup
 
 ANNUAL = re.compile(r"^FY\d{2}$")
 PERIOD = re.compile(r"^FY\d{2}(?:-(?:Q[1-4]|H[12]|9M))?$")  # fin.extract.periods names
@@ -86,13 +88,17 @@ def rupees(value: Any) -> str:
 def company_database(
     run: Run, company: str, *, write: bool = False
 ) -> Iterator[duckdb.DuckDBPyConnection]:
-    """The company's database (it must exist: the company has documents loaded)."""
+    """The company's database (it must exist: the company has documents loaded). With `write=True`
+    it is backed up first (`backups/<run_id>/companies/<company>.duckdb`); each diligence command
+    opens it for writing once."""
     path = company_db_path(run.root, company)
     if not path.is_file():
         raise DependencyMissing(
             f"no database for company {company!r}; ingest its documents first (`fin ingest`)"
         )
     ensure_database(path, "company")
+    if write:
+        backup(run.root, path, run)
     with connect(path, write=write) as con:
         yield con
 

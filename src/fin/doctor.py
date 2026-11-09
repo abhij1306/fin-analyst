@@ -224,7 +224,7 @@ def check_schema(path: Path, kind: str) -> Check:
         )
     try:
         with connect(path) as con:
-            old = is_old_format(con)
+            old = is_old_format(con, kind)
     except DatabaseLocked as exc:
         return Check(name, False, exc.message, exc.code, "close other fin commands")
     if old:

@@ -19,7 +19,7 @@ from typing import Any
 from fin.audit.errors import ReportRenderFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
-from fin.db.schema import ensure_database
+from fin.db.schema import ensure_database, remove_database
 from fin.paths import analytics_db_path, audit_db_path, companies_dir
 from fin.statements import PER_SHARE, in_unit, statement_rows, unit_title
 
@@ -140,8 +140,7 @@ def _ensure_analytics(path: Path) -> None:
                 ).fetchall()
             )
         if found != {(table, column) for table, columns in TABLES.items() for column in columns}:
-            for stale in (path, path.with_name(path.name + ".wal")):
-                stale.unlink(missing_ok=True)
+            remove_database(path)
     ensure_database(path, "analytics")
 
 
