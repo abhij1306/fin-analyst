@@ -331,3 +331,18 @@ def test_the_latest_engagement_is_shown(engaged: Path) -> None:
     assert [(r["engagement_id"], r["period"], r["adjusted_ebitda"]) for r in result["walk"]] == [
         (2, "FY24", "227479000.00")
     ]
+
+
+def test_an_engagement_on_periods_without_data_shows_them_and_closes(root: Path) -> None:
+    assert fin("engagement", "open", "kestrel", "--periods", "FY20,FY21").exit_code == 0
+
+    result = bridge_json()
+
+    assert [(r["period"], r["scope"], r["reported_ebitda"]) for r in result["adjusted_ebitda"]] == [
+        ("FY20", "standalone", None),
+        ("FY21", "standalone", None),
+    ]
+    # No queries and no adjustments: nothing to lose, so it closes without its gates.
+    closed = fin("engagement", "close", "kestrel")
+    assert closed.exit_code == 0, closed.output
+    assert fin("engagement", "open", "kestrel", "--periods", "FY24,FY25").exit_code == 0
