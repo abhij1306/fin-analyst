@@ -215,7 +215,9 @@ further with Claude Code, so the code and docs stay simple and easy to modify.
 | CI | GitHub Actions | Linux on every push; macOS on main and on demand |
 | System deps | Homebrew `Brewfile` | uv, node, quarto, poppler |
 
-Pin exact versions in Phase 0. Upgrade deliberately, never implicitly.
+Python dependencies are pinned exactly in `uv.lock`. Homebrew cannot pin versions, so `install.sh` takes its current
+uv, node, quarto and poppler, and `fin doctor` checks minimum versions for uv, node and quarto. CI pins the tested
+Node and Quarto versions. Upgrade deliberately, never implicitly.
 
 ## 4. Architecture
 

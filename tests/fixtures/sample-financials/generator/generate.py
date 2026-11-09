@@ -1,7 +1,9 @@
 """Generate synthetic financial documents + answer key.
 
 Usage:  python generate.py [output_dir]
-Needs:  openpyxl, reportlab, pypdf, pypdfium2 (and LibreOffice to cache formula values, optional)
+Needs:  openpyxl, reportlab, pypdf, pypdfium2, DejaVu Sans fonts (FIN_FIXTURE_FONT_DIR if not in a standard
+        folder) and LibreOffice with the recalc script (FIN_FIXTURE_RECALC_SCRIPT) to cache formula values.
+        Exits with a message, before replacing any fixture, when a font or the script is missing.
 """
 
 import json
@@ -15,6 +17,7 @@ from excel_writer import bluepeak_workbook, kestrel_workbook
 from layouts import MODERN, OLD
 from model import metrics
 from pdf_writer import encrypt, scanned, tarang_report
+from preflight import find_recalc
 
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent)
 PREV = {"FY22": "FY21", "FY23": "FY22", "FY24": "FY23", "FY25": "FY24"}
@@ -53,6 +56,7 @@ def labels(layout):
 
 
 def main():
+    recalc = find_recalc()  # fails here, before any fixture is replaced
     clean, broken = OUT / "clean", OUT / "broken"
     for d in (clean, broken):
         shutil.rmtree(d, ignore_errors=True)
@@ -193,11 +197,11 @@ def main():
                                 "expected_error": "E105", "what": "Ingest the same clean file twice: second run is a duplicate."})
 
     # Cache formula values so readers see numbers (needs LibreOffice)
-    recalc = Path("/mnt/skills/public/xlsx/scripts/recalc.py")
     for f in to_recalc:
-        if recalc.exists():
-            res = subprocess.run([sys.executable, str(recalc), str(f), "60"], capture_output=True, text=True)
-            print(f.name, res.stdout.strip()[:200])
+        res = subprocess.run([sys.executable, str(recalc), str(f), "60"], capture_output=True, text=True)
+        print(f.name, res.stdout.strip()[:200])
+        if res.returncode != 0:
+            sys.exit(f"Recalculation failed for {f.name} (exit {res.returncode}): {res.stderr.strip()[:500]}")
 
     (OUT / "answer_key.json").write_text(json.dumps(key, indent=2, ensure_ascii=False, default=float))
     print("done:", OUT)

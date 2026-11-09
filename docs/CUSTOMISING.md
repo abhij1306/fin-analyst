@@ -81,9 +81,10 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - Leave a label to review when it means different accounts in different formats and nothing tells them apart, such
   as assets held for sale: in a statement whose part heading was not read it would land in the wrong subtotal and a
   correct document would be held on an E402 finding. Map it per company (`fin map set`) instead.
-- Run `uv run fin init`. It adds missing rows to the shared dictionary and never removes or changes existing ones. To
-  change an existing row (a new parent or sign), edit the row in `templates/dictionary/schedule_iii.csv` and re-create the data folder, or use `fin sql --write` on
-  the dictionary for a one-off change.
+- Run `uv run fin init`. It adds missing rows to the shared dictionary and never removes or changes existing ones, so
+  a new account or label in the seed CSVs reaches an existing data folder this way. A changed row (a new parent or
+  sign) reaches only a data folder created afterwards. `fin sql --write` cannot change the dictionary: it works on
+  one company's database. For one company, map the label to another account with `fin map set` (below).
 - One company only: `uv run fin map set <co> --statement <statement> --label "<label as written>" --account
   <account> [--section "<heading>"]`. It wins over the seed for that company, for files ingested from then on. This
   is also how to fix a wrong mapping behind a held document's findings (`fin findings list`): map it, then

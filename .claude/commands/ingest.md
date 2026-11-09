@@ -42,7 +42,8 @@ Ingest documents for the company in `$ARGUMENTS`.
    a failed file also `unread_pages` in its error.json), or load without one of those statements. Tell the user
    which file, which statements and which pages (from those lines, or the page numbers you find), and **offer** a
    Claude reading of those pages. Ask first; never read
-   them unasked. If the user agrees, follow "Claude reading" below.
+   them unasked. If the user agrees, follow "Claude reading" below. A failed file is not loaded; a file that loaded
+   with unread pages is, and its reading is loaded with `--force`.
    With the optional Docling add-on on (`[pdf] docling = true`), fin has already tried Docling on those pages: the
    outcome says how many figures Docling read (`read by Docling (unverified)`) and the pages still listed are the
    ones neither read. Without it, the run log says the pages could also be read by installing the add-on
@@ -74,8 +75,11 @@ second, independent reading agrees and the document's validation gates pass.
    - Copy every line of the statement, totals and subtotals included, for every period column. Never compute,
      round, convert units or infer a figure. If a figure is unreadable, leave the line out and tell the user;
      do not guess it.
-3. Load it: `uv run fin ingest <company> <original file> --reading <reading1.csv>`. fin loads the reading only for the statements it could not read itself, through the same validation
-   gates. Report the outcome. If the document is held with findings, follow step 7; do not edit the reading to
+3. Load it: `uv run fin ingest <company> <original file> --reading <reading1.csv>`, adding `--force` when the file
+   already loaded (a partial load, or a file with pages listed as not read): fin refuses a file it has already
+   ingested (E105, "skipped") before it looks at the reading, and `--force` loads it again as a new version. A file
+   that failed outright was never loaded, so it needs no `--force`. fin loads the reading only for the statements it
+   could not read itself, through the same validation gates. Report the outcome. If the document is held with findings, follow step 7; do not edit the reading to
    make a check pass. Re-read the page and fix only a figure you misread, and say which.
 4. Second, independent reading: read the same pages again from scratch, without opening `reading1.csv`, and write
    `review/<company>/<file stem>.reading2.csv` the same way.
