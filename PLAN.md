@@ -664,7 +664,7 @@ Done when:
 Build:
 - `fin sql` (read): rejects anything but one SELECT without `--write` (E502), returns JSON with provenance columns, logs to `queries`
 - `fin sql <co> --write --sql "…"`: applies a user-requested data change to one company DB. Refuses BEGIN/COMMIT/ROLLBACK, ATTACH/DETACH, COPY FROM DATABASE and LOAD/INSTALL before anything runs (E504). Backs up first, runs in one transaction, records the statement and rows affected in the audit log, and refreshes metrics
-- `fin sql --evidence`: HTML page with highlighted PDF crops and Excel context grids
+- `fin sql --evidence`: HTML page with highlighted PDF crops and Excel context grids; a figure Claude read from a PDF page (no position) shows the whole page
 - `/ask` command with fixed answer format: answer, calculation, source table, SQL, flags
 
 Done when:

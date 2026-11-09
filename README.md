@@ -237,7 +237,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E601 | Report render failed | The last good report is kept. Run `uv run fin doctor` (Quarto) and try again |
 | E602 | The report narrative contains hand-typed numbers | Replace each listed number with a `{{metric:...}}` or `{{fact:...}}` reference, or reword it |
 | E603 | Dashboard build failed | The last good build is kept. Run `uv run fin doctor` (node) and try again |
-| E604 | An evidence source file is missing from the archive, or cannot be opened | The page is still produced and flags it. Restore the original into `archive/` |
+| E604 | An evidence source file is missing from the archive, cannot be opened, or has no page a figure names | The page is still produced and flags it. Restore the original into `archive/` |
 | E701 | The action needs your confirmation | `fin delete` run by hand exits 3 when the typed name does not match; Claude uses `--yes` when you asked |
 | E801 | A diligence gate this command needs is not approved: never approved (open), or its data changed since it was approved (reopened) | Nothing changed. See what the gate needs with `uv run fin gate status <company>`; once its checklist passes, you approve it with `uv run fin gate approve <company> <gate>` |
 | E802 | A gate cannot be approved: its checklist fails, or an earlier gate is not approved | Nothing approved. Fix the failing checklist lines shown (or approve the earlier gate first), then approve again |
