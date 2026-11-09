@@ -142,9 +142,12 @@ def record(
 
 
 def _settle(con: duckdb.DuckDBPyConnection, doc_id: int) -> int:
-    """Hold the document while it has open findings, else load it. Returns its open findings."""
+    """Hold the document while it has open gate findings, else load it. Returns their number. A
+    `fin verify` finding (verify_reading) neither holds nor releases a document."""
     row = con.execute(
-        "SELECT count(*) FROM findings WHERE doc_id = ? AND status = 'open'", [doc_id]
+        "SELECT count(*) FROM findings WHERE doc_id = ? AND status = 'open' "
+        "AND check_name <> 'verify_reading'",
+        [doc_id],
     ).fetchone()
     assert row is not None
     open_findings = int(row[0])
@@ -239,7 +242,8 @@ def accept(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
         marks = ", ".join("?" for _ in ids)
         docs = con.execute(
             "SELECT d.doc_id, d.file_name, d.status, "
-            "(SELECT count(*) FROM findings o WHERE o.doc_id = d.doc_id AND o.status = 'open') "
+            "(SELECT count(*) FROM findings o WHERE o.doc_id = d.doc_id AND o.status = 'open' "
+            "AND o.check_name <> 'verify_reading') "
             f"FROM documents d WHERE d.doc_id IN (SELECT doc_id FROM findings "
             f"WHERE finding_id IN ({marks})) ORDER BY d.doc_id",
             ids,
