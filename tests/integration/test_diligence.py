@@ -2,6 +2,7 @@
 through their statuses, and adjustments with evidence; every change in `diligence_events`."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -183,7 +184,9 @@ def test_query_raise_options_are_usage_errors(
     result = fin("query", "raise", "bluepeak", "--question", "Why?", *args)
 
     assert result.exit_code == 2
-    assert problem in " ".join(result.stderr.replace("│", " ").split())  # rich may box and wrap it
+    # rich colours, boxes and wraps the message: compare the words only
+    words = re.sub(r"\x1b\[[0-9;]*m|│", " ", result.stderr).split()
+    assert problem in " ".join(words)
     assert fin("query", "list", "bluepeak").stdout == "no queries\n"
     assert audit_query("SELECT count(*) FROM events WHERE message LIKE 'unexpected%'") == [(0,)]
 
