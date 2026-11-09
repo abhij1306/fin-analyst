@@ -3,7 +3,8 @@
 Usage:  python generate.py [output_dir]
 Needs:  openpyxl, reportlab, pypdf, pypdfium2, DejaVu Sans fonts (FIN_FIXTURE_FONT_DIR if not in a standard
         folder) and LibreOffice with the recalc script (FIN_FIXTURE_RECALC_SCRIPT) to cache formula values.
-        Exits with a message, before replacing any fixture, when a font or the script is missing.
+        Exits with a message, before replacing any fixture, when a font or the script is missing. Everything is
+        built in a temporary folder and replaces the fixtures only at the end, so a failure keeps the old ones.
 """
 
 import json
@@ -57,9 +58,23 @@ def labels(layout):
 
 def main():
     recalc = find_recalc()  # fails here, before any fixture is replaced
-    clean, broken = OUT / "clean", OUT / "broken"
+    tmp = OUT / ".generate-tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        build(tmp, recalc)
+        for name in ("clean", "broken", "answer_key.json"):
+            if (OUT / name).is_dir():
+                shutil.rmtree(OUT / name)
+            (tmp / name).replace(OUT / name)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    print("done:", OUT)
+
+
+def build(out, recalc):
+    """Write every fixture and the answer key into `out`."""
+    clean, broken = out / "clean", out / "broken"
     for d in (clean, broken):
-        shutil.rmtree(d, ignore_errors=True)
         d.mkdir(parents=True)
     M = models()
     key = {"about": "Expected values for the synthetic test documents. All amounts in rupees (integers).",
@@ -205,8 +220,7 @@ def main():
         if res.returncode != 0:
             sys.exit(f"Recalculation failed for {f.name} (exit {res.returncode}): {res.stderr.strip()[:500]}")
 
-    (OUT / "answer_key.json").write_text(json.dumps(key, indent=2, ensure_ascii=False, default=float))
-    print("done:", OUT)
+    (out / "answer_key.json").write_text(json.dumps(key, indent=2, ensure_ascii=False, default=float))
 
 
 if __name__ == "__main__":
