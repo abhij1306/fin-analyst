@@ -37,11 +37,12 @@ gates. Everything is greenfield: new tables go straight into the schema files, w
 - **Gates** are a small registry in code (`fin/diligence/gates.py`), approved in order. A gate counts as approved
   only while the hash of its inputs equals the hash recorded at approval. When data changes, it reopens on its own.
   Gates in this build:
-  - **G1 Data:** every annual period in scope has a loaded document, no held documents, no pending mappings. Its
-    inputs include the figures (`current_facts`), so a changed figure reopens it.
+  - **G1 Data:** every annual period in scope has mapped figures (`current_facts`), no held documents, no pending
+    mappings. Its inputs include the figures (`current_facts`), so a changed figure reopens it. An approved gate
+    whose checklist fails now is reopened too.
   - **G2 Queries:** no queries in `draft`. Unlocks `fin adjust accept|reject`.
   - **G4 Adjustments:** no `proposed` adjustments, and every accepted one has evidence. Unlocks
-    `fin engagement close`.
+    `fin engagement close` (an engagement with no queries and no adjustments closes without its gates).
   - G3 (recast) and G5 (report) come with D6 and D7.
 - **Only the user approves a gate.** A PreToolUse hook asks the user before any Bash command that looks like a
   gate approval, and `fin sql --write` cannot write gate approvals (E806).

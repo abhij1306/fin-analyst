@@ -4,8 +4,9 @@
 -- Which figures:
 -- - The latest engagement (the highest engagement_id, open or closed) and its annual periods; every view is empty
 --   when the company has no engagement. Each row is a period of the engagement and a scope: every scope the
---   company has figures or adjustments for in those periods. A period without figures still has its row, with
---   NULLs, so nothing is hidden.
+--   company has figures or adjustments for in those periods (when there is none, the scopes the company has
+--   figures for in any period, or standalone). A period without figures still has its row, with NULLs, so nothing
+--   is hidden.
 -- - Reported EBITDA is metrics_wide.ebitda: exactly the `ebitda` metric (company_views.sql, conventions).
 -- - Adjustments: only accepted ones change EBITDA. Proposed ones are summed beside it for visibility, never applied;
 --   rejected ones are counted only.
@@ -26,10 +27,21 @@ WITH latest AS (
 periods AS (
     SELECT engagement_id, status, unnest(string_split(periods, ',')) AS period FROM latest
 ),
-scopes AS (
+in_scope AS (
     SELECT m.scope FROM metrics_wide m JOIN periods p ON p.period = m.period
     UNION
     SELECT a.scope FROM adjustments a JOIN latest l ON l.engagement_id = a.engagement_id
+),
+-- No metrics or adjustments in those periods: the company's scopes, or standalone when it has no figures.
+company_scopes AS (
+    SELECT DISTINCT scope FROM current_facts
+    UNION
+    SELECT 'standalone' WHERE NOT EXISTS (SELECT 1 FROM current_facts)
+),
+scopes AS (
+    SELECT scope FROM in_scope
+    UNION
+    SELECT scope FROM company_scopes WHERE NOT EXISTS (SELECT 1 FROM in_scope)
 )
 SELECT p.engagement_id, p.status AS engagement_status, p.period, s.scope
 FROM periods p, scopes s;

@@ -83,10 +83,21 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
             if source_key is None:
                 continue  # a raw value mapped to no fact: no row's fact_id points to it
             sources[source_key] = dict(zip(PROVENANCE_COLUMNS, provenance, strict=True))
-    if key == "fact_ids":
-        return [{**row, **_combined([sources[i] for i in row[key] or []])} for row in rows]
     empty = dict.fromkeys(PROVENANCE_COLUMNS)
+    if key == "fact_ids":
+        return [{**row, **_from_ids(sources, row[key], empty)} for row in rows]
     return [{**row, **sources.get(row[key], empty)} for row in rows]
+
+
+def _from_ids(
+    sources: dict[Any, dict[str, Any]], ids: list[Any] | None, empty: dict[str, Any]
+) -> dict[str, Any]:
+    """The provenance of a `fact_ids` value: NULL ids (a list over a LEFT JOIN) are skipped; an
+    id that is no fact gives empty provenance, as for `fact_id`."""
+    known = [i for i in ids or [] if i is not None]
+    if any(i not in sources for i in known):
+        return empty
+    return _combined([sources[i] for i in known])
 
 
 def _combined(lines: list[dict[str, Any]]) -> dict[str, Any]:

@@ -410,6 +410,14 @@ def _write_mappings(
     return mapping_ids
 
 
+def _undo_mappings(run: Run) -> None:
+    """Remove the accounts and label mappings this run added (`_write_mappings`), when confirming
+    the facts failed after them, so a retry or a reject starts clean."""
+    with connect(dictionary_db_path(run.root), write=True) as con, transaction(con):
+        con.execute("DELETE FROM label_map WHERE run_id = ?", [run.run_id])
+        con.execute("DELETE FROM accounts WHERE source = 'review' AND run_id = ?", [run.run_id])
+
+
 def _confirm_facts(
     run: Run, company: str, confirmed: list[tuple[Item, str, int, bool]]
 ) -> tuple[list[int], set[int]]:
@@ -475,22 +483,27 @@ def confirm(
     overrides the proposed one with an existing account. For a new-account proposal, the account
     is added first (`name` and `parent` override the proposed ones), in the same transaction as
     the label. All or nothing: every item is checked first (E304), then the dictionary changes in
-    one transaction (E303 rolls back every item) and the facts in another. Returns (item id,
+    one transaction (E303 rolls back every item) and the facts in another; when the facts fail,
+    the dictionary rows this run added are removed again. Returns (item id,
     facts confirmed) per item and the doc_ids whose facts changed."""
     if scope not in SCOPES:
         raise InvalidMapping(f"scope must be one of {', '.join(SCOPES)}, not {scope!r}")
     pending = read_pending(run.root, company)
     plan = _plan(run, pending, item_ids, account, name, parent)
     mapping_ids = _write_mappings(run, plan, company if scope == "company" else None)
-    accounts = load_accounts(run.root)
-    counts, doc_ids = _confirm_facts(
-        run,
-        company,
-        [
-            (item, resolved, mapping_id, accounts[resolved].unit == "rupees_per_share")
-            for (item, resolved, _), mapping_id in zip(plan, mapping_ids, strict=True)
-        ],
-    )
+    try:
+        accounts = load_accounts(run.root)
+        counts, doc_ids = _confirm_facts(
+            run,
+            company,
+            [
+                (item, resolved, mapping_id, accounts[resolved].unit == "rupees_per_share")
+                for (item, resolved, _), mapping_id in zip(plan, mapping_ids, strict=True)
+            ],
+        )
+    except Exception:
+        _undo_mappings(run)
+        raise
     for item, resolved, new in plan:
         if new is not None:
             where = f"under {new['parent']}" if new["parent"] else "as a top line"

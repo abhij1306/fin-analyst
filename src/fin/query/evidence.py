@@ -156,8 +156,9 @@ def write_evidence(
     column = next((c for c in ("fact_ids", "fact_id") if rows and c in rows[0]), "raw_id")
     if column == "fact_ids":
         # Every fact behind each value: a summed value has one section per line.
-        ids = list(dict.fromkeys(i for row in rows for i in row[column] or []))
-        sums = sum(1 for row in rows if len(row[column] or []) > 1)
+        lists = [[i for i in row[column] or [] if i is not None] for row in rows]
+        ids = list(dict.fromkeys(i for ids_ in lists for i in ids_))
+        sums = sum(1 for ids_ in lists if len(ids_) > 1)
         if sums:
             flags.append(f"{sums} row(s) are sums of several source lines; each line is below.")
     else:

@@ -64,6 +64,22 @@ def test_a_summed_value_has_every_line_as_its_source(root: Path) -> None:
     assert "1 row(s) are sums of several source lines; each line is below." in page
 
 
+def test_a_fact_ids_list_with_null_or_unknown_ids_has_empty_provenance(root: Path) -> None:
+    answer = select(
+        "SELECT a.account, list(f.fact_id) AS fact_ids FROM (SELECT 'trade_payables' AS account "
+        "UNION ALL SELECT 'nonexistent') a LEFT JOIN current_facts f USING (account) "
+        "WHERE f.period IS NULL OR f.period = 'FY25' GROUP BY a.account "
+        "UNION ALL SELECT 'unknown', [999999] ORDER BY account",
+        "--evidence",
+    )
+
+    rows = {row["account"]: row for row in answer["rows"]}
+    assert rows["nonexistent"]["fact_ids"] == [None]
+    assert rows["nonexistent"]["source_ref"] is None
+    assert rows["unknown"]["source_ref"] is None
+    assert rows["trade_payables"]["source_ref"] == "page 1"
+
+
 def test_statements_json_lists_every_line_of_a_summed_value(root: Path) -> None:
     result = invoke("statements", "acme", "--period", "FY25", "--json")
 
