@@ -61,10 +61,10 @@ def query(root: Path, sql: str) -> list[Any]:
         return con.execute(sql).fetchall()
 
 
-def test_scopes_stay_apart_and_closing_cash_net_of_an_overdraft_is_an_e403_finding(
+def test_scopes_stay_apart_and_closing_cash_net_of_an_overdraft_passes_e403(
     root: Path, tmp_path: Path, audit_query: Any
 ) -> None:
-    # A cash flow line equal to balance-sheet cash does not make the difference go away.
+    # Ind AS 7: closing cash 18.20 = balance-sheet cash 28.50 less the bank overdraft 10.30.
     path = report(
         tmp_path / "acme_ar25.pdf",
         ("Cash and cash equivalents as above", "28.50", "25.62"),
@@ -88,12 +88,30 @@ def test_scopes_stay_apart_and_closing_cash_net_of_an_overdraft_is_an_e403_findi
     assert audit_query(
         "SELECT fiscal_year, scope, passed FROM validation_results "
         "WHERE check_name = 'cash_flow' ORDER BY fiscal_year"
-    ) == [("FY24", "standalone", True), ("FY25", "standalone", False)]
+    ) == [("FY24", "standalone", True), ("FY25", "standalone", True)]
+    assert query(root, "SELECT status FROM documents") == [("loaded",)]
+    assert query(root, "SELECT count(*) FROM findings") == [(0,)]
+
+
+def test_an_overdraft_line_that_does_not_make_up_the_difference_is_an_e403_finding(
+    root: Path, tmp_path: Path
+) -> None:
+    # 28.50 less 9.30 is 19.20, not the 18.20 closing cash: the overdraft explains only part of it.
+    path = report(
+        tmp_path / "acme_ar25.pdf",
+        ("Cash and cash equivalents as above", "28.50", "25.62"),
+        ("Bank overdraft", "(9.30)", "-"),
+    )
+
+    result = runner.invoke(app, ["ingest", "acme", str(path)])
+
+    assert result.exit_code == 0, result.output
+    assert query(root, "SELECT status FROM documents") == [("held",)]
     assert query(
         root,
         "SELECT code, period, CAST(fin_value AS VARCHAR), CAST(other_value AS VARCHAR), status "
         "FROM findings",
-    ) == [("E403", "FY25", "1820000.00", "2850000.00", "open")]
+    ) == [("E403", "FY25", "1820000.00", "1920000.00", "open")]
 
 
 def test_closing_cash_that_does_not_reconcile_is_an_e403_finding(

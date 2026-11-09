@@ -679,6 +679,14 @@ Cash (used in)/generated from operations,cash_flow,,cf_cash_generated
 Net cash from investing activities,cash_flow,,cfi
 Cash and cash equivalents at beginning of the year,cash_flow,,opening_cash
 Cash and cash equivalents as at the end of the year,cash_flow,,closing_cash
+Bank overdraft,cash_flow,,cf_overdraft_in_cash
+Bank overdrafts,cash_flow,,cf_overdraft_in_cash
+Less: Bank overdraft,cash_flow,,cf_overdraft_in_cash
+Less: Bank overdrafts,cash_flow,,cf_overdraft_in_cash
+Bank overdraft repayable on demand,cash_flow,,cf_overdraft_in_cash
+Bank overdrafts repayable on demand,cash_flow,,cf_overdraft_in_cash
+Cash credit (repayable on demand),cash_flow,,cf_overdraft_in_cash
+Less: Cash credit repayable on demand,cash_flow,,cf_overdraft_in_cash
 Loans,balance_sheet,Lender assets,loans
 Investments,balance_sheet,Lender assets,investments
 Other financial assets,balance_sheet,Lender assets,other_financial_assets

@@ -14,9 +14,11 @@ are ever compared. An account a document prints on several lines counts once, as
 - cash_flow (E403): the cash flow's closing cash (account closing_cash) = balance-sheet cash
   (account cash). Runs only when the document has both, so a results statement without a cash flow
   skips it, and so does an old-format balance sheet that prints one "cash and bank balances" line
-  (cash_and_bank_balances, which also holds other bank balances). Closing cash that nets off a bank
-  overdraft (Ind AS 7) differs from balance-sheet cash: that is a finding for the user to accept,
-  never matched away by another line of the statement.
+  (cash_and_bank_balances, which also holds other bank balances). When closing cash nets off bank
+  overdrafts (Ind AS 7) and the cash flow prints them (account cf_overdraft_in_cash, e.g. "Cash and
+  cash equivalents as above / Bank overdraft"), the check is closing cash = balance-sheet cash less
+  the overdrafts, whether the line is printed negative or positive. Any other difference is a
+  finding; no other line of the statement can match it away.
 - cross_document (E404): every figure equals the same company / period / scope / account in
   each other loaded document (for example a comparative column vs that year's own document, or a
   half-year filing's Q1 column vs the Q1 filing).
@@ -84,6 +86,8 @@ PAIRS = (
     ),
     ("cash_flow", "cash", "closing_cash", "cash flow closing cash vs balance-sheet cash"),
 )
+# Bank overdrafts netted in closing cash (Ind AS 7): balance-sheet cash less these = closing cash.
+OVERDRAFT = "cf_overdraft_in_cash"
 # An unmapped P&L line whose label or heading matches this is never part of a subtotal.
 OUTSIDE_SUBTOTALS = re.compile(
     r"\bper (?:equity )?share\b|\bbasic\b|\bdiluted\b|\bface value\b|\bnominal value\b"
@@ -279,10 +283,14 @@ def _pair_checks(
         if missing:
             not_run(check, key, _missing_reason(missing, values))
             continue
-        pair = (expected, actual)
-        results.append(
-            _compare(check, key, values[expected], values[actual], tolerances, what, pair)
-        )
+        pair, value, lines = (expected, actual), values[expected], ()
+        overdraft = values.get(OVERDRAFT) if check == "cash_flow" else None
+        if overdraft is not None:
+            # Closing cash net of overdrafts: balance-sheet cash less the overdraft, however the
+            # document signs the overdraft line.
+            lines = ((expected, value), (OVERDRAFT, -abs(overdraft)))
+            value, what = _total(lines), f"{what} less bank overdrafts"
+        results.append(_compare(check, key, value, values[actual], tolerances, what, pair, lines))
     return results
 
 
@@ -392,9 +400,9 @@ def _printed(
 
 
 def _sum_of_lines(con: duckdb.DuckDBPyConnection, doc_id: int, r: Result) -> str:
-    """The lines a subtotal was compared with, each with its signed value in rupees and where the
-    document prints it, so the computed side can be rebuilt: "sum of its lines: revenue
-    +1,000.00 at Sheet!B5; ..."."""
+    """The lines a figure was compared with the sum of (a subtotal's lines; balance-sheet cash and
+    the overdrafts), each with its signed value in rupees and where the document prints it, so
+    the computed side can be rebuilt: "sum of its lines: revenue +1,000.00 at Sheet!B5; ..."."""
     parts = [
         f"{account} {value:+,} at {_printed(con, doc_id, r.period, r.scope, account)[2]}"
         for account, value in r.lines
@@ -407,7 +415,8 @@ def _finding(
 ) -> dict[str, Any]:
     """A failed check as a finding (columns of the `findings` tables). fin_* is the figure in this
     document; other_* what it was compared with: the other side of the balance sheet, the
-    balance-sheet cash, the sum of a subtotal's lines, or another document's figure."""
+    balance-sheet cash (less overdrafts), the sum of a subtotal's lines, or another document's
+    figure."""
     if r.check_name in ("balance_sheet", "cash_flow"):
         other_account, account = r.accounts
         other_doc, other_file = doc_id, None
@@ -416,7 +425,7 @@ def _finding(
         other_doc, other_file = r.other_doc_id, r.other_file
     statement, fin_printed, fin_source = _printed(con, doc_id, r.period, r.scope, account)
     other_printed, other_source = None, None
-    if r.check_name == "subtotal":
+    if r.lines:  # a subtotal's lines, or balance-sheet cash less overdrafts
         other_source = _sum_of_lines(con, doc_id, r)
     elif other_doc is not None:
         _, other_printed, other_source = _printed(con, other_doc, r.period, r.scope, other_account)

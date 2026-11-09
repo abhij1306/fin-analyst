@@ -129,7 +129,7 @@ def test_first_init_is_recorded_once_the_audit_database_exists(
         ("database", "created  shared/analytics.duckdb"),
         (
             "dictionary",
-            "dictionary: 182 accounts and 689 label mappings added from templates/dictionary",
+            "dictionary: 183 accounts and 697 label mappings added from templates/dictionary",
         ),
     ]
     assert len(jsonl_records(data_root, run_id)) == 8

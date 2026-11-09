@@ -613,8 +613,9 @@ extraordinary items, total tax, continuing and discontinued operations, OCI and 
 nil lines, per-share lines and P&L "attributable to" lines do not stop E402. Exceptional and extraordinary items are
 stored as printed; E402 tries them subtracted (Schedule III) and then added (a gain printed as positive), and says
 which. Old-format "Cash and bank balances" can be mapped to `cash_and_bank_balances`, which E403 does not compare with
-closing cash. E403 compares only the mapped `closing_cash` with balance-sheet `cash`: closing cash netted of a bank
-overdraft is a finding to accept, not matched away by another cash-flow line. An E402 finding lists the lines summed,
+closing cash. E403 compares only mapped accounts, never label text: `closing_cash` = balance-sheet `cash`, or, when the
+cash flow prints the bank overdrafts netted in closing cash (Ind AS 7; memo account `cf_overdraft_in_cash`, "Bank
+overdraft" under "Cash and cash equivalents as above"), `cash` less those overdrafts. An E402 finding lists the lines summed,
 each with its signed value and cell or page (`other_source`).
 
 ### Phase 7 — Metrics and analytics export

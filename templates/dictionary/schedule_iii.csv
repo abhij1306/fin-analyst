@@ -181,3 +181,4 @@ net_change_cash,cash_flow,closing_cash,1,rupees,Net increase/(decrease) in cash 
 opening_cash,cash_flow,closing_cash,1,rupees,Cash and cash equivalents at the beginning of the year
 cf_fx_effect,cash_flow,closing_cash,1,rupees,Effect of exchange rate changes on cash and cash equivalents
 closing_cash,cash_flow,,,rupees,Cash and cash equivalents at the end of the year
+cf_overdraft_in_cash,cash_flow,,,rupees,"Bank overdrafts and cash credit repayable on demand netted in cash and cash equivalents (Ind AS 7); a memo line reconciling closing cash to balance-sheet cash"
