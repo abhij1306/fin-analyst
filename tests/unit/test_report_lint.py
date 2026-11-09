@@ -3,7 +3,7 @@
 import pytest
 
 from fin.audit.errors import NarrativeHasTypedNumbers
-from fin.report.lint import lint, strip_comments, typed_number_lines
+from fin.report.lint import lint, split_sections, strip_comments, typed_number_lines
 
 PLANTED = """\
 ## Growth
@@ -78,3 +78,10 @@ def test_other_digits_are_typed_numbers(line: str) -> None:
 )
 def test_strip_comments_keeps_line_breaks(text: str, expected: str) -> None:
     assert strip_comments(text) == expected
+
+
+def test_heading_with_trailing_spaces_gives_the_same_title() -> None:
+    text = "## Growth   \nbody\n## Other \t\nx\n"
+    sections, unknown = split_sections(text, {"growth": "Growth"})
+    assert sections == {"growth": "body"}
+    assert unknown == ["Other"]

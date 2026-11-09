@@ -93,10 +93,11 @@ def test_gates_are_approved_in_order_and_only_when_the_checklist_passes(
 ) -> None:
     run = Run("gate approve", {}, tmp_path)
 
+    gate_ctx = ctx(con)
     with pytest.raises(GateNotReady) as early:
-        approve_in(run, ctx(con), "G2")
+        approve_in(run, gate_ctx, "G2")
     with pytest.raises(GateNotReady) as failing:
-        approve_in(run, ctx(con), "G1")
+        approve_in(run, gate_ctx, "G1")
 
     assert str(early.value) == (
         "E802: gate G2 (Queries) of acme cannot be approved before gate G1 (Data), which is "
@@ -140,14 +141,15 @@ def test_a_gate_reopens_when_its_data_changes(
         ("G2", "reopened", "changed since it was approved: queries"),
         ("G4", "reopened", "G2 is not approved"),
     ]
+    gate_ctx = ctx(con)
     with pytest.raises(GateNotApproved) as refused:
-        require(ctx(con), "G2", "fin adjust accept")
+        require(gate_ctx, "G2", "fin adjust accept")
     assert str(refused.value) == (
         "E801: `fin adjust accept` needs gate G2 (Queries) approved; it is reopened (changed "
         "since it was approved: queries). Nothing changed. See `fin gate status acme`"
     )
     with pytest.raises(GateNotApproved) as close:
-        require(ctx(con), "G4", "fin engagement close")
+        require(gate_ctx, "G4", "fin engagement close")
     assert str(close.value) == (
         "E801: `fin engagement close` needs gate G4 (Adjustments) approved; gate G2 (Queries) "
         "before it is reopened (changed since it was approved: queries). Nothing changed. See "

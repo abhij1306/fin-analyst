@@ -22,7 +22,7 @@ PERIOD = r"FY\d{2}(?:-(?:Q[1-4]|H[12]|9M))?"
 REFERENCE = re.compile(r"\{\{(metric|fact):([a-z][a-z0-9_]*):(" + PERIOD + r")\}\}")
 FISCAL_YEAR = re.compile(r"\b" + PERIOD + r"\b")
 DIGIT = re.compile(r"\d")  # any Unicode digit
-HEADING = re.compile(r"^## (.+?)\s*$")
+HEADING = re.compile(r"^## (.+)$")
 
 
 def strip_comments(text: str) -> str:
@@ -71,9 +71,10 @@ def split_sections(text: str, titles: dict[str, str]) -> tuple[dict[str, str], l
     for line in text.splitlines():
         heading = HEADING.match(line)
         if heading:
-            key = by_title.get(heading.group(1).lower())
+            title = heading.group(1).rstrip()
+            key = by_title.get(title.lower())
             if key is None:
-                unknown.append(heading.group(1))
+                unknown.append(title)
                 current = None
             else:
                 current = sections.setdefault(key, [])
