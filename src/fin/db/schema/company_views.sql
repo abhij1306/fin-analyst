@@ -85,7 +85,7 @@ WITH lines AS (
         sum(f.value) OVER w AS lines_total,
         count(*) OVER w AS line_count
     FROM facts f
-    JOIN raw_values r ON r.raw_id = f.raw_id
+    LEFT JOIN raw_values r ON r.raw_id = f.raw_id
     WHERE f.confirmed AND f.account IS NOT NULL
     WINDOW w AS (PARTITION BY f.doc_id, f.account, f.period, f.scope)
 ),
