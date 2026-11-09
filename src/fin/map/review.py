@@ -394,82 +394,126 @@ def _resolve_account(
     return account, None
 
 
-def _write_mapping(
-    run: Run, item: Item, account: str, new: dict[str, str] | None, company: str | None
-) -> int:
-    """Add the new account (if any) and the label mapping in one transaction; the mapping_id."""
+def _write_mappings(
+    run: Run, plan: list[tuple[Item, str, dict[str, str] | None]], company: str | None
+) -> list[int]:
+    """Add the new accounts and the label mappings in one transaction; the mapping_ids."""
+    mapping_ids = []
     with connect(dictionary_db_path(run.root), write=True) as con, transaction(con):
-        if new is not None:
-            insert_account(con, new, "review", run.run_id)
-        mapping_id, _ = upsert_label(
-            con, _item_key(item), account, company, "review", run.run_id, "refuse"
-        )
-    return mapping_id
+        for item, account, new in plan:
+            if new is not None:
+                insert_account(con, new, "review", run.run_id)
+            mapping_id, _ = upsert_label(
+                con, _item_key(item), account, company, "review", run.run_id, "refuse"
+            )
+            mapping_ids.append(mapping_id)
+    return mapping_ids
 
 
 def _confirm_facts(
-    run: Run, company: str, item: Item, account: str, mapping_id: int, per_share: bool
-) -> int:
-    """Set the account on the company's unmapped facts with the item's label; how many."""
-    with connect(company_db_path(run.root, company), write=True) as con:
+    run: Run, company: str, confirmed: list[tuple[Item, str, int, bool]]
+) -> tuple[list[int], set[int]]:
+    """Set the account on the company's unmapped facts with each item's label, in one transaction.
+    `confirmed` is (item, account, mapping_id, per-share). Returns how many facts per item, and the
+    documents whose facts changed."""
+    counts, doc_ids = [], set()
+    with connect(company_db_path(run.root, company), write=True) as con, transaction(con):
         unmapped = con.execute(
             "SELECT f.raw_id, r.statement, r.section, r.raw_label FROM facts f "
             "JOIN raw_values r USING (raw_id) WHERE f.account IS NULL"
         ).fetchall()
-        raw_ids = [raw_id for raw_id, *key in unmapped if label_key(*key) == _item_key(item)]
-        # An unmapped fact was stored in rupees; a per-share figure (EPS) is kept as printed.
-        con.execute(
-            "UPDATE facts SET account = ?, mapping_id = ?, confirmed = true, value = CASE WHEN ? "
-            "THEN round(value / (SELECT r.rupees_per_unit FROM raw_values r "
-            "WHERE r.raw_id = facts.raw_id), 2) ELSE value END "
-            "WHERE raw_id IN (SELECT unnest(?))",
-            [account, mapping_id, per_share, raw_ids],
-        )
-    return len(raw_ids)
+        for item, account, mapping_id, per_share in confirmed:
+            raw_ids = [raw_id for raw_id, *key in unmapped if label_key(*key) == _item_key(item)]
+            # An unmapped fact was stored in rupees; a per-share figure (EPS) is kept as printed.
+            changed = con.execute(
+                "UPDATE facts SET account = ?, mapping_id = ?, confirmed = true, value = CASE "
+                "WHEN ? THEN round(value / (SELECT r.rupees_per_unit FROM raw_values r "
+                "WHERE r.raw_id = facts.raw_id), 2) ELSE value END "
+                "WHERE raw_id IN (SELECT unnest(?)) RETURNING doc_id",
+                [account, mapping_id, per_share, raw_ids],
+            ).fetchall()
+            counts.append(len(raw_ids))
+            doc_ids.update(doc_id for (doc_id,) in changed)
+    return counts, doc_ids
+
+
+def _plan(
+    run: Run,
+    pending: Pending,
+    item_ids: list[int],
+    account: str | None,
+    name: str | None,
+    parent: str | None,
+) -> list[tuple[Item, str, dict[str, str] | None]]:
+    """Check every item of a confirm request before anything is written (E304 on the first that
+    cannot be applied): (item, account, new account to add or None) per item, in order. A new
+    account an earlier item adds counts as in the dictionary for the later ones."""
+    accounts = load_accounts(run.root)
+    plan = []
+    for item_id in dict.fromkeys(item_ids):
+        item = _find_item(pending, item_id)
+        resolved, new = _resolve_account(accounts, item, account, name, parent)
+        if new is not None:
+            sign = int(new["sign"]) if new["sign"] else None
+            accounts[resolved] = Account(
+                new["statement"], new["parent"] or None, sign, new["unit"], new["description"]
+            )
+        plan.append((item, resolved, new))
+    return plan
 
 
 def confirm(
     run: Run,
     company: str,
-    item_id: int,
+    item_ids: list[int],
     account: str | None = None,
     scope: str = "company",
     name: str | None = None,
     parent: str | None = None,
-) -> int:
-    """Add the label to the dictionary and confirm the company's matching facts. `account`
+) -> tuple[list[tuple[int, int]], set[int]]:
+    """Add the items' labels to the dictionary and confirm the company's matching facts. `account`
     overrides the proposed one with an existing account. For a new-account proposal, the account
     is added first (`name` and `parent` override the proposed ones), in the same transaction as
-    the label. Returns the number of facts confirmed."""
-    pending = read_pending(run.root, company)
-    item = _find_item(pending, item_id)
+    the label. All or nothing: every item is checked first (E304), then the dictionary changes in
+    one transaction (E303 rolls back every item) and the facts in another. Returns (item id,
+    facts confirmed) per item and the doc_ids whose facts changed."""
     if scope not in SCOPES:
         raise InvalidMapping(f"scope must be one of {', '.join(SCOPES)}, not {scope!r}")
-    accounts = load_accounts(run.root)
-    account, new = _resolve_account(accounts, item, account, name, parent)
-    mapping_id = _write_mapping(run, item, account, new, company if scope == "company" else None)
-    if new is not None:
-        where = f"under {new['parent']}" if new["parent"] else "as a top line"
-        run.event(
-            "review",
-            f"account {account} added to the dictionary ({new['statement']}, {where})",
-            context={"company": company, "id": item_id, "account": account},
-        )
-    unit = new["unit"] if new is not None else accounts[account].unit
-    facts = _confirm_facts(run, company, item, account, mapping_id, unit == "rupees_per_share")
-    decision = "confirmed" if account == item["account"] and parent is None else "edited"
-    _decide(run, company, item, decision, account, scope)
-    pending["items"].remove(item)
-    _save(run.root, company, pending)
-    return facts
-
-
-def reject(run: Run, company: str, item_id: int) -> None:
-    """Mark the item rejected. Its facts stay unconfirmed and it leaves the open list."""
     pending = read_pending(run.root, company)
-    item = _find_item(pending, item_id)
-    item["status"] = "rejected"
-    _decide(run, company, item, "rejected", item["account"], None)
+    plan = _plan(run, pending, item_ids, account, name, parent)
+    mapping_ids = _write_mappings(run, plan, company if scope == "company" else None)
+    accounts = load_accounts(run.root)
+    counts, doc_ids = _confirm_facts(
+        run,
+        company,
+        [
+            (item, resolved, mapping_id, accounts[resolved].unit == "rupees_per_share")
+            for (item, resolved, _), mapping_id in zip(plan, mapping_ids, strict=True)
+        ],
+    )
+    for item, resolved, new in plan:
+        if new is not None:
+            where = f"under {new['parent']}" if new["parent"] else "as a top line"
+            run.event(
+                "review",
+                f"account {resolved} added to the dictionary ({new['statement']}, {where})",
+                context={"company": company, "id": item["id"], "account": resolved},
+            )
+        decision = "confirmed" if resolved == item["account"] and parent is None else "edited"
+        _decide(run, company, item, decision, resolved, scope)
+        pending["items"].remove(item)
+    _save(run.root, company, pending)
+    return [(item["id"], count) for (item, _, _), count in zip(plan, counts, strict=True)], doc_ids
+
+
+def reject(run: Run, company: str, item_ids: list[int]) -> None:
+    """Mark the items rejected; all or nothing (E304 for an unknown id rejects none). Their facts
+    stay unconfirmed and they leave the open list."""
+    pending = read_pending(run.root, company)
+    items = [_find_item(pending, item_id) for item_id in dict.fromkeys(item_ids)]
+    for item in items:
+        item["status"] = "rejected"
+        _decide(run, company, item, "rejected", item["account"], None)
     _save(run.root, company, pending)
 
 

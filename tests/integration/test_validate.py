@@ -130,6 +130,26 @@ def test_broken_file_is_held_with_a_finding(
     ) == [(broken, code, "open")]
 
 
+def test_subtotal_finding_lists_the_lines_it_summed(root: Path, samples: Path) -> None:
+    assert ingest("kestrel", samples / "broken" / "Kestrel_SUBTOTAL_mismatch.xlsx").exit_code == 0
+
+    with connect(company_db_path(root, "kestrel")) as con:
+        rows = con.execute(
+            "SELECT other_source FROM findings WHERE label = 'total_expenses' AND period = 'FY24'"
+        ).fetchall()
+
+    assert rows == [
+        (
+            "sum of its lines: "
+            "cost_of_materials +706,382,000.00 at Profit and Loss!D11; "
+            "depreciation +39,358,000.00 at Profit and Loss!D14; "
+            "employee_expense +107,753,000.00 at Profit and Loss!D12; "
+            "finance_cost +25,650,000.00 at Profit and Loss!D13; "
+            "other_expenses +155,644,000.00 at Profit and Loss!D15",
+        )
+    ]
+
+
 def test_clean_fixtures_pass_every_gate(root: Path, samples: Path, audit_query: Any) -> None:
     for company in ("kestrel", "bluepeak", "tarang"):
         result = ingest(company, samples / "clean" / company)

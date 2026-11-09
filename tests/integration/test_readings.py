@@ -293,6 +293,28 @@ def test_verify_on_a_held_document_verifies_and_leaves_it_held(
     assert query(root, "SELECT code, status FROM findings") == [("E401", "open")]
 
 
+def test_an_open_verify_finding_does_not_keep_a_document_held_once_its_gate_findings_are_accepted(
+    root: Path, tmp_path: Path, scanned: Path
+) -> None:
+    unbalanced = [*BALANCE_SHEET[:3], (*BALANCE_SHEET[3][:5], "90.00", 1)]
+    loaded_with = write_reading(tmp_path / "scan.reading.csv", unbalanced)
+    held = runner.invoke(app, ["ingest", "acme", str(scanned), "--reading", str(loaded_with)])
+    assert held.exit_code == 0, held.output
+    misread = [(*unbalanced[0][:5], "28.60", 1), *unbalanced[1:]]
+    checked = verify(str(scanned), "--reading", str(write_reading(tmp_path / "r2.csv", misread)))
+    assert "agree 3, differ 1, missing in fin 0, missing in reading 0" in checked.stdout
+    [(gate_finding,)] = query(root, "SELECT finding_id FROM findings WHERE code = 'E401'")
+
+    accepted = runner.invoke(app, ["findings", "accept", "acme", str(gate_finding)])
+
+    assert accepted.exit_code == 0, accepted.output
+    assert query(root, "SELECT status FROM documents") == [("loaded",)]
+    assert query(root, "SELECT check_name, status FROM findings ORDER BY finding_id") == [
+        ("balance_sheet", "accepted"),
+        ("verify_reading", "open"),
+    ]
+
+
 def test_verify_disagreement_on_a_loaded_document_is_a_finding_that_does_not_hold_it(
     root: Path, tmp_path: Path, scanned: Path
 ) -> None:

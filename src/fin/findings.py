@@ -15,12 +15,15 @@ audit table `findings`.
 - Save as is: `fin findings accept` marks findings accepted. A held document with no open findings
   left is loaded exactly as filed; its accepted findings stay attached and visible.
 - Fix: Claude changes the data with the existing tools. Every held document of the company is
-  checked again after `fin sql --write` and `fin review confirm` (`recheck_held`), and a new version
-  from `fin ingest --force` is checked like any document (it supersedes the earlier version and its
-  findings). A finding a check no longer finds becomes resolved; a held document with no open
-  findings is loaded. `fin verify` resolves its own findings the same way when run again.
+  checked again after `fin sql --write` and `fin review confirm` (`recheck_held`), and so is every
+  loaded document whose facts a confirmation mapped (a check that could not run before may run now;
+  a loaded document that fails it is held). A new version from `fin ingest --force` is checked like
+  any document (it supersedes the earlier version and its findings). A finding a check no longer
+  finds becomes resolved; a held document with no open findings is loaded. `fin verify` resolves
+  its own findings the same way when run again.
 """
 
+from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any
 
@@ -139,9 +142,12 @@ def record(
 
 
 def _settle(con: duckdb.DuckDBPyConnection, doc_id: int) -> int:
-    """Hold the document while it has open findings, else load it. Returns its open findings."""
+    """Hold the document while it has open gate findings, else load it. Returns their number. A
+    `fin verify` finding (verify_reading) neither holds nor releases a document."""
     row = con.execute(
-        "SELECT count(*) FROM findings WHERE doc_id = ? AND status = 'open'", [doc_id]
+        "SELECT count(*) FROM findings WHERE doc_id = ? AND status = 'open' "
+        "AND check_name <> 'verify_reading'",
+        [doc_id],
     ).fetchone()
     assert row is not None
     open_findings = int(row[0])
@@ -183,16 +189,19 @@ def supersede(
         set_status(run, company, con, [i for (i,) in ids], "superseded")
 
 
-def recheck_held(run: Run, company: str) -> list[dict[str, Any]]:
-    """Check every held document of the company again (after a fix). Returns one row per document:
-    doc_id, file, open findings, status now."""
+def recheck_held(run: Run, company: str, changed: Iterable[int] = ()) -> list[dict[str, Any]]:
+    """Check every held document of the company again (after a fix), and the loaded documents in
+    `changed` (whose facts the fix changed): a loaded one that now fails is held. Returns one row
+    per document: doc_id, file, open findings, status now."""
     path = company_db_path(run.root, company)
     if not path.is_file():
         return []
     ensure_database(path, "company")
     with connect(path, write=True) as con:
         held = con.execute(
-            "SELECT doc_id, file_name FROM documents WHERE status = 'held' ORDER BY doc_id"
+            "SELECT doc_id, file_name FROM documents WHERE status = 'held' "
+            "OR (status = 'loaded' AND list_contains(?::BIGINT[], doc_id)) ORDER BY doc_id",
+            [list(changed)],
         ).fetchall()
         out = []
         for doc_id, file_name in held:
@@ -233,7 +242,8 @@ def accept(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
         marks = ", ".join("?" for _ in ids)
         docs = con.execute(
             "SELECT d.doc_id, d.file_name, d.status, "
-            "(SELECT count(*) FROM findings o WHERE o.doc_id = d.doc_id AND o.status = 'open') "
+            "(SELECT count(*) FROM findings o WHERE o.doc_id = d.doc_id AND o.status = 'open' "
+            "AND o.check_name <> 'verify_reading') "
             f"FROM documents d WHERE d.doc_id IN (SELECT doc_id FROM findings "
             f"WHERE finding_id IN ({marks})) ORDER BY d.doc_id",
             ids,

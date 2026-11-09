@@ -184,6 +184,69 @@ def test_confirm_without_any_account_is_an_error(root: Path) -> None:
     assert facts(root)[0][1] is None
 
 
+def test_a_bad_id_among_several_confirms_none_of_them(root: Path) -> None:
+    fin("map", "propose", "bluepeak", propose_file(root, proposal()))
+
+    result = fin("review", "confirm", "bluepeak", "1", "99")
+
+    assert result.exit_code == 2
+    assert result.stderr.splitlines()[0] == "E304: no item with id 99 for bluepeak"
+    assert [(f[1], f[2]) for f in facts(root)] == [(None, False)] * 2
+    assert dictionary(root, "SELECT label FROM label_map WHERE source = 'review'") == []
+    assert [(i["id"], i["status"]) for i in pending(root)] == [(1, "proposed")]
+
+
+def test_a_bad_id_among_several_rejects_none_of_them(root: Path) -> None:
+    fin("map", "propose", "bluepeak", propose_file(root, proposal()))
+
+    result = fin("review", "reject", "bluepeak", "1", "99")
+
+    assert result.exit_code == 2
+    assert result.stderr.splitlines()[0] == "E304: no item with id 99 for bluepeak"
+    assert [(i["id"], i["status"]) for i in pending(root)] == [(1, "proposed")]
+
+
+def documents(root: Path) -> list[tuple[Any, ...]]:
+    with connect(company_db_path(root, "bluepeak")) as con:
+        return con.execute("SELECT doc_id, status FROM documents ORDER BY doc_id").fetchall()
+
+
+def test_confirm_runs_the_subtotal_check_on_a_loaded_document_and_refreshes_analytics(
+    root: Path, audit_query: Query
+) -> None:
+    # Loaded with the line unmapped, so its subtotal check could not run at ingest.
+    assert documents(root) == [(1, "loaded")]
+    fin("map", "propose", "bluepeak", propose_file(root, proposal()))
+
+    result = fin("review", "confirm", "bluepeak", "1")
+
+    assert result.exit_code == 0, result.output
+    assert "doc_id 1 edited.xlsx checked again: 0 open findings, loaded" in result.stdout
+    assert audit_query(
+        "SELECT DISTINCT fiscal_year, passed FROM validation_results WHERE run_id = ? "
+        "AND check_name = 'subtotal' ORDER BY 1",
+        [last_run(audit_query, "review confirm")],
+    ) == [("FY24", True), ("FY25", True)]
+    with connect(root / "shared" / "analytics.duckdb") as con:
+        assert con.execute(
+            "SELECT unconfirmed_facts FROM companies WHERE company = 'bluepeak'"
+        ).fetchall() == [(0,)]
+
+
+def test_a_loaded_document_that_fails_a_check_once_mapped_is_held(root: Path) -> None:
+    fin("map", "propose", "bluepeak", propose_file(root, proposal()))
+
+    # Debtors mapped as a liability: the balance-sheet subtotals no longer add up.
+    result = fin("review", "confirm", "bluepeak", "1", "--account", "trade_payables")
+
+    assert result.exit_code == 0, result.output
+    assert documents(root) == [(1, "held")]
+    listed = json.loads(fin("findings", "list", "bluepeak", "--json").stdout)
+    assert {(f["code"], f["status"], f["document_status"]) for f in listed} == {
+        ("E402", "open", "held")
+    }
+
+
 def test_new_label_confirmed_once_is_mapped_on_the_next_ingest(root: Path, samples: Path) -> None:
     fin("map", "propose", "bluepeak", propose_file(root, proposal()))
     fin("review", "confirm", "bluepeak", "1")
