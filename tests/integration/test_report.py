@@ -166,8 +166,13 @@ def test_render_substitutes_references_and_logs_the_report(root: Path, fake_quar
     assert "No open or accepted findings." in html
     assert "| Balance sheet | 54 | 54 | 100.0% |" in html
     assert "None: fin read every statement page of the loaded documents." in html
-    assert "| FY23 | Revenue growth | revenue (FY22) |" in html
+    assert "| standalone | FY23 | Revenue growth | revenue (FY22) |" in html
     assert "| Total assets | ₹98.75 Cr | ₹116.44 Cr | ₹128.64 Cr |" in html
+    # Every subtotal is explained by its lines or has no line under it: none is marked.
+    assert "| Revenue from operations | ₹105.95 Cr | ₹119.73 Cr | ₹134.09 Cr |" in html
+    assert "†" not in html
+    # The appendix has the facts behind the condensed statements, not only the metrics'.
+    assert "| standalone | `total_income` | FY25 |" in html
     assert "| Inventories |" not in html  # condensed: subtotals only
     assert "| profitability | EBITDA margin (`ebitda_margin`) | EBITDA as a fraction of" in html
     assert (
@@ -229,6 +234,14 @@ def test_typed_number_blocks_the_render(root: Path, fake_quarto: None) -> None:
     assert "  line 9: in FY25. Revenue growth was 13% in FY24 and" in result.stderr
     assert not any((folder(root) / name).exists() for name in OUTPUTS)
     assert report_rows(root) == []
+
+
+def test_a_narrative_reference_puts_its_fact_in_the_appendix(root: Path, fake_quarto: None) -> None:
+    write_narrative(root, "## Summary\n\nEmployee costs were {{fact:employee_expense:FY25}}.\n")
+    assert report().exit_code == 0
+    html = (folder(root) / "health.html").read_text(encoding="utf-8")
+    assert "Employee costs were ₹" in html
+    assert "| standalone | `employee_expense` | FY25 |" in html
 
 
 def test_unknown_reference_is_e601(root: Path, fake_quarto: None) -> None:

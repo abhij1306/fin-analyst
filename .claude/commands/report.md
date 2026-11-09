@@ -10,7 +10,8 @@ section per metric category (profitability, returns, liquidity, solvency, effici
 cash flow, growth, earnings quality, per share, lending: only those with data), each with a trend table and
 a chart; the latest quarters with TTM and growth (when quarters are loaded); a peer comparison (with
 `--peers`); findings; data coverage; and appendices: condensed standard statements, metric definitions and
-the facts behind the metrics. fin builds every table and chart; you write the narrative.
+the facts behind the figures (the tables' and the narrative references'). fin builds every table and chart; you
+write the narrative.
 
 1. Run `uv run fin report <company>` (add `--scope` if given; add `--peers a,b` if the user named other
    companies in the data folder to compare with, and keep passing it on every later run).

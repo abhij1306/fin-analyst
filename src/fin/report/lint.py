@@ -25,6 +25,11 @@ DIGIT = re.compile(r"\d")  # any Unicode digit
 HEADING = re.compile(r"^## (.+)$")
 
 
+def references(text: str) -> set[tuple[str, str, str]]:
+    """The references in `text` outside HTML comments, as (kind, name, period)."""
+    return {match.groups() for match in REFERENCE.finditer(strip_comments(text))}
+
+
 def strip_comments(text: str) -> str:
     """Remove HTML comments, keeping their line breaks so line numbers stay the same."""
     parts = []

@@ -4,15 +4,18 @@
 - metrics (the `metrics` view) for every period, and every current fact with its unit and the cell
   or page of each line behind it (a value summed from several lines lists them all);
 - the appendix facts: those behind the metrics of the periods the tables show (both scopes),
-  through `metric_inputs`, plus the facts the tables show themselves;
+  through `metric_inputs`, plus the facts the tables show themselves (the key facts and the
+  condensed statements' subtotals), and those behind the narrative's references (a fact, or a
+  metric's inputs, of any period);
 - the standard statements (`fin.statements`), condensed to the printed subtotals, for the appendix;
 - metric definitions (`metric_definitions`) for the metrics the report shows;
 - findings open or accepted (`fin.findings`): accepted ones are in the figures as filed; a held
   document (with open findings) is not;
-- data coverage: mapped share per statement (`statement_coverage`),
-  statement pages fin could not read (`documents.unread_pages`),
-  unconfirmed mappings, and NULL metrics of the periods shown (years and quarters) with their
-  missing inputs;
+- data coverage: mapped share per statement (`statement_coverage`), statement pages fin could not
+  read (`documents.unread_pages`), unconfirmed mappings, and missing data: the NULL metrics the
+  report shows, with their scope and missing inputs (`_wanted`: every metric of the years shown,
+  the quarter table's of the quarters shown, the other scope's summary table, and the narrative's
+  metric references);
 - peers (optional): the key metrics of other companies for the latest fiscal year all have.
 
 `data_hash` is the SHA-256 of all of it as sorted JSON, so the same data always gives the same hash.
@@ -139,10 +142,12 @@ SELECT metric, label, times, category, unit, definition, formula FROM metric_def
 ORDER BY position
 """
 
-# The facts behind the metrics of the shown periods (`scope period` strings), for the appendix.
+# The facts behind the metrics of the shown periods (`scope period` strings) and behind single
+# metrics (`scope metric period` strings: the narrative's references), for the appendix.
 _USED_SQL = """
 SELECT DISTINCT scope, account, input_period FROM metric_inputs
-WHERE fact_id IS NOT NULL AND list_contains(?, scope || ' ' || period)
+WHERE fact_id IS NOT NULL AND (list_contains(?, scope || ' ' || period)
+    OR list_contains(?, scope || ' ' || metric || ' ' || period))
 """
 
 _UNCONFIRMED_SQL = """
@@ -156,9 +161,9 @@ GROUP BY d.file_name, r.raw_label
 ORDER BY d.file_name, r.raw_label
 """
 
-# NULL metrics of the shown periods: every metric for a year, the quarter table's for a quarter.
+# NULL metrics among those the report shows (`scope metric period` strings, see `_wanted`).
 _MISSING_SQL = """
-SELECT m.metric, m.period,
+SELECT m.scope, m.metric, m.period,
        coalesce(nullif(array_to_string(list_sort(list_distinct(
            list(i.account || CASE WHEN i.input_period <> m.period
                                   THEN ' (' || i.input_period || ')' ELSE '' END)
@@ -166,10 +171,9 @@ SELECT m.metric, m.period,
            'none (a denominator is zero)') AS missing_inputs
 FROM metrics m
 LEFT JOIN metric_inputs i ON i.metric = m.metric AND i.period = m.period AND i.scope = m.scope
-WHERE m.scope = ? AND list_contains(?, m.period) AND m.value IS NULL
-    AND (m.period_months = 12 OR list_contains(?, m.metric))
-GROUP BY m.metric, m.period, m.period_end, m.period_months
-ORDER BY m.period_end, m.period_months DESC, m.metric
+WHERE m.value IS NULL AND list_contains(?, m.scope || ' ' || m.metric || ' ' || m.period)
+GROUP BY m.scope, m.metric, m.period, m.period_end, m.period_months
+ORDER BY m.scope <> ?, m.scope, m.period_end, m.period_months DESC, m.metric
 """
 
 _FINDINGS_SQL = """
@@ -221,12 +225,19 @@ def _shown(main: dict[str, Any], scope: str, by_scope: dict[str, Any]) -> dict[s
 
 
 def _appendix(
-    con: Any, shown: dict[str, list[str]], facts: dict[str, list[dict[str, Any]]]
+    con: Any,
+    scope: str,
+    shown: dict[str, list[str]],
+    facts: dict[str, list[dict[str, Any]]],
+    statements: list[dict[str, Any]],
+    references: set[tuple[str, str, str]],
 ) -> list[dict[str, Any]]:
-    """The facts behind the shown periods' metrics (their inputs, earlier periods included), and
-    the facts the tables show themselves (KEY_ROWS), each with its source."""
+    """The facts behind the shown periods' metrics (their inputs, earlier periods included), the
+    facts the tables show themselves (KEY_ROWS and the condensed `statements` of `scope`), and the
+    facts behind the narrative's `references` (kind, name, period), each with its source."""
     keys = [f"{s} {p}" for s, periods in shown.items() for p in periods]
-    used = {tuple(row) for row in con.execute(_USED_SQL, [keys]).fetchall()}
+    metric_keys = [f"{scope} {name} {p}" for kind, name, p in references if kind == "metric"]
+    used = {tuple(row) for row in con.execute(_USED_SQL, [keys, metric_keys]).fetchall()}
     used |= {
         (s, name, p)
         for s, periods in shown.items()
@@ -234,7 +245,30 @@ def _appendix(
         for kind, name in KEY_ROWS
         if kind == "fact"
     }
+    used |= {(scope, r["account"], r["period"]) for r in statements}
+    used |= {(scope, name, p) for kind, name, p in references if kind == "fact"}
     return [row for s in shown for row in facts[s] if (s, row["account"], row["period"]) in used]
+
+
+def _wanted(
+    scope: str,
+    main: dict[str, Any],
+    shown: dict[str, list[str]],
+    references: set[tuple[str, str, str]],
+) -> list[str]:
+    """`scope metric period` of every metric value the report shows: in `scope`, every metric of
+    the years shown and the quarter table's of the quarters shown; in the other scope, the summary
+    table's; and the narrative's metric references."""
+    summary = [name for kind, name in KEY_ROWS if kind == "metric"]
+    wanted = [
+        f"{s} {name} {p}"
+        for s, periods in shown.items()
+        for p in periods
+        for name in (
+            summary if s != scope else main["metrics"] if p in main["years"] else QUARTER_ROWS
+        )
+    ]
+    return wanted + [f"{scope} {name} {p}" for kind, name, p in references if kind == "metric"]
 
 
 def _key_values(scope_data: dict[str, Any], years: list[str]) -> list[list[Any]]:
@@ -252,16 +286,18 @@ def _condensed_statements(
 ) -> list[Any]:
     """The printed subtotals (`subtotals`: accounts with lines in the dictionary tree) of each
     statement, for `years`, whether or not any line under them is mapped. `complete` is false when
-    the mapped lines do not add up to the printed figure (or none is mapped)."""
+    the mapped lines under it do not add up to the printed figure exactly (`fin statements` then
+    shows an "Unmapped / other" line); a subtotal with no mapped line under it is printed as is."""
     rows = statement_rows(root, company, scope=scope)
     return [
         {
             "statement": r["statement"],
             "line_no": r["line_no"],
+            "account": r["account"],
             "label": r["label"],
             "period": r["period"],
             "value": r["value"],
-            "complete": r["coverage"] == 1,
+            "complete": r["explained"] is None or r["explained"] == r["value"],
         }
         for r in rows
         if r["period"] in years and r["line_type"] == "line" and r["account"] in subtotals
@@ -295,9 +331,17 @@ def _peers(
     }
 
 
-def collect(root: Path, company: str, scope: str, peers: list[str] | None = None) -> dict[str, Any]:
-    """Read everything the report shows. Raises E601 when the company has no annual metrics in
+def collect(
+    root: Path,
+    company: str,
+    scope: str,
+    peers: list[str] | None = None,
+    references: set[tuple[str, str, str]] | None = None,
+) -> dict[str, Any]:
+    """Read everything the report shows. `references` are the narrative's (kind, name, period),
+    for the appendix and the missing data. Raises E601 when the company has no annual metrics in
     `scope`, or a peer has no database."""
+    references = references or set()
     accounts = load_accounts(root)
     units = {name: account.unit for name, account in accounts.items()}
     with connect(company_db_path(root, company)) as con:
@@ -310,11 +354,20 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
                 "fiscal years (load an annual report, or results with a 'Year ended' column); "
                 "quarter and half-year figures are in `fin sql` and the dashboard"
             )
-        shown = _shown(main, scope, by_scope)
-        appendix = _appendix(con, shown, {s: d["facts"] for s, d in by_scope.items()})
+    shown = _shown(main, scope, by_scope)
+    statements = _condensed_statements(
+        root,
+        company,
+        scope,
+        main["years"][-YEARS_SHOWN:],
+        {a.parent for a in accounts.values() if a.parent},
+    )
+    with connect(company_db_path(root, company)) as con:
+        facts = {s: d["facts"] for s, d in by_scope.items()}
+        appendix = _appendix(con, scope, shown, facts, statements, references)
         definitions = fetch_dicts(con, _DEFINITIONS_SQL, [])
         unconfirmed = fetch_dicts(con, _UNCONFIRMED_SQL, [scope])
-        missing = fetch_dicts(con, _MISSING_SQL, [scope, shown[scope], QUARTER_ROWS])
+        missing = fetch_dicts(con, _MISSING_SQL, [_wanted(scope, main, shown, references), scope])
         findings = fetch_dicts(con, _FINDINGS_SQL, [scope])
         coverage = fetch_dicts(con, _COVERAGE_SQL, [scope, list(STATEMENTS)])
         unread = [
@@ -322,7 +375,6 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
             for file_name, pages in con.execute(_UNREAD_SQL).fetchall()
             for page in json.loads(pages)
         ]
-    years = main["years"][-YEARS_SHOWN:]
     present = set(main["metrics"])
     return {
         "company": company,
@@ -336,9 +388,7 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
             for s, d in by_scope.items()
             if d["years"]
         },
-        "statements": _condensed_statements(
-            root, company, scope, years, {a.parent for a in accounts.values() if a.parent}
-        ),
+        "statements": statements,
         # In report order: by category, then metric_definitions order.
         "definitions": sorted(
             (d for d in definitions if d["metric"] in present),
@@ -346,7 +396,7 @@ def collect(root: Path, company: str, scope: str, peers: list[str] | None = None
         ),
         # Every metric's definition (unit, label, times), for values from any scope or peer.
         "metric_info": {d["metric"]: d for d in definitions},
-        # The facts behind every figure the tables show (both scopes), for the appendix.
+        # The facts behind every figure the tables and the narrative show (both scopes).
         "appendix": appendix,
         "unconfirmed": unconfirmed,
         "missing": missing,

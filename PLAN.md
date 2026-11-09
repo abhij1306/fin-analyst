@@ -139,10 +139,12 @@ Reports and dashboards by category (after 1.0.0, not a phase):
   latest quarters (TTM, growth on the year before and the previous quarter) when quarters are loaded; a peer
   comparison with `fin report <co> --peers a,b` (key metrics for the latest fiscal year every company has); findings
   with sources; data coverage (`statement_coverage` view: mapped share per statement;
-  `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data for the
-  years and quarters shown); and appendices (condensed standard statements: every printed subtotal, marked † when
-  its mapped lines do not add up to it; metric definitions; facts behind the figures shown, for both scopes and the
-  quarters, each line of a summed value listed, per-share facts unscaled; peers' facts are in their own reports).
+  `documents.unread_pages`: statement pages fin could not read; unconfirmed mappings; missing data, with its scope:
+  the years and quarters shown, the other scope's summary table and the narrative's metric references); and
+  appendices (condensed standard statements: every printed subtotal, marked † when the mapped lines under it do not
+  add up to it exactly, a subtotal with no mapped line under it as printed; metric definitions; facts behind the
+  figures shown, for both scopes and the quarters, the condensed statements' subtotals and the narrative's
+  references, each line of a summed value listed, per-share facts unscaled; peers' facts are in their own reports).
   Narrative references accept quarter and half-year periods (`{{metric:ttm_revenue:FY26-Q2}}`).
 - Dashboards: `analytics.duckdb` also holds metric categories and definitions, the standard statements (in the
   documents' unit), findings, coverage and unread pages. Company page by category

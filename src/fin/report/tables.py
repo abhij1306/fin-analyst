@@ -279,12 +279,12 @@ def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
         "No unconfirmed mappings.",
     )
     missing = table(
-        ["Period", "Metric", "Missing inputs"],
+        ["Scope", "Period", "Metric", "Missing inputs"],
         [
-            [row["period"], label(data, row["metric"]), row["missing_inputs"]]
+            [row["scope"], row["period"], label(data, row["metric"]), row["missing_inputs"]]
             for row in data["missing"]
         ],
-        "No missing data: every metric of the years and quarters shown has a value.",
+        "No missing data: every metric the report shows has a value.",
     )
     return {"coverage": coverage, "unread": unread, "unconfirmed": unconfirmed, "missing": missing}
 
