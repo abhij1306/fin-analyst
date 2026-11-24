@@ -60,22 +60,28 @@ The installer asks before installing [Homebrew](https://brew.sh) if it is missin
 `quarto` and `poppler`, sets up the tool, creates your data folder (`~/FinAnalysis`) and runs `uv run fin doctor`.
 Running it again only installs what is missing. Its log is `~/FinAnalysis/logs/install.log`.
 
-**Optional: the Docling PDF add-on.** fin reads digital PDFs with pdfplumber. Some statement pages it can't read
-(standalone and consolidated side by side, unusual headers, scanned results). With the add-on, fin hands exactly those
-pages to [Docling](https://github.com/docling-project/docling), which reads their tables (with OCR) on your Mac:
+**Optional: a PDF add-on.** fin reads digital PDFs with pdfplumber. Some statement pages it can't read (standalone
+and consolidated side by side, unusual headers, scanned results). With an add-on, fin hands exactly those pages to
+one engine you choose, which reads their tables:
 
 ```sh
-./install.sh --docling      # add it (Apple Silicon only)
-./install.sh --no-docling   # remove it
+./install.sh --parser docling      # or liteparse, llamaparse
+./install.sh --parser none         # remove it
+uv run fin parser show             # what is chosen (or /parser in Claude Code)
 ```
 
-| Install | Download and disk | First run |
-|---|---|---|
-| `./install.sh` (default) | the base tool only | nothing more to download |
-| `./install.sh --docling` | about 650 MB more of Python packages (PyTorch, Docling) plus about 730 MB of Docling models, downloaded by the installer into `~/.cache/docling/models` | the first PDF with skipped pages loads the models (some seconds); each page takes about 15 seconds |
+| Add-on | Where it runs | Download and disk | Speed and cost |
+|---|---|---|---|
+| none (default) | | the base tool only | pages pdfplumber skips are listed as not read |
+| [Docling](https://github.com/docling-project/docling) | your Mac (Apple silicon only: PyTorch has no Intel Mac build) | about 650 MB of Python packages (PyTorch, Docling) plus about 730 MB of models in `~/.cache/docling/models` | about 15 seconds a page; read 99-100% of the figures on our benchmark of skipped pages |
+| [LiteParse](https://github.com/run-llama/liteparse) | your Mac | about 12 MB plus about 50 MB of models (its `ocria-nano` package, under its own model licence) | fast; pages with a text layer are never OCR'd |
+| [LlamaParse](https://github.com/run-llama/llama-parse-py) | LlamaIndex's cloud: the skipped pages are uploaded | a small Python SDK | paid per page; most accurate on hard tables; needs `LLAMA_CLOUD_API_KEY` in your environment |
 
-The choice is saved in `config.toml` (`[pdf] docling = true`), so running `./install.sh` again or `uv run fin
-update` keeps it. Figures Docling reads are marked as read by Docling. Intel Macs can't use it (PyTorch has no Intel Mac build); everything else works the same without it.
+`uv run fin parser use <name>` does the same as the install flag. The choice is saved in `config.toml`
+(`[pdf] parser`), so running `./install.sh` again or `uv run fin update` keeps it. For LlamaParse, set the key in
+your shell (`export LLAMA_CLOUD_API_KEY=...` in `~/.zshrc`); fin reads it only from the environment, never stores or
+logs it, and saves LlamaParse's answer in the data folder (`cache/llamaparse/`) so the same file is never sent
+twice. Figures an add-on reads are marked as read by it; everything else works the same without one.
 
 To keep your data somewhere else, set `FIN_DATA_DIR` before installing (for example
 `export FIN_DATA_DIR="$HOME/Documents/FinAnalysis"`) and add that line to `~/.zshrc`.
@@ -90,6 +96,7 @@ Plain requests work; these are shortcuts. Each one runs `fin` (see `uv run fin -
 |---|---|
 | `/ingest <company>` | Load the company's inbox files, check them, propose accounts for new lines. `/ingest-batch` does every company. |
 | `/review [company]` | Show lines waiting for an account; tell Claude which to confirm or reject. |
+| `/parser [docling\|liteparse\|llamaparse\|none]` | Show the PDF add-on, explain the choices, and switch when you name one. |
 | `/status [company]` | What is loaded, which periods are missing, held documents, findings, items waiting for you. |
 | `/statements <company> [period]` | Profit and loss, balance sheet and cash flow in standard order, or an Excel export with every period and all metrics. |
 | `/ask <company> <question>` | An answer with the calculation, the source cells or pages, the SQL and an evidence page. |
@@ -164,9 +171,9 @@ analytics.
 ## Pages fin can't read
 
 fin reads Excel files and digital PDFs. When it can't read a statement page (an unusual layout, a scanned PDF)
-and the Docling add-on is installed, Docling reads that page automatically (a scanned PDF only up to 40 pages, such
+and a PDF add-on is chosen, the add-on reads that page automatically (a scanned PDF only up to 40 pages, such
 as a results filing). Whatever is still not read, fin lists by page. If you ask, Claude reads those pages and fin
-loads that reading through the same checks. Figures read by Docling or Claude are marked as such; whether you
+loads that reading through the same checks. Figures read by the add-on or Claude are marked as such; whether you
 trust them is your call. Whenever you want, `/verify` has Claude read a document again and fin compare that reading
 with what is stored.
 
@@ -177,7 +184,7 @@ it.
 
 ```
 ~/FinAnalysis/
-  config.toml           # display unit, default scope, fiscal year start, check tolerances, Docling add-on,
+  config.toml           # display unit, default scope, fiscal year start, check tolerances, PDF add-on,
                         # diligence query threshold and adjustment categories
   inbox/<company>/      # drop documents here
   companies/            # one database per company
@@ -185,6 +192,7 @@ it.
   reports/<company>/    # health reports and Excel exports
   review/<company>/     # files fin could not load, with the reason
   archive/  evidence/  notes/  logs/  backups/
+  cache/llamaparse/     # LlamaParse's saved answers, when that add-on is used
 ```
 
 Change settings in `config.toml`, then run `uv run fin doctor`. Don't open the database files directly; ask Claude.
@@ -214,7 +222,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E001 | A required program (uv, node, quarto), `config.toml` or the audit database is missing, or a program cannot be started | Run the fix `fin doctor` shows (`./install.sh` or `uv run fin init`) |
 | E002 | A program is the wrong version, `config.toml` is invalid, or a database was made by an older fin | Run the fix shown (`brew upgrade`, correct `config.toml`, or move the data folder away and run `uv run fin init`) |
 | E003 | The data folder is missing or not writable | Run `uv run fin init`, or fix the folder permissions |
-| E005 | `fin update` stopped: local changes in this folder, or a git, uv or npm step failed | Commit or discard local changes, or fix the failing step, and run it again. The backup is in `backups/<run_id>/` |
+| E005 | `fin update` stopped: local changes in this folder, or a git, uv or npm step failed; or the `uv sync` of `fin parser use` failed | Commit or discard local changes, or fix the failing step, and run it again. The backup is in `backups/<run_id>/` |
 | E101 | File is unreadable or corrupt | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
 | E102 | File is password protected | Save an unprotected copy and ingest that |
 | E103 | Unsupported file format | Convert it to `.xlsx` or a text PDF |
@@ -225,7 +233,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E203 | Unit (crores, lakhs, ...) not detected | Add a unit line such as "Rs. in Crores" to the file, then ingest again |
 | E204 | Parse error while reading the file | Read the reason in `review/<company>/<file>.error.json` and fix the file |
 | E205 | A Claude reading file cannot be used (missing columns, unknown statement or scope, bad figure, date or source) | Fix the line named in the message and run again |
-| E206 | Docling (the optional PDF add-on) failed on the pages pdfplumber skipped, or could not download its models; a warning, the pages stay unread | Read the warning in the run log; `uv run fin doctor`; or ask Claude to read the pages |
+| E206 | The PDF add-on (Docling, LiteParse or LlamaParse; the message names it) failed on the pages pdfplumber skipped, could not download its models, or (LlamaParse) found no `LLAMA_CLOUD_API_KEY`; a warning, the pages stay unread | Read the warning in the run log; `uv run fin doctor`; set the key; or ask Claude to read the pages |
 | E301 | A line is not in the chart of accounts | Loaded as unconfirmed. Run `/review` to confirm a mapping |
 | E302 (warning) | A proposed mapping has low confidence; a warning, not an error | Check it in `/review` |
 | E303 | A line maps to conflicting accounts | You decide in `/review` |

@@ -51,8 +51,9 @@ Answer this question with `fin`: $ARGUMENTS
    |---|---|---|---|---|---|
    | one row per fact, from `source_file` and `source_ref` |
 
-   A row with `source_read_by` = `claude` or `docling` says "(read by Claude)" or "(read by Docling)" after its
-   source: information about where the figure came from, not a flag.
+   A row with `source_read_by` = `claude`, `docling`, `liteparse` or `llamaparse` says "(read by Claude)",
+   "(read by Docling)", "(read by LiteParse)" or "(read by LlamaParse)" after its source: information about where the
+   figure came from, not a flag.
 
    **SQL:** the statement, in a `sql` code block.
 

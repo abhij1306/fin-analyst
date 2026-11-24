@@ -27,10 +27,11 @@ annual reports, quarter / half-year / year columns land in their own periods, an
 health report is annual, with a short "latest quarters" section; the dashboard company page shows quarters.
 
 Claude readings (after 1.0.0, not a phase): fin's deterministic extraction stays the primary path; the optional
-Docling add-on (below) is the automatic fallback for PDF pages pdfplumber skips. Only when the user asks, Claude Code
+PDF add-on (below) is the automatic fallback for PDF pages pdfplumber skips. Only when the user asks, Claude Code
 reads pages neither could read (scanned, E2xx, skipped statement pages) as images and writes a reading file (`fin.extract.reading`: one CSV row per figure, as printed, with the
 original page or cell). `fin ingest <co> <file> --reading <csv>` loads it for the statements and scopes neither fin nor
-Docling read, through the same stage, gates, commit. Facts carry `facts.read_by` (`fin` / `docling` / `claude`), as
+the PDF add-on read, through the same stage, gates, commit. Facts carry `facts.read_by` (`fin`; `docling`,
+`liteparse` or `llamaparse`; `claude`), as
 information: a Claude-read figure is not "unverified" (owner decision 2026-11-09); whether it is trusted is the
 user's decision.
 `fin verify <co> <file> --reading <csv>` is an on-demand check the user runs from `/verify` whenever they want, on
@@ -52,32 +53,49 @@ document on a loaded line (differ, missing in reading: the finding's `fact_id`) 
 that finding came from; the earlier disagreement stays in `verify_lines`. A missing-in-fin finding has no loaded
 line to agree on, so only a run of its own reading resolves it; accepted findings stay accepted. Verify exits 0, never
 changes a figure, and refreshes `shared/analytics.duckdb` so its findings show on the data quality page.
-Claude- and Docling-read facts feed metrics like any other; `/ask` says "read by Claude" (or Docling) next to their
-source, as information, and `fin status` counts them.
+Facts read by Claude or the PDF add-on feed metrics like any other; `/ask` says "read by Claude" (or Docling,
+LiteParse, LlamaParse) next to their source, as information, and `fin status` counts them.
 
-Docling PDF fallback (after 1.0.0, not a phase; owner decision 2026-11-07): an opt-in add-on, not a required
-dependency. `./install.sh --docling` installs the `docling` extra (`uv sync --extra docling`: Docling 2.148, PyTorch,
-about 1.4 GB with its models; not on Intel Macs, where PyTorch has no wheels), downloads Docling's models
-(`docling-tools models download layout tableformer rapidocr`, into `~/.cache/docling/models`) and records
-`[pdf] docling = true` in `config.toml` (`fin init --docling`); `--no-docling` syncs without it and records false; a
-second `install.sh` and `fin update` keep what `config.toml` says. A `config.toml` with no `[pdf]` table has not
-opted in. The pipeline for every PDF is: pdfplumber (`fin.extract.pdf`, unchanged) -> Docling on only the statement
-pages pdfplumber skipped (E201-E204) -> anything still unread stays unread, as before. Docling runs once per document
-on a PDF of just those pages (OCR and table structure on; one converter per process, so a batch loads the models
-once), and `fin.extract.docling_pages` reads its table grids with fin's own rules and helpers: header rows give each
-column's period end, length and scope ("Standalone" / "Consolidated" spanning the columns, else the page title), the
-label is the text columns left of the first period column (a "Note" column kept as the note), headings are sections,
-the unit is the page's unit line, and the same guards apply (two columns with the same period and scope: E202; no
-unit: E203; misread figures: E204; no usable table: E201). Bboxes are converted to fin's top-left points, so evidence
-crops work. Facts it reads have `read_by = 'docling'`;
-the outcome and log say how many figures Docling read and from which pages. When no page could be read by
-pdfplumber, Docling still tries before the file fails. A scanned PDF (E104) of at most 40 pages (a results filing) is
-OCR'd by Docling and its statement pages found by fin's title rules; a longer scanned PDF stays E104. Docling failing
-is a warning (E206) and leaves the pages unread; it never fails a document. With the add-on off or not installed,
-pages stay unread and the run logs one notice per document naming them and the two ways to read them
-(`./install.sh --docling`, or a Claude reading). With a reading, the order is fin -> Docling -> the reading fills the
-statements and scopes neither read. Chosen from a benchmark on real NSE filings: on 19 pages pdfplumber skipped,
-Docling found 99-100% of the figures of Claude's readings, at about 15 s a page on CPU.
+PDF add-on (after 1.0.0, not a phase; owner decisions 2026-11-07, Docling, and 2026-11-24, the choice of three): an
+opt-in add-on, not a required dependency, and at most one engine at a time: `[pdf] parser` in `config.toml` is
+`"none"` (the default, also when the file has no `[pdf]` table), `"docling"`, `"liteparse"` or `"llamaparse"`. A
+`[pdf] docling = true|false` line (written before the choice) reads as `"docling"` / `"none"` and is rewritten to
+`parser` the next time fin sets it. `fin parser use <name>` (`/parser`; `./install.sh --parser <name>` runs it)
+syncs that uv extra (`uv sync --frozen --extra <name>`; `none`: a plain sync, which removes every add-on), downloads
+the engine's models when missing, writes `[pdf] parser`, and prints what changed; `fin parser show` and the `pdf
+parser` line of `fin doctor` show the choice, whether it imports, its models, and for LlamaParse whether
+`LLAMA_CLOUD_API_KEY` is set. A second `install.sh` and `fin update` keep what `config.toml` says. The engines:
+- Docling (`docling` extra: Docling 2.148, PyTorch, about 1.4 GB with its models in `~/.cache/docling/models`; not on
+  Intel Macs, where PyTorch has no wheels): local; layout, table structure and OCR, one converter per process. Chosen
+  from a benchmark on real NSE filings: on 19 pages pdfplumber skipped, it found 99-100% of the figures of Claude's
+  readings, at about 15 s a page on CPU.
+- LiteParse (`liteparse` extra, Apache-2.0; its `ocria-nano` model package, about 50 MB, under its own model licence):
+  local and fast. It reads the pages' text layer and finds tables with its learned table model; pages with a text
+  layer are never OCR'd (plain Tesseract misread 11-58% of numbers on digital pages); a scanned PDF is OCR'd with
+  ocria-nano. A header line the model gives as a shorter row is placed by its cells' boxes, and a scope word centred
+  over two columns heads both, so its grid has the shape the other engines give.
+- LlamaParse (`llamaparse` extra, the `llama-cloud` SDK): LlamaIndex's cloud parser (tier `agentic`), paid per page.
+  Only the skipped pages are uploaded, as one PDF named `pages.pdf`; the API key is read only from the environment
+  variable `LLAMA_CLOUD_API_KEY` (never from or into the repo, `config.toml` or the data folder, never logged); its
+  response is saved in `cache/llamaparse/<sha256>-p<pages>.json` in the data folder, so ingesting the file again
+  does not call the API. Tables come from its structured items (rows of cells, one box per table).
+The pipeline for every PDF is: pdfplumber (`fin.extract.pdf`, unchanged) -> the chosen engine on only the statement
+pages pdfplumber skipped (E201-E204) -> anything still unread stays unread. `fin.extract.fallback` picks the engine;
+`fin.extract.addon` runs it once per document on a PDF of just those pages; each engine's adapter
+(`fin.extract.docling_run`, `liteparse_run`, `llamaparse_run`) gives `pdf_tables.Table` grids with boxes in fin's
+top-left points, and `fin.extract.pdf_tables` reads them with fin's own rules and helpers, the same for every engine:
+header rows give each column's period end, length and scope ("Standalone" / "Consolidated" spanning the columns,
+else the page title), the label is the text columns left of the first period column (a "Note" column kept as the
+note), headings are sections, the unit is the page's unit line, and the same guards apply (two columns with the same
+period and scope: E202; no unit: E203; misread figures: E204; no usable table: E201). Evidence crops work as for
+pdfplumber. Facts it reads have `read_by` = the engine's name; the outcome and log say how many figures it read and
+from which pages. When no page could be read by pdfplumber, the add-on still tries before the file fails. A scanned
+PDF (E104) of at most 40 pages (a results filing) is OCR'd by the engine and its statement pages found by fin's title
+rules; a longer scanned PDF stays E104. The engine failing, its models failing to download, or LlamaParse without
+its key is a warning (E206, naming the engine) and leaves the pages unread; it never fails a document. With no
+add-on chosen, or the chosen one not installed, pages stay unread and the run logs one notice per document naming
+them and the two ways to read them (`fin parser use <name>`, or a Claude reading). With a reading, the order is
+fin -> the add-on -> the reading fills the statements and scopes neither read.
 
 Findings instead of failures (after 1.0.0, not a phase; owner decision 2026-11-07): fin is an analysis tool, not an
 opinionated one. Conflicting data in what a company filed (balance sheet not tying, subtotals not adding up, cash
@@ -91,7 +109,7 @@ is (`fin findings accept`: loaded as filed, findings kept as accepted) or have C
 after each, and a finding no longer found is resolved). Only nothing readable (E1xx/E2xx) fails a document. Claude
 works without approval prompts: the guard hook is removed; `fin`'s backup and audit log are the safety net.
 `fin status` shows per company the periods loaded and gaps, held documents, findings, pending mappings,
-how many figures were read by Claude and by Docling (information) and inbox files not yet ingested.
+how many figures were read by Claude and by the PDF add-on (information) and inbox files not yet ingested.
 
 Unread statement pages (after 1.0.0, not a phase): a primary statement printed in a PDF but not read is never passed
 over in silence. Besides pages skipped for their header or unit (E202/E203), fin reports a titled statement page
@@ -153,8 +171,8 @@ Reports and dashboards by category (after 1.0.0, not a phase):
   pages). An analytics file missing a table is made again at the next refresh (it is derived).
 
 Simpler PDF parser (after 1.0.0, not a phase; owner decision): the product is the analysis, not the parsing. The
-parser reads clean, standard digital statements; a page it cannot read goes to the Docling add-on when it is
-installed, and what is still not read is listed and a Claude reading fills it. Each parsing rule was kept only if it reads a statement correctly in a document it was not written for, or
+parser reads clean, standard digital statements; a page it cannot read goes to the PDF add-on when one is
+chosen, and what is still not read is listed and a Claude reading fills it. Each parsing rule was kept only if it reads a statement correctly in a document it was not written for, or
 if removing it would load a wrong figure; document-specific workarounds were removed (CHANGELOG "Simplify the PDF
 parser"). A page whose figures look misread (a row label holding a figure, a figure with an unpaired bracket) is
 not read (E204), and so is an untitled page carrying on a page that was not read. Standalone and consolidated
@@ -237,7 +255,7 @@ further with Claude Code, so the code and docs stay simple and easy to modify.
 | Database | DuckDB | One file per company + shared files |
 | Excel extraction | openpyxl + pandas | Keeps sheet, cell, type, number format |
 | PDF tables | pdfplumber | Chosen by the Phase 4 bake-off (see Phase 4 decision) |
-| PDF fallback (optional) | Docling 2.148 (`docling` extra) | Pages pdfplumber skips, and scanned results filings (OCR); opt-in, `./install.sh --docling` |
+| PDF fallback (optional) | One of Docling 2.148, LiteParse 2.21 or LlamaParse (`llama-cloud` 2.20), as uv extras | Pages pdfplumber skips, and scanned results filings (OCR); opt-in, `fin parser use <name>` |
 | Notes / auditor text | pdfplumber → Markdown (`fin.extract.text`) | AnyDoc and pdf-inspector are MIT; not needed (Phase 4 decision) |
 | Evidence crops | pdfplumber page render + highlight | One library for text, tables and crops |
 | Reports | Quarto | HTML, docx, Typst PDF (no LaTeX) |
@@ -282,7 +300,8 @@ fin-analyst/
     cli.py  config.py  paths.py  ingest.py  statements.py  workbook.py
     audit/     logger.py  errors.py
     db/        conn.py  schema.py  schema/{audit,dictionary,analytics,company,company_views}.sql
-    extract/   excel.py  pdf.py  docling_pages.py  docling_run.py  text.py  units.py  periods.py  reading.py
+    extract/   excel.py  pdf.py  pdf_tables.py  addon.py  fallback.py  docling_run.py  liteparse_run.py
+               llamaparse_run.py  text.py  units.py  periods.py  reading.py
     map/       dictionary.py  normalize.py  review.py
     validate/  gates.py
     metrics/   views.sql  export.py
@@ -417,7 +436,7 @@ E401-E405 are findings (the document is held); setup, database and output errors
 
 ```
 git clone <repo-url> && cd fin-analyst
-./install.sh             # or ./install.sh --docling for the optional Docling PDF add-on
+./install.sh             # or ./install.sh --parser docling|liteparse|llamaparse for the optional PDF add-on
 claude
 ```
 
@@ -427,18 +446,18 @@ claude
 2. Install Homebrew if missing (asks first).
 3. `brew bundle --file=Brewfile` (uv, node, quarto, poppler); tried up to 3 times, a minute apart, since GitHub
    release downloads sometimes fail for a minute or two.
-4. `uv sync --frozen` (with `--extra docling` and the Docling model download when `--docling` is given or
-   `config.toml` already has `[pdf] docling = true`; `--no-docling` removes it).
+4. `uv sync --frozen` (with `--extra <name>` for the PDF add-on `--parser <name>` names, or `config.toml`'s
+   `[pdf] parser` without the flag; `--parser none` removes it).
 5. `npm ci --prefix dashboards`
-6. `uv run fin init [--docling | --no-docling]` — creates data folder, config, databases from the schema files, and
-   records the Docling choice in `config.toml`.
+6. `uv run fin init` — creates data folder, config, databases from the schema files; then, with `--parser` or an
+   add-on in `config.toml`, `uv run fin parser use <name>` downloads its models and records it.
 7. `uv run fin doctor` — checks every dependency, version, folder permission, that the databases exist and are not from an older fin.
 
 **Update:** `fin update`
 
 1. Refuse if repo has local changes.
 2. Back up all databases to `backups/<run_id>/`.
-3. `git pull`, `uv sync --frozen` (with `--extra docling` when `config.toml` has the add-on on), `npm ci`.
+3. `git pull`, `uv sync --frozen` (with `--extra <name>` for the add-on `[pdf] parser` names), `npm ci`.
 4. Refresh the metrics export.
 5. `fin doctor`. If it fails, `fin update` prints each failed check (code and fix), or the last lines of the doctor's output when it stopped before listing any (an error code, a crash), and the doctor's own run id, with the update's run id.
 
@@ -482,10 +501,11 @@ verify and update.
 
 - **Synthetic fixtures** (`tests/fixtures/sample-financials/`): three fake companies (Kestrel Forgings: Excel with formulas; Bluepeak Polymers: Excel per year, crores, older wording, standalone + consolidated; Tarang Industrial Services: text PDF with notes), known values in `answer_key.json`, plus deliberately broken files (see Phase 6). The set already exists at `sample-financials/` (README, `answer_key.json`, `generator/`, `clean/`, `broken/`), local and untracked; Phase 3 moves it into `tests/fixtures/` and commits the generated files, so CI needs no LibreOffice.
 - **Private golden set**: one real company, ~30 hand-checked figures, kept in the data folder; run with `pytest --golden`. Never committed.
-- **CI** (`.github/workflows/ci.yml`, Linux, every PR and main push): ruff, pytest, `shellcheck install.sh`; one job ingests the synthetic companies once, renders a report (Quarto) and builds the Evidence dashboard (node 24). A `docling` job syncs the `docling` extra, restores Docling's model cache and runs the tests
-marked `docling` (real Docling on a synthetic PDF); the other jobs run without the extra. `macos.yml` (main and on
-demand): `install.sh` twice, `fin doctor` and a smoke ingest; and `install.sh --docling`, the Docling tests and
-`--no-docling`.
+- **CI** (`.github/workflows/ci.yml`, Linux, every PR and main push): ruff, pytest, `shellcheck install.sh`; one job ingests the synthetic companies once, renders a report (Quarto) and builds the Evidence dashboard (node 24). A `pdf-addon` job per engine syncs its extra: Docling and LiteParse restore their model caches and
+run the tests marked `docling` / `liteparse` (the real engine on synthetic PDFs); LlamaParse checks its fixture's
+shape against the SDK and never calls the API (its live test skips without `LLAMA_CLOUD_API_KEY`); the other jobs run
+without the extras. `macos.yml` (main and on demand): `install.sh` twice, `fin doctor` and a smoke ingest; and, for
+Docling and LiteParse, `install.sh --parser <name>`, the real-engine tests and `--parser none`.
 - **Releases**: semantic version tags, `CHANGELOG.md` written at release.
 
 ---
@@ -583,7 +603,7 @@ contingent-liability note rows):
   MIT (Firecrawl; Rust wheels for macOS arm64/x86_64), AnyDoc (`firecrawl-anydoc` on PyPI; the `anydoc` name is an
   unrelated Slack bot) MIT. PyMuPDF (AGPL) is not used. pdf-inspector is a dev dependency, for the bake-off only.
   Update (2026-11-07, owner): licence is no longer a constraint (AGPL or private is fine); Docling (MIT) was added
-  as the optional fallback for the pages pdfplumber skips (see "Docling PDF fallback" at the top).
+  as the optional fallback for the pages pdfplumber skips (see "PDF add-on" at the top).
 - Notes and the auditor's report go to Markdown with pdfplumber too (bold lines become headings, note tables become
   Markdown tables), so AnyDoc is not needed.
 - Real-PDF run (after 1.0.0): six Indian annual reports were tried. The word-position approach holds once header
