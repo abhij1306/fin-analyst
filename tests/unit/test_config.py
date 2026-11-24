@@ -16,8 +16,7 @@ from fin.config import (
 OLDER_CONFIG = DEFAULT_CONFIG_TOML[: DEFAULT_CONFIG_TOML.index("\n\n[pdf]")] + "\n"
 CATEGORIES = (
     "adjustment_categories = [\n"
-    '    "management", "normalisation", "reclassification", "run_rate", "pro_forma", "recast", '
-    '"error",\n]'
+    '    "management", "normalisation", "reclassification", "recast", "error",\n]'
 )
 
 
@@ -128,8 +127,6 @@ def test_default_config_round_trips(tmp_path: Path) -> None:
             "management",
             "normalisation",
             "reclassification",
-            "run_rate",
-            "pro_forma",
             "recast",
             "error",
         ),

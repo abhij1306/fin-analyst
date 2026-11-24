@@ -184,12 +184,12 @@ line not mapped is 0 only when CFO equals cash generated from operations). `fin 
 [--scope] [--json]` shows them (money in the documents' unit as `fin statements`; JSON in rupees); E803 when the
 company has no engagement. The views have a row per period in scope and scope (the scopes with metrics or
 adjustments in those periods, else the company's scopes, else standalone), so a period without data shows with
-NULLs. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): G1 Data
+NULLs. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): G1 Ingestion
 (every annual period in scope has mapped figures in `current_facts`, what the metrics use, no held documents, no
 mapping items waiting for review; its inputs include the figures, every `current_facts` value by account, period and
-scope, so a changed figure reopens it), G2 Queries (no query in draft; its inputs are each query's id, wording and whether it is a draft, so a new or
+scope, so a changed figure reopens it), G2 Reconciliation (no query in draft; its inputs are each query's id, wording and whether it is a draft, so a new or
 edited query reopens it and sending, answering or closing one does not; unlocks `fin adjust accept|reject`), G4 Adjustments (no
-proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 and G5 come later.
+proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 comes later.
 `fin gate approve <co> <gate>` appends a row to `gate_approvals` (company database) with the sha256 of the gate's
 inputs, and a `gate` row to `diligence_events`; it refuses (E802, exit 3) while the checklist fails or an earlier gate
 is not approved. A gate is approved while its inputs still hash to the latest approval's, its checklist passes and

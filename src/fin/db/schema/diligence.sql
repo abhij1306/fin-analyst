@@ -88,7 +88,7 @@ CREATE TABLE adjustments (
 -- Gate approvals (fin.diligence.gates), append-only: one row each time the user approves a gate
 -- (`fin gate approve`); rows are never changed. A gate is approved while the hash of its inputs now equals input_hash
 -- of its latest approval; when the data under it changes, it reopens on its own.
--- gate: 'G1', 'G2', 'G4' (G3 and G5 come later). input_hash: sha256 of the gate's inputs at approval; input_hashes:
+-- gate: 'G1', 'G2', 'G4' (G3 comes later). input_hash: sha256 of the gate's inputs at approval; input_hashes:
 -- JSON {input name: sha256} of each input (to say which changed). checklist: JSON [{"ok": true, "text": ...}], the
 -- checklist as it was at approval (every line passed).
 CREATE SEQUENCE gate_approvals_seq START 1;

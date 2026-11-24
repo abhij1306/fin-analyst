@@ -101,11 +101,13 @@ def test_gates_are_approved_in_order_and_only_when_the_checklist_passes(
         approve_in(run, gate_ctx, "G1")
 
     assert str(early.value) == (
-        "E802: gate G2 (Queries) of acme cannot be approved before gate G1 (Data), which is "
+        "E802: gate G2 (Reconciliation) of acme cannot be approved"
+        " before gate G1 (Ingestion), which is "
         "open; nothing approved. See `fin gate status acme`"
     )
     assert str(failing.value) == (
-        "E802: gate G1 (Data) of acme cannot be approved; its checklist fails: FY25: no loaded "
+        "E802: gate G1 (Ingestion) of acme cannot be approved"
+        "; its checklist fails: FY25: no loaded "
         "document has mapped figures for it; held documents: doc_id 2 b.xlsx (`fin findings list "
         "acme`). Nothing approved"
     )
@@ -146,13 +148,15 @@ def test_a_gate_reopens_when_its_data_changes(
     with pytest.raises(GateNotApproved) as refused:
         require(gate_ctx, "G2", "fin adjust accept")
     assert str(refused.value) == (
-        "E801: `fin adjust accept` needs gate G2 (Queries) approved; it is reopened (changed "
+        "E801: `fin adjust accept` needs gate G2 (Reconciliation) approved"
+        "; it is reopened (changed "
         "since it was approved: queries). Nothing changed. See `fin gate status acme`"
     )
     with pytest.raises(GateNotApproved) as close:
         require(gate_ctx, "G4", "fin engagement close")
     assert str(close.value) == (
-        "E801: `fin engagement close` needs gate G4 (Adjustments) approved; gate G2 (Queries) "
+        "E801: `fin engagement close` needs gate G4 (Adjustments) approved"
+        "; gate G2 (Reconciliation) "
         "before it is reopened (changed since it was approved: queries). Nothing changed. See "
         "`fin gate status acme`"
     )
