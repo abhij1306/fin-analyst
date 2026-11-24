@@ -3,15 +3,15 @@
 `fin.extract.addon` hands it the pages pdfplumber skipped (and short scanned PDFs), as one PDF of
 only those pages. LiteParse reads the pages' text layer and finds each table with its learned table
 model (`tablenet.onnx`, in LiteParse's `ocria-nano` model package): rows of cells with boxes in
-top-left 72-DPI points, fin's convention. OCR is off for pages with a text layer (plain Tesseract
-misread 11-58% of the numbers on digital pages when the owner tried it); a scanned PDF is OCR'd with
-ocria-nano, LiteParse's own OCR models.
+top-left 72-DPI points, fin's convention. fin never turns LiteParse's OCR on (`OCR` is False): on a
+scanned test report its OCR dropped the brackets of a negative figure, a wrong value fin cannot
+catch, so a scanned PDF stays unread (E104) for a Claude reading.
 
 The model package (about 50 MB; its weights come under the ocria-nano model licence, not
 LiteParse's Apache-2.0) is pulled when LiteParse is chosen (`fin parser use liteparse`), or at
 first use with a notice. The table model gives a header line that wraps (the dates under "As at")
 as a row with fewer cells than the table: each of its cells is placed under the columns its box
-covers; a cell that cannot be placed leaves the page unread (E204).
+covers at least half of; a cell that cannot be placed leaves the page unread (E204).
 """
 
 import importlib.util
@@ -30,6 +30,7 @@ MODEL_PACKAGE = "ocria-nano@1.0.0"
 MODEL_NAME = "ocria-nano"
 TABLE_MODEL = "tablenet.onnx"  # in the model package's folder
 MODEL_DOWNLOAD = f"uv run lit models pull {MODEL_PACKAGE}"
+OCR = False  # scanned PDFs are not sent to LiteParse (see above)
 _TABLES = ("table", "merged_table")  # block kinds holding a table (merged_table: the table model)
 
 
@@ -92,8 +93,7 @@ def convert(request: Request, notices: list[str]) -> Found:
     name, pages = request.path.name, request.pages
     try:
         parser = LiteParse(
-            ocr_enabled=request.scanned,
-            ocr_backend=MODEL_NAME if request.scanned else None,
+            ocr_enabled=False,
             extract_blocks=True,
             table_model=folder / TABLE_MODEL,
             quiet=True,
@@ -137,9 +137,8 @@ def _box(rect: Any) -> Box | None:
 
 def square(grid: Grid) -> Grid:
     """The grid with every row as wide as the table. A shorter row's cells go under the columns
-    whose span (from the full rows' cells) they cover at least half of, else under the column they
-    overlap most. Raises E204 when a cell has no box, overlaps no column, or two cells land in one
-    column."""
+    whose span (from the full rows' cells) they cover at least half of. Raises E204 when a cell has
+    no box, covers half of no column, or two cells land in one column."""
     width = max((len(row) for row in grid), default=0)
     if all(len(row) == width for row in grid):
         return grid
@@ -169,10 +168,7 @@ def _place(row: list[Cell], spans: list[tuple[float, float] | None]) -> list[Cel
             if span is not None and span[1] > span[0] and overlaps[i] >= (span[1] - span[0]) / 2
         ]
         if not columns:
-            best = max(range(len(spans)), key=lambda i: overlaps[i])
-            if overlaps[best] <= 0:
-                raise ParseError(f"table cell {cell.text[:30]!r} is under no column ({LABEL})")
-            columns = [best]
+            raise ParseError(f"table cell {cell.text[:30]!r} is under no column ({LABEL})")
         for i in columns:
             if placed[i].text:
                 raise ParseError(

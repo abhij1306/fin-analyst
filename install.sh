@@ -136,10 +136,11 @@ npm ci --prefix dashboards --no-audit --no-fund --ignore-scripts
 step "Creating data folder (fin init)"
 uv run fin init
 
-# The PDF add-on's models and its line in config.toml (fin parser use: safe to repeat).
+# The PDF add-on's models and its line in config.toml (fin parser use: safe to repeat), run from
+# the environment synced above: its own uv sync needs nothing built.
 if [[ -n "$PARSER_FLAG" || "$PARSER" != none ]]; then
   step "Setting up the PDF add-on (fin parser use $PARSER)"
-  uv run fin parser use "$PARSER"
+  .venv/bin/fin parser use "$PARSER"
 fi
 
 # 7. Health check

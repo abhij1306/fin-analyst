@@ -2,11 +2,11 @@
 
 `[pdf] parser` in config.toml names the add-on: "none", "docling", "liteparse" or "llamaparse"
 (`fin parser use`). `extract` runs pdfplumber (`fin.extract.pdf`); the statement pages it skipped
-(E201-E204), or a scanned PDF (E104), go to the chosen engine through `fin.extract.addon`. With
-no add-on chosen, or the chosen one not installed, the run logs which pages were not read and the
-two ways to read them. The add-on's notices and warnings (E206) are logged as it runs, also when the
-file then fails. When nothing could be read, pdfplumber's error is raised again, listing the pages
-still unread.
+(E201-E204), or a scanned PDF (E104; only to an engine whose OCR fin uses, not LiteParse), go to the
+chosen engine through `fin.extract.addon`. With no add-on chosen, or the chosen one not installed,
+the run logs which pages were not read and the two ways to read them. The add-on's notices and
+warnings (E206) are logged as it runs, also when the file then fails. When nothing could be read,
+pdfplumber's error is raised again, listing the pages still unread.
 """
 
 from dataclasses import dataclass
@@ -142,9 +142,18 @@ def _read_skipped(
 
 
 def _read_scanned(run: Run, path: Path, name: str, config: Config) -> AddonResult | None:
-    """The add-on's OCR reading of a scanned PDF, or None (add-on not used, or too long: E104)."""
+    """The add-on's OCR reading of a scanned PDF, or None (add-on not used, its OCR not used, or
+    too long: E104)."""
     chosen = _usable(config)
     if chosen is None:
+        return None
+    if not chosen.OCR:
+        run.event(
+            "extract",
+            f"scanned PDF: not read by {chosen.LABEL} (fin does not use its OCR); give a Claude "
+            "reading (`fin ingest --reading`)",
+            file=name,
+        )
         return None
     start = config.fiscal_year_start_month
     found = addon.read_scanned(chosen, path, start, cache_dir(run.root, chosen.NAME))

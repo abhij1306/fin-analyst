@@ -27,6 +27,7 @@ from fin.extract.pdf_tables import Cell, Table, top_left
 NAME = "docling"
 LABEL = "Docling"
 MODULE = "docling.document_converter"
+OCR = True  # reads short scanned PDFs (held to the answer key in the docling tests)
 # The models fin's Docling pipeline uses, as `docling-tools models download` names their folders.
 MODEL_FOLDERS = (
     "docling-project--docling-layout-heron",

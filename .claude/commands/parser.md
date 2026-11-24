@@ -12,7 +12,8 @@ Show or choose the optional PDF add-on: $ARGUMENTS
    pdfplumber skips (and short scanned results filings). One add-on at a time:
    - **Docling**: runs on this Mac; about 1.4 GB with its models; slow, about 15 seconds a page on CPU; read 99-100% of
      the figures on our skipped pages when benchmarked. Apple silicon only.
-   - **LiteParse**: runs on this Mac; small (about 60 MB with its table model) and fast.
+   - **LiteParse**: runs on this Mac; small (about 60 MB with its table model) and fast; scanned PDFs are not given
+     to it (they stay unread for Claude to read).
    - **LlamaParse**: a cloud service; the most accurate on hard tables; paid per page; needs the API key in the
      environment variable `LLAMA_CLOUD_API_KEY` (set in the shell, never in config.toml or the repo).
    - **none**: pages pdfplumber skips are listed as not read; Claude can read them when asked.

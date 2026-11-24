@@ -63,11 +63,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - parser: docling
-            module: docling
-          - parser: liteparse
-            module: liteparse
+        parser: [docling, liteparse]  # also the module each installs
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
@@ -85,7 +81,7 @@ jobs:
       - name: A second plain install keeps it
         run: |
           ./install.sh
-          .venv/bin/python -c "import ${{ matrix.module }}"
+          .venv/bin/python -c "import ${{ matrix.parser }}"
       - name: Real-engine tests
         run: |
           .venv/bin/pytest -m ${{ matrix.parser }} --durations=10
@@ -93,4 +89,4 @@ jobs:
         run: |
           ./install.sh --parser none
           grep -q '^parser = "none"' "$FIN_DATA_DIR/config.toml"
-          if .venv/bin/python -c "import ${{ matrix.module }}"; then echo "${{ matrix.parser }} still installed"; exit 1; fi
+          if .venv/bin/python -c "import ${{ matrix.parser }}"; then echo "${{ matrix.parser }} still installed"; exit 1; fi

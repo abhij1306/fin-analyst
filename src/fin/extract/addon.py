@@ -15,9 +15,10 @@ LiteParse (`liteparse_run`, local) or LlamaParse (`llamaparse_run`, cloud). Inge
    (E206) is logged and leaves the pages unread; it never fails the document.
 
 A scanned PDF (no text layer, E104) of at most SCANNED_PAGE_LIMIT pages (a results filing) is read
-by `read_scanned`: the engine OCRs every page, statement pages are found by fin's title rules on
-its text, and their tables are read the same way. A larger scanned PDF stays E104. Pages with a
-text layer are never OCR'd by fin's request (`Request.scanned` is False for them).
+by `read_scanned` when the engine's OCR is used (`Engine.OCR`: Docling and LlamaParse, not
+LiteParse): the engine OCRs every page, statement pages are found by fin's title rules on its text,
+and their tables are read the same way. A larger scanned PDF, or one the engine does not OCR, stays
+E104.
 """
 
 import io
@@ -54,7 +55,6 @@ _NOT_A_NAME = re.compile(r"\b(?:notes?|statements?|reports?|schedules?)\b", re.I
 class Request:
     path: Path  # the original PDF
     pages: list[int]  # 1-based pages of `path` to read, in order
-    scanned: bool  # no text layer: the engine may OCR (never asked for pages with a text layer)
     cache_dir: Path  # where the engine may keep its responses (LlamaParse, in the data folder)
 
 
@@ -76,6 +76,7 @@ class Engine(Protocol):
     NAME: str  # its [pdf] parser name, read_by value and uv extra
     LABEL: str
     MODULE: str  # the module `fin doctor` imports to check it is installed
+    OCR: bool  # fin sends it scanned PDFs (False: its OCR is not trusted; they stay E104)
 
     def installed(self) -> bool: ...
 
@@ -122,7 +123,7 @@ def read_skipped(
         contexts[number] = _context(_page_lines(path, number), number, pages[0], engine.LABEL)
     if not contexts:
         return result
-    request = Request(path, sorted(contexts), scanned=False, cache_dir=cache_dir)
+    request = Request(path, sorted(contexts), cache_dir)
     try:
         found = engine.convert(request, result.notices)
     except PdfAddonFailed as exc:
@@ -159,7 +160,7 @@ def read_scanned(
     if count > SCANNED_PAGE_LIMIT:
         return None
     result = AddonResult(engine.NAME)
-    request = Request(path, list(range(1, count + 1)), scanned=True, cache_dir=cache_dir)
+    request = Request(path, list(range(1, count + 1)), cache_dir)
     try:
         found = engine.convert(request, result.notices)
     except PdfAddonFailed as exc:
@@ -168,6 +169,8 @@ def read_scanned(
     for number, page in sorted(found.items()):
         title = _scanned_title(page.texts)
         if title is None:
+            if page.error is not None:  # not read at all: which statement it holds is not known
+                result.unread.append(SkippedPage(number, "unknown", page.error))
             continue
         statement = statement_of(title, numbered=True)
         assert statement is not None

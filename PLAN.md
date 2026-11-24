@@ -71,9 +71,11 @@ parser` line of `fin doctor` show the choice, whether it imports, its models, an
   readings, at about 15 s a page on CPU.
 - LiteParse (`liteparse` extra, Apache-2.0; its `ocria-nano` model package, about 50 MB, under its own model licence):
   local and fast. It reads the pages' text layer and finds tables with its learned table model; pages with a text
-  layer are never OCR'd (plain Tesseract misread 11-58% of numbers on digital pages); a scanned PDF is OCR'd with
-  ocria-nano. A header line the model gives as a shorter row is placed under the columns its cells' boxes cover
-  (LiteParse's own positions); the adapter adds no layout rule, so a page whose grid fin's reader refuses stays unread.
+  layer are never OCR'd (plain Tesseract misread 11-58% of numbers on digital pages), and fin never uses its OCR: on
+  a scanned test report ocria-nano dropped the brackets of a negative figure, so a scanned PDF stays E104 when LiteParse
+  is chosen. A header line the model gives as a shorter row is placed under the columns whose span its cells' boxes
+  cover at least half of (LiteParse's own positions; a cell that fits no column leaves the page unread, E204); the
+  adapter adds no layout rule, so a page whose grid fin's reader refuses stays unread.
 - LlamaParse (`llamaparse` extra, the `llama-cloud` SDK): LlamaIndex's cloud parser (tier `agentic`), paid per page.
   Only the skipped pages are uploaded, as one PDF named `pages.pdf`; the API key is read only from the environment
   variable `LLAMA_CLOUD_API_KEY` (never from or into the repo, `config.toml` or the data folder, never logged); its
@@ -87,11 +89,11 @@ top-left points, and `fin.extract.pdf_tables` reads them with fin's own rules an
 header rows give each column's period end, length and scope ("Standalone" / "Consolidated" spanning the columns,
 else the page title), the label is the text columns left of the first period column (a "Note" column kept as the
 note), headings are sections, the unit is the page's unit line, and the same guards apply (two columns with the same
-period and scope: E202; no unit: E203; misread figures: E204; no usable table: E201). Evidence crops work as for
+period and scope: E202; no unit: E203; misread figures or a row shorter than its table: E204; no usable table: E201). Evidence crops work as for
 pdfplumber. Facts it reads have `read_by` = the engine's name; the outcome and log say how many figures it read and
 from which pages. When no page could be read by pdfplumber, the add-on still tries before the file fails. A scanned
-PDF (E104) of at most 40 pages (a results filing) is OCR'd by the engine and its statement pages found by fin's title
-rules; a longer scanned PDF stays E104. The engine failing, its models failing to download, or LlamaParse without
+PDF (E104) of at most 40 pages (a results filing) is OCR'd by Docling or LlamaParse and its statement pages found by
+fin's title rules; a longer scanned PDF, or any scanned PDF with LiteParse chosen, stays E104. The engine failing, its models failing to download, or LlamaParse without
 its key is a warning (E206, naming the engine) and leaves the pages unread; it never fails a document. With no
 add-on chosen, or the chosen one not installed, pages stay unread and the run logs one notice per document naming
 them and the two ways to read them (`fin parser use <name>`, or a Claude reading). With a reading, the order is

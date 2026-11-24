@@ -74,7 +74,7 @@ uv run fin parser show             # what is chosen (or /parser in Claude Code)
 |---|---|---|---|
 | none (default) | | the base tool only | pages pdfplumber skips are listed as not read |
 | [Docling](https://github.com/docling-project/docling) | your Mac (Apple silicon only: PyTorch has no Intel Mac build) | about 650 MB of Python packages (PyTorch, Docling) plus about 730 MB of models in `~/.cache/docling/models` | about 15 seconds a page; read 99-100% of the figures on our benchmark of skipped pages |
-| [LiteParse](https://github.com/run-llama/liteparse) | your Mac | about 12 MB plus about 50 MB of models (its `ocria-nano` package, under its own model licence) | fast; pages with a text layer are never OCR'd |
+| [LiteParse](https://github.com/run-llama/liteparse) | your Mac | about 12 MB plus about 50 MB of models (its `ocria-nano` package, under its own model licence) | fast; pages with a text layer are never OCR'd, and scanned PDFs are left for Claude to read |
 | [LlamaParse](https://github.com/run-llama/llama-parse-py) | LlamaIndex's cloud: the skipped pages are uploaded | a small Python SDK | paid per page; most accurate on hard tables; needs `LLAMA_CLOUD_API_KEY` in your environment |
 
 `uv run fin parser use <name>` does the same as the install flag. The choice is saved in `config.toml`
@@ -176,7 +176,7 @@ analytics.
 ## Pages fin can't read
 
 fin reads Excel files and digital PDFs. When it can't read a statement page (an unusual layout, a scanned PDF)
-and a PDF add-on is chosen, the add-on reads that page automatically (a scanned PDF only up to 40 pages, such
+and a PDF add-on is chosen, the add-on reads that page automatically (a scanned PDF only with Docling or LlamaParse, up to 40 pages, such
 as a results filing). Whatever is still not read, fin lists by page. If you ask, Claude reads those pages and fin
 loads that reading through the same checks. Figures read by the add-on or Claude are marked as such; whether you
 trust them is your call. Whenever you want, `/verify` has Claude read a document again and fin compare that reading

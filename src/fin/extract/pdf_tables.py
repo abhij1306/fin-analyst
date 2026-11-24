@@ -6,6 +6,8 @@ columns repeats in each), with a column-header flag where the engine has one and
 This module reads such a grid the way `fin.extract.pdf` reads a page, with the same helpers and
 guards for every engine, and needs no engine itself:
 
+0. Shape: every row must be as wide as the table. A shorter row cannot be told from one whose
+   cells moved left, so the page is not read (E204).
 1. Header: the rows at the top up to the first row (not flagged as a column header) with a figure
    right of its first column. Each column's header text, top to bottom, is its stack.
 2. A column whose stack names a period end (`period_end_in`) is a period column; its length comes
@@ -135,6 +137,11 @@ def read_table(context: PageContext, table: Table, unit: str, start_month: int) 
     """The values of one table ([] when it has no period columns). Raises E202 or E204."""
     grid = table.grid
     width = max((len(row) for row in grid), default=0)
+    if any(len(row) != width for row in grid):
+        raise ParseError(
+            f"page {context.page}: a table row has fewer cells than the table, so its figures "
+            f"cannot be placed under their columns ({context.reader})"
+        )
     end = _header_end(grid)
     stacks = [_stack(grid[:end], c) for c in range(width)]
     columns = _columns(context, stacks, start_month)

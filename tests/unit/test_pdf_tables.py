@@ -252,3 +252,17 @@ def test_docling_bottom_left_boxes_become_top_left() -> None:
         120.0,
         52.0,
     )
+
+
+def test_a_row_shorter_than_the_table_is_not_read() -> None:
+    """A row with a cell missing (a note cell an engine left out) would move its figures under the
+    wrong period: the page is refused (E204) rather than read."""
+    shifted = grid(
+        ["Particulars", "Note", "31 March 2025", "31 March 2024"],
+        ["Total assets", "3", "100.00", "90.00"],
+        ["Trade receivables", "80.00", "70.00"],
+        header_rows=1,
+    )
+
+    with pytest.raises(ParseError, match="fewer cells than the table"):
+        read_tables(page(), [Table(shifted)], start_month=4)

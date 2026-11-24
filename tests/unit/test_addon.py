@@ -30,7 +30,7 @@ def skipped_report(tmp_path: Path) -> tuple[Path, list[SkippedPage]]:
     return path, [SkippedPage(1, "balance_sheet", PeriodsNotDetected("page 1: no"))]
 
 
-def test_the_skipped_pages_go_to_the_engine_once_without_ocr(tmp_path: Path) -> None:
+def test_the_skipped_pages_go_to_the_engine_once(tmp_path: Path) -> None:
     path, skipped = skipped_report(tmp_path)
     requests: list[Request] = []
 
@@ -40,7 +40,7 @@ def test_the_skipped_pages_go_to_the_engine_once_without_ocr(tmp_path: Path) -> 
 
     found = addon.read_skipped(engine(convert), path, skipped, 4, tmp_path / "cache")
 
-    assert requests == [Request(path, [1], scanned=False, cache_dir=tmp_path / "cache")]
+    assert requests == [Request(path, [1], tmp_path / "cache")]
     assert (found.reader, found.read_pages) == ("fake", [1])
     assert [(v.label, v.period, v.unit, v.raw) for v in found.values] == [
         ("Total assets", "FY25", "lakh", "100.00"),
@@ -71,12 +71,35 @@ def test_a_scanned_page_is_read_when_its_title_follows_the_company_name(tmp_path
     found = addon.read_scanned(engine(convert), path, 4, tmp_path)
 
     assert found is not None
-    assert seen[0].scanned is True and seen[0].pages == [1, 2]
+    assert seen[0].pages == [1, 2]
     assert [(v.page, v.statement, v.scope, v.label, v.period, v.unit) for v in found.values] == [
         (1, "balance_sheet", "consolidated", "Total assets", "FY25", "lakh"),
         (1, "balance_sheet", "consolidated", "Total assets", "FY24", "lakh"),
     ]
     assert found.read_pages == [1]
+
+
+def test_a_scanned_page_the_engine_could_not_read_is_listed_as_unread(tmp_path: Path) -> None:
+    """One page read, one the engine failed on: the failed page is not dropped for lack of a
+    title, so the report lists it."""
+    path = write_pdf(tmp_path / "scan.pdf", [], [])
+    pages = {
+        1: PageRead([TABLE], ["Balance Sheet as at 31 March 2025", "( in Lakhs)"]),
+        2: PageRead(error=PdfAddonFailed("page 2: Fake could not parse it: page timed out")),
+    }
+
+    found = addon.read_scanned(engine(lambda request, notices: pages), path, 4, tmp_path)
+
+    assert found is not None
+    assert found.read_pages == [1]
+    assert [u.as_dict() for u in found.unread] == [
+        {
+            "page": 2,
+            "statement": "unknown",
+            "code": "E206",
+            "reason": "page 2: Fake could not parse it: page timed out",
+        }
+    ]
 
 
 def test_a_long_scanned_pdf_is_not_read(tmp_path: Path) -> None:

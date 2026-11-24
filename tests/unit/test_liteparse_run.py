@@ -74,6 +74,17 @@ def test_a_short_row_cell_that_fits_no_column_is_e204() -> None:
         liteparse_run.square(grid)
 
 
+def test_a_short_row_cell_covering_half_of_no_column_is_e204() -> None:
+    """A cell straddling the gap between two columns is not guessed into either."""
+    grid = [
+        [Cell("Particulars", bbox=box(0, 50)), Cell("2025", bbox=box(100, 130))],
+        [Cell("Sales", bbox=box(0, 40)), Cell("10.00", bbox=box(100, 130))],
+        [Cell("31 March", bbox=box(40, 110))],
+    ]
+    with pytest.raises(ParseError, match="under no column"):
+        liteparse_run.square(grid)
+
+
 def test_a_short_row_cell_without_a_box_is_e204() -> None:
     grid = [[Cell("a", bbox=box(0, 10)), Cell("b", bbox=box(20, 30))], [Cell("31 March 2025")]]
     with pytest.raises(ParseError, match="has no position"):

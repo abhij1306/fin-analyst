@@ -29,7 +29,7 @@ def response() -> dict[str, Any]:
 
 def request(tmp_path: Path) -> Request:
     path = write_pdf(tmp_path / "acme_h1.pdf", *[[(50, 50, f"page {n}")] for n in range(1, 8)])
-    return Request(path, [4, 7], scanned=False, cache_dir=tmp_path / "cache" / "llamaparse")
+    return Request(path, [4, 7], tmp_path / "cache" / "llamaparse")
 
 
 def test_the_fixture_has_the_sdk_shape() -> None:
@@ -188,3 +188,16 @@ def test_a_failed_job_is_e206(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         llamaparse_run._parse(request(tmp_path), KEY)
 
     assert caught.value.message == "acme_h1.pdf: LlamaParse failed on pages [4, 7]: bad pdf"
+
+
+def test_a_saved_response_in_another_shape_is_e206(tmp_path: Path) -> None:
+    """A response fin cannot read (here a table box without its size) leaves the pages unread."""
+    req = request(tmp_path)
+    changed = response()
+    changed["items"]["pages"][0]["items"][2]["bbox"] = [{"x": 1.0, "y": 2.0}]
+    saved = llamaparse_run.cache_file(req)
+    saved.parent.mkdir(parents=True)
+    saved.write_text(json.dumps(changed), encoding="utf-8")
+
+    with pytest.raises(PdfAddonFailed, match="not in the shape fin reads"):
+        llamaparse_run.convert(req, [])

@@ -30,6 +30,7 @@ from fin.extract.pdf_tables import Box, Cell, Table
 NAME = "llamaparse"
 LABEL = "LlamaParse"
 MODULE = "llama_cloud"
+OCR = True  # short scanned PDFs are uploaded and read too
 API_KEY_ENV = "LLAMA_CLOUD_API_KEY"
 TIER = "agentic"  # LlamaParse's tier for complex tables
 VERSION = "latest"
@@ -82,7 +83,7 @@ def convert(request: Request, notices: list[str]) -> Found:
                 "to ask LlamaParse again"
             ) from exc
         notices.append(f"LlamaParse's saved response for pages {pages} used ({saved.name})")
-        return read_items(response, pages)
+        return _read(response, request)
     key = os.environ.get(API_KEY_ENV)
     if not key:
         raise PdfAddonFailed(
@@ -97,7 +98,18 @@ def convert(request: Request, notices: list[str]) -> Found:
         notices.append(f"pages {pages} uploaded to LlamaParse; its response not saved ({exc})")
     else:
         notices.append(f"pages {pages} uploaded to LlamaParse; its response saved as {saved.name}")
-    return read_items(response, pages)
+    return _read(response, request)
+
+
+def _read(response: dict[str, Any], request: Request) -> Found:
+    """`read_items`; a response not in the shape fin expects is E206 (the pages stay unread)."""
+    try:
+        return read_items(response, request.pages)
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise PdfAddonFailed(
+            f"{request.path.name}: LlamaParse's response for pages {request.pages} is not in the "
+            f"shape fin reads ({type(exc).__name__}: {exc})"
+        ) from exc
 
 
 def _parse(request: Request, key: str) -> dict[str, Any]:

@@ -22,7 +22,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read),
   `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
   The optional PDF add-on (one of three uv extras, `[pdf] parser` in `config.toml`): `fallback.py` is ingest's PDF
-  reading (pdfplumber, then the chosen engine on the statement pages `pdf.py` skipped, and on short scanned PDFs);
+  reading (pdfplumber, then the chosen engine on the statement pages `pdf.py` skipped, and on short scanned PDFs
+  when fin uses the engine's OCR, `OCR = True`: not LiteParse);
   `addon.py` runs an engine once per document on just those pages and reads its result; `docling_run.py`,
   `liteparse_run.py` and `llamaparse_run.py` are the engines' adapters, each giving `pdf_tables.Table` grids (boxes in
   fin's top-left points); `pdf_tables.py` reads those grids into `PdfValue`s with `pdf.py`'s and `periods.py`'s
