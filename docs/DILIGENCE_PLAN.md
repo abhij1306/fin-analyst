@@ -424,7 +424,4 @@ further targeted questions):
 1. **LlamaParse.** Bank PDFs carry names. They go through whichever PDF parser the user has chosen (`[pdf] parser`),
    LlamaParse included. The README ("PDF add-ons") says LlamaParse uploads pages to a cloud service, so a user picks
    a local parser (Docling or LiteParse) for documents that must not leave the machine.
-
-**Open:** none.
-
 Statement findings (E401–E405) become queries only when the user raises them, as built.
