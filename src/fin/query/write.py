@@ -6,8 +6,10 @@ the statement, the rows affected and the backup path (mode 'write'). Then every 
 company is checked again (`fin.findings.recheck_held`): a fix that clears its findings loads it.
 
 A statement other than a SELECT that names a diligence table (engagement, accountant_queries,
-adjustments, gate_approvals) is refused with E806 before the backup: those tables change only
-through `fin engagement|query|adjust|gate`, which check the gates and log every change. A statement
+adjustments, gate_approvals, and the source file tables source_files, trial_balance,
+ledger_entries) is refused with E806 before the backup: those tables change only through
+`fin engagement|query|adjust|gate` and `fin ingest --kind`, which check the gates and log every
+change. SQL naming mask_values is refused with E810 (fin.query.run.refuse_masked). A statement
 that would end the transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH,
 DETACH, COPY FROM DATABASE, LOAD/INSTALL) is refused with E504, also before the backup.
 """
@@ -23,6 +25,7 @@ from fin.audit.errors import (
     DataFolderNotWritable,
     DependencyMissing,
     DiligenceTableWrite,
+    MaskedTableRead,
     SqlFailed,
 )
 from fin.audit.logger import Run
@@ -30,9 +33,13 @@ from fin.db.conn import connect
 from fin.findings import recheck_held
 from fin.metrics.export import refresh_analytics
 from fin.paths import backups_dir, company_db_path
+from fin.query.run import refuse_masked
 
 # Tables only the diligence commands change (`fin engagement|query|adjust|gate`).
-DILIGENCE_TABLE = re.compile(r"\b(engagement|accountant_queries|adjustments|gate_approvals)\b")
+DILIGENCE_TABLE = re.compile(
+    r"\b(engagement|accountant_queries|adjustments|gate_approvals|source_files|trial_balance"
+    r"|ledger_entries)\b"
+)
 
 # Statements that would end the wrapping transaction or reach past the company database.
 REFUSED = {
@@ -79,7 +86,8 @@ def _changed_rows(con: duckdb.DuckDBPyConnection, statement: Any) -> int:
 def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
     """Check every statement before any runs. E504 when the SQL does not parse or a statement is
     one of REFUSED; E806 when a statement other than a SELECT names a diligence table (a name match
-    is enough: when in doubt, refuse)."""
+    is enough: when in doubt, refuse); E810 when the SQL names mask_values."""
+    refuse_masked(sql)
     try:
         statements = con.extract_statements(sql)
     except duckdb.Error as exc:
@@ -96,8 +104,8 @@ def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
         if named:
             raise DiligenceTableWrite(
                 f"`fin sql --write` does not change the diligence tables (found: "
-                f"{', '.join(named)}); use `fin engagement`, `fin query`, `fin adjust` or "
-                "`fin gate`. Nothing was run"
+                f"{', '.join(named)}); use `fin engagement`, `fin query`, `fin adjust`, "
+                "`fin gate` or `fin ingest --kind`. Nothing was run"
             )
 
 
@@ -111,7 +119,7 @@ def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> 
     with connect(path) as con:
         try:
             check_write_sql(con, sql)
-        except (DiligenceTableWrite, SqlFailed):
+        except (DiligenceTableWrite, MaskedTableRead, SqlFailed):
             run.record(
                 "queries",
                 {

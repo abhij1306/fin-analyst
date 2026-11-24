@@ -220,7 +220,8 @@ def test_sql_write_refuses_the_diligence_tables(
     assert result.exit_code == 2
     assert result.stderr.startswith(
         f"E806: `fin sql --write` does not change the diligence tables (found: {found}); use "
-        "`fin engagement`, `fin query`, `fin adjust` or `fin gate`. Nothing was run\n"
+        "`fin engagement`, `fin query`, `fin adjust`, `fin gate` or `fin ingest --kind`. Nothing "
+        "was run\n"
     )
     assert json.loads(fin("sql", "bluepeak", "--sql", DILIGENCE_ROWS).stdout)["rows"] == UNCHANGED
     assert json.loads(fin("sql", "bluepeak", "--sql", ones).stdout)["rows"] == [{"ones": 0}]

@@ -13,6 +13,7 @@ with "sum of N sources:", and the value counts as confirmed only when every line
 
 import hashlib
 import json
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -20,7 +21,7 @@ from typing import Any
 
 import duckdb
 
-from fin.audit.errors import ReadOnlyViolation, SqlFailed
+from fin.audit.errors import MaskedTableRead, ReadOnlyViolation, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
@@ -46,8 +47,29 @@ LEFT JOIN facts f ON f.raw_id = r.raw_id
 """
 
 
+# The real values behind masked tokens (fin.diligence.mask): fin never prints them. Also refused:
+# the table functions that take a table name, SQL or a database file as text, which could reach
+# mask_values without naming it ("query_table('mask_' || 'values')").
+MASKED_TABLE = re.compile(
+    r'\bmask_values\b|\b(?:query|query_table|read_duckdb)"?\s*\(', re.IGNORECASE
+)
+
+
+def refuse_masked(sql: str) -> None:
+    """E810 when the SQL names `mask_values` or calls query, query_table or read_duckdb (a name
+    match is enough: when in doubt, refuse)."""
+    if MASKED_TABLE.search(sql):
+        raise MaskedTableRead(
+            "`fin sql` does not read mask_values (nor run query, query_table or read_duckdb, "
+            "which could reach it): it holds the real names behind the masked tokens, which fin "
+            "never prints. Work with the tokens. Nothing was run"
+        )
+
+
 def check_select(con: duckdb.DuckDBPyConnection, sql: str) -> None:
-    """Raise E502 unless `sql` is exactly one SELECT statement (WITH ... SELECT counts)."""
+    """Raise E810 when `sql` names mask_values (or a function that could reach it), and E502
+    unless it is exactly one SELECT statement (WITH ... SELECT counts)."""
+    refuse_masked(sql)
     try:
         statements = con.extract_statements(sql)
     except duckdb.Error as exc:
@@ -153,7 +175,7 @@ def query(
     }
     try:
         rows = run_select(run.root, company, sql)
-    except (ReadOnlyViolation, SqlFailed):
+    except (MaskedTableRead, ReadOnlyViolation, SqlFailed):
         run.record("queries", row)
         raise
     row |= {"row_count": len(rows), "result_hash": result_hash(rows)}

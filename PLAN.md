@@ -224,6 +224,31 @@ engagement|query|adjust|gate`: `fin sql --write` refuses any statement other tha
 exit 2; nothing is run, the refusal is logged in `queries`). Every diligence command that changes data first backs
 up the company database to `backups/<run_id>/`.
 
+Diligence source files (D2, first half; docs/DILIGENCE_PLAN.md §7): `fin ingest <co> <file> --kind
+trial_balance|ledger_vouchers [--profile <name>]` loads one Tally export (one file, no `--force` or `--reading`) for
+the open engagement (E803 without one). Tables in `db/schema/sources.sql` (run after `diligence_views.sql`):
+`source_files` (kind, file name, sha256, archive path, period from the export's header lines, basis `audited`,
+profile, loaded or superseded), `trial_balance` (group and ledger rows with group, parent group, closing debit and
+credit), `ledger_entries` (one per voucher line, the ledger from its block header) and `mask_values`; every row
+keeps file_id and sheet + row. Reading is `fin/extract/ledger.py` with a column profile (`fin/extract/profiles.py`,
+`templates/profiles/*.toml`: header text to field over `header_rows` rows, date format, period pattern, unit, which
+rows to skip, group rows (bold) and nesting (indent), the Ledger Vouchers block field, party groups and masked
+fields); the first profile of the kind whose header is found is used, and none is E807 (listing the title and column
+header lines, never data rows, known masked names replaced). The period must be one full fiscal year of the
+engagement (E808). Meaning is `fin/diligence/tally.py`: a trial balance with no ledger rows is E809 (asks for the
+Detailed export); a group whose net closing balance is not the net of the ledgers under it is a finding
+(`check_name` `tb_group_sum`, `findings.file_id` set, doc_id NULL), rows kept as filed; Ledger Vouchers need their
+period's trial balance loaded first (E811); an undated row with amounts that the profile does not skip is E204 (a
+date in another format is never dropped); and the outcome lists the trial balance ledgers missing from them. Masking
+(`fin/diligence/mask.py`): ledgers and sub-groups under the profile's party groups (Sundry Debtors: customer, Sundry
+Creditors: vendor) are stored as tokens (`CUST-0001`, `VEND-0001`; the same value keeps its first token in every
+file, whatever kind it is found as later); known names in other ledger names and in masked fields (Ledger Vouchers
+particulars) are replaced as whole words; a Ledger Vouchers ledger not in its trial balance is masked as
+`LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql --write` refuses to
+write `source_files`, `trial_balance` and `ledger_entries` (E806). One transaction per file; a later file of the
+same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
+period or refusal error stops the command and loads nothing.
+
 ---
 
 ## 1. What it does
@@ -349,6 +374,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - Diligence: `engagement`, `accountant_queries`, `adjustments` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash` (views on the latest engagement)
+- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `mask_values` (never printed: `fin sql` refuses it, E810)
 
 **Shared**
 
@@ -471,6 +497,7 @@ claude
 | `fin init`, `fin doctor` | — | Human |
 | `fin ingest <co> [path] [--force]` | `/ingest` | Either |
 | `fin ingest <co> <file> --reading <csv>` | `/ingest` (offered after a failure or skipped page) | Claude, when the user asks |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers [--profile]` | `/diligence` | Either |
 | `fin ingest-batch [folder]` (default `inbox/`) | `/ingest-batch` | Either |
 | `fin verify <co> <file> --reading <csv>` | `/verify` | Either (when the user asks) |
 | `fin map propose <co> <file.json>` | used inside `/ingest` | Claude |

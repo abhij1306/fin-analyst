@@ -1,0 +1,26 @@
+# Tally (Prime or ERP 9): Ledger Vouchers for all ledgers, exported to Excel as one sheet of ledger blocks.
+# Columns: Date | Particulars | Vch Type | Vch No. | Debit | Credit. Each block starts with a row whose Date cell
+# holds "Ledger: <name>"; opening, closing and total rows have no date and are not loaded.
+# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+kind = "ledger_vouchers"
+header_rows = 1
+date_format = "%d-%b-%Y"
+period = '(?P<start>\d{1,2}-[A-Za-z]{3}-\d{4})\s+to\s+(?P<end>\d{1,2}-[A-Za-z]{3}-\d{4})'
+unit = 1
+
+[columns]
+"Date" = "date"
+"Particulars" = "particulars"
+"Vch Type" = "voucher_type"
+"Vch No." = "voucher_no"
+"Debit" = "debit"
+"Credit" = "credit"
+
+[rows]
+block = "date"
+block_prefix = "Ledger:"
+skip = ["Opening Balance", "Closing Balance", "Current Total", "Grand Total"]
+
+# Known masked names (party ledgers) in these fields are replaced by their tokens.
+[mask]
+fields = ["particulars"]

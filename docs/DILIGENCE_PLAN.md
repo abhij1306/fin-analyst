@@ -2,7 +2,9 @@
 
 Status, 2026-11-24: **phase D1 is built** (#43, #44, #45; build log: [DILIGENCE_BUILD.md](DILIGENCE_BUILD.md)). It
 covers the engagement, accountant queries, EBITDA adjustments, the EBITDA bridge and EBITDA-to-cash walk on the
-audited statements, and gates G1, G2 and G4. Phases D2–D9 are planned, revised to the diligence user's answers in §9.
+audited statements, and gates G1, G2 and G4. **D2's first half is built**: source files (trial balance, Ledger
+Vouchers) with column profiles, and masking. The rest of D2 (ledger mapping, `tb_vs_statements`, the stub, G1's
+trial balance checks) and D3–D9 are planned, revised to the diligence user's answers in §9.
 No questions are open. Each phase moves into `PLAN.md` as it is built.
 
 Purpose: a way to manage and analyse a company's financial documents efficiently, from the audited statements down
@@ -22,8 +24,8 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Accountant queries (Rs 1 lakh per line, drafted for approval) | **Built**, except grouping lines into issues and the export | D1; D4, D8 |
 | Gates that stop the build for review | **Built**: G1, G2, G4; G3 planned | D1; D2, D4, D6 |
 | Adjusted EBITDA, EBITDA bridge, EBITDA-to-cash walk | **Built** on the audited statements | D1 |
-| Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | Planned | D2, D3 |
-| Names masked in everything fin prints; real values only in the accountant export | Planned | D2 on |
+| Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: trial balance and Ledger Vouchers; the rest planned | D2, D3 |
+| Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers; the export planned | D2 on; D8 |
 | Current-year stub from unaudited management data | Planned | D2 on |
 | Reconciliation: register ↔ ledger ↔ accounts; pass-through revenue | Planned | D4 |
 | Reconciliation: bank ↔ receipts ↔ invoices, with FX lines for USD | Planned | D5 |
@@ -52,7 +54,7 @@ They are in `CLAUDE.md`, "Diligence".
    approvals. All other commands run without prompts and are recorded in the audit log.
 3. **Queries are drafted, never sent.** Claude drafts the wording, the user approves it, and the user sends it from
    their own email and marks it `sent`. fin never sends anything. (The export the user sends is D8.)
-4. **Names stay on the machine (planned, D2 on).** The diligence user's rule is to anonymise before any third-party
+4. **Names stay on the machine (built for Tally ledgers, D2; the rest as each source is added).** The diligence user's rule is to anonymise before any third-party
    processing, and Claude Code sends what fin prints to Anthropic. fin stores the real values of the masked fields
    locally and prints a stable token in their place (§3, "Masking"). Real values appear only in the files
    `fin query export` writes for the user to send. The PDF parser is the user's choice: a cloud parser
@@ -94,7 +96,7 @@ They are in `CLAUDE.md`, "Diligence".
   registers, anchored to the last audited year. It is named by its fiscal year and end month, e.g. `FY27-YTD-SEP`,
   and labelled "unaudited management accounts" in every output. It is cross-checked against bank and registers and
   never annualised: base figures and growth use the audited years only.
-- **Masking** (planned, D2 on): the masked fields are customer and vendor names, handler and submitted-by, employee
+- **Masking** (built in D2 for Tally party ledgers; `fin/diligence/mask.py`): the masked fields are customer and vendor names, handler and submitted-by, employee
   name and code, and party names in Tally ledgers (ledgers under Sundry Debtors and Sundry Creditors). On load, fin
   stores each real value once in `mask_values` and writes a stable token in the data tables (`CUST-0042`,
   `VEND-0007`, `EMP-0113`, `USER-0003`). The same name gets the same token across files. In bank remarks, every
@@ -130,11 +132,11 @@ and every gate approval.
 | Table | Holds | Phase |
 |---|---|---|
 | `engagement` (changed) | adds stub: period name (e.g. `FY27-YTD-SEP`), start and end date | D2 |
-| `source_files` | file_id, kind (`trial_balance`, `ledger_vouchers`, `registers`, `bank`, `payroll`, `contract`), file name, sha256, archive path, period covered (from the export header), basis (audited year or unaudited stub), profile, status | D2 |
-| `mask_values` | field kind (customer, vendor, user, employee name, employee code), token, real value, first file_id. Never printed; read only by `fin query export` | D2 |
+| `source_files` (**built**) | file_id, kind (`trial_balance`, `ledger_vouchers`, `registers`, `bank`, `payroll`, `contract`), file name, sha256, archive path, period covered (from the export header), basis (audited year or unaudited stub), profile, status | D2 |
+| `mask_values` (**built**) | field kind (customer, vendor, user, employee name, employee code, or ledger: a Ledger Vouchers ledger not in its trial balance), token, real value, first file_id. Never printed; read only by `fin query export` | D2 |
 | `ledger_accounts` | Tally ledger (token for party ledgers), group, parent group, mapped Schedule III account (proposed by Claude, reviewed like label mappings), present in TB / in Ledger Vouchers | D2 |
-| `trial_balance` | file_id, sheet, row, period, row type (group or ledger), group, ledger, closing debit, closing credit. No opening or movement columns: the export has none | D2 |
-| `ledger_entries` | file_id, sheet, row, ledger (from the block header), date, particulars, voucher type, voucher no, debit, credit | D2 |
+| `trial_balance` (**built**) | file_id, sheet, row, period, row type (group or ledger), group, ledger, closing debit, closing credit. No opening or movement columns: the export has none | D2 |
+| `ledger_entries` (**built**) | file_id, sheet, row, ledger (from the block header), date, particulars, voucher type, voucher no, debit, credit | D2 |
 | `register_lines` | file_id, sheet, row, kind (sales/purchase), bill id, purchase id, customer id, customer (token), location, invoice no, contract start, contract end, invoice date, order type, product, service start, service end, quantity, rate, amount, currency, currency rate, amount in Rs (before GST), service type, handler and submitted-by (tokens) | D3 |
 | `bank_lines` | file_id, sheet or page, row, bank, account, currency, date, remarks (names as tokens), reference, debit, credit, balance | D3 |
 | `payroll_lines` | file_id, sheet, row, snapshot date, employee name and code (tokens), designation, department, vertical, sub-vertical, joining date, resign date, gross salary and CTC (annual, unit confirmed by the user). No month column | D3 |
@@ -171,7 +173,7 @@ The gates follow that.
 | G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |
 
 There is no report gate: the planned G5 is dropped. The diligence report (D7) shows the gate states it was rendered
-with. Renaming G1 and G2 to "Ingestion" and "Reconciliation" is a small code change with D2 and D4.
+with. G1 and G2 are named "Ingestion" and "Reconciliation" (#68).
 
 States: `approved` (inputs unchanged since its latest approval, and every earlier gate approved), `reopened` (inputs
 changed, with what changed, or an earlier gate not approved), `open` (never approved).
@@ -201,7 +203,7 @@ that writes to a diligence table.
 | CLI | Phase |
 |---|---|
 | `fin engagement open <co> --periods ... [--stub FY27-YTD-SEP]` | D2 |
-| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2, D3 |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 |
 | `fin map ledgers <co>` (Tally ledger → account, through `fin review`) | D2 |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 |
 | `fin engagement passthrough <co> --customers <file>` (the user's SI/reseller list; fin prints the tokens it matched) | D4 |
@@ -211,8 +213,10 @@ that writes to a diligence table.
 | `fin report <co> --diligence` | D7 |
 | `fin query export <co> [--brief]` | D8 |
 
-New error codes start at E807 (e.g. an unknown column profile, a file period outside the engagement, a trial balance
-with group rows only, `fin sql` reading `mask_values`).
+Built in D2: E807 no column profile for the layout (unknown, invalid, or none matches; lists the header lines found),
+E808 the export's period missing or not a year of the engagement, E809 a trial balance with group rows only, E810
+`fin sql` naming `mask_values`, E811 Ledger Vouchers before their period's trial balance. New codes continue from
+E812.
 
 ## 7. Phases
 
@@ -235,6 +239,10 @@ Adjustments are effects on EBITDA, so there are no `adjusted_facts` / `adjusted_
 adjusted facts). D4 adds revenue and cost effects, which is enough for adjusted revenue and margins.
 
 ### D2: Trial balance, Tally Ledger Vouchers, masking, stub
+Status: **first half built** (source files, the tabular loader and profiles, `trial_balance`, `ledger_entries`,
+masking; `PLAN.md` "Diligence source files"). Ledger Vouchers need their period's trial balance loaded first (E811),
+so party ledgers are known before they are masked; a Ledger Vouchers ledger not in its trial balance is masked as
+`LEDG-0001`. Next: `ledger_accounts` and `fin map ledgers`, `tb_vs_statements`, the stub, G1's trial balance checks.
 - A tabular loader (`fin/extract/ledger.py`) driven by column **profiles** (`templates/profiles/*.toml`: header
   names → fields, date format, debit/credit or signed amount, unit, which fields are masked). An unknown layout
   fails with a new error code and lists the headers it found, so Claude can write a profile.
@@ -253,7 +261,7 @@ adjusted facts). D4 adds revenue and cost effects, which is enough for adjusted 
 - Built-in reconciliation `tb_vs_statements`: TB closing balances rolled up by account vs the audited statement
   facts, per audited period; one line per account. The stub has no statement: `stub_figures` gives its figures,
   labelled unaudited.
-- `fin engagement open --stub`; G1 gains the trial balance checks and is renamed "Ingestion" (§5).
+- `fin engagement open --stub`; G1 Ingestion gains the trial balance checks (§5).
 
 **Done when:** a synthetic TB and Ledger Vouchers load with sheet!row lineage and masked party names; a group-only TB
 is refused; a planted account difference at or above the threshold becomes a draft query, and one below it is listed;
@@ -294,7 +302,7 @@ parse that does not tie are found; a payroll file whose amounts look monthly is 
 - USD invoices: the register's Amount in Rs (Amount × Currency Rate) is compared with the books; the difference
   from the ledger's conversion rate is an `fx` line, shown as FX gain or loss, never plugged.
 - Threshold per line (§3). Claude groups the lines at or above it into issues (`fin query raise --items`); the user
-  approves them. G2 gains the reconciliation checks and is renamed "Reconciliation" (§5).
+  approves them. G2 Reconciliation gains the reconciliation checks (§5).
 - Pass-through: `fin engagement passthrough` records the user's customer list; `revenue_split` shows core and
   pass-through (project) revenue, with the Purchase Id link to the OEM purchase; growth uses core revenue. Claude
   proposes the `normalisation` adjustment that strips pass-through revenue and its cost.

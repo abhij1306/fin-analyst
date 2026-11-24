@@ -103,8 +103,8 @@ class ExcelExtraction:
 
 def extract_workbook(path: Path) -> ExcelExtraction:
     """Extract every statement value. Raises E101, E102, E201, E202, E203 or E204."""
-    values_book = _open(path, data_only=True)
-    formula_book = _open(path, data_only=False)
+    values_book = open_workbook(path, data_only=True)
+    formula_book = open_workbook(path, data_only=False)
     values: list[ExcelValue] = []
     skipped: list[str] = []
     for sheet in values_book.worksheets:
@@ -118,7 +118,7 @@ def extract_workbook(path: Path) -> ExcelExtraction:
     return ExcelExtraction(values, skipped)
 
 
-def _open(path: Path, *, data_only: bool) -> Workbook:
+def open_workbook(path: Path, *, data_only: bool) -> Workbook:
     try:
         with path.open("rb") as handle:
             if handle.read(8) == _OLE_SIGNATURE:

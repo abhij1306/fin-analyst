@@ -108,6 +108,7 @@ CREATE TABLE notes (
 CREATE TABLE findings (
     finding_id BIGINT PRIMARY KEY DEFAULT nextval('findings_seq'),
     doc_id INTEGER,
+    file_id INTEGER,                -- a diligence source file's finding (source_files.file_id); doc_id is then NULL
     file_name VARCHAR,
     check_name VARCHAR NOT NULL,
     code VARCHAR,

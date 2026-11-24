@@ -111,10 +111,11 @@ def record(
     rows: list[dict[str, Any]],
     where: str,
     params: list[Any],
+    file_id: int | None = None,
 ) -> None:
     """Store one run of a check: each row not already an open or accepted finding is added (open);
     an open or accepted finding matching `where` (the scope the check covered) that the run did not
-    find again is resolved."""
+    find again is resolved. `file_id`: the diligence source file the findings are on (no doc_id)."""
     result = con.execute(
         f"SELECT finding_id, {', '.join(SAME)} FROM findings "
         f"WHERE status IN ('open', 'accepted') AND {where}",
@@ -129,10 +130,10 @@ def record(
             continue
         values = [row.get(field) for field in FIELDS]
         new = con.execute(
-            f"INSERT INTO findings ({', '.join(FIELDS)}, status, run_id, recorded_at, "
-            f"status_run_id, status_at) VALUES ({', '.join('?' for _ in FIELDS)}, 'open', ?, "
+            f"INSERT INTO findings ({', '.join(FIELDS)}, file_id, status, run_id, recorded_at, "
+            f"status_run_id, status_at) VALUES ({', '.join('?' for _ in FIELDS)}, ?, 'open', ?, "
             "?, ?, ?) RETURNING finding_id",
-            [*values, run.run_id, utcnow(), run.run_id, utcnow()],
+            [*values, file_id, run.run_id, utcnow(), run.run_id, utcnow()],
         ).fetchone()
         assert new is not None
         existing[key] = new[0]
@@ -223,7 +224,8 @@ def recheck_held(run: Run, company: str, changed: Iterable[int] = ()) -> list[di
 def accept(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
     """Save as is: mark open findings accepted. A held document with no open findings left is
     loaded as filed. E406 (nothing changed) for an id that is not an open finding of the company.
-    Returns one row per document the findings belong to: doc_id, file, open findings, status."""
+    Returns one row per document the findings belong to (doc_id, file, open findings, status), then
+    one per diligence source file (file_id instead of doc_id)."""
     path = company_db_path(run.root, company)
     if not path.is_file():
         raise FindingNotOpen(f"no database for company {company!r}; nothing accepted")
@@ -261,11 +263,22 @@ def accept(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
             out.append(
                 {"doc_id": doc_id, "file": file_name, "open": open_findings, "status": status}
             )
+        files = con.execute(
+            "SELECT s.file_id, s.file_name, s.status, (SELECT count(*) FROM findings o "
+            "WHERE o.file_id = s.file_id AND o.status = 'open') FROM source_files s "
+            f"WHERE s.file_id IN (SELECT file_id FROM findings WHERE finding_id IN ({marks})) "
+            "ORDER BY s.file_id",
+            ids,
+        ).fetchall()
+        out += [
+            {"file_id": file_id, "file": name, "open": open_findings, "status": status}
+            for file_id, name, status, open_findings in files
+        ]
     return out
 
 
 _LIST_SQL = """
-SELECT f.finding_id, f.status, f.code, f.check_name, f.finding, f.doc_id, f.file_name,
+SELECT f.finding_id, f.status, f.code, f.check_name, f.finding, f.doc_id, f.file_id, f.file_name,
        d.status AS document_status, f.statement, f.scope, f.period, f.label, f.fin_value,
        f.other_value, f.difference, f.fin_printed, f.other_printed, f.fin_source, f.other_source,
        f.other_file, f.message
@@ -300,7 +313,11 @@ def _shown(printed: str | None, value: Any) -> str:
 
 def format_finding(row: dict[str, Any]) -> str:
     """Two lines: what and where, then this document's figure and what it was compared with."""
-    document = f"{row['file_name']} (doc_id {row['doc_id']}, {row['document_status']})"
+    document = (
+        f"{row['file_name']} (doc_id {row['doc_id']}, {row['document_status']})"
+        if row["doc_id"] is not None
+        else f"{row['file_name']} (source file_id {row['file_id']})"
+    )
     head = (
         f"#{row['finding_id']} {row['status']} {row['code'] or row['check_name']} "
         f"{row['company']}/{document}: {row['message']}"

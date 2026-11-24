@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fin.audit.errors import DiligenceTableWrite, SqlFailed
+from fin.audit.errors import DiligenceTableWrite, MaskedTableRead, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
@@ -22,6 +22,9 @@ from fin.query.write import check_write_sql, write_sql
         ("UPDATE facts SET value = 1; UPDATE engagement SET status = 'closed'", "engagement"),
         ("DROP TABLE gate_approvals", "gate_approvals"),
         ("UPDATE facts SET value = 1 WHERE doc_id IN (SELECT 1 FROM adjustments)", "adjustments"),
+        ("DELETE FROM trial_balance", "trial_balance"),
+        ("UPDATE ledger_entries SET debit = 0", "ledger_entries"),
+        ("DELETE FROM source_files", "source_files"),
     ],
 )
 def test_writes_naming_a_diligence_table_are_refused(tmp_path: Path, sql: str, found: str) -> None:
@@ -30,7 +33,8 @@ def test_writes_naming_a_diligence_table_are_refused(tmp_path: Path, sql: str, f
 
     assert str(e.value) == (
         f"E806: `fin sql --write` does not change the diligence tables (found: {found}); use "
-        "`fin engagement`, `fin query`, `fin adjust` or `fin gate`. Nothing was run"
+        "`fin engagement`, `fin query`, `fin adjust`, `fin gate` or `fin ingest --kind`. Nothing "
+        "was run"
     )
 
 
@@ -45,6 +49,14 @@ def test_writes_naming_a_diligence_table_are_refused(tmp_path: Path, sql: str, f
 def test_other_writes_pass(tmp_path: Path, sql: str) -> None:
     with connect(tmp_path / "x.duckdb", write=True) as con:
         assert check_write_sql(con, sql) is None
+
+
+@pytest.mark.parametrize(
+    "sql", ["SELECT * FROM mask_values", "UPDATE mask_values SET real_value = 'x'"]
+)
+def test_sql_naming_mask_values_is_e810(tmp_path: Path, sql: str) -> None:
+    with connect(tmp_path / "x.duckdb", write=True) as con, pytest.raises(MaskedTableRead):
+        check_write_sql(con, sql)
 
 
 def test_sql_that_does_not_parse_is_e504(tmp_path: Path) -> None:
