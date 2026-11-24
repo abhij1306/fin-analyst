@@ -3,7 +3,7 @@
 Status, 2026-11-24: **phase D1 is built** (#43, #44, #45; build log: [DILIGENCE_BUILD.md](DILIGENCE_BUILD.md)). It
 covers the engagement, accountant queries, EBITDA adjustments, the EBITDA bridge and EBITDA-to-cash walk on the
 audited statements, and gates G1, G2 and G4. Phases D2–D9 are planned, revised to the diligence user's answers in §9.
-One question is open: whether bank PDFs may go to LlamaParse (§9). Each phase moves into `PLAN.md` as it is built.
+No questions are open. Each phase moves into `PLAN.md` as it is built.
 
 Purpose: a way to manage and analyse a company's financial documents efficiently, from the audited statements down
 to the transactions behind them. The requirements started from a review of fin-analyst against a quality-of-earnings
@@ -55,7 +55,8 @@ They are in `CLAUDE.md`, "Diligence".
 4. **Names stay on the machine (planned, D2 on).** The diligence user's rule is to anonymise before any third-party
    processing, and Claude Code sends what fin prints to Anthropic. fin stores the real values of the masked fields
    locally and prints a stable token in their place (§3, "Masking"). Real values appear only in the files
-   `fin query export` writes for the user to send.
+   `fin query export` writes for the user to send. The PDF parser is the user's choice: a cloud parser
+   (LlamaParse) sees the pages as they are (D3).
 
 ## 3. Concepts
 
@@ -219,11 +220,11 @@ One PR per phase, each small enough to review in one sitting, with tests on synt
 column headers received on 2026-11-24 (§9) and made-up names.
 
 ### D0: Confirm requirements (no code)
-Two rounds of answers were received on 2026-11-24 (§9), with the column headers for every Excel format. One
-question is open: whether bank PDFs may go to LlamaParse. No sample PDFs: the diligence user tests bank PDFs on their
-own files once D3 is built.
+Two rounds of answers were received on 2026-11-24 (§9), with the column headers for every Excel format, and the
+owner settled the LlamaParse question the same day. No sample PDFs: the diligence user tests bank PDFs on their own
+files once D3 is built.
 
-**Done when:** the open question in §9 is answered. It blocks only the LlamaParse path in D3.
+**Done when:** no question in §9 is open. Done.
 
 ### D1: Foundation — done (#43, #44, #45)
 Engagement, accountant queries, EBITDA adjustments with evidence, `diligence_events`; the views `adjusted_ebitda`,
@@ -268,8 +269,9 @@ a synthetic stub loads and is labelled unaudited.
   the parser in `config.toml` (`[pdf] parser`: Docling, LiteParse or LlamaParse; the setting is built in a separate
   PR) and maps them to `bank_lines` with the same profiles as the Excel statements, keeping file + page lineage.
   LiteParse is the default for bank PDFs: nothing leaves the machine.
-  - Bank PDFs go to LlamaParse only if the user confirms it (open question, §9); until then they use a local parser.
-    LlamaParse's API key comes from the environment (`LLAMA_CLOUD_API_KEY`), never from the repo or the data folder.
+  - Bank PDFs go through whichever parser the user has chosen, LlamaParse included (owner, 2026-11-24). LlamaParse
+    uploads pages to a cloud service (README, "PDF add-ons"), so a user picks a local parser for documents that must
+    not leave the machine. LlamaParse's API key comes from the environment (`LLAMA_CLOUD_API_KEY`), never from the repo or the data folder.
     A missing key or a failed call raises an error with the run_id; nothing is loaded.
   - A parse is saved in the data folder with the file's sha256, so ingesting the same file again does not parse it
     again, and every loaded row can be traced to the parse it came from.
@@ -417,9 +419,12 @@ further targeted questions):
    included. The TB has group lines. The tool tells group rows from ledger rows, asks for Detailed mode when it
    finds only groups, asks for all ledgers, and reports the ledgers actually present.
 
-**Open:**
+**Resolved by the owner on 2026-11-24:**
 
-1. **LlamaParse.** Bank PDFs carry names. If LlamaParse (a cloud service) is the chosen PDF parser, may bank PDFs
-   go to it, or must they stay on a local parser (Docling or LiteParse)?
+1. **LlamaParse.** Bank PDFs carry names. They go through whichever PDF parser the user has chosen (`[pdf] parser`),
+   LlamaParse included. The README ("PDF add-ons") says LlamaParse uploads pages to a cloud service, so a user picks
+   a local parser (Docling or LiteParse) for documents that must not leave the machine.
+
+**Open:** none.
 
 Statement findings (E401–E405) become queries only when the user raises them, as built.
