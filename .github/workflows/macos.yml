@@ -54,11 +54,20 @@ jobs:
           uv run --frozen fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
           uv run --frozen fin sql kestrel --sql "SELECT count(*) AS facts FROM facts" | grep -q '"facts": 162'
 
-  install-docling:
-    # ./install.sh --docling adds the optional Docling add-on (and its models) and records it in
-    # config.toml; a second plain run keeps it; the real-Docling tests pass; --no-docling removes it.
+  install-parser:
+    # ./install.sh --parser <name> adds that PDF add-on (and its models) and records it in
+    # config.toml; a second plain run keeps it; the real-engine tests pass; --parser none removes it.
+    name: install-parser (${{ matrix.parser }})
     runs-on: macos-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - parser: docling
+            module: docling
+          - parser: liteparse
+            module: liteparse
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
@@ -66,22 +75,22 @@ jobs:
       - uses: actions/checkout@v5
       - name: Use a temporary data folder
         run: echo "FIN_DATA_DIR=$RUNNER_TEMP/fin-data" >> "$GITHUB_ENV"
-      - name: Install with Docling
-        run: ./install.sh --docling
+      - name: Install with the add-on
+        run: ./install.sh --parser ${{ matrix.parser }}
       - name: Recorded in config.toml, and fin doctor finds it with its models
         run: |
           eval "$(brew shellenv)"
-          grep -q '^docling = true' "$FIN_DATA_DIR/config.toml"
-          .venv/bin/fin doctor | grep -q "docling.*installed, models in"
+          grep -q '^parser = "${{ matrix.parser }}"' "$FIN_DATA_DIR/config.toml"
+          .venv/bin/fin doctor | grep -q "pdf parser: ${{ matrix.parser }}: installed, models in"
       - name: A second plain install keeps it
         run: |
           ./install.sh
-          .venv/bin/python -c "import docling"
-      - name: Real-Docling tests
+          .venv/bin/python -c "import ${{ matrix.module }}"
+      - name: Real-engine tests
         run: |
-          .venv/bin/pytest -m docling --durations=10
-      - name: --no-docling removes it
+          .venv/bin/pytest -m ${{ matrix.parser }} --durations=10
+      - name: --parser none removes it
         run: |
-          ./install.sh --no-docling
-          grep -q '^docling = false' "$FIN_DATA_DIR/config.toml"
-          if .venv/bin/python -c "import docling"; then echo "docling still installed"; exit 1; fi
+          ./install.sh --parser none
+          grep -q '^parser = "none"' "$FIN_DATA_DIR/config.toml"
+          if .venv/bin/python -c "import ${{ matrix.module }}"; then echo "${{ matrix.parser }} still installed"; exit 1; fi

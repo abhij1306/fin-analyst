@@ -2,11 +2,12 @@
 # Install fin-analyst on macOS. Safe to run again: it only installs what is missing.
 # Steps (PLAN.md §10): check macOS -> Homebrew -> brew bundle -> uv sync -> npm ci -> fin init -> fin doctor.
 #
-# Usage: ./install.sh [--docling | --no-docling]
-#   --docling     also install the optional Docling PDF add-on (PyTorch and Docling's models, about
-#                 1.4 GB) and record it in config.toml ([pdf] docling = true)
-#   --no-docling  remove the add-on and record that ([pdf] docling = false)
-#   neither       keep what config.toml says (off for a new install)
+# Usage: ./install.sh [--parser docling|liteparse|llamaparse|none]
+#   --parser NAME  install that optional PDF add-on, with its models (or none: remove it), and record
+#                  it in config.toml ([pdf] parser), through `fin parser use NAME`:
+#                  docling (local, about 1.4 GB, Apple silicon only), liteparse (local, small),
+#                  llamaparse (cloud, needs LLAMA_CLOUD_API_KEY)
+#   no flag        keep what config.toml says (none for a new install)
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,14 +18,26 @@ die() {
   exit 1
 }
 
-DOCLING_FLAG=""
-for arg in "$@"; do
-  case "$arg" in
-    --docling) DOCLING_FLAG="--docling" ;;
-    --no-docling) DOCLING_FLAG="--no-docling" ;;
-    *) die "unknown option: $arg (usage: ./install.sh [--docling | --no-docling])" ;;
+USAGE="usage: ./install.sh [--parser docling|liteparse|llamaparse|none]"
+PARSER_FLAG=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --parser)
+      [[ $# -ge 2 ]] || die "--parser needs a name ($USAGE)"
+      PARSER_FLAG="$2"
+      shift 2
+      ;;
+    --parser=*)
+      PARSER_FLAG="${1#--parser=}"
+      shift
+      ;;
+    *) die "unknown option: $1 ($USAGE)" ;;
   esac
 done
+case "$PARSER_FLAG" in
+  "" | none | docling | liteparse | llamaparse) ;;
+  *) die "unknown PDF add-on: $PARSER_FLAG ($USAGE)" ;;
+esac
 
 step() {
   echo
@@ -84,36 +97,35 @@ fi
 
 cd "$REPO_DIR"
 
-# The Docling add-on: the flag, or what config.toml already says (a plain sync would remove it).
-# config.toml is read as TOML (uv is installed by now; --no-project needs no sync).
-docling_in_config() {
-  [[ -f "$DATA_DIR/config.toml" ]] || { echo false; return; }
+# The PDF add-on: the flag, or what config.toml already says (a plain sync would remove it).
+# config.toml is read as TOML (uv is installed by now; --no-project needs no sync). An old
+# `docling = true|false` line reads as docling / none.
+parser_in_config() {
+  [[ -f "$DATA_DIR/config.toml" ]] || { echo none; return; }
   uv run --no-project python -I -c '
 import sys, tomllib
 with open(sys.argv[1], "rb") as f:
-    print(str(tomllib.load(f).get("pdf", {}).get("docling") is True).lower())
+    pdf = tomllib.load(f).get("pdf", {})
+old = "docling" if pdf.get("docling") is True else "none"
+print(pdf.get("parser", old))
 ' "$DATA_DIR/config.toml"
 }
-DOCLING=false
-if [[ "$DOCLING_FLAG" == "--docling" ]]; then
-  DOCLING=true
-elif [[ -z "$DOCLING_FLAG" ]]; then
-  DOCLING="$(docling_in_config)" || die "cannot read $DATA_DIR/config.toml; fix it or run ./install.sh --docling or --no-docling"
+PARSER="$PARSER_FLAG"
+if [[ -z "$PARSER" ]]; then
+  PARSER="$(parser_in_config)" || die "cannot read $DATA_DIR/config.toml; fix it or run ./install.sh --parser NAME"
 fi
-if [[ "$DOCLING" == true && "$ARCH" == x86_64 ]]; then
-  die "the Docling add-on needs an Apple silicon Mac (PyTorch has no Intel macOS build); run ./install.sh --no-docling"
+if [[ "$PARSER" == docling && "$ARCH" == x86_64 ]]; then
+  die "the Docling add-on needs an Apple silicon Mac (PyTorch has no Intel macOS build); run ./install.sh --parser liteparse or --parser none"
 fi
-echo "Docling add-on: $DOCLING"
+echo "PDF add-on: $PARSER"
 
 # 4. Python environment (exact versions from uv.lock)
-if [[ "$DOCLING" == true ]]; then
-  step "Syncing Python environment with the Docling add-on (uv sync --frozen --extra docling)"
-  uv sync --frozen --extra docling
-  step "Downloading Docling's models (once; about 700 MB)"
-  .venv/bin/docling-tools models download layout tableformer rapidocr
-else
+if [[ "$PARSER" == none ]]; then
   step "Syncing Python environment (uv sync --frozen)"
   uv sync --frozen
+else
+  step "Syncing Python environment with the $PARSER add-on (uv sync --frozen --extra $PARSER)"
+  uv sync --frozen --extra "$PARSER"
 fi
 
 # 5. Dashboard packages (exact versions from dashboards/package-lock.json; npm ci is safe to repeat)
@@ -122,7 +134,13 @@ npm ci --prefix dashboards --no-audit --no-fund --ignore-scripts
 
 # 6. Data folder
 step "Creating data folder (fin init)"
-uv run fin init ${DOCLING_FLAG:+"$DOCLING_FLAG"}
+uv run fin init
+
+# The PDF add-on's models and its line in config.toml (fin parser use: safe to repeat).
+if [[ -n "$PARSER_FLAG" || "$PARSER" != none ]]; then
+  step "Setting up the PDF add-on (fin parser use $PARSER)"
+  uv run fin parser use "$PARSER"
+fi
 
 # 7. Health check
 step "Checking installation (fin doctor)"
