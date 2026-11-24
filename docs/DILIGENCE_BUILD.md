@@ -43,7 +43,7 @@ gates. Everything is greenfield: new tables go straight into the schema files, w
   - **G2 Queries:** no queries in `draft`. Unlocks `fin adjust accept|reject`.
   - **G4 Adjustments:** no `proposed` adjustments, and every accepted one has evidence. Unlocks
     `fin engagement close` (an engagement with no queries and no adjustments closes without its gates).
-  - G3 (recast) and G5 (report) come with D6 and D7.
+  - G3 (recast) comes with D6. The planned G5 (report) was dropped (DILIGENCE_PLAN.md §5).
 - **Only the user approves a gate.** A PreToolUse hook asks the user before any Bash command that looks like a
   gate approval, and `fin sql --write` cannot write gate approvals (E806).
 - **Error codes:**
