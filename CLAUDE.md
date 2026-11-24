@@ -8,7 +8,9 @@ Local financial health analysis tool. Ingests company financial documents into D
   (mostly Excel, some PDF). Their documents are well formatted: extraction is not a problem to solve.
 - The focus areas are mapping, analysis (metrics), diligence, and reports and dashboards. Put the work there.
 - Keep extraction simple. Do not add parsing heuristics, layout special cases or new extraction code for unusual
-  formats. When fin cannot read something, Claude reads it (`fin ingest --reading`), and that is the fallback.
+  formats. The PDF add-on the user chose (`[pdf] parser`: Docling, LiteParse or LlamaParse) runs first on the pages
+  pdfplumber skips; its adapter only turns the engine's output into fin's table grids. When neither can read
+  something, Claude reads it (`fin ingest --reading`), and that is the fallback.
 - Claude does not verify its own reading. Whether a Claude-read figure is trusted is the user's decision.
 
 ## Using the tool

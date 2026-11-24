@@ -72,8 +72,8 @@ parser` line of `fin doctor` show the choice, whether it imports, its models, an
 - LiteParse (`liteparse` extra, Apache-2.0; its `ocria-nano` model package, about 50 MB, under its own model licence):
   local and fast. It reads the pages' text layer and finds tables with its learned table model; pages with a text
   layer are never OCR'd (plain Tesseract misread 11-58% of numbers on digital pages); a scanned PDF is OCR'd with
-  ocria-nano. A header line the model gives as a shorter row is placed by its cells' boxes, and a scope word centred
-  over two columns heads both, so its grid has the shape the other engines give.
+  ocria-nano. A header line the model gives as a shorter row is placed under the columns its cells' boxes cover
+  (LiteParse's own positions); the adapter adds no layout rule, so a page whose grid fin's reader refuses stays unread.
 - LlamaParse (`llamaparse` extra, the `llama-cloud` SDK): LlamaIndex's cloud parser (tier `agentic`), paid per page.
   Only the skipped pages are uploaded, as one PDF named `pages.pdf`; the API key is read only from the environment
   variable `LLAMA_CLOUD_API_KEY` (never from or into the repo, `config.toml` or the data folder, never logged); its

@@ -1,7 +1,7 @@
 # Extraction backlog
 
 Extraction is not where fin's effort goes (`CLAUDE.md`, "Purpose and focus"). The documents come from established
-companies and are well formatted. pdfplumber, the optional PDF add-on and openpyxl stay as they are, and Claude
+companies and are well formatted. pdfplumber, the chosen PDF add-on and openpyxl stay as they are, and Claude
 reading (`fin ingest --reading`) covers whatever they cannot read.
 
 This file is the one place where extraction work waits. Nothing here is built until a **real document** shows the

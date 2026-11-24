@@ -14,11 +14,9 @@ Show or choose the optional PDF add-on: $ARGUMENTS
      the figures on our skipped pages when benchmarked. Apple silicon only.
    - **LiteParse**: runs on this Mac; small (about 60 MB with its table model) and fast.
    - **LlamaParse**: a cloud service; the most accurate on hard tables; paid per page; needs the API key in the
-     environment variable `LLAMA_CLOUD_API_KEY` (set in the shell, never in config.toml or the repo); the skipped
-     pages are uploaded to LlamaParse.
+     environment variable `LLAMA_CLOUD_API_KEY` (set in the shell, never in config.toml or the repo).
    - **none**: pages pdfplumber skips are listed as not read; Claude can read them when asked.
    Figures any add-on reads are marked as read by it; whether they are trusted is the user's call (`/verify`).
 3. Only when the user names one (in `$ARGUMENTS` or in reply), run `uv run fin parser use <name>` and report what it
-   printed. Never choose one unasked. For llamaparse, say again that pages will be uploaded to LlamaParse's cloud and
-   whether `LLAMA_CLOUD_API_KEY` is set; never ask for, print or store the key's value.
+   printed. Never choose one unasked. Never ask for, print or store the value of `LLAMA_CLOUD_API_KEY`.
 4. If it fails, report the error code and run_id and stop. Do not work around it.

@@ -83,6 +83,11 @@ your shell (`export LLAMA_CLOUD_API_KEY=...` in `~/.zshrc`); fin reads it only f
 logs it, and saves LlamaParse's answer in the data folder (`cache/llamaparse/`) so the same file is never sent
 twice. Figures an add-on reads are marked as read by it; everything else works the same without one.
 
+**LlamaParse and your data.** LlamaParse is a cloud service: when it is the chosen parser, the PDF pages fin cannot
+read are uploaded to LlamaParse for parsing. Documents can contain personal or confidential data (bank statements
+carry counterparty names, payroll carries employee data). Choose a local parser (Docling or LiteParse) for documents
+that must not leave the machine, and check your own or your client's data-handling rules before choosing LlamaParse.
+
 To keep your data somewhere else, set `FIN_DATA_DIR` before installing (for example
 `export FIN_DATA_DIR="$HOME/Documents/FinAnalysis"`) and add that line to `~/.zshrc`.
 

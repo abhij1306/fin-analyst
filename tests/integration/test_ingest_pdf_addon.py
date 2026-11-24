@@ -162,10 +162,24 @@ def test_docling_failing_is_a_warning_and_the_document_still_loads(
     ) == [("warning", "E206", "acme_h1.pdf: Docling failed on pages [2]: out of memory")]
 
 
-ENGINES = [
-    pytest.param("docling", "Docling", marks=pytest.mark.docling),
-    pytest.param("liteparse", "LiteParse", marks=pytest.mark.liteparse),
-]
+ENGINES = [pytest.param("docling", "Docling", marks=pytest.mark.docling)]
+
+
+@pytest.mark.liteparse
+@pytest.mark.timeout(300)
+def test_liteparse_leaves_the_side_by_side_page_unread_with_its_reason(
+    data_root: Path, tmp_path: Path
+) -> None:
+    """LiteParse puts "Standalone" over one of its two columns; the adapter adds no layout rule,
+    so the two half-year columns have no scope and fin's reader refuses the page (E202)."""
+    init(data_root, "liteparse")
+
+    result = runner.invoke(app, ["ingest", "acme", str(report(tmp_path))])
+
+    assert result.exit_code == 0, result.stdout
+    assert "not read: balance_sheet page 2: E202" in result.stdout
+    assert "LiteParse: page 2 (LiteParse): two columns hold the same period" in result.stdout
+    assert facts(data_root, "SELECT DISTINCT read_by FROM facts") == [("fin",)]
 
 
 @pytest.mark.timeout(900)

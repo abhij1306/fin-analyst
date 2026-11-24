@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from fin.audit.errors import ParseError
+from fin.audit.errors import ParseError, PeriodsNotDetected
 from fin.extract import liteparse_run
 from fin.extract.pdf_tables import Cell, PageContext, read_tables
 
@@ -48,33 +48,16 @@ def test_a_wrapped_header_line_is_placed_under_its_columns() -> None:
     assert equity == [("FY25", Decimal("30000000.00"), "2"), ("FY24", Decimal("30000000.00"), "2")]
 
 
-def test_a_scope_centred_over_two_columns_heads_both() -> None:
-    """Standalone and consolidated side by side: LiteParse puts each scope word in one column; it
-    sits between that column's figures and its neighbour's, so it heads both."""
+def test_a_scope_word_over_two_columns_stays_where_liteparse_put_it() -> None:
+    """Standalone and consolidated side by side: LiteParse puts each scope word in one column. The
+    adapter adds no layout rule of its own, so the two half-year columns have no scope and fin's
+    reader refuses the page (E202): it stays unread, for a Claude reading."""
     found = liteparse_run.read_pages(recorded("side_by_side"), [2])
 
     (table,) = found[2].tables
-    assert [c.text for c in table.grid[0]] == [
-        "",
-        "Standalone",
-        "Standalone",
-        "Consolidated",
-        "Consolidated",
-    ]
-    values = read_tables(context(2, results=True), [table], 4)
-    loans = [(v.scope, v.period, v.raw) for v in values if v.label == "Loans"]
-    assert loans == [
-        ("standalone", "FY26-H1", "5.00"),
-        ("standalone", "FY25", "5.00"),
-        ("consolidated", "FY26-H1", "6.00"),
-        ("consolidated", "FY25", "6.00"),
-    ]
-    (box,) = {
-        v.bbox
-        for v in values
-        if v.label == "Loans" and v.scope == "standalone" and v.period == "FY26-H1"
-    }
-    assert box == pytest.approx((290.4, 162.8, 309.0, 170.1), abs=0.5)
+    assert [c.text for c in table.grid[0]] == ["", "", "Standalone", "", "Consolidated"]
+    with pytest.raises(PeriodsNotDetected, match=r"page 2 \(LiteParse\): two columns hold"):
+        read_tables(context(2, results=True), [table], 4)
 
 
 def box(left: float, right: float) -> tuple[float, float, float, float]:
@@ -121,4 +104,3 @@ def test_a_page_whose_table_cannot_be_squared_is_unread_with_the_reason() -> Non
 def test_full_rows_are_kept_as_they_are() -> None:
     grid = [[Cell("a"), Cell("1.00")], [Cell("b"), Cell("2.00")]]
     assert liteparse_run.square(grid) == grid
-    assert liteparse_run.spread(grid) == grid

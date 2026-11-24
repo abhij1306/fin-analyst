@@ -22,7 +22,6 @@ from typing import Any
 from fin.audit.errors import DocumentFailure, ParseError, PdfAddonFailed
 from fin.extract.addon import Found, PageRead, Request, subset
 from fin.extract.pdf_tables import Box, Cell, Grid, Table
-from fin.extract.units import parse_figure
 
 NAME = "liteparse"
 LABEL = "LiteParse"
@@ -127,7 +126,7 @@ def read_pages(parsed: Iterable[Any], pages: list[int]) -> Found:
 def _table(block: Any) -> Table:
     header = [[Cell(c.text, True, _box(c.bbox)) for c in block.header]] if block.header else []
     rows = [[Cell(c.text, False, _box(c.bbox)) for c in row] for row in block.rows]
-    return Table(spread(square(header + rows)), _box(block.bbox))
+    return Table(square(header + rows), _box(block.bbox))
 
 
 def _box(rect: Any) -> Box | None:
@@ -182,45 +181,6 @@ def _place(row: list[Cell], spans: list[tuple[float, float] | None]) -> list[Cel
                 )
             placed[i] = cell
     return placed
-
-
-def spread(grid: Grid) -> Grid:
-    """The grid with a cell centred over two columns (a "Standalone" over its two period columns)
-    repeated in both, as fin's grids give a spanning cell. LiteParse puts such a cell in one column;
-    when its centre lies in the gap between that column's figures and the next column's (left or
-    right), and that column is empty in the row, it goes there too."""
-    spans = _figure_spans(grid)
-    out = []
-    for given in grid:
-        row = list(given)
-        for i, cell in enumerate(given):
-            own = spans[i] if i < len(spans) else None
-            if cell.bbox is None or not cell.text.strip() or own is None:
-                continue
-            centre = (cell.bbox[0] + cell.bbox[2]) / 2
-            for j in (i - 1, i + 1):
-                other = spans[j] if 0 <= j < len(spans) else None
-                if other is None or j >= len(row) or row[j].text.strip():
-                    continue
-                low, high = (other[1], own[0]) if j < i else (own[1], other[0])
-                if low < centre < high:
-                    row[j] = cell
-        out.append(row)
-    return out
-
-
-def _figure_spans(grid: Grid) -> list[tuple[float, float] | None]:
-    """Each column's span: the union of the boxes of its cells holding one figure."""
-    width = max((len(row) for row in grid), default=0)
-    spans: list[tuple[float, float] | None] = [None] * width
-    for row in grid:
-        for i, cell in enumerate(row):
-            if cell.bbox is None or parse_figure(" ".join(cell.text.split())) is None:
-                continue
-            old = spans[i]
-            left, right = cell.bbox[0], cell.bbox[2]
-            spans[i] = (min(left, old[0]), max(right, old[1])) if old else (left, right)
-    return spans
 
 
 def _overlap(box: Box, span: tuple[float, float] | None) -> float:
