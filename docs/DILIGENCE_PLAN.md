@@ -5,8 +5,10 @@ covers the engagement, accountant queries, EBITDA adjustments, the EBITDA bridge
 audited statements, and gates G1, G2 and G4. Phases D2–D9 need the transaction data and wait on the open questions
 in §9. Each phase moves into `PLAN.md` as it is built.
 
-Source: a review of fin-analyst against a quality-of-earnings (QoE) diligence handoff. We have the review, not the
-handoff itself, so every requirement below is inferred from it.
+Purpose: a way to manage and analyse a company's financial documents efficiently, from the audited statements down
+to the transactions behind them. The requirements started from a review of fin-analyst against a quality-of-earnings
+(QoE) diligence handoff and were confirmed by the diligence user on 2026-11-24 (§9). The plan is organised by phase
+(§7), not by the handoff's modules.
 
 ## 1. Goal
 
@@ -107,7 +109,7 @@ to a reconciliation or a contract once those exist.
 
 | Gate | Checklist fin evaluates | Unlocks | Status |
 |---|---|---|---|
-| G1 Data | Every annual period in scope has mapped figures (`current_facts`); no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it; so does a checklist that fails after approval. D2 adds: a trial balance per period, every ledger mapped, TB ties to the statements (differences become queries) | approving G2 | **Built** (statement checks) |
+| G1 Data | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it. D2 adds: a trial balance per period, every ledger mapped, TB ties to the statements (differences become queries) | approving G2 | **Built** (statement checks) |
 | G2 Queries | No query in draft. A new or reworded query reopens it; sending, answering, closing or withdrawing one does not. D4–D5 add: every required reconciliation ran, every difference above the threshold has a query | `fin adjust accept\|reject` | **Built** |
 | G3 Recast | Every contract above the threshold has a schedule; recast differences have proposed adjustments | adjustments | Planned (D6) |
 | G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |
@@ -153,10 +155,11 @@ New error codes start at E807 (e.g. an unknown column profile, a file period out
 One PR per phase, each small enough to review in one sitting, with tests on synthetic fixtures only.
 
 ### D0: Confirm requirements (no code)
-Answer §9 with the handoff's author. Get one anonymised sample of each export format (Tally TB, day book or ledger,
-sales register, bank statement, payroll), or its column headers. Build the synthetic fixtures from them.
+Answer §9 with the diligence user. Column headers for every Excel format were received on 2026-11-24 (§9); the
+synthetic fixtures are built from them. No sample PDFs: PDF statements are parsed by LlamaParse (D3), and the
+diligence user tests them on their own files once D3 is built.
 
-**Done when:** §9 is answered and fixture column layouts are agreed.
+**Done when:** the open questions in §9 are answered.
 
 ### D1: Foundation — done (#43, #44, #45)
 Engagement, accountant queries, EBITDA adjustments with evidence, `diligence_events`; the views `adjusted_ebitda`,
@@ -180,21 +183,33 @@ adjusted facts). Add them when a metric beyond EBITDA, its margin and cash conve
 threshold becomes a draft query, and one below it is listed in the "below threshold" total.
 
 ### D3: Registers, bank, payroll
-- Profiles for sales and purchase registers, bank statements (Excel/CSV; PDF bank statements through a Claude
-  reading, like statement pages), and payroll.
+- Profiles for sales and purchase registers, bank statements (Excel), and payroll.
+- **PDF bank statements: the chosen PDF parser** (owner decision, 2026-11-24). Layouts differ by bank (ICICI, SBI,
+  Axis), so fin reads a bank PDF's tables with the parser chosen in `config.toml` (`[pdf] parser`, set with
+  `/parser`): Docling or LiteParse (both local), or LlamaParse (cloud API). The tables map to `bank_lines` with the
+  same column profiles as the Excel statements, keeping file + page lineage. LiteParse is the default for bank PDFs:
+  nothing leaves the machine.
+  - LlamaParse's API key comes from the environment (`LLAMA_CLOUD_API_KEY`), never from the repo or the data
+    folder. A missing key or a failed call raises an error with the run_id; nothing is loaded.
+  - A parse is saved in the data folder with the file's sha256, so ingesting the same file again does not parse it
+    again, and every loaded row can be traced to the parse it came from.
+  - A parse whose rows do not tie (opening balance + credits − debits ≠ closing balance) is a finding, not a load.
+  - LlamaParse is a third party: the diligence user's rule is to anonymise before any third-party processing, and a
+    bank PDF carries names. Bank PDFs go to LlamaParse only if the user confirms it (§9).
+  - Tests use recorded parser output for a synthetic PDF; CI never calls the LlamaParse API.
 - Duplicate and overlap checks: the same invoice number twice, overlapping bank periods, a gap in bank balances
   (closing ≠ next opening). These are findings, then queries.
 
 **Done when:** each synthetic file loads, and the planted duplicate invoice and bank balance gap are found.
 
-### D4: Register ↔ ledger ↔ accounts reconciliation (handoff Module 2)
+### D4: Register ↔ ledger ↔ accounts reconciliation
 - `sales_register_vs_gl`, `purchase_register_vs_gl` (monthly, then by party), `gl_vs_tb` (ledger movements vs TB),
   `payroll_vs_gl`. Deterministic SQL, one function per reconciliation in `fin/reconcile/`.
 - Differences above the threshold → draft queries. G2 gains the reconciliation checks (§5).
 
 **Done when:** every planted difference in the synthetic set is found, with both sources, and nothing else is.
 
-### D5: Bank ↔ receipts ↔ invoices (handoff Module 4)
+### D5: Bank ↔ receipts ↔ invoices
 - Matching in fixed passes: exact reference, then amount + party + date window (config), then amount + date
   window. Each match records the pass that made it. Unmatched items become `left_only` / `right_only`.
 - Customer-level: invoices vs receipts → collection days and overdue ageing.
@@ -203,7 +218,7 @@ threshold becomes a draft query, and one below it is listed in the "below thresh
 
 **Done when:** the synthetic matching answer key is reproduced exactly.
 
-### D6: Contract-period recast (handoff Module 3)
+### D6: Contract-period recast
 - Contracts entered from Claude readings of contract documents (a reading CSV, as for statement pages, with file +
   page). `read_by = 'claude'` until a second reading agrees.
 - Recognition schedule per contract (straight-line over the service period, or milestones as entered), compared
@@ -229,7 +244,7 @@ threshold becomes a draft query, and one below it is listed in the "below thresh
 
 **Done when:** a synthetic round trip (draft → approve → export → answer → adjustment → G4) works end to end.
 
-### D9: Customer, product, sector, pricing, retention analytics (separate module)
+### D9: Customer, product, sector, pricing, retention analytics
 - Views on `register_lines`: customer concentration (top 1/5/10 share), cohort retention and net revenue retention
   by year, price/volume/mix for products with quantity and rate, sector mix (needs a customer → sector list: a
   `customers` table Claude fills, the user reviews).
@@ -246,19 +261,44 @@ threshold becomes a draft query, and one below it is listed in the "below thresh
 - Claude does the judgement: proposing ledger mappings, unmatched matches, query wording, adjustments, reading
   contracts. Code does only the repeatable parts.
 
-## 9. Open questions for the handoff's author
+## 9. Questions for the diligence user
 
-1. **The five modules.** Modules 2, 3 and 4 are named above. What are 1 and 5? Is 1 data loading and 5 the
-   customer analytics, or something else?
-2. **Gates.** Which gates does the handoff define? Are §5's G1–G5 the right ones, and who approves: the user only?
-3. **Tally format.** Excel exports (TB, day book, ledger vouchers) or XML? Which Tally version? Is a monthly TB
-   available, or only year-end?
-4. **Threshold.** Rs 1 lakh per item, per account per period, or aggregate? Is it the same for every
-   reconciliation?
-5. **Query workflow.** Who sends the queries, and how (email, a shared sheet)? Is a Word/Excel letter enough?
-6. **Adjustment categories.** Which taxonomy? Built with: management, normalisation, reclassification, run_rate,
-   pro_forma, recast, error (`config.toml`). Is the EBITDA definition the same as fin's (before exceptional items)?
-7. **Bank statements.** Excel/CSV downloads, or PDFs? Which banks?
-8. **Payroll.** Which system's export, and does it include employee-level data? If yes, it needs anonymising on load.
-9. **Statement findings.** Should E401–E405 findings on audited statements also become queries automatically, or
-   only when the user raises them?
+**Answered on 2026-11-24** (the diligence user's reviewed answers; the plan above still has to be revised to
+match them):
+
+- Tally: Excel exports, not XML. Trial balances are full-year only (Particulars, closing debit and credit, under
+  export-period header lines); the period is read from the export header. Ledger Vouchers: Date, Particulars, Vch
+  Type, Vch No., Debit, Credit, grouped under ledger account-name blocks. Tally version unknown.
+- Bank: ICICI (primary), SBI and Axis (INR and USD accounts). Full-year statements as PDF, current-year periods as
+  Excel. PDFs go through the chosen PDF parser (D3).
+- Payroll: Sparsh, one row per employee (name, code, designation, department, vertical, sub-vertical, joining and
+  resign dates, gross salary, CTC). Anonymise before any third-party processing: mask name and code at minimum.
+- Sales and purchase registers come in one workbook, from a billing system, with contract and service start and end
+  dates, currency and rupee amounts. Customer and vendor names, and handler and submitted-by columns, are masked.
+- Threshold: Rs 1 lakh per transaction is the only query cutoff. Smaller differences stay listed without an
+  individual query; nothing per account or aggregate.
+- Adjustment categories: normalisation (pass-through stripped at zero margin), reclassification (capitalisation,
+  inventory movement, direct vs other expenses), recast (service-period mapping), error (true duplicates),
+  management (director pay add-back). No run_rate or pro_forma. EBITDA is adjusted base EBITDA, excluding
+  pass-through revenue and cost and exceptional or one-off items.
+- Queries: the diligence user sends them from their own email after reviewing a draft: a summary email with a
+  marked-up Excel (lines of difference highlighted, count and value per difference), or a 1–2 page brief per issue.
+  No shared sheet, no Word query letter.
+- Gates: ingestion, reconciliation and recasting each gate on the diligence user's review; no query goes out
+  without their approval.
+
+**Open:**
+
+1. **Pass-through.** Which sales register column marks a line as pass-through: Order Type, Service Type, or a
+   Purchase Id that links it to the purchase register?
+2. **Other income.** Does adjusted base EBITDA exclude other income, as fin's EBITDA does?
+3. **Current-year stub.** Does an engagement include a partial current year (e.g. Apr–Sep, from the Excel bank
+   statements)? If so, what is it based on, with no audited statement or trial balance for it?
+4. **Payroll file.** One Sparsh file per month or per year? Are Gross Salary and CTC monthly or annual?
+5. **Register amounts.** Is "Amount in Rs" before GST? For USD invoices, which rupee figure ties to the books? How
+   do receipts into the Axis USD account tie to rupee entries?
+6. **Tally scope.** Does the Ledger Vouchers export cover every ledger or only some (sales, purchases, bank)? Is the
+   trial balance exported in Detailed mode, with its group lines?
+7. **LlamaParse.** Bank PDFs carry names and go to LlamaParse, a third party. Is that acceptable?
+
+Statement findings (E401–E405) become queries only when the user raises them, as built.
