@@ -151,9 +151,11 @@ Planned views:
 - `adjusted_ebitda` (changed, D4): adds adjusted revenue, and margins on adjusted revenue.
 - `nwc_year_end` (D7): working capital at each year-end (and the stub end) from TB closing balances mapped to
   working capital accounts.
-- `nwc_monthly` (D7): monthly balances from Ledger Vouchers: the year's opening (TB closing minus the year's net
-  movements) plus cumulative movements to each month end, for working capital ledgers whose movements tie to the TB
-  (`gl_vs_tb`, D4). There are no monthly trial balances, so this is the only monthly view.
+- `nwc_monthly` (D7): monthly balances from Ledger Vouchers: the prior year-end TB closing as the opening, plus
+  cumulative movements to each month end, for working capital ledgers whose movements tie to the TB (`gl_vs_tb`,
+  D4). The first year in scope needs the prior year's TB as its opening; without it that year has no monthly view
+  (an opening inferred from the same movements would make the check circular). There are no monthly trial
+  balances, so this is the only monthly view.
 
 ## 5. Gates
 
@@ -237,9 +239,10 @@ adjusted facts). D4 adds revenue and cost effects, which is enough for adjusted 
   fails with a new error code and lists the headers it found, so Claude can write a profile.
 - **Trial balance** (Tally Excel, full year or stub): Particulars, closing debit and credit, under export-period
   header lines. The period is read from the header and must be a period of the engagement. Group rows are told
-  apart from ledger rows by the export's layout (the profile says how), and each group must equal the sum of its
-  ledgers or the load fails. A TB with group rows only fails with a message asking for the Detailed export. fin
-  reports the ledgers present.
+  apart from ledger rows by the export's layout (the profile says how). A group that does not equal the sum of its
+  ledgers is a finding, not a load failure: the rows are kept as filed. A TB with group rows only fails with a
+  message asking for the Detailed export. fin reports the ledgers present. A prior year-end TB may be loaded as the
+  opening for the first year in scope (balance-sheet ledgers in `gl_vs_tb`, `nwc_monthly`).
 - **Ledger Vouchers**: one export of all ledgers, in ledger-name blocks (Date, Particulars, Vch Type, Vch No.,
   Debit, Credit), balance-sheet ledgers included. Each row takes its ledger from the block header. fin reports the
   ledgers present and lists TB ledgers missing from it, so Claude asks the user for the export with all ledgers.
@@ -283,7 +286,8 @@ parse that does not tie are found; a payroll file whose amounts look monthly is 
 
 ### D4: Register ↔ ledger ↔ accounts reconciliation; pass-through; adjustment effects
 - `sales_register_vs_gl`, `purchase_register_vs_gl` (monthly, then by party, then by invoice), `gl_vs_tb` (Ledger
-  Vouchers movements vs TB closing), `payroll_vs_gl` (annual). Deterministic SQL, one function per reconciliation
+  Vouchers movements vs the change in TB closing from the prior year-end; a balance-sheet ledger with no prior TB is
+  listed as not reconciled), `payroll_vs_gl` (annual). Deterministic SQL, one function per reconciliation
   in `fin/reconcile/`. Registers compare on Amount in Rs (before GST).
 - USD invoices: the register's Amount in Rs (Amount × Currency Rate) is compared with the books; the difference
   from the ledger's conversion rate is an `fx` line, shown as FX gain or loss, never plugged.
