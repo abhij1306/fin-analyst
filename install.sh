@@ -98,16 +98,13 @@ fi
 cd "$REPO_DIR"
 
 # The PDF add-on: the flag, or what config.toml already says (a plain sync would remove it).
-# config.toml is read as TOML (uv is installed by now; --no-project needs no sync). An old
-# `docling = true|false` line reads as docling / none.
+# config.toml is read as TOML (uv is installed by now; --no-project needs no sync).
 parser_in_config() {
   [[ -f "$DATA_DIR/config.toml" ]] || { echo none; return; }
   uv run --no-project python -I -c '
 import sys, tomllib
 with open(sys.argv[1], "rb") as f:
-    pdf = tomllib.load(f).get("pdf", {})
-old = "docling" if pdf.get("docling") is True else "none"
-print(pdf.get("parser", old))
+    print(tomllib.load(f).get("pdf", {}).get("parser", "none"))
 ' "$DATA_DIR/config.toml"
 }
 PARSER="$PARSER_FLAG"

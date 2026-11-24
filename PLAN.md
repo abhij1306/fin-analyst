@@ -58,9 +58,8 @@ LiteParse, LlamaParse) next to their source, as information, and `fin status` co
 
 PDF add-on (after 1.0.0, not a phase; owner decisions 2026-11-07, Docling, and 2026-11-24, the choice of three): an
 opt-in add-on, not a required dependency, and at most one engine at a time: `[pdf] parser` in `config.toml` is
-`"none"` (the default, also when the file has no `[pdf]` table), `"docling"`, `"liteparse"` or `"llamaparse"`. A
-`[pdf] docling = true|false` line (written before the choice) reads as `"docling"` / `"none"` and is rewritten to
-`parser` the next time fin sets it. `fin parser use <name>` (`/parser`; `./install.sh --parser <name>` runs it)
+`"none"` (the default, also when the file has no `[pdf]` table), `"docling"`, `"liteparse"` or `"llamaparse"`.
+`fin parser use <name>` (`/parser`; `./install.sh --parser <name>` runs it)
 syncs that uv extra (`uv sync --frozen --extra <name>`; `none`: a plain sync, which removes every add-on), downloads
 the engine's models when missing, writes `[pdf] parser`, and prints what changed; `fin parser show` and the `pdf
 parser` line of `fin doctor` show the choice, whether it imports, its models, and for LlamaParse whether

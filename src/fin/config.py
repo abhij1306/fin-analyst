@@ -3,10 +3,8 @@
 `fin init` writes `DEFAULT_CONFIG_TOML` once and never overwrites it. After that the file is the
 only source of these values: `load_config` reads it strictly and raises a coded error when it is
 missing (E001) or invalid (E002). There are no fallback values, except that a file without the
-`[pdf]` table (written before the PDF add-on) has chosen none, and a `[pdf] docling = true|false`
-line (written before the choice of engines) reads as `parser = "docling"` / `"none"`. The one line
-fin changes is `[pdf] parser`, through `fin parser use <name>` (`set_parser`), which also rewrites
-an old `docling` line to it.
+`[pdf]` table (written before the PDF add-on) has chosen none. The one line fin changes is
+`[pdf] parser`, through `fin parser use <name>` (`set_parser`).
 """
 
 import re
@@ -80,12 +78,9 @@ class Config:
     pdf_parser: str = "none"  # [pdf] parser: the PDF add-on for the pages pdfplumber skips
 
 
-# The value only, so indentation, a quoted key and a trailing comment are kept. An old
-# `docling = true|false` line is replaced by `parser = "..."` the same way.
+# The value only, so indentation, a quoted key and a trailing comment are kept.
 _PARSER_LINE = re.compile(
-    r"""^([ \t]*)(["']?)(?:parser\2[ \t]*=[ \t]*(?:"[a-z]*"|'[a-z]*')|docling\2[ \t]*=[ \t]*"""
-    r"""(?:true|false))(?=[ \t]*(?:#.*)?$)""",
-    re.M,
+    r"""^([ \t]*)(["']?)parser\2[ \t]*=[ \t]*(?:"[a-z]*"|'[a-z]*')(?=[ \t]*(?:#.*)?$)""", re.M
 )
 _PDF_TABLE = """
 [pdf]
@@ -95,12 +90,11 @@ parser = "{value}"
 
 
 def set_parser(root: Path, name: str) -> None:
-    """Record the chosen PDF add-on: `[pdf] parser` in config.toml (`fin parser use`). An old
-    `docling = true|false` line becomes `parser = "<name>"`; every other line is kept as written.
-    The new text is checked (it must parse, with only that value changed) before it replaces the
-    file, so a failure leaves config.toml as it was. Raises E001 if config.toml is missing, E002 if
-    it is invalid, `name` is not a parser, or its `[pdf]` table is written in a form this cannot
-    edit."""
+    """Record the chosen PDF add-on: `[pdf] parser` in config.toml (`fin parser use`). Every other
+    line is kept as written. The new text is checked (it must parse, with only that value changed)
+    before it replaces the file, so a failure leaves config.toml as it was. Raises E001 if
+    config.toml is missing, E002 if it is invalid, `name` is not a parser, or its `[pdf]` table is
+    written in a form this cannot edit."""
     load_config(root)
     path = config_path(root)
     if name not in PARSERS:
@@ -232,7 +226,8 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
             "names in lower-case letters, digits and '_'",
         )
 
-    parser = _pdf_parser(pdf, path)
+    _keys(pdf, ("parser",), "[pdf]", path)
+    parser = _choice(pdf, "parser", PARSERS, "pdf", path)
 
     return Config(
         display_unit=unit,
@@ -243,17 +238,6 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         adjustment_categories=tuple(categories),
         pdf_parser=parser,
     )
-
-
-def _pdf_parser(pdf: dict[str, Any], path: Path) -> str:
-    """`[pdf] parser`, or an old `docling = true|false` read as "docling" / "none"."""
-    if "docling" in pdf:  # written before the choice of engines
-        _keys(pdf, ("docling",), "[pdf]", path)
-        if not isinstance(pdf["docling"], bool):
-            raise _invalid(path, f"pdf.docling = {pdf['docling']!r}; expected true or false")
-        return "docling" if pdf["docling"] else "none"
-    _keys(pdf, ("parser",), "[pdf]", path)
-    return _choice(pdf, "parser", PARSERS, "pdf", path)
 
 
 _CATEGORY = re.compile(r"^[a-z][a-z0-9_]*$")

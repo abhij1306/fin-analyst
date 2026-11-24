@@ -27,14 +27,6 @@ def test_no_add_on_by_default_and_without_a_pdf_table(tmp_path: Path) -> None:
     assert load_config(tmp_path).pdf_parser == "none"
 
 
-@pytest.mark.parametrize(("old", "parser"), [("true", "docling"), ("false", "none")])
-def test_an_old_docling_line_reads_as_the_parser(tmp_path: Path, old: str, parser: str) -> None:
-    (tmp_path / "config.toml").write_text(
-        DEFAULT_CONFIG_TOML.replace('parser = "none"', f"docling = {old}"), encoding="utf-8"
-    )
-    assert load_config(tmp_path).pdf_parser == parser
-
-
 def test_set_parser_changes_only_that_line(tmp_path: Path) -> None:
     write_default_config(tmp_path)
 
@@ -43,20 +35,6 @@ def test_set_parser_changes_only_that_line(tmp_path: Path) -> None:
     text = (tmp_path / "config.toml").read_text(encoding="utf-8")
     assert text == DEFAULT_CONFIG_TOML.replace('parser = "none"', 'parser = "liteparse"')
     assert load_config(tmp_path).pdf_parser == "liteparse"
-
-
-def test_set_parser_rewrites_an_old_docling_line_and_keeps_its_comment(tmp_path: Path) -> None:
-    path = tmp_path / "config.toml"
-    path.write_text(
-        DEFAULT_CONFIG_TOML.replace('parser = "none"', "docling = true  # added"), encoding="utf-8"
-    )
-
-    set_parser(tmp_path, "llamaparse")
-
-    assert path.read_text(encoding="utf-8") == DEFAULT_CONFIG_TOML.replace(
-        'parser = "none"', 'parser = "llamaparse"  # added'
-    )
-    assert load_config(tmp_path).pdf_parser == "llamaparse"
 
 
 def test_set_parser_adds_the_pdf_table_to_an_older_config(tmp_path: Path) -> None:
@@ -77,8 +55,6 @@ def test_set_parser_adds_the_pdf_table_to_an_older_config(tmp_path: Path) -> Non
         ('  parser = "none"', '  parser = "docling"'),
         ("\"parser\" = 'none'", 'parser = "docling"'),
         ('parser="none" # off', 'parser = "docling" # off'),
-        ("  docling = false", '  parser = "docling"'),
-        ('"docling" = false', 'parser = "docling"'),
     ],
 )
 def test_set_parser_edits_the_pdf_table_however_it_is_written(
@@ -119,7 +95,7 @@ def test_set_parser_refuses_an_unknown_parser(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("written", "problem"),
     [
-        ('docling = "yes"', "pdf.docling = 'yes'; expected true or false"),
+        ("docling = true", "[pdf] is missing parser"),
         ('parser = "ocr"', "pdf.parser = 'ocr'; expected one of none, docling, liteparse"),
     ],
 )
