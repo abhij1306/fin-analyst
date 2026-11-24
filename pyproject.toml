@@ -14,12 +14,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Opt-in PDF fallback (`./install.sh --docling`): reads the statement pages pdfplumber skips. Pulls
-# PyTorch and Docling's models (about 1.4 GB). Not on Intel Macs: PyTorch has no macOS x86_64 wheels.
+# The opt-in PDF add-on, one of three (`fin parser use <name>`): reads the statement pages
+# pdfplumber skips. The extras resolve together in uv.lock; only the chosen one is installed.
+# Docling: local; pulls PyTorch and Docling's models (about 1.4 GB). Not on Intel Macs: PyTorch has
+# no macOS x86_64 wheels.
 docling = [
     "docling==2.148.0 ; platform_machine != 'x86_64' or sys_platform != 'darwin'",
     "torch==2.15.0 ; platform_machine != 'x86_64' or sys_platform != 'darwin'",
     "torchvision==0.29.2 ; platform_machine != 'x86_64' or sys_platform != 'darwin'",
+]
+# LiteParse: local, Rust wheels (about 12 MB) plus its ocria-nano models (about 50 MB, pulled by
+# `fin parser use liteparse`).
+liteparse = [
+    "liteparse==2.21.1",
+]
+# LlamaParse: LlamaIndex's cloud parser through its Python SDK; needs LLAMA_CLOUD_API_KEY.
+llamaparse = [
+    "llama-cloud==2.20.0",
 ]
 
 [project.scripts]
@@ -50,7 +61,9 @@ timeout = 60
 addopts = "-ra"
 markers = [
     "quarto: needs the real Quarto; run by the CI outputs job",
-    "docling: needs the Docling add-on and its models; run by the CI docling job",
+    "docling: needs the Docling add-on and its models; run by the CI pdf-addon (docling) job",
+    "liteparse: needs the LiteParse add-on and its models; run by the CI pdf-addon (liteparse) job",
+    "llamaparse: calls the LlamaParse API; skips without LLAMA_CLOUD_API_KEY (never in CI)",
 ]
 
 # Docling's models run on PyTorch. On Linux (CI, servers) take the CPU-only wheels: the default

@@ -1,12 +1,13 @@
-"""Docling's table grids read with fin's rules (fin.extract.docling_pages). The grids are built by
-hand the way Docling gives them (a spanning cell repeats in each column): no Docling needed."""
+"""A PDF add-on's table grids read with fin's rules (fin.extract.pdf_tables). The grids are built by
+hand the way the engines' adapters give them (a spanning cell repeats in each column): no engine
+needed."""
 
 from decimal import Decimal
 
 import pytest
 
 from fin.audit.errors import NoTablesFound, ParseError, PeriodsNotDetected, UnitNotDetected
-from fin.extract.docling_pages import Cell, PageContext, Table, read_tables, top_left
+from fin.extract.pdf_tables import Cell, PageContext, Table, read_tables, top_left
 
 
 def grid(*rows: list[str], header_rows: int = 0) -> list[list[Cell]]:
@@ -158,7 +159,7 @@ def test_two_columns_with_the_same_period_and_scope_leave_the_page_unread() -> N
 
     assert caught.value.code == "E202"
     assert caught.value.message == (
-        "page 7 (Docling): two columns hold the same period (FY25 unscoped, FY25 unscoped)"
+        "page 7 (PDF add-on): two columns hold the same period (FY25 unscoped, FY25 unscoped)"
     )
 
 

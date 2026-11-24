@@ -3,8 +3,10 @@
 `fin init` writes `DEFAULT_CONFIG_TOML` once and never overwrites it. After that the file is the
 only source of these values: `load_config` reads it strictly and raises a coded error when it is
 missing (E001) or invalid (E002). There are no fallback values, except that a file without the
-`[pdf]` table (written before the Docling add-on) has not opted in to it. The one line fin changes
-is `[pdf] docling`, through `fin init --docling` / `--no-docling` (run by install.sh).
+`[pdf]` table (written before the PDF add-on) has chosen none, and a `[pdf] docling = true|false`
+line (written before the choice of engines) reads as `parser = "docling"` / `"none"`. The one line
+fin changes is `[pdf] parser`, through `fin parser use <name>` (`set_parser`), which also rewrites
+an old `docling` line to it.
 """
 
 import re
@@ -25,6 +27,7 @@ CONFIG_VERSION = 1
 DISPLAY_UNITS = ("rupees", "thousands", "lakhs", "crores")
 SCOPES = ("standalone", "consolidated")
 TOLERANCE_CHECKS = ("balance_sheet", "subtotal", "cash_flow", "cross_document")
+PARSERS = ("none", "docling", "liteparse", "llamaparse")  # [pdf] parser: the PDF add-on
 
 DEFAULT_CONFIG_TOML = """\
 # fin-analyst configuration. `fin init` writes this file once and never overwrites it. Every value
@@ -59,9 +62,10 @@ adjustment_categories = [
 ]
 
 [pdf]
-# Docling, the optional PDF add-on: reads the statement pages pdfplumber cannot (and scanned results
-# filings). `./install.sh --docling` installs it and sets this to true; `--no-docling` sets false.
-docling = false
+# The optional PDF add-on that reads the statement pages pdfplumber cannot (and scanned results
+# filings): "none", "docling", "liteparse" or "llamaparse". `uv run fin parser use <name>` (or
+# `./install.sh --parser <name>`) installs it and sets this.
+parser = "none"
 """
 
 
@@ -73,42 +77,47 @@ class Config:
     tolerances: dict[str, Decimal]
     query_threshold: Decimal  # [diligence]: a difference at or above it becomes a query
     adjustment_categories: tuple[str, ...]  # [diligence]: the categories an adjustment may have
-    docling: bool = False  # [pdf] docling: run the Docling fallback on pages pdfplumber skips
+    pdf_parser: str = "none"  # [pdf] parser: the PDF add-on for the pages pdfplumber skips
 
 
-# The value only, so indentation, a quoted key and a trailing comment are kept.
-_DOCLING_LINE = re.compile(
-    r"""^([ \t]*)(["']?)docling\2[ \t]*=[ \t]*(?:true|false)(?=[ \t]*(?:#.*)?$)""", re.M
+# The value only, so indentation, a quoted key and a trailing comment are kept. An old
+# `docling = true|false` line is replaced by `parser = "..."` the same way.
+_PARSER_LINE = re.compile(
+    r"""^([ \t]*)(["']?)(?:parser\2[ \t]*=[ \t]*(?:"[a-z]*"|'[a-z]*')|docling\2[ \t]*=[ \t]*"""
+    r"""(?:true|false))(?=[ \t]*(?:#.*)?$)""",
+    re.M,
 )
 _PDF_TABLE = """
 [pdf]
-# Docling, the optional PDF add-on (`./install.sh --docling` / `--no-docling`).
-docling = {value}
+# The optional PDF add-on: "none", "docling", "liteparse" or "llamaparse" (`fin parser use`).
+parser = "{value}"
 """
 
 
-def set_docling(root: Path, on: bool) -> None:
-    """Record whether the Docling add-on is installed: `[pdf] docling` in config.toml (`fin init
-    --docling` / `--no-docling`, run by install.sh). Every other line is kept as written. The new
-    text is checked (it must parse, with only that value changed) before it replaces the file, so
-    a failure leaves config.toml as it was. Raises E001 if config.toml is missing, E002 if it is
-    invalid or its `[pdf]` table is written in a form this cannot edit."""
+def set_parser(root: Path, name: str) -> None:
+    """Record the chosen PDF add-on: `[pdf] parser` in config.toml (`fin parser use`). An old
+    `docling = true|false` line becomes `parser = "<name>"`; every other line is kept as written.
+    The new text is checked (it must parse, with only that value changed) before it replaces the
+    file, so a failure leaves config.toml as it was. Raises E001 if config.toml is missing, E002 if
+    it is invalid, `name` is not a parser, or its `[pdf]` table is written in a form this cannot
+    edit."""
     load_config(root)
     path = config_path(root)
+    if name not in PARSERS:
+        raise _invalid(path, f"cannot set [pdf] parser = {name!r}; expected one of {PARSERS}")
     text = path.read_text(encoding="utf-8")
     data = tomllib.loads(text)
-    value = "true" if on else "false"
     if "pdf" in data:
-        candidate = _DOCLING_LINE.sub(lambda m: f"{m[1]}docling = {value}", text, count=1)
+        candidate = _PARSER_LINE.sub(lambda m: f'{m[1]}parser = "{name}"', text, count=1)
     else:
-        candidate = text.rstrip("\n") + "\n" + _PDF_TABLE.format(value=value)
-    expected = {**data, "pdf": {"docling": on}}
+        candidate = text.rstrip("\n") + "\n" + _PDF_TABLE.format(value=name)
+    expected = {**data, "pdf": {"parser": name}}
     try:
         ok = tomllib.loads(candidate) == expected
     except tomllib.TOMLDecodeError:
         ok = False
     if not ok:
-        raise _invalid(path, "cannot set [pdf] docling; write it as `docling = true` or `false`")
+        raise _invalid(path, 'cannot set [pdf] parser; write it as `parser = "none"`')
     temp = path.with_name(path.name + ".tmp")
     try:
         with temp.open("w", encoding="utf-8") as handle:
@@ -177,11 +186,11 @@ def _choice(
 
 
 def _parse(data: dict[str, Any], path: Path) -> Config:
-    # [pdf] is optional: a config.toml written before the Docling add-on has none, and the add-on
-    # is opt-in, so no table means "not opted in".
+    # [pdf] is optional: a config.toml written before the PDF add-on has none, and the add-on is
+    # opt-in, so no table means none chosen.
     tables = ("config_version", "display", "defaults", "tolerances", "diligence")
     _keys(data, (*tables, "pdf") if "pdf" in data else tables, "the file", path)
-    pdf = _table(data, "pdf", path) if "pdf" in data else {"docling": False}
+    pdf = _table(data, "pdf", path) if "pdf" in data else {"parser": "none"}
     version = data["config_version"]
     if version != CONFIG_VERSION or isinstance(version, bool):
         raise _invalid(
@@ -223,9 +232,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
             "names in lower-case letters, digits and '_'",
         )
 
-    _keys(pdf, ("docling",), "[pdf]", path)
-    if not isinstance(pdf["docling"], bool):
-        raise _invalid(path, f"pdf.docling = {pdf['docling']!r}; expected true or false")
+    parser = _pdf_parser(pdf, path)
 
     return Config(
         display_unit=unit,
@@ -234,8 +241,19 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         tolerances=tolerances,
         query_threshold=threshold,
         adjustment_categories=tuple(categories),
-        docling=pdf["docling"],
+        pdf_parser=parser,
     )
+
+
+def _pdf_parser(pdf: dict[str, Any], path: Path) -> str:
+    """`[pdf] parser`, or an old `docling = true|false` read as "docling" / "none"."""
+    if "docling" in pdf:  # written before the choice of engines
+        _keys(pdf, ("docling",), "[pdf]", path)
+        if not isinstance(pdf["docling"], bool):
+            raise _invalid(path, f"pdf.docling = {pdf['docling']!r}; expected true or false")
+        return "docling" if pdf["docling"] else "none"
+    _keys(pdf, ("parser",), "[pdf]", path)
+    return _choice(pdf, "parser", PARSERS, "pdf", path)
 
 
 _CATEGORY = re.compile(r"^[a-z][a-z0-9_]*$")

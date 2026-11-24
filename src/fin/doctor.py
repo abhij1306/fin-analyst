@@ -19,11 +19,12 @@ from fin.audit.errors import (
 from fin.config import load_config
 from fin.db.conn import connect
 from fin.db.schema import is_old_format
-from fin.extract import docling_run
+from fin.extract.fallback import engine
 from fin.paths import audit_db_path, dictionary_db_path, probe_writable
 
 PYTHON_VERSION = (3, 12)
 DATA_FOLDER = "data folder"  # the name of that check
+PDF_PARSER = "pdf parser"  # the name of the PDF add-on's check
 RUN_INIT = "run `uv run fin init`"  # the fix when the data folder, config or a schema is missing
 
 # Homebrew cannot pin exact versions, so system tools have minimums.
@@ -155,36 +156,30 @@ def check_poppler() -> Check:
     return Check("poppler", True, _fmt(found) if found else "found")
 
 
-def check_docling(root: Path) -> Check:
-    """The optional Docling PDF add-on: off is fine; on, it must import, and its models should be
-    downloaded (ingest downloads them at first use otherwise, so missing models are a warning)."""
+def check_pdf_parser(root: Path) -> Check:
+    """The optional PDF add-on (`[pdf] parser`): none is fine; a chosen engine must import. Its
+    models (Docling, LiteParse) should be downloaded, and LlamaParse needs LLAMA_CLOUD_API_KEY set;
+    either missing is a warning (ingest downloads models at first use; without the key the pages
+    stay unread)."""
     try:
-        on = load_config(root).docling
+        name = load_config(root).pdf_parser
     except FinError:
-        on = False  # the config check reports it
-    if not on:
-        detail = "installed, off in config.toml" if docling_run.installed() else "not installed"
-        return Check("docling", True, f"{detail} (optional; `./install.sh --docling` to add it)")
+        name = "none"  # the config check reports it
+    chosen = engine(name)
+    if chosen is None:
+        return Check(PDF_PARSER, True, "none (optional; `uv run fin parser use <name>` or /parser)")
     try:
-        importlib.import_module("docling.document_converter")
+        importlib.import_module(chosen.MODULE)
     except ImportError as exc:
         return Check(
-            "docling",
+            PDF_PARSER,
             False,
-            f"[pdf] docling = true in config.toml, but Docling does not import ({exc})",
+            f'[pdf] parser = "{name}" in config.toml, but {chosen.LABEL} does not import ({exc})',
             DependencyMissing.code,
-            "run `./install.sh --docling` (or `./install.sh --no-docling` to turn it off)",
+            f"run `uv run fin parser use {name}` (or `uv run fin parser use none`)",
         )
-    if not docling_run.models_present():
-        return Check(
-            "docling",
-            True,
-            f"installed, but its models are not in {docling_run.models_dir()} (ingest downloads "
-            "them at first use)",
-            fix=f"run `{docling_run.MODEL_DOWNLOAD}`",
-            warning=True,
-        )
-    return Check("docling", True, f"installed, models in {docling_run.models_dir()}")
+    detail, fix = chosen.ready()
+    return Check(PDF_PARSER, True, f"{name}: installed, {detail}", fix=fix, warning=fix is not None)
 
 
 def check_data_folder(root: Path) -> Check:
@@ -266,5 +261,5 @@ def run_checks(root: Path) -> list[Check]:
         check_config(root),
         check_audit_schema(root),
         check_schema(dictionary_db_path(root), "dictionary"),
-        check_docling(root),
+        check_pdf_parser(root),
     ]

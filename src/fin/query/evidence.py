@@ -23,6 +23,7 @@ from fin.audit.errors import DataFolderNotWritable, EvidenceSourceMissing
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
+from fin.extract.addon import ADDON_LABELS
 from fin.extract.pdf import render_crop
 from fin.map.dictionary import load_accounts
 from fin.paths import company_db_path
@@ -102,7 +103,7 @@ def _fact_section(
     account's unit (an unmapped figure is in rupees)."""
     ref = fact["source_ref"]
     status = "confirmed" if fact["confirmed"] else "UNCONFIRMED mapping"
-    readers = {"claude": "Claude", "docling": "Docling"}
+    readers = {"claude": "Claude", **ADDON_LABELS}
     status += f", read by {readers[fact['read_by']]}" if fact["read_by"] in readers else ""
     unit = units.get(fact["account"], "rupees").replace("_", " ")
     title = (

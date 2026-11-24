@@ -1,0 +1,151 @@
+{
+ "job": {
+  "id": "pjb-synthetic-0001",
+  "project_id": "prj-synthetic",
+  "status": "COMPLETED",
+  "tier": "agentic"
+ },
+ "items": {
+  "pages": [
+   {
+    "page_number": 1,
+    "page_width": 760,
+    "page_height": 842,
+    "success": true,
+    "items": [
+     {
+      "type": "heading",
+      "level": 1,
+      "md": "# Statement of Assets and Liabilities",
+      "value": "Statement of Assets and Liabilities",
+      "bbox": [
+       {
+        "x": 50,
+        "y": 31,
+        "w": 210,
+        "h": 11
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "md": "(Rs. in Lakhs)",
+      "value": "(Rs. in Lakhs)",
+      "bbox": [
+       {
+        "x": 50,
+        "y": 46,
+        "w": 70,
+        "h": 10
+       }
+      ]
+     },
+     {
+      "type": "table",
+      "md": "|  | Standalone | Standalone | Consolidated | Consolidated |\n| Particulars | As at 30.09.2025 | As at 31.03.2025 | As at 30.09.2025 | As at 31.03.2025 |\n| ASSETS |  |  |  |  |\n| Non-current assets |  |  |  |  |\n| Property, plant and equipment | 60 | 50 | 70 | 55 |\n| Loans | 5.00 | 5.00 | 6.00 | 6.00 |\n| Total non-current assets | 65 | 55 | 76 | 61 |\n| Current assets |  |  |  |  |\n| Cash and cash equivalents | 35.5 | 45.00 | (4.00) | - |\n| Total current assets | 35.5 | 45.00 | (4.00) | - |\n| Total assets | 100.5 | 100 | 72 | 61 |",
+      "csv": ",Standalone,Standalone,Consolidated,Consolidated\nParticulars,As at 30.09.2025,As at 31.03.2025,As at 30.09.2025,As at 31.03.2025\nASSETS,,,,\nNon-current assets,,,,\nProperty, plant and equipment,60,50,70,55\nLoans,5.00,5.00,6.00,6.00\nTotal non-current assets,65,55,76,61\nCurrent assets,,,,\nCash and cash equivalents,35.5,45.00,(4.00),-\nTotal current assets,35.5,45.00,(4.00),-\nTotal assets,100.5,100,72,61",
+      "html": "<table></table>",
+      "rows": [
+       [
+        "",
+        "Standalone",
+        "Standalone",
+        "Consolidated",
+        "Consolidated"
+       ],
+       [
+        "Particulars",
+        "As at 30.09.2025",
+        "As at 31.03.2025",
+        "As at 30.09.2025",
+        "As at 31.03.2025"
+       ],
+       [
+        "ASSETS",
+        null,
+        null,
+        null,
+        null
+       ],
+       [
+        "Non-current assets",
+        null,
+        null,
+        null,
+        null
+       ],
+       [
+        "Property, plant and equipment",
+        60,
+        50,
+        70,
+        55
+       ],
+       [
+        "Loans",
+        "5.00",
+        "5.00",
+        "6.00",
+        "6.00"
+       ],
+       [
+        "Total non-current assets",
+        65,
+        55,
+        76,
+        61
+       ],
+       [
+        "Current assets",
+        null,
+        null,
+        null,
+        null
+       ],
+       [
+        "Cash and cash equivalents",
+        35.5,
+        "45.00",
+        "(4.00)",
+        "-"
+       ],
+       [
+        "Total current assets",
+        35.5,
+        "45.00",
+        "(4.00)",
+        "-"
+       ],
+       [
+        "Total assets",
+        100.5,
+        100,
+        72,
+        61
+       ]
+      ],
+      "bbox": [
+       {
+        "x": 48,
+        "y": 66,
+        "w": 400,
+        "h": 100
+       },
+       {
+        "x": 48,
+        "y": 166,
+        "w": 590,
+        "h": 84
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "page_number": 2,
+    "success": false,
+    "error": "page timed out"
+   }
+  ]
+ }
+}

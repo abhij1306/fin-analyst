@@ -1,0 +1,1449 @@
+{
+ "side_by_side": [
+  {
+   "page_num": 1,
+   "blocks": [
+    {
+     "kind": "paragraph",
+     "text": "Statement of Assets and Liabilities (Rs. in Lakhs)",
+     "bbox": {
+      "x": 50.45,
+      "y": 32.72,
+      "width": 152.01,
+      "height": 24.37
+     },
+     "header": null,
+     "rows": null
+    },
+    {
+     "kind": "merged_table",
+     "text": null,
+     "bbox": {
+      "x": 50.0,
+      "y": 67.72,
+      "width": 579.64,
+      "height": 177.39
+     },
+     "header": null,
+     "rows": [
+      [
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "Standalone",
+        "bbox": {
+         "x": 330.45,
+         "y": 67.72,
+         "width": 49.73,
+         "height": 7.39
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "Consolidated",
+        "bbox": {
+         "x": 530.5,
+         "y": 67.72,
+         "width": 57.14,
+         "height": 7.39
+        }
+       }
+      ],
+      [
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "As at",
+        "bbox": {
+         "x": 290.0,
+         "y": 82.84,
+         "width": 22.72,
+         "height": 7.27
+        }
+       },
+       {
+        "text": "As at",
+        "bbox": {
+         "x": 380.0,
+         "y": 82.84,
+         "width": 22.72,
+         "height": 7.27
+        }
+       },
+       {
+        "text": "As at",
+        "bbox": {
+         "x": 490.0,
+         "y": 82.84,
+         "width": 22.72,
+         "height": 7.27
+        }
+       },
+       {
+        "text": "As at",
+        "bbox": {
+         "x": 580.0,
+         "y": 82.84,
+         "width": 22.72,
+         "height": 7.27
+        }
+       }
+      ],
+      [
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "30.09.2025",
+        "bbox": {
+         "x": 290.42,
+         "y": 94.81,
+         "width": 49.22,
+         "height": 7.31
+        }
+       },
+       {
+        "text": "31.03.2025",
+        "bbox": {
+         "x": 380.42,
+         "y": 94.81,
+         "width": 49.22,
+         "height": 7.31
+        }
+       },
+       {
+        "text": "30.09.2025",
+        "bbox": {
+         "x": 490.42,
+         "y": 94.81,
+         "width": 49.22,
+         "height": 7.31
+        }
+       },
+       {
+        "text": "31.03.2025",
+        "bbox": {
+         "x": 580.42,
+         "y": 94.81,
+         "width": 49.22,
+         "height": 7.31
+        }
+       }
+      ],
+      [
+       {
+        "text": "ASSETS",
+        "bbox": {
+         "x": 50.0,
+         "y": 117.72,
+         "width": 38.94,
+         "height": 7.39
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "Non-current assets",
+        "bbox": {
+         "x": 50.76,
+         "y": 132.84,
+         "width": 83.32,
+         "height": 7.27
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "Property, plant and equipment",
+        "bbox": {
+         "x": 50.77,
+         "y": 147.84,
+         "width": 133.12,
+         "height": 9.25
+        }
+       },
+       {
+        "text": "60.00",
+        "bbox": {
+         "x": 290.38,
+         "y": 147.81,
+         "width": 24.16,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "50.00",
+        "bbox": {
+         "x": 380.42,
+         "y": 147.81,
+         "width": 24.12,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "70.00",
+        "bbox": {
+         "x": 490.47,
+         "y": 147.81,
+         "width": 24.07,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "55.00",
+        "bbox": {
+         "x": 580.42,
+         "y": 147.81,
+         "width": 24.12,
+         "height": 7.3
+        }
+       }
+      ],
+      [
+       {
+        "text": "Loans",
+        "bbox": {
+         "x": 50.73,
+         "y": 162.84,
+         "width": 26.12,
+         "height": 7.27
+        }
+       },
+       {
+        "text": "5.00",
+        "bbox": {
+         "x": 290.42,
+         "y": 162.81,
+         "width": 18.56,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "5.00",
+        "bbox": {
+         "x": 380.42,
+         "y": 162.81,
+         "width": 18.56,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "6.00",
+        "bbox": {
+         "x": 490.38,
+         "y": 162.81,
+         "width": 18.6,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "6.00",
+        "bbox": {
+         "x": 580.38,
+         "y": 162.81,
+         "width": 18.6,
+         "height": 7.3
+        }
+       }
+      ],
+      [
+       {
+        "text": "Total non-current assets",
+        "bbox": {
+         "x": 50.23,
+         "y": 177.84,
+         "width": 107.2,
+         "height": 7.27
+        }
+       },
+       {
+        "text": "65.00",
+        "bbox": {
+         "x": 290.38,
+         "y": 177.81,
+         "width": 24.16,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "55.00",
+        "bbox": {
+         "x": 380.42,
+         "y": 177.81,
+         "width": 24.12,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "76.00",
+        "bbox": {
+         "x": 490.47,
+         "y": 177.81,
+         "width": 24.07,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "61.00",
+        "bbox": {
+         "x": 580.38,
+         "y": 177.81,
+         "width": 24.16,
+         "height": 7.3
+        }
+       }
+      ],
+      [
+       {
+        "text": "Current assets",
+        "bbox": {
+         "x": 50.5,
+         "y": 192.72,
+         "width": 64.13,
+         "height": 7.39
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "Cash and cash equivalents",
+        "bbox": {
+         "x": 50.5,
+         "y": 207.72,
+         "width": 119.17,
+         "height": 9.26
+        }
+       },
+       {
+        "text": "35.00",
+        "bbox": {
+         "x": 290.42,
+         "y": 207.81,
+         "width": 24.12,
+         "height": 7.31
+        }
+       },
+       {
+        "text": "45.00",
+        "bbox": {
+         "x": 380.13,
+         "y": 207.81,
+         "width": 24.41,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "(4.00)",
+        "bbox": {
+         "x": 490.61,
+         "y": 207.72,
+         "width": 25.15,
+         "height": 9.37
+        }
+       },
+       {
+        "text": "-",
+        "bbox": {
+         "x": 580.32,
+         "y": 211.97,
+         "width": 2.7,
+         "height": 0.88
+        }
+       }
+      ],
+      [
+       {
+        "text": "Total current assets",
+        "bbox": {
+         "x": 50.23,
+         "y": 222.84,
+         "width": 87.19,
+         "height": 7.27
+        }
+       },
+       {
+        "text": "35.00",
+        "bbox": {
+         "x": 290.42,
+         "y": 222.81,
+         "width": 24.12,
+         "height": 7.31
+        }
+       },
+       {
+        "text": "45.00",
+        "bbox": {
+         "x": 380.13,
+         "y": 222.81,
+         "width": 24.41,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "(4.00)",
+        "bbox": {
+         "x": 490.61,
+         "y": 222.72,
+         "width": 25.15,
+         "height": 9.37
+        }
+       },
+       {
+        "text": "-",
+        "bbox": {
+         "x": 580.32,
+         "y": 226.97,
+         "width": 2.7,
+         "height": 0.88
+        }
+       }
+      ],
+      [
+       {
+        "text": "Total assets",
+        "bbox": {
+         "x": 50.23,
+         "y": 237.84,
+         "width": 53.29,
+         "height": 7.27
+        }
+       },
+       {
+        "text": "100.00",
+        "bbox": {
+         "x": 291.09,
+         "y": 237.81,
+         "width": 29.01,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "100.00",
+        "bbox": {
+         "x": 381.09,
+         "y": 237.81,
+         "width": 29.01,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "72.00",
+        "bbox": {
+         "x": 490.47,
+         "y": 237.81,
+         "width": 24.07,
+         "height": 7.3
+        }
+       },
+       {
+        "text": "61.00",
+        "bbox": {
+         "x": 580.38,
+         "y": 237.81,
+         "width": 24.16,
+         "height": 7.3
+        }
+       }
+      ]
+     ]
+    }
+   ]
+  }
+ ],
+ "tarang_balance_sheet": [
+  {
+   "page_num": 1,
+   "blocks": [
+    {
+     "kind": "heading",
+     "text": "Tarang Industrial Services Private Limited",
+     "bbox": {
+      "x": 57.08,
+      "y": 53.99,
+      "width": 260.88,
+      "height": 10.72
+     },
+     "header": null,
+     "rows": null
+    },
+    {
+     "kind": "heading",
+     "text": "Balance Sheet as at 31 March 2025",
+     "bbox": {
+      "x": 58.04,
+      "y": 72.99,
+      "width": 216.49,
+      "height": 8.5
+     },
+     "header": null,
+     "rows": null
+    },
+    {
+     "kind": "paragraph",
+     "text": "(₹ in Lakhs)",
+     "bbox": {
+      "x": 57.8,
+      "y": 91.51,
+      "width": 51.2,
+      "height": 8.02
+     },
+     "header": null,
+     "rows": null
+    },
+    {
+     "kind": "merged_table",
+     "text": null,
+     "bbox": {
+      "x": 57.07,
+      "y": 113.16,
+      "width": 480.97,
+      "height": 397.59
+     },
+     "header": null,
+     "rows": [
+      [
+       {
+        "text": "Particulars",
+        "bbox": {
+         "x": 57.81,
+         "y": 117.99,
+         "width": 50.89,
+         "height": 6.57
+        }
+       },
+       {
+        "text": "Note",
+        "bbox": {
+         "x": 343.72,
+         "y": 118.26,
+         "width": 21.58,
+         "height": 6.31
+        }
+       },
+       {
+        "text": "As at",
+        "bbox": {
+         "x": 428.86,
+         "y": 113.16,
+         "width": 24.14,
+         "height": 6.31
+        }
+       },
+       {
+        "text": "As at",
+        "bbox": {
+         "x": 513.9,
+         "y": 113.16,
+         "width": 24.14,
+         "height": 6.31
+        }
+       }
+      ],
+      [
+       {
+        "text": "31 March 2025",
+        "bbox": {
+         "x": 382.9,
+         "y": 123.09,
+         "width": 69.66,
+         "height": 6.57
+        }
+       },
+       {
+        "text": "31 March 2024",
+        "bbox": {
+         "x": 467.94,
+         "y": 123.09,
+         "width": 69.86,
+         "height": 6.57
+        }
+       }
+      ],
+      [
+       {
+        "text": "I. EQUITY AND LIABILITIES",
+        "bbox": {
+         "x": 57.86,
+         "y": 138.45,
+         "width": 108.88,
+         "height": 7.4
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "(1) Equity",
+        "bbox": {
+         "x": 57.75,
+         "y": 153.49,
+         "width": 40.6,
+         "height": 8.22
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "(a) Equity share capital",
+        "bbox": {
+         "x": 57.75,
+         "y": 168.69,
+         "width": 97.46,
+         "height": 8.22
+        }
+       },
+       {
+        "text": "2",
+        "bbox": {
+         "x": 352.25,
+         "y": 168.85,
+         "width": 3.94,
+         "height": 6.31
+        }
+       },
+       {
+        "text": "300.00",
+        "bbox": {
+         "x": 424.12,
+         "y": 168.85,
+         "width": 28.52,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "300.00",
+        "bbox": {
+         "x": 509.16,
+         "y": 168.85,
+         "width": 28.52,
+         "height": 6.42
+        }
+       }
+      ],
+      [
+       {
+        "text": "(b) Other equity",
+        "bbox": {
+         "x": 57.75,
+         "y": 183.89,
+         "width": 67.26,
+         "height": 8.22
+        }
+       },
+       {
+        "text": "3",
+        "bbox": {
+         "x": 352.27,
+         "y": 184.05,
+         "width": 4.08,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "6,691.32",
+        "bbox": {
+         "x": 415.96,
+         "y": 184.05,
+         "width": 36.38,
+         "height": 7.28
+        }
+       },
+       {
+        "text": "5,135.33",
+        "bbox": {
+         "x": 501.05,
+         "y": 184.05,
+         "width": 36.49,
+         "height": 7.28
+        }
+       }
+      ],
+      [
+       {
+        "text": "Total equity",
+        "bbox": {
+         "x": 57.07,
+         "y": 199.09,
+         "width": 57.49,
+         "height": 8.29
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "6,991.32",
+        "bbox": {
+         "x": 411.8,
+         "y": 199.25,
+         "width": 40.63,
+         "height": 7.51
+        }
+       },
+       {
+        "text": "5,435.33",
+        "bbox": {
+         "x": 496.96,
+         "y": 199.25,
+         "width": 40.56,
+         "height": 7.51
+        }
+       }
+      ],
+      [
+       {
+        "text": "(2) Non-current liabilities",
+        "bbox": {
+         "x": 57.75,
+         "y": 214.29,
+         "width": 104.95,
+         "height": 7.57
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "(a) Financial liabilities - Borrowings",
+        "bbox": {
+         "x": 57.75,
+         "y": 229.49,
+         "width": 147.7,
+         "height": 8.22
+        }
+       },
+       {
+        "text": "4",
+        "bbox": {
+         "x": 352.04,
+         "y": 229.76,
+         "width": 4.51,
+         "height": 6.2
+        }
+       },
+       {
+        "text": "200.00",
+        "bbox": {
+         "x": 424.09,
+         "y": 229.65,
+         "width": 28.54,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "300.00",
+        "bbox": {
+         "x": 509.16,
+         "y": 229.65,
+         "width": 28.52,
+         "height": 6.42
+        }
+       }
+      ],
+      [
+       {
+        "text": "Total non-current liabilities",
+        "bbox": {
+         "x": 57.07,
+         "y": 244.69,
+         "width": 130.72,
+         "height": 6.57
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "200.00",
+        "bbox": {
+         "x": 421.08,
+         "y": 244.85,
+         "width": 31.69,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "300.00",
+        "bbox": {
+         "x": 506.02,
+         "y": 244.85,
+         "width": 31.79,
+         "height": 6.42
+        }
+       }
+      ],
+      [
+       {
+        "text": "(3) Current liabilities",
+        "bbox": {
+         "x": 57.75,
+         "y": 259.89,
+         "width": 86.22,
+         "height": 7.57
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "(a) Financial liabilities - Borrowings",
+        "bbox": {
+         "x": 57.75,
+         "y": 275.09,
+         "width": 147.7,
+         "height": 8.22
+        }
+       },
+       {
+        "text": "5",
+        "bbox": {
+         "x": 352.28,
+         "y": 275.36,
+         "width": 4.01,
+         "height": 6.31
+        }
+       },
+       {
+        "text": "400.00",
+        "bbox": {
+         "x": 423.89,
+         "y": 275.25,
+         "width": 28.75,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "400.00",
+        "bbox": {
+         "x": 508.93,
+         "y": 275.25,
+         "width": 28.75,
+         "height": 6.42
+        }
+       }
+      ],
+      [
+       {
+        "text": "(b) Trade payables",
+        "bbox": {
+         "x": 57.75,
+         "y": 290.29,
+         "width": 78.97,
+         "height": 8.22
+        }
+       },
+       {
+        "text": "6",
+        "bbox": {
+         "x": 352.22,
+         "y": 290.45,
+         "width": 4.28,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "514.67",
+        "bbox": {
+         "x": 424.13,
+         "y": 290.45,
+         "width": 28.35,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "446.36",
+        "bbox": {
+         "x": 508.93,
+         "y": 290.45,
+         "width": 28.77,
+         "height": 6.42
+        }
+       }
+      ],
+      [
+       {
+        "text": "(c) Other current liabilities",
+        "bbox": {
+         "x": 57.75,
+         "y": 305.49,
+         "width": 111.04,
+         "height": 7.57
+        }
+       },
+       {
+        "text": "7",
+        "bbox": {
+         "x": 352.32,
+         "y": 305.76,
+         "width": 3.99,
+         "height": 6.2
+        }
+       },
+       {
+        "text": "552.52",
+        "bbox": {
+         "x": 424.13,
+         "y": 305.65,
+         "width": 28.22,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "472.24",
+        "bbox": {
+         "x": 508.93,
+         "y": 305.65,
+         "width": 28.83,
+         "height": 6.31
+        }
+       }
+      ],
+      [
+       {
+        "text": "Total current liabilities",
+        "bbox": {
+         "x": 57.07,
+         "y": 320.69,
+         "width": 109.27,
+         "height": 6.57
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "1,467.19",
+        "bbox": {
+         "x": 412.23,
+         "y": 320.86,
+         "width": 40.39,
+         "height": 7.5
+        }
+       },
+       {
+        "text": "1,318.60",
+        "bbox": {
+         "x": 497.27,
+         "y": 320.85,
+         "width": 40.53,
+         "height": 7.51
+        }
+       }
+      ],
+      [
+       {
+        "text": "TOTAL EQUITY AND LIABILITIES",
+        "bbox": {
+         "x": 57.07,
+         "y": 336.05,
+         "width": 149.04,
+         "height": 7.54
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "8,658.51",
+        "bbox": {
+         "x": 411.79,
+         "y": 336.05,
+         "width": 40.79,
+         "height": 7.51
+        }
+       },
+       {
+        "text": "7,053.93",
+        "bbox": {
+         "x": 496.88,
+         "y": 336.05,
+         "width": 40.65,
+         "height": 7.51
+        }
+       }
+      ],
+      [
+       {
+        "text": "II. ASSETS",
+        "bbox": {
+         "x": 57.86,
+         "y": 351.25,
+         "width": 41.62,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "(1) Non-current assets",
+        "bbox": {
+         "x": 57.75,
+         "y": 366.3,
+         "width": 94.27,
+         "height": 7.57
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "(a) Property, plant and equipment",
+        "bbox": {
+         "x": 57.75,
+         "y": 381.49,
+         "width": 144.24,
+         "height": 8.22
+        }
+       },
+       {
+        "text": "8",
+        "bbox": {
+         "x": 352.2,
+         "y": 381.65,
+         "width": 4.25,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "2,434.33",
+        "bbox": {
+         "x": 415.98,
+         "y": 381.65,
+         "width": 36.52,
+         "height": 7.28
+        }
+       },
+       {
+        "text": "2,213.69",
+        "bbox": {
+         "x": 501.02,
+         "y": 381.65,
+         "width": 36.61,
+         "height": 7.28
+        }
+       }
+      ],
+      [
+       {
+        "text": "Total non-current assets",
+        "bbox": {
+         "x": 57.07,
+         "y": 396.69,
+         "width": 117.32,
+         "height": 6.57
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "2,434.33",
+        "bbox": {
+         "x": 411.94,
+         "y": 396.85,
+         "width": 40.54,
+         "height": 7.51
+        }
+       },
+       {
+        "text": "2,213.69",
+        "bbox": {
+         "x": 496.98,
+         "y": 396.85,
+         "width": 40.68,
+         "height": 7.51
+        }
+       }
+      ],
+      [
+       {
+        "text": "(2) Current assets",
+        "bbox": {
+         "x": 57.75,
+         "y": 411.9,
+         "width": 75.55,
+         "height": 7.57
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "",
+        "bbox": null
+       }
+      ],
+      [
+       {
+        "text": "(a) Inventories",
+        "bbox": {
+         "x": 57.75,
+         "y": 427.09,
+         "width": 60.92,
+         "height": 7.57
+        }
+       },
+       {
+        "text": "9",
+        "bbox": {
+         "x": 352.16,
+         "y": 427.25,
+         "width": 4.28,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "205.87",
+        "bbox": {
+         "x": 424.09,
+         "y": 427.25,
+         "width": 28.38,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "178.54",
+        "bbox": {
+         "x": 509.45,
+         "y": 427.25,
+         "width": 28.31,
+         "height": 6.42
+        }
+       }
+      ],
+      [
+       {
+        "text": "(b) Financial assets - Trade receivables",
+        "bbox": {
+         "x": 57.75,
+         "y": 442.29,
+         "width": 165.3,
+         "height": 7.57
+        }
+       },
+       {
+        "text": "10",
+        "bbox": {
+         "x": 349.86,
+         "y": 442.45,
+         "width": 9.32,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "2,270.61",
+        "bbox": {
+         "x": 415.98,
+         "y": 442.45,
+         "width": 36.42,
+         "height": 7.28
+        }
+       },
+       {
+        "text": "2,018.32",
+        "bbox": {
+         "x": 501.02,
+         "y": 442.45,
+         "width": 36.35,
+         "height": 7.28
+        }
+       }
+      ],
+      [
+       {
+        "text": "(c) Financial assets - Cash and cash equivalents",
+        "bbox": {
+         "x": 57.75,
+         "y": 457.49,
+         "width": 202.75,
+         "height": 8.22
+        }
+       },
+       {
+        "text": "11",
+        "bbox": {
+         "x": 349.86,
+         "y": 457.76,
+         "width": 9.1,
+         "height": 6.2
+        }
+       },
+       {
+        "text": "3,416.19",
+        "bbox": {
+         "x": 416.01,
+         "y": 457.65,
+         "width": 36.58,
+         "height": 7.28
+        }
+       },
+       {
+        "text": "2,360.04",
+        "bbox": {
+         "x": 501.02,
+         "y": 457.65,
+         "width": 36.73,
+         "height": 7.28
+        }
+       }
+      ],
+      [
+       {
+        "text": "(d) Other current assets",
+        "bbox": {
+         "x": 57.75,
+         "y": 472.69,
+         "width": 101.08,
+         "height": 7.57
+        }
+       },
+       {
+        "text": "12",
+        "bbox": {
+         "x": 349.86,
+         "y": 472.85,
+         "width": 9.03,
+         "height": 6.31
+        }
+       },
+       {
+        "text": "331.51",
+        "bbox": {
+         "x": 424.12,
+         "y": 472.85,
+         "width": 28.3,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "283.34",
+        "bbox": {
+         "x": 509.13,
+         "y": 472.85,
+         "width": 28.63,
+         "height": 6.42
+        }
+       }
+      ],
+      [
+       {
+        "text": "Total current assets",
+        "bbox": {
+         "x": 57.07,
+         "y": 487.89,
+         "width": 95.86,
+         "height": 6.57
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "6,224.18",
+        "bbox": {
+         "x": 411.8,
+         "y": 488.05,
+         "width": 40.84,
+         "height": 7.51
+        }
+       },
+       {
+        "text": "4,840.24",
+        "bbox": {
+         "x": 496.69,
+         "y": 488.05,
+         "width": 41.12,
+         "height": 7.51
+        }
+       }
+      ],
+      [
+       {
+        "text": "TOTAL ASSETS",
+        "bbox": {
+         "x": 57.07,
+         "y": 503.25,
+         "width": 69.63,
+         "height": 6.42
+        }
+       },
+       {
+        "text": "",
+        "bbox": null
+       },
+       {
+        "text": "8,658.51",
+        "bbox": {
+         "x": 411.79,
+         "y": 503.25,
+         "width": 40.79,
+         "height": 7.51
+        }
+       },
+       {
+        "text": "7,053.93",
+        "bbox": {
+         "x": 496.88,
+         "y": 503.25,
+         "width": 40.65,
+         "height": 7.51
+        }
+       }
+      ]
+     ]
+    },
+    {
+     "kind": "page_footer",
+     "text": "SYNTHETIC TEST DATA - fictitious company, generated for software testing",
+     "bbox": {
+      "x": 51.49,
+      "y": 811.06,
+      "width": 261.83,
+      "height": 6.77
+     },
+     "header": null,
+     "rows": null
+    }
+   ]
+  }
+ ]
+}

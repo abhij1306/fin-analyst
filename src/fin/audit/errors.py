@@ -59,7 +59,8 @@ class DataFolderNotWritable(FinError):
 
 
 class UpdateFailed(FinError):
-    """E005. `fin update` stopped: local changes in the repo, or a git, uv or npm step failed."""
+    """E005. `fin update` stopped: local changes in the repo, or a git, uv or npm step failed; or
+    the `uv sync` of `fin parser use` failed."""
 
     code = "E005"
 
@@ -122,9 +123,10 @@ class ReadingInvalid(DocumentFailure):
     code = "E205"
 
 
-class DoclingFailed(DocumentFailure):
-    """E206. Docling (the optional PDF add-on) failed on the pages pdfplumber skipped, or could not
-    download its models. Logged as a warning: the pages stay unread, the document still loads."""
+class PdfAddonFailed(DocumentFailure):
+    """E206. The optional PDF add-on (Docling, LiteParse or LlamaParse; the message names it) failed
+    on the pages pdfplumber skipped, could not download its models, or (LlamaParse) has no API key
+    in LLAMA_CLOUD_API_KEY. Logged as a warning: the pages stay unread, the document still loads."""
 
     code = "E206"
 

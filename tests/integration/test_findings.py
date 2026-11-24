@@ -194,7 +194,7 @@ def test_status_shows_periods_held_findings_pending_read_by_claude_and_inbox(
     bluepeak, kestrel = json.loads(result.stdout)
     assert (bluepeak["company"], kestrel["company"]) == ("bluepeak", "kestrel")
     assert bluepeak["periods"]["years"] == ["FY24", "FY25"]
-    assert (bluepeak["read_by_claude"], bluepeak["read_by_docling"]) == (2, 0)
+    assert (bluepeak["read_by_claude"], bluepeak["read_by_pdf_addon"]) == (2, 0)
     assert bluepeak["inbox_not_ingested"] == ["Bluepeak_Polymers_FY2022-23.xlsx"]
     assert kestrel["periods"]["years"] == []  # held: not in current figures
     assert kestrel["held_documents"] == [{"doc_id": 1, "file": UNBALANCED, "open_findings": 1}]
