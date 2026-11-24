@@ -144,10 +144,10 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   a gate approval, and `fin sql --write` cannot write gate approvals, queries, adjustments or the engagement
   (E806): they change only through `fin engagement|query|adjust|gate`. An approved gate reopens on its own when the
   data under it changes, and you approve it again.
-  - **G1 Data:** every year in scope has mapped figures from a loaded document, no held documents, no mappings
+  - **G1 Ingestion:** every year in scope has mapped figures from a loaded document, no held documents, no mappings
     waiting for review. A changed figure (for example a fix with `fin sql --write`) reopens it, and so does any
     change after which its checklist fails.
-  - **G2 Queries:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
+  - **G2 Reconciliation:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
     approved query does not. Needed by `fin adjust accept|reject`.
   - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
     `fin engagement close`.

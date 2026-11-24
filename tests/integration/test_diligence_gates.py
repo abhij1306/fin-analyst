@@ -46,19 +46,21 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
     refused = fin("adjust", "accept", "bluepeak", "1")
     assert refused.exit_code == 3
     assert refused.stderr.startswith(
-        "E801: `fin adjust accept` needs gate G2 (Queries) approved; gate G1 (Data) before it is "
+        "E801: `fin adjust accept` needs gate G2 (Reconciliation) approved"
+        "; gate G1 (Ingestion) before it is "
         "open. Nothing changed. See `fin gate status bluepeak`\n"
     )
     early = fin("gate", "approve", "bluepeak", "G2")
     assert early.exit_code == 3
     assert early.stderr.startswith(
-        "E802: gate G2 (Queries) of bluepeak cannot be approved before gate G1 (Data), which is "
+        "E802: gate G2 (Reconciliation) of bluepeak cannot be approved"
+        " before gate G1 (Ingestion), which is "
         "open; nothing approved. See `fin gate status bluepeak`\n"
     )
     held = fin("gate", "approve", "bluepeak", "g1")
     assert held.exit_code == 3
     assert held.stderr.startswith(
-        "E802: gate G1 (Data) of bluepeak cannot be approved; its checklist fails: FY25: no "
+        "E802: gate G1 (Ingestion) of bluepeak cannot be approved; its checklist fails: FY25: no "
         f"loaded document has mapped figures for it; held documents: doc_id 2 {SECOND} "
         "(`fin findings list bluepeak`). Nothing approved\n"
     )
@@ -68,7 +70,7 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
     g1 = fin("gate", "approve", "bluepeak", "G1")
     assert g1.exit_code == 0, g1.output
     assert g1.stdout == (
-        "bluepeak: G1 Data: approved\n"
+        "bluepeak: G1 Ingestion: approved\n"
         "    pass: FY24: a loaded document has mapped figures for it\n"
         "    pass: FY25: a loaded document has mapped figures for it\n"
         "    pass: no held documents\n"
@@ -89,13 +91,15 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
     reopened = fin("adjust", "accept", "bluepeak", "2")
     assert reopened.exit_code == 3
     assert reopened.stderr.startswith(
-        "E801: `fin adjust accept` needs gate G2 (Queries) approved; it is reopened (changed "
+        "E801: `fin adjust accept` needs gate G2 (Reconciliation) approved"
+        "; it is reopened (changed "
         "since it was approved: queries). Nothing changed. See `fin gate status bluepeak`\n"
     )
     close = fin("engagement", "close", "bluepeak")
     assert close.exit_code == 3
     assert close.stderr.startswith(
-        "E801: `fin engagement close` needs gate G4 (Adjustments) approved; gate G2 (Queries) "
+        "E801: `fin engagement close` needs gate G4 (Adjustments) approved"
+        "; gate G2 (Reconciliation) "
         "before it is reopened (changed since it was approved: queries). Nothing changed."
     )
 
@@ -114,7 +118,7 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
     gate_status = fin("gate", "status", "bluepeak")
     assert gate_status.exit_code == 0, gate_status.output
     assert (
-        "G2 Queries: reopened (changed since it was approved: queries)\n"
+        "G2 Reconciliation: reopened (changed since it was approved: queries)\n"
         "    FAIL: queries in draft: #1 (approve or withdraw them: "
         "`fin query list bluepeak --status draft`)\n"
         "    unlocks: `fin adjust accept|reject`\n"
@@ -167,7 +171,8 @@ def test_a_changed_figure_reopens_g1(root: Path) -> None:
     refused = fin("adjust", "accept", "bluepeak", "1")
     assert refused.exit_code == 3
     assert refused.stderr.startswith(
-        "E801: `fin adjust accept` needs gate G2 (Queries) approved; gate G1 (Data) before it is "
+        "E801: `fin adjust accept` needs gate G2 (Reconciliation) approved"
+        "; gate G1 (Ingestion) before it is "
         "reopened (changed since it was approved: figures). Nothing changed. See `fin gate "
         "status bluepeak`\n"
     )

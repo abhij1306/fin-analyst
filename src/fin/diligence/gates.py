@@ -14,14 +14,14 @@ the audit table `diligence_events`. A gate is then
 So a gate reopens on its own when the data under it changes. Commands a gate unlocks refuse with
 E801 until it is approved (`require`), checked in the same transaction as their change.
 
-Gates in this build (docs/DILIGENCE_BUILD.md); G3 (recast) and G5 (report) come later:
-    G1 Data         every annual period in scope has figures in current_facts (a loaded document,
+Gates in this build (docs/DILIGENCE_BUILD.md); G3 (recast) comes later:
+    G1 Ingestion    every annual period in scope has figures in current_facts (a loaded document,
                     mapped and confirmed: what the metrics use), no held documents, no mapping
                     items waiting for review. Its inputs are the
                     periods, the documents, the mapping items and the figures (every
                     current_facts value by account, period and scope), so a changed figure
                     (`fin sql --write` on facts, a review that maps a line) reopens it;
-    G2 Queries      no query in draft: every query's wording is reviewed. Its inputs are each
+    G2 Reconciliation no query in draft: every query's wording is reviewed. Its inputs are each
                     query's id, wording and whether it is a draft, so a new or edited query
                     reopens it; sending, answering, closing or withdrawing an approved one does
                     not. Unlocks `fin adjust accept|reject`;
@@ -88,7 +88,7 @@ def _ids(rows: list[list[Any]]) -> str:
     return ", ".join(f"#{row[0]}" for row in rows)
 
 
-# G1 Data
+# G1 Ingestion
 
 
 def _periods(ctx: Context) -> list[str]:
@@ -143,7 +143,7 @@ def _data_inputs(ctx: Context) -> dict[str, Any]:
     }
 
 
-# G2 Queries
+# G2 Reconciliation
 
 
 def _queries_checklist(ctx: Context) -> list[Line]:
@@ -219,8 +219,8 @@ def _adjustments_inputs(ctx: Context) -> dict[str, Any]:
 
 
 GATES = (
-    Gate("G1", "Data", "approving G2", _data_checklist, _data_inputs),
-    Gate("G2", "Queries", "`fin adjust accept|reject`", _queries_checklist, _queries_inputs),
+    Gate("G1", "Ingestion", "approving G2", _data_checklist, _data_inputs),
+    Gate("G2", "Reconciliation", "`fin adjust accept|reject`", _queries_checklist, _queries_inputs),
     Gate(
         "G4",
         "Adjustments",

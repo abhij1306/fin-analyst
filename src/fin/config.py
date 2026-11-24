@@ -55,7 +55,7 @@ cross_document = 100000.00
 query_threshold = 100000.00
 # Categories an adjustment may have.
 adjustment_categories = [
-    "management", "normalisation", "reclassification", "run_rate", "pro_forma", "recast", "error",
+    "management", "normalisation", "reclassification", "recast", "error",
 ]
 
 [pdf]
