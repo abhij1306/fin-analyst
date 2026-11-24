@@ -133,7 +133,7 @@ and every gate approval.
 |---|---|---|
 | `engagement` (changed) | adds stub: period name (e.g. `FY27-YTD-SEP`), start and end date | D2 |
 | `source_files` (**built**) | file_id, kind (`trial_balance`, `ledger_vouchers`, `registers`, `bank`, `payroll`, `contract`), file name, sha256, archive path, period covered (from the export header), basis (audited year or unaudited stub), profile, status | D2 |
-| `mask_values` (**built**) | field kind (customer, vendor, user, employee name, employee code), token, real value, first file_id. Never printed; read only by `fin query export` | D2 |
+| `mask_values` (**built**) | field kind (customer, vendor, user, employee name, employee code, or ledger: a Ledger Vouchers ledger not in its trial balance), token, real value, first file_id. Never printed; read only by `fin query export` | D2 |
 | `ledger_accounts` | Tally ledger (token for party ledgers), group, parent group, mapped Schedule III account (proposed by Claude, reviewed like label mappings), present in TB / in Ledger Vouchers | D2 |
 | `trial_balance` (**built**) | file_id, sheet, row, period, row type (group or ledger), group, ledger, closing debit, closing credit. No opening or movement columns: the export has none | D2 |
 | `ledger_entries` (**built**) | file_id, sheet, row, ledger (from the block header), date, particulars, voucher type, voucher no, debit, credit | D2 |

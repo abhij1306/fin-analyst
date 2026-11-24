@@ -277,7 +277,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E807 | `fin ingest --kind`: the column profile named is unknown or invalid, or no profile matches the file's headers | Nothing loaded. The message lists the header lines found: write a profile in `templates/profiles/` (docs/CUSTOMISING.md) and ingest with `--profile` |
 | E808 | `fin ingest --kind`: the export's header gives no period, or a period that is not a year of the open engagement | Nothing loaded. Check the export's period, or the engagement's periods (`uv run fin engagement status <company>`) |
 | E809 | A trial balance with group rows only (Tally's Condensed export) | Nothing loaded. Export the trial balance again in Detailed mode, with ledgers, and ingest that |
-| E810 | `fin sql` was given SQL naming `mask_values` (the real names behind the tokens) | Nothing was run. Work with the tokens; fin never prints the real names |
+| E810 | `fin sql` was given SQL naming `mask_values` (the real names behind the tokens), or calling `query`, `query_table` or `read_duckdb`, which could reach it | Nothing was run. Work with the tokens; fin never prints the real names |
 | E811 | Ledger Vouchers ingested before their period's trial balance | Nothing loaded. Ingest the period's trial balance first (it says which ledgers are parties), then the Ledger Vouchers |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

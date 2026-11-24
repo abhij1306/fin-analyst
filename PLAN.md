@@ -244,9 +244,9 @@ date in another format is never dropped); and the outcome lists the trial balanc
 Creditors: vendor) are stored as tokens (`CUST-0001`, `VEND-0001`; the same value keeps its first token in every
 file, whatever kind it is found as later); known names in other ledger names and in masked fields (Ledger Vouchers
 particulars) are replaced as whole words; a Ledger Vouchers ledger not in its trial balance is masked as
-`LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values` (E810), and `fin sql --write` refuses to
+`LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql --write` refuses to
 write `source_files`, `trial_balance` and `ledger_entries` (E806). One transaction per file; a later file of the
-same kind and period supersedes the earlier one and its findings; the same file again is E105. A duplicate, layout,
+same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
 period or refusal error stops the command and loads nothing.
 
 ---

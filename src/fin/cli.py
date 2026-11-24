@@ -396,8 +396,11 @@ def findings_accept(
 
     def body(run: Run) -> None:
         for doc in accept(run, company, ids):
+            where = (
+                f"doc_id {doc['doc_id']}" if "doc_id" in doc else f"source file_id {doc['file_id']}"
+            )
             typer.echo(
-                f"{company}/{doc['file']} (doc_id {doc['doc_id']}): {doc['status']}, "
+                f"{company}/{doc['file']} ({where}): {doc['status']}, "
                 f"{doc['open']} open findings left"
             )
         _echo_refresh(run)

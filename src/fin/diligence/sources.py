@@ -2,9 +2,9 @@
 
 For one file, `ingest_source`:
 
-1. Needs an open engagement (E803), refuses a file already loaded (same sha256, E105) and reads it
-   with a column profile (`fin.extract.ledger`; E807 when no profile matches, its header lines
-   listed with known masked names replaced).
+1. Needs an open engagement (E803), refuses a file already loaded (same sha256, E105, even when
+   superseded) and reads it with a column profile (`fin.extract.ledger`; E807 when no profile
+   matches, its header lines listed with known masked names replaced).
 2. Checks the period its header lines give is an annual period of the open engagement (E808).
    Ledger Vouchers need their period's trial balance loaded first (E811): it says which ledgers
    are parties.
@@ -255,7 +255,7 @@ def ingest_source(
     with connect(company_db_path(run.root, company), write=True) as con, transaction(con):
         engagement = require_open(con, company)
         earlier = con.execute(
-            "SELECT file_id FROM source_files WHERE sha256 = ? AND status = 'loaded'", [sha256]
+            "SELECT file_id FROM source_files WHERE sha256 = ? ORDER BY file_id DESC", [sha256]
         ).fetchone()
         if earlier is not None:
             raise DuplicateFile(

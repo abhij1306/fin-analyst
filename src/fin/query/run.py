@@ -47,22 +47,28 @@ LEFT JOIN facts f ON f.raw_id = r.raw_id
 """
 
 
-# The real values behind masked tokens (fin.diligence.mask): fin never prints them.
-MASKED_TABLE = re.compile(r"\bmask_values\b", re.IGNORECASE)
+# The real values behind masked tokens (fin.diligence.mask): fin never prints them. Also refused:
+# the table functions that take a table name, SQL or a database file as text, which could reach
+# mask_values without naming it ("query_table('mask_' || 'values')").
+MASKED_TABLE = re.compile(
+    r'\bmask_values\b|\b(?:query|query_table|read_duckdb)"?\s*\(', re.IGNORECASE
+)
 
 
 def refuse_masked(sql: str) -> None:
-    """E810 when the SQL names `mask_values` (a name match is enough: when in doubt, refuse)."""
+    """E810 when the SQL names `mask_values` or calls query, query_table or read_duckdb (a name
+    match is enough: when in doubt, refuse)."""
     if MASKED_TABLE.search(sql):
         raise MaskedTableRead(
-            "`fin sql` does not read mask_values: it holds the real names behind the masked "
-            "tokens, which fin never prints. Work with the tokens. Nothing was run"
+            "`fin sql` does not read mask_values (nor run query, query_table or read_duckdb, "
+            "which could reach it): it holds the real names behind the masked tokens, which fin "
+            "never prints. Work with the tokens. Nothing was run"
         )
 
 
 def check_select(con: duckdb.DuckDBPyConnection, sql: str) -> None:
-    """Raise E810 when `sql` names mask_values, and E502 unless it is exactly one SELECT statement
-    (WITH ... SELECT counts)."""
+    """Raise E810 when `sql` names mask_values (or a function that could reach it), and E502
+    unless it is exactly one SELECT statement (WITH ... SELECT counts)."""
     refuse_masked(sql)
     try:
         statements = con.extract_statements(sql)

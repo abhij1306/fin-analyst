@@ -224,7 +224,8 @@ def recheck_held(run: Run, company: str, changed: Iterable[int] = ()) -> list[di
 def accept(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
     """Save as is: mark open findings accepted. A held document with no open findings left is
     loaded as filed. E406 (nothing changed) for an id that is not an open finding of the company.
-    Returns one row per document the findings belong to: doc_id, file, open findings, status."""
+    Returns one row per document the findings belong to (doc_id, file, open findings, status), then
+    one per diligence source file (file_id instead of doc_id)."""
     path = company_db_path(run.root, company)
     if not path.is_file():
         raise FindingNotOpen(f"no database for company {company!r}; nothing accepted")
@@ -262,6 +263,17 @@ def accept(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
             out.append(
                 {"doc_id": doc_id, "file": file_name, "open": open_findings, "status": status}
             )
+        files = con.execute(
+            "SELECT s.file_id, s.file_name, s.status, (SELECT count(*) FROM findings o "
+            "WHERE o.file_id = s.file_id AND o.status = 'open') FROM source_files s "
+            f"WHERE s.file_id IN (SELECT file_id FROM findings WHERE finding_id IN ({marks})) "
+            "ORDER BY s.file_id",
+            ids,
+        ).fetchall()
+        out += [
+            {"file_id": file_id, "file": name, "open": open_findings, "status": status}
+            for file_id, name, status, open_findings in files
+        ]
     return out
 
 

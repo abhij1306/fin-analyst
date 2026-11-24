@@ -294,8 +294,9 @@ class GroupsOnlyTrialBalance(FinError):
 
 
 class MaskedTableRead(FinError):
-    """E810. `fin sql` was given SQL naming `mask_values` (the real values behind masked tokens):
-    fin never prints them. Nothing was run."""
+    """E810. `fin sql` was given SQL naming `mask_values` (the real values behind masked tokens),
+    or calling query, query_table or read_duckdb, which could reach it: fin never prints them.
+    Nothing was run."""
 
     code = "E810"
 

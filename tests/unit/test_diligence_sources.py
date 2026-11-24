@@ -23,6 +23,7 @@ from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
 from fin.diligence.sources import ingest_source
+from fin.findings import accept
 from fin.paths import company_db_path
 from fin.query.run import check_select
 from tests.tally_fixtures import (
@@ -254,8 +255,33 @@ def test_the_same_file_twice_is_refused_and_a_new_one_supersedes(
     ]
     assert rows(root, "SELECT status FROM findings") == [("superseded",)]
     assert rows(root, "SELECT count(*) FROM mask_values") == [(4,)]  # same names, same tokens
+    with pytest.raises(DuplicateFile, match="already loaded as source file_id 1"):
+        load(root, first, "trial_balance")  # superseded, still the same file
 
 
-def test_fin_sql_refuses_to_read_mask_values(root: Path) -> None:
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT real_value FROM main.Mask_Values",
+        "SELECT * FROM query_table('mask_' || 'values')",
+        "SELECT * FROM \"query\" ('SELECT * FROM mask_' || 'values')",
+        "SELECT * FROM read_duckdb('acme.duckdb', table_name := 'mask_' || 'values')",
+    ],
+)
+def test_fin_sql_refuses_to_read_mask_values(root: Path, sql: str) -> None:
     with connect(company_db_path(root, "acme")) as con, pytest.raises(MaskedTableRead):
-        check_select(con, "SELECT real_value FROM main.Mask_Values")
+        check_select(con, sql)
+
+
+def test_fin_sql_still_reads_a_column_named_query(root: Path) -> None:
+    with connect(company_db_path(root, "acme")) as con:
+        check_select(con, "SELECT 1 AS query, (2) AS two")
+
+
+def test_accepting_a_source_file_finding_reports_the_file(root: Path, tmp_path: Path) -> None:
+    load(root, write_trial_balance(tmp_path / "tb.xlsx", plant=True), "trial_balance")
+
+    out = accept(Run("findings accept", {}, root), "acme", [1])
+
+    assert out == [{"file_id": 1, "file": "tb.xlsx", "open": 0, "status": "loaded"}]
+    assert rows(root, "SELECT status FROM findings") == [("accepted",)]
