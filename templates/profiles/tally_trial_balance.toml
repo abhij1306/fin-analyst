@@ -1,0 +1,24 @@
+# Tally (Prime or ERP 9): Display > Trial Balance in Detailed mode (with ledgers), exported to Excel.
+# Columns: Particulars | Closing Balance (Debit, Credit), under export-period header lines such as
+# "1-Apr-2024 to 31-Mar-2025". Group rows are bold; a row's nesting is its Particulars indent.
+# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+kind = "trial_balance"
+header_rows = 2
+date_format = "%d-%b-%Y"
+period = '(?P<start>\d{1,2}-[A-Za-z]{3}-\d{4})\s+to\s+(?P<end>\d{1,2}-[A-Za-z]{3}-\d{4})'
+unit = 1
+
+[columns]
+"Particulars" = "name"
+"Closing Balance Debit" = "debit"
+"Closing Balance Credit" = "credit"
+
+[rows]
+group = "bold"
+level = "indent"
+skip = ["Grand Total"]
+
+# Ledgers under these groups are parties: their names are stored as tokens.
+[mask]
+groups = { "Sundry Debtors" = "customer", "Sundry Creditors" = "vendor" }
+fields = ["name"]

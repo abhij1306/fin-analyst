@@ -13,6 +13,16 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    (`query_threshold` in `config.toml`), then run `uv run fin engagement open <company> --periods FY24,FY25,FY26
    [--threshold N]`. Report the engagement, the queries by status and the adjustments by status with their sums,
    from the command output.
+   - **Source files.** Load each period's Tally trial balance (Detailed mode) first, then its Ledger Vouchers:
+     `uv run fin ingest <company> <file> --kind trial_balance`, then `--kind ledger_vouchers` (E811 if the trial
+     balance is not loaded yet). Report the outcome lines as printed: ledgers and groups, findings (a group not
+     equal to its ledgers: show it with `fin findings list` and ask, as for any finding), the trial balance ledgers
+     missing from the Ledger Vouchers (ask the user for the export with all ledgers) and the ledgers masked as
+     `LEDG-...`. E807 lists the header lines of a layout no profile reads: write a profile in
+     `templates/profiles/` (`docs/CUSTOMISING.md`) and ingest with `--profile <name>`. E808: the period is not a
+     year of the engagement; E809: ask for the Detailed export.
+   - **Names are tokens** (`CUST-0001`, `VEND-0001`, `LEDG-0001`). Use them as they are in queries and answers;
+     never try to read `mask_values` (`fin sql` refuses, E810) or guess a name.
 2. **Queries from findings.** Run `uv run fin findings list <company> --json`. For each open or accepted finding in
    a period of the engagement, with a difference at or above the engagement's query threshold, draft a short,
    neutral question for the company's accountant: what the two figures are, where each is (file + sheet!cell or
@@ -73,4 +83,5 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    own. Never change the company's data to make a difference go away; fixing fin's own reading (a wrong mapping, a
    misread figure) is still done through `/ingest` and `/review`. If a command fails (E801 a gate not approved, E802
    a gate not ready, E803 no open engagement, E804 an adjustment that is not valid, E805 an unknown id or a status
-   change not allowed, E806 `fin sql --write` on a diligence table), report the error code and run_id and stop.
+   change not allowed, E806 `fin sql --write` on a diligence table, E807-E811 a source file that cannot load or
+   `mask_values` read), report the error code and run_id and stop.

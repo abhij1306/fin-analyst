@@ -24,7 +24,9 @@ from fin.dashboard import serve as serve_dashboard
 from fin.db.schema import ensure_database
 from fin.delete import delete_company
 from fin.diligence.cli import adjust_app, engagement_app, gate_app, query_app
+from fin.diligence.sources import ingest_source
 from fin.doctor import Check, run_checks
+from fin.extract.profiles import KINDS
 from fin.findings import accept, format_finding, list_findings
 from fin.ingest import files_in, ingest_file
 from fin.map.commands import map_app, review_app
@@ -250,19 +252,47 @@ def ingest(
             "for the statements fin cannot read. PATH must be one file.",
         ),
     ] = None,
+    kind: Annotated[
+        str | None,
+        typer.Option(
+            "--kind",
+            help=f"Load PATH as a diligence source file: {' or '.join(KINDS)} (needs an open "
+            "engagement; the period comes from the export's header).",
+        ),
+    ] = None,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            help="With --kind: the column profile (templates/profiles/<name>.toml). Default: the "
+            "first profile of the kind whose headers the file has.",
+        ),
+    ] = None,
 ) -> None:
-    """Load Excel and PDF documents for one company. Files already loaded are skipped (E105)."""
+    """Load Excel and PDF documents for one company. Files already loaded are skipped (E105).
+    With --kind, load one diligence source file (trial balance, Ledger Vouchers) instead."""
 
-    # A usage error, before the run starts (like the option callbacks).
+    # Usage errors, before the run starts (like the option callbacks).
     if reading is not None and (path is None or not path.is_file()):
         raise typer.BadParameter("--reading needs PATH to be the one file it was read from")
+    if kind is not None and (kind not in KINDS or path is None or not path.is_file()):
+        raise typer.BadParameter(f"--kind takes {' or '.join(KINDS)} and PATH as one file")
+    if kind is not None and (force or reading is not None):
+        raise typer.BadParameter("--kind does not take --force or --reading")
+    if profile is not None and kind is None:
+        raise typer.BadParameter("--profile needs --kind")
 
     def body(run: Run) -> None:
+        if kind is not None and path is not None:
+            ensure_database(company_db_path(run.root, company), "company")
+            loaded = ingest_source(run, load_config(run.root), company, path, kind, profile)
+            typer.echo(f"{company}/{path.name}: " + "\n  ".join(loaded.lines))
+            return
         source = path if path is not None else inbox_dir(run.root, company)
         _ingest_files(run, [(company, files_in(source))], force, reading)
 
     args = {"company": company, "path": path, "force": force, "reading": reading}
-    execute("ingest", args, body)
+    execute("ingest", args | {"kind": kind, "profile": profile}, body)
 
 
 @app.command("ingest-batch")

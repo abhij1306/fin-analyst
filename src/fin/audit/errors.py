@@ -16,6 +16,9 @@ a command returns when the error ends it:
 - E803-E806 (diligence: no open engagement or one already open, an invalid adjustment, an unknown
   id or a status change not allowed, `fin sql --write` on a diligence table) stop the command:
   exit 2.
+- E807-E811 (diligence source files: no column profile for the layout, a period not in the
+  engagement, a trial balance with group rows only, `fin sql` naming `mask_values`, Ledger
+  Vouchers before its period's trial balance) stop the command: exit 2.
 """
 
 # Exit codes
@@ -261,7 +264,44 @@ class DiligenceChangeRefused(FinError):
 
 class DiligenceTableWrite(FinError):
     """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
-    accountant_queries, adjustments, gate_approvals): those change only through `fin engagement`,
-    `fin query`, `fin adjust` and `fin gate`. Nothing was run."""
+    accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries):
+    those change only through `fin engagement`, `fin query`, `fin adjust`, `fin gate` and
+    `fin ingest --kind`. Nothing was run."""
 
     code = "E806"
+
+
+class LayoutUnknown(FinError):
+    """E807. `fin ingest --kind`: the column profile named is unknown or invalid, or no profile of
+    the kind matches the file's headers (the message lists the header lines found, to write a
+    profile from). Nothing loaded."""
+
+    code = "E807"
+
+
+class SourcePeriodInvalid(FinError):
+    """E808. `fin ingest --kind`: the export's header lines give no period, or the period is not an
+    annual period of the open engagement. Nothing loaded."""
+
+    code = "E808"
+
+
+class GroupsOnlyTrialBalance(FinError):
+    """E809. A trial balance with group rows only (Tally's Condensed export): ledgers are needed, so
+    export it again in Detailed mode. Nothing loaded."""
+
+    code = "E809"
+
+
+class MaskedTableRead(FinError):
+    """E810. `fin sql` was given SQL naming `mask_values` (the real values behind masked tokens):
+    fin never prints them. Nothing was run."""
+
+    code = "E810"
+
+
+class TrialBalanceNeeded(FinError):
+    """E811. Ledger Vouchers were ingested before the trial balance of their period: the trial
+    balance says which ledgers are parties, whose names are masked. Nothing loaded."""
+
+    code = "E811"

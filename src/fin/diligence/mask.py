@@ -1,0 +1,81 @@
+"""Masking names (docs/DILIGENCE_PLAN.md §2 rule 4 and §3, "Masking").
+
+What fin prints goes to Claude, and from Claude Code to Anthropic; the diligence user's rule is to
+anonymise names before any third-party processing. So on load, each masked value is stored once in
+`mask_values` (its kind, the real value and a stable token) and the data tables get the token:
+`CUST-0001` for a customer, `VEND-0001` vendor, `USER-0001` handler or submitted-by,
+`EMP-0001` employee name, `ECODE-0001` employee code, `LEDG-0001` a ledger fin cannot classify.
+The same value (ignoring case and repeated spaces) gets the same token in every file.
+
+`Masker.text` masks free text: a value that is a known name becomes its token, and every known name
+inside it is replaced by its token. Nothing in fin prints `mask_values`; only the accountant export
+(D8) will read it.
+"""
+
+import re
+
+import duckdb
+
+from fin.extract.profiles import norm
+
+PREFIX = {
+    "customer": "CUST",
+    "vendor": "VEND",
+    "user": "USER",
+    "employee_name": "EMP",
+    "employee_code": "ECODE",
+    "ledger": "LEDG",
+}
+
+
+class Masker:
+    """Tokens for one load, in the load's transaction (`con`)."""
+
+    def __init__(self, con: duckdb.DuckDBPyConnection, run_id: str, file_id: int) -> None:
+        self.con, self.run_id, self.file_id = con, run_id, file_id
+        rows = con.execute("SELECT kind, match_key, token, real_value FROM mask_values").fetchall()
+        self.by_kind = {(kind, key): token for kind, key, token, _ in rows}
+        self.by_key = {key: token for _, key, token, _ in rows}
+        self.names = {token: real for _, _, token, real in rows}
+        self.added = 0
+        self._pattern: re.Pattern[str] | None = None
+        self._tokens: dict[str, str] = {}  # normalised real value -> token, for `text`
+
+    def token(self, kind: str, value: str) -> str:
+        """The token for `value` of `kind`, made (and stored) the first time it is seen."""
+        key = norm(value)
+        found = self.by_kind.get((kind, key))
+        if found is not None:
+            return found
+        count = sum(1 for k, _ in self.by_kind if k == kind)
+        token = f"{PREFIX[kind]}-{count + 1:04d}"
+        real = " ".join(value.split())
+        self.con.execute(
+            "INSERT INTO mask_values (token, kind, real_value, match_key, first_file_id, run_id) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [token, kind, real, key, self.file_id, self.run_id],
+        )
+        self.by_kind[(kind, key)] = token
+        self.by_key.setdefault(key, token)
+        self.names[token] = real
+        self.added += 1
+        self._pattern = None
+        return token
+
+    def known(self, value: str) -> str | None:
+        """The token of a value that is a known masked name, else None."""
+        return self.by_key.get(norm(value))
+
+    def text(self, value: str | None) -> str | None:
+        """Free text with every known masked name replaced by its token."""
+        if not value or not self.names:
+            return value
+        exact = self.known(value)
+        if exact is not None:
+            return exact
+        if self._pattern is None:
+            names = sorted(self.names.items(), key=lambda item: -len(item[1]))
+            self._tokens = {norm(real): token for token, real in names}
+            alternatives = "|".join(r"\s+".join(map(re.escape, real.split())) for _, real in names)
+            self._pattern = re.compile(alternatives, re.IGNORECASE)
+        return self._pattern.sub(lambda m: self._tokens[norm(m.group(0))], value)

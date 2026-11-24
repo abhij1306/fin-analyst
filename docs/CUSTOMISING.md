@@ -8,7 +8,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 - `cli.py`: the `fin` commands (Typer). Each runs through the audit logger.
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
-- `audit/errors.py`: error classes and codes (E001 to E806). `audit/logger.py`: run records and logging.
+- `audit/errors.py`: error classes and codes (E001 to E811). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
   database from its schema file.
@@ -21,6 +21,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
   `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read),
   `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
+  `profiles.py` and `ledger.py`: column profiles (`templates/profiles/*.toml`) and the tabular reader for
+  diligence source files (header, period line, rows with sheet and row).
   The optional PDF add-on (one of three uv extras, `[pdf] parser` in `config.toml`): `fallback.py` is ingest's PDF
   reading (pdfplumber, then the chosen engine on the statement pages `pdf.py` skipped, and on short scanned PDFs
   when fin uses the engine's OCR, `OCR = True`: not LiteParse);
@@ -38,6 +40,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   formats the EBITDA bridge and EBITDA-to-cash walk views), `gates.py` (`fin gate status|approve`: the `GATES`
   registry with each gate's checklist and inputs, the approved/reopened/open states, `require` (E801) and
   approval (E802)), `cli.py` (the `fin engagement`, `fin query`, `fin adjust` and `fin gate` Typer groups). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
+  Source files (`fin ingest --kind`): `sources.py` (one file in one transaction: period check, archive,
+  `source_files`, supersede), `tally.py` (what trial balance and Ledger Vouchers rows mean: groups, ledger blocks,
+  the group-sum finding), `mask.py` (tokens for names, `mask_values`). Tables: `db/schema/sources.sql`.
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
@@ -53,6 +58,17 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   (the PDF add-on: uv extra, models, `[pdf] parser`).
 - Outside `src/`: `templates/dictionary/` (seed CSVs), `templates/report/health.qmd`, `.claude/commands/` (slash
   commands), `.claude/hooks/` (action log), `dashboards/` (Evidence project).
+
+## Add a column profile (a new export layout for a diligence source file)
+
+When `fin ingest <co> <file> --kind <kind>` fails with E807, the message lists the title and header lines it found.
+Copy the nearest profile in `templates/profiles/` to `<name>.toml` (lower case, digits, `_`) and change only what
+differs: `[columns]` (header text as printed, joined over `header_rows` rows, to a field; the fields each kind needs
+are `FIELDS` in `extract/profiles.py`), `date_format`, `period` (a regular expression with groups `start` and `end`
+for the header line naming the period), `unit`, `[rows]` (`skip`; for a trial balance `group` and `level`; for
+Ledger Vouchers `block` and `block_prefix`) and `[mask]` (`groups`: the party groups whose ledgers are masked, and
+`fields`). Then ingest with `--profile <name>`. Add a test with a synthetic file in that layout
+(`tests/tally_fixtures.py` shows how). Keep it to what the profile can state: no layout special cases in code.
 
 ## Add an account or a label to the dictionary seed
 
