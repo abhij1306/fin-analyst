@@ -3,8 +3,8 @@
 The statement must be a single SELECT (or WITH ... SELECT); anything else is rejected with E502 and
 still logged. When the result has a `fact_ids`, `fact_id` or `raw_id` column (the first one found),
 every row gets provenance columns: the source file, `sheet!cell` or `page N`, whether the fact's
-mapping is confirmed, who read the figure (`fin`, `docling` from the PDF add-on, or `claude` from a
-reading file).
+mapping is confirmed, who read the figure (`fin`; `docling`, `liteparse` or `llamaparse` from the
+PDF add-on; or `claude` from a reading file).
 
 `fact_ids` (in `current_facts`, `document_facts` and `standard_statements`) lists every fact behind
 a value. A value summed from several printed lines gets every line's source: `source_ref` starts

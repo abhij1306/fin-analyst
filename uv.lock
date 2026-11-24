@@ -253,6 +253,15 @@ wheels = [
 ]
 
 [[package]]
+name = "distro"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/f8/98eea607f65de6527f8a2e8885fc8015d3e6f5775df186e443e0964a11c3/distro-1.9.0.tar.gz", hash = "sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed", size = 60722, upload-time = "2023-12-24T09:54:32.31Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2", size = 20277, upload-time = "2023-12-24T09:54:30.421Z" },
+]
+
+[[package]]
 name = "doclang"
 version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -488,6 +497,12 @@ docling = [
     { name = "torchvision", version = "0.29.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
     { name = "torchvision", version = "0.29.2+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
 ]
+liteparse = [
+    { name = "liteparse" },
+]
+llamaparse = [
+    { name = "llama-cloud" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -502,6 +517,8 @@ dev = [
 requires-dist = [
     { name = "docling", marker = "(platform_machine != 'x86_64' and extra == 'docling') or (sys_platform != 'darwin' and extra == 'docling')", specifier = "==2.148.0" },
     { name = "duckdb", specifier = "==2.0.0" },
+    { name = "liteparse", marker = "extra == 'liteparse'", specifier = "==2.21.1" },
+    { name = "llama-cloud", marker = "extra == 'llamaparse'", specifier = "==2.20.0" },
     { name = "openpyxl", specifier = "==3.1.5" },
     { name = "pdfplumber", specifier = "==0.11.10" },
     { name = "torch", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'docling') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'docling')", specifier = "==2.15.0" },
@@ -510,7 +527,7 @@ requires-dist = [
     { name = "torchvision", marker = "sys_platform == 'linux' and extra == 'docling'", specifier = "==0.29.2", index = "https://download.pytorch.org/whl/cpu" },
     { name = "typer", specifier = "==0.27.3" },
 ]
-provides-extras = ["docling"]
+provides-extras = ["docling", "liteparse", "llamaparse"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -685,6 +702,38 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/88/db/336c38300e44582752b95842b15a4be8fe656914cf5b02ad1bec53cebceb/latex2mathml-3.81.1.tar.gz", hash = "sha256:c95add0c0fcdecad2d70567e0643050d5ea1149fb2e98a5d5792fb1c8eea2ed5", size = 77475, upload-time = "2026-09-07T19:55:11.037Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/30/b8bcfb01a2514cb7554a048ed52883de276e66d757c3cc535a3c29eb9e98/latex2mathml-3.81.1-py3-none-any.whl", hash = "sha256:c337668441b71c819b6733905a8058ba9a9d767bae11a0c5fdacb3aff31361bd", size = 79159, upload-time = "2026-09-07T19:55:09.611Z" },
+]
+
+[[package]]
+name = "liteparse"
+version = "2.21.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/89/1e/b10333755074e1516ed00e8fc13f58c2f386e37412b67dde2f841353d389/liteparse-2.21.1.tar.gz", hash = "sha256:e3c8cc0aed259be3b1e562dfdaa65dd3494a55f4a3b856e0c140efce519cab17", size = 853630, upload-time = "2026-11-24T00:09:01.303Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/67/cbb77e5612571b1f2095f04b49eef49f22bc4c1b138272e7eb8f3cea78d8/liteparse-2.21.1-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:ecca20f3b1ff8c765bb7fd14ba1301ac3213697294270763b1adf0320b87021a", size = 12849864, upload-time = "2026-11-24T00:08:40.984Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/6b/698d6a19524a82f95c4ca5a4c4edd8eb9082143808ab9378c2de7004337f/liteparse-2.21.1-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:8c924541a9b4c5ffdde85431ddd7b408cc3eca4f61c05747073424333bef07d6", size = 12178126, upload-time = "2026-11-24T00:08:43.665Z" },
+    { url = "https://files.pythonhosted.org/packages/35/4f/f1b505d97c01e61da85ab74a110e8c7e3a3398b60dc4989464a99e24bb4b/liteparse-2.21.1-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:51c7666d8d5d076f40467c514c6d734cfa443a55df93d9214b8bedb253825115", size = 13758305, upload-time = "2026-11-24T00:08:46.673Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/e0/f2de45fc0d97780d7806b61a447850011b71c98dfb707b0b469c5f113d5d/liteparse-2.21.1-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:859d26585e4715f66c993283eb5d6303404951a7960238d5bd6acdafc406c087", size = 14129328, upload-time = "2026-11-24T00:08:49.997Z" },
+    { url = "https://files.pythonhosted.org/packages/29/cd/135f573bbd932574cfaf975d787c71434b9a4a90e89e3640ce8aedfbeb11/liteparse-2.21.1-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:63fb3ed61b0c65286279ed5257c26bee4e359f2f6dbf5c39b1c5b91b434f1913", size = 17273573, upload-time = "2026-11-24T00:08:53.307Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/a8/13c9ba38e7a337c9c6ed95c7b7b317ca3116db2b5865a66ed8e4cd276b4d/liteparse-2.21.1-cp310-abi3-win_amd64.whl", hash = "sha256:d28111a9c300d1ad2c2ed62a1427fe7936066d1d754f2f9cb6ab0a39d473a2b5", size = 12249659, upload-time = "2026-11-24T00:08:56.172Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/f8/50bd2616f492b438142a008bbefac43c9457083ccbd8fb39d3366c679852/liteparse-2.21.1-cp310-abi3-win_arm64.whl", hash = "sha256:9c29eeb1fe6cf989c75736ef63f5840704523a7d2af0d4ade4b9b93b21881a37", size = 11523847, upload-time = "2026-11-24T00:08:58.952Z" },
+]
+
+[[package]]
+name = "llama-cloud"
+version = "2.20.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d4/1e/4f07785a9621066ac0e9a6e3eebcf42cad24c1089837e9380172f68528e9/llama_cloud-2.20.0.tar.gz", hash = "sha256:8a78db29764a50c0ef72987960806549df306892a19bb4f6ebcd5c048f22c186", size = 3632171, upload-time = "2026-11-20T19:51:33.849Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/d5/c883ba3d949db51fd0bde3c759f99f3b8deeaea3a24577f39fd8679fe429/llama_cloud-2.20.0-py3-none-any.whl", hash = "sha256:23b6893539cc7ea7d5a279d8832c0f17587e29087d90a73b7f44a48bd1985c7a", size = 569929, upload-time = "2026-11-20T19:51:32.299Z" },
 ]
 
 [[package]]
@@ -1564,6 +1613,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
+name = "sniffio"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/87/a6771e1546d97e7e041b6ae58d80074f81b7d5121207425c964ddf5cfdbd/sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc", size = 20372, upload-time = "2024-02-25T23:20:04.057Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2", size = 10235, upload-time = "2024-02-25T23:20:01.196Z" },
 ]
 
 [[package]]

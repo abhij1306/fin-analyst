@@ -8,11 +8,11 @@ from fin.config import (
     DEFAULT_CONFIG_TOML,
     Config,
     load_config,
-    set_docling,
+    set_parser,
     write_default_config,
 )
 
-# config.toml as written before the Docling add-on: no [pdf] table.
+# config.toml as written before the PDF add-on: no [pdf] table.
 OLDER_CONFIG = DEFAULT_CONFIG_TOML[: DEFAULT_CONFIG_TOML.index("\n\n[pdf]")] + "\n"
 CATEGORIES = (
     "adjustment_categories = [\n"
@@ -20,94 +20,93 @@ CATEGORIES = (
 )
 
 
-def test_docling_is_off_by_default_and_without_a_pdf_table(tmp_path: Path) -> None:
+def test_no_add_on_by_default_and_without_a_pdf_table(tmp_path: Path) -> None:
     write_default_config(tmp_path)
-    assert load_config(tmp_path).docling is False
+    assert load_config(tmp_path).pdf_parser == "none"
     (tmp_path / "config.toml").write_text(OLDER_CONFIG, encoding="utf-8")
-    assert load_config(tmp_path).docling is False
+    assert load_config(tmp_path).pdf_parser == "none"
 
 
-def test_set_docling_changes_only_that_line(tmp_path: Path) -> None:
+def test_set_parser_changes_only_that_line(tmp_path: Path) -> None:
     write_default_config(tmp_path)
 
-    set_docling(tmp_path, True)
+    set_parser(tmp_path, "liteparse")
 
     text = (tmp_path / "config.toml").read_text(encoding="utf-8")
-    assert text == DEFAULT_CONFIG_TOML.replace("docling = false", "docling = true")
-    assert load_config(tmp_path).docling is True
+    assert text == DEFAULT_CONFIG_TOML.replace('parser = "none"', 'parser = "liteparse"')
+    assert load_config(tmp_path).pdf_parser == "liteparse"
 
 
-def test_set_docling_keeps_a_trailing_comment(tmp_path: Path) -> None:
-    write_default_config(tmp_path)
-    path = tmp_path / "config.toml"
-    path.write_text(
-        DEFAULT_CONFIG_TOML.replace("docling = false", "docling = false  # off"), encoding="utf-8"
-    )
-
-    set_docling(tmp_path, True)
-
-    assert path.read_text(encoding="utf-8") == DEFAULT_CONFIG_TOML.replace(
-        "docling = false", "docling = true  # off"
-    )
-    assert load_config(tmp_path).docling is True
-
-
-def test_set_docling_adds_the_pdf_table_to_an_older_config(tmp_path: Path) -> None:
+def test_set_parser_adds_the_pdf_table_to_an_older_config(tmp_path: Path) -> None:
     (tmp_path / "config.toml").write_text(OLDER_CONFIG, encoding="utf-8")
 
-    set_docling(tmp_path, True)
+    set_parser(tmp_path, "docling")
 
     assert (tmp_path / "config.toml").read_text(encoding="utf-8") == OLDER_CONFIG + (
-        "\n[pdf]\n# Docling, the optional PDF add-on (`./install.sh --docling` / `--no-docling`).\n"
-        "docling = true\n"
+        '\n[pdf]\n# The optional PDF add-on: "none", "docling", "liteparse" or "llamaparse" '
+        '(`fin parser use`).\nparser = "docling"\n'
     )
-    assert load_config(tmp_path).docling is True
+    assert load_config(tmp_path).pdf_parser == "docling"
 
 
 @pytest.mark.parametrize(
     ("written", "result"),
     [
-        ("  docling = false", "  docling = true"),
-        ('"docling" = false', "docling = true"),
-        ("docling=false # off", "docling = true # off"),
+        ('  parser = "none"', '  parser = "docling"'),
+        ("\"parser\" = 'none'", 'parser = "docling"'),
+        ('parser="none" # off', 'parser = "docling" # off'),
     ],
 )
-def test_set_docling_edits_the_pdf_table_however_it_is_written(
+def test_set_parser_edits_the_pdf_table_however_it_is_written(
     tmp_path: Path, written: str, result: str
 ) -> None:
     write_default_config(tmp_path)
     path = tmp_path / "config.toml"
-    path.write_text(DEFAULT_CONFIG_TOML.replace("docling = false", written), encoding="utf-8")
+    path.write_text(DEFAULT_CONFIG_TOML.replace('parser = "none"', written), encoding="utf-8")
 
-    set_docling(tmp_path, True)
+    set_parser(tmp_path, "docling")
 
     assert path.read_text(encoding="utf-8") == DEFAULT_CONFIG_TOML.replace(
-        "docling = false", result
+        'parser = "none"', result
     )
-    assert load_config(tmp_path).docling is True
+    assert load_config(tmp_path).pdf_parser == "docling"
 
 
-def test_set_docling_refuses_a_table_it_cannot_edit_and_keeps_the_file(tmp_path: Path) -> None:
+def test_set_parser_refuses_a_table_it_cannot_edit_and_keeps_the_file(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
-    inline = OLDER_CONFIG + "pdf = { docling = false }\n"
+    inline = OLDER_CONFIG + 'pdf = { parser = "none" }\n'
     path.write_text(inline, encoding="utf-8")
 
     with pytest.raises(FinError) as caught:
-        set_docling(tmp_path, True)
+        set_parser(tmp_path, "docling")
 
     assert caught.value.code == "E002"
     assert path.read_text(encoding="utf-8") == inline
     assert not list(tmp_path.glob("*.tmp"))
 
 
-def test_docling_must_be_true_or_false(tmp_path: Path) -> None:
+def test_set_parser_refuses_an_unknown_parser(tmp_path: Path) -> None:
+    write_default_config(tmp_path)
+    with pytest.raises(FinError) as caught:
+        set_parser(tmp_path, "tesseract")
+    assert caught.value.code == "E002"
+
+
+@pytest.mark.parametrize(
+    ("written", "problem"),
+    [
+        ("docling = true", "[pdf] is missing parser"),
+        ('parser = "ocr"', "pdf.parser = 'ocr'; expected one of none, docling, liteparse"),
+    ],
+)
+def test_the_pdf_table_is_checked(tmp_path: Path, written: str, problem: str) -> None:
     (tmp_path / "config.toml").write_text(
-        DEFAULT_CONFIG_TOML.replace("docling = false", 'docling = "yes"'), encoding="utf-8"
+        DEFAULT_CONFIG_TOML.replace('parser = "none"', written), encoding="utf-8"
     )
     with pytest.raises(FinError) as caught:
         load_config(tmp_path)
     assert caught.value.code == "E002"
-    assert "pdf.docling = 'yes'; expected true or false" in caught.value.message
+    assert problem in caught.value.message
 
 
 def test_default_config_round_trips(tmp_path: Path) -> None:

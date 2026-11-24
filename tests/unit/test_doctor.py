@@ -5,11 +5,12 @@ import pytest
 from typer.testing import CliRunner
 
 from fin.cli import app
+from fin.config import set_parser
 from fin.db.conn import connect
 from fin.doctor import (
     Check,
     check_audit_schema,
-    check_docling,
+    check_pdf_parser,
     check_tool,
     parse_version,
     run_checks,
@@ -85,40 +86,64 @@ def test_audit_schema_check_names_the_fix(data_root: Path) -> None:
     )
 
 
-def test_docling_off_is_fine(data_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_no_pdf_add_on_is_fine(data_root: Path) -> None:
     CliRunner().invoke(app, ["init"])
-    monkeypatch.setattr("fin.extract.docling_run.installed", lambda: False)
-    assert check_docling(data_root) == Check(
-        "docling", True, "not installed (optional; `./install.sh --docling` to add it)"
+    assert check_pdf_parser(data_root) == Check(
+        "pdf parser", True, "none (optional; `uv run fin parser use <name>` or /parser)"
     )
 
 
-def test_docling_on_but_not_importable_fails(
+def test_a_chosen_add_on_that_does_not_import_fails(
     data_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    CliRunner().invoke(app, ["init", "--docling"])
+    CliRunner().invoke(app, ["init"])
+    set_parser(data_root, "liteparse")
 
     def missing(name: str) -> None:
         raise ImportError(f"No module named {name!r}")
 
     monkeypatch.setattr("fin.doctor.importlib.import_module", missing)
-    check = check_docling(data_root)
+    check = check_pdf_parser(data_root)
     assert (check.ok, check.code, check.fix) == (
         False,
         "E001",
-        "run `./install.sh --docling` (or `./install.sh --no-docling` to turn it off)",
+        "run `uv run fin parser use liteparse` (or `uv run fin parser use none`)",
     )
+    assert check.detail.startswith('[pdf] parser = "liteparse" in config.toml, but LiteParse')
 
 
-def test_docling_on_without_its_models_warns(
+def test_docling_without_its_models_warns(
     data_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    CliRunner().invoke(app, ["init", "--docling"])
+    CliRunner().invoke(app, ["init"])
+    set_parser(data_root, "docling")
     monkeypatch.setattr("fin.doctor.importlib.import_module", lambda name: None)
     monkeypatch.setenv("DOCLING_CACHE_DIR", str(tmp_path / "empty"))
-    check = check_docling(data_root)
+    check = check_pdf_parser(data_root)
     assert (check.ok, check.warning, check.fix) == (
         True,
         True,
         "run `uv run docling-tools models download layout tableformer rapidocr`",
     )
+
+
+def test_llamaparse_says_whether_the_key_is_set_never_its_value(
+    data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    CliRunner().invoke(app, ["init"])
+    set_parser(data_root, "llamaparse")
+    monkeypatch.setattr("fin.doctor.importlib.import_module", lambda name: None)
+    monkeypatch.delenv("LLAMA_CLOUD_API_KEY", raising=False)
+
+    missing = check_pdf_parser(data_root)
+    monkeypatch.setenv("LLAMA_CLOUD_API_KEY", "llx-secret-value")
+    present = check_pdf_parser(data_root)
+
+    assert (missing.ok, missing.warning) == (True, True)
+    assert "LLAMA_CLOUD_API_KEY is not set" in missing.detail
+    assert (present.ok, present.warning) == (True, False)
+    assert present.detail == (
+        "llamaparse: installed, LLAMA_CLOUD_API_KEY is set; skipped pages are uploaded to "
+        "LlamaParse's cloud"
+    )
+    assert "llx-secret-value" not in str(present.as_dict())

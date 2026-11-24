@@ -13,6 +13,7 @@ from typer.testing import CliRunner, Result
 
 import fin.update
 from fin.cli import app
+from fin.config import set_parser
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.paths import analytics_db_path, company_db_path
@@ -272,18 +273,22 @@ def test_update_pulls_and_backs_up(
     assert any(s.startswith("metrics refreshed") for s in steps)
 
 
-def test_update_keeps_the_docling_add_on(
+@pytest.mark.parametrize("parser", ["docling", "liteparse", "llamaparse"])
+def test_update_keeps_the_chosen_pdf_add_on(
     clone: tuple[Path, Path],
     data_root: Path,
     audit_query: Callable[..., list[tuple[Any, ...]]],
+    parser: str,
 ) -> None:
-    """With `[pdf] docling = true`, update syncs with the extra (a plain sync would remove it)."""
-    assert invoke("init", "--docling").exit_code == 0
+    """With `[pdf] parser` naming an add-on, update syncs with its extra (a plain sync would
+    remove it)."""
+    assert invoke("init").exit_code == 0
+    set_parser(data_root, parser)
 
     invoke("update")
 
     steps = [m for (m,) in audit_query("SELECT message FROM events WHERE stage = 'update'")]
-    assert "uv sync --extra docling: exit 0" in steps
+    assert f"uv sync --extra {parser}: exit 0" in steps
 
 
 def test_update_refuses_local_changes(clone: tuple[Path, Path], data_root: Path) -> None:

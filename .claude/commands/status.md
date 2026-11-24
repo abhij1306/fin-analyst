@@ -12,7 +12,7 @@ Show the status of the companies in fin: $ARGUMENTS
    - held documents and their open findings: not in figures or metrics until the user decides;
    - findings open and accepted;
    - mappings waiting for review;
-   - how many figures were read by Claude or Docling (information, not something waiting);
+   - how many figures were read by Claude or the PDF add-on (information, not something waiting);
    - files in the inbox not yet ingested.
 3. Then offer the next step for each item that is waiting, and run it only when the user says so:
    - inbox files not ingested: `/ingest <company>`;

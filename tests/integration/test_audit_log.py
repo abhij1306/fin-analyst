@@ -47,7 +47,6 @@ def _all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     monkeypatch.setattr("fin.doctor.tool_version", versions.get)
     monkeypatch.setattr("fin.doctor.sys.version_info", (3, 12, 13, "final", 0))
-    monkeypatch.setattr("fin.extract.docling_run.installed", lambda: False)
 
 
 def test_doctor_writes_runs_events_and_jsonl(
@@ -96,7 +95,7 @@ def test_doctor_writes_runs_events_and_jsonl(
             "check",
             "info",
             None,
-            "docling: not installed (optional; `./install.sh --docling` to add it)",
+            "pdf parser: none (optional; `uv run fin parser use <name>` or /parser)",
         ),
     ]
 

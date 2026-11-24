@@ -18,7 +18,7 @@ from fin.audit.trace import (
     format_metric_trace,
     metric_trace,
 )
-from fin.config import SCOPES, load_config, set_docling, write_default_config
+from fin.config import SCOPES, load_config, write_default_config
 from fin.dashboard import build as build_dashboard
 from fin.dashboard import serve as serve_dashboard
 from fin.db.schema import ensure_database
@@ -31,6 +31,7 @@ from fin.map.commands import map_app, review_app
 from fin.map.dictionary import load_label_map, load_seed
 from fin.map.review import write_pending
 from fin.metrics.export import refresh_analytics
+from fin.parser import parser_app
 from fin.paths import (
     COMPANY_NAME,
     analytics_db_path,
@@ -60,6 +61,7 @@ app.add_typer(engagement_app, name="engagement")
 app.add_typer(query_app, name="query")
 app.add_typer(adjust_app, name="adjust")
 app.add_typer(gate_app, name="gate")
+app.add_typer(parser_app, name="parser")
 
 
 def _version_callback(value: bool) -> None:
@@ -92,18 +94,9 @@ def _create_shared_databases(run: Run) -> None:
 
 
 @app.command()
-def init(
-    docling: Annotated[
-        bool | None,
-        typer.Option(
-            "--docling/--no-docling",
-            help="Record whether the optional Docling PDF add-on is installed ([pdf] docling in "
-            "config.toml; install.sh sets it). Left as it is when not given.",
-        ),
-    ] = None,
-) -> None:
+def init() -> None:
     """Create the data folder, config.toml and databases. Safe to run again; never deletes or
-    overwrites (`--docling` / `--no-docling` changes only `[pdf] docling` in config.toml)."""
+    overwrites. The PDF add-on is chosen with `fin parser use`."""
 
     def body(run: Run) -> None:
         created, existing = ensure_data_folder(run.root)
@@ -120,11 +113,6 @@ def init(
         else:
             typer.echo("kept     config.toml (already present, not changed)")
             run.event("config", "config.toml already present, not changed")
-        if docling is not None:
-            set_docling(run.root, docling)
-            line = f"set      [pdf] docling = {str(docling).lower()} in config.toml"
-            typer.echo(line)
-            run.event("config", line)
         _create_shared_databases(run)
         seed = load_seed(run.root, run)
         line = (
@@ -137,7 +125,7 @@ def init(
             f"data folder {run.root}: {len(created)} created, {len(existing)} already present"
         )
 
-    execute("init", {"docling": docling}, body, audit_required=False)
+    execute("init", {}, body, audit_required=False)
 
 
 def _check_level(check: Check) -> str:
@@ -395,8 +383,8 @@ def status_command(
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
 ) -> None:
     """Per company: periods loaded and gaps, held documents, open and accepted findings, mappings
-    waiting for review, figures read by Claude or Docling, inbox files not yet ingested, and an
-    open diligence engagement's queries, proposed adjustments and gates."""
+    waiting for review, figures read by Claude or the PDF add-on, inbox files not yet ingested,
+    and an open diligence engagement's queries, proposed adjustments and gates."""
 
     def body(run: Run) -> None:
         result = status(run, company)

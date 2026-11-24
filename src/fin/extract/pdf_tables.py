@@ -1,10 +1,13 @@
-"""Turn the tables Docling found on a statement page into `PdfValue`s, with fin's own rules.
+"""Turn the tables a PDF add-on found on a statement page into `PdfValue`s, with fin's own rules.
 
-Docling (`fin.extract.docling_run`) reads the statement pages pdfplumber skipped. It gives each
-table as a grid of cells (a cell spanning columns repeats in each), with Docling's column-header
-flag and a bounding box. This module reads such a grid the way `fin.extract.pdf` reads a page, with
-the same helpers and guards, and needs no Docling itself:
+The PDF add-on (Docling, LiteParse or LlamaParse; `fin.extract.addon`) reads the statement pages
+pdfplumber skipped. Each engine's adapter gives every table as a grid of cells (a cell spanning
+columns repeats in each), with a column-header flag where the engine has one and a bounding box.
+This module reads such a grid the way `fin.extract.pdf` reads a page, with the same helpers and
+guards for every engine, and needs no engine itself:
 
+0. Shape: every row must be as wide as the table. A shorter row cannot be told from one whose
+   cells moved left, so the page is not read (E204).
 1. Header: the rows at the top up to the first row (not flagged as a column header) with a figure
    right of its first column. Each column's header text, top to bottom, is its stack.
 2. A column whose stack names a period end (`period_end_in`) is a period column; its length comes
@@ -51,7 +54,7 @@ _BARE_UNIT = re.compile(r"\(\s*in\s+(thousand|lakh|lac|million|crore)s?\s*\)", r
 @dataclass(frozen=True)
 class Cell:
     text: str
-    header: bool = False  # Docling flagged it as a column header
+    header: bool = False  # the engine flagged it as a column header
     bbox: Box | None = None
 
 
@@ -66,13 +69,15 @@ class Table:
 
 @dataclass(frozen=True)
 class PageContext:
-    """What the page around the tables says (pdfplumber's lines, or Docling's text when scanned)."""
+    """What the page around the tables says (pdfplumber's lines, or the engine's text when
+    scanned)."""
 
     page: int  # 1-based, in the original document
     statement: str
     scope: str | None  # from the page title; None when it does not say
     unit: str | None  # from a unit line on the page
     results: bool  # a quarterly or half-year results statement: flow columns must name a length
+    reader: str = "PDF add-on"  # the engine that read the tables, named in error messages
 
 
 @dataclass(frozen=True)
@@ -87,8 +92,8 @@ class _Column:
 def top_left(
     left: float, top: float, right: float, bottom: float, *, bottom_left: bool, height: float
 ) -> Box:
-    """A box in fin's convention (x0, top, x1, bottom from the page's top-left corner). Docling
-    gives `top` and `bottom` measured from the page's bottom edge when `bottom_left`."""
+    """A box in fin's convention (x0, top, x1, bottom from the page's top-left corner). An engine
+    may give `top` and `bottom` measured from the page's bottom edge when `bottom_left`."""
     if bottom_left:
         top, bottom = height - top, height - bottom
     return (left, min(top, bottom), right, max(top, bottom))
@@ -103,7 +108,7 @@ def read_tables(context: PageContext, tables: list[Table], start_month: int) -> 
     values = [v for table in tables for v in read_table(context, table, unit, start_month)]
     if not values:
         raise NoTablesFound(
-            f"page {context.page}: no table with period columns and figures (Docling)"
+            f"page {context.page}: no table with period columns and figures ({context.reader})"
         )
     return values
 
@@ -132,6 +137,11 @@ def read_table(context: PageContext, table: Table, unit: str, start_month: int) 
     """The values of one table ([] when it has no period columns). Raises E202 or E204."""
     grid = table.grid
     width = max((len(row) for row in grid), default=0)
+    if any(len(row) != width for row in grid):
+        raise ParseError(
+            f"page {context.page}: a table row has fewer cells than the table, so its figures "
+            f"cannot be placed under their columns ({context.reader})"
+        )
     end = _header_end(grid)
     stacks = [_stack(grid[:end], c) for c in range(width)]
     columns = _columns(context, stacks, start_month)
@@ -144,24 +154,24 @@ def read_table(context: PageContext, table: Table, unit: str, start_month: int) 
     section = ""
     for row in grid[end:]:
         label = _join(row, labels)
-        figures = _figures(row, columns, context.page, table.bbox)
+        figures = _figures(row, columns, context, table.bbox)
         if not figures:
             if label and _WORDY.search(label) and not SUB_HEADING.match(label):
                 section = label
             continue
         note_ref = (_cell(row, note).text.strip() or None) if note is not None else None
-        named = (_label(label, context.page) or section, section, note_ref)
+        named = (_label(label, context) or section, section, note_ref)
         for column, cell, value in figures:
             values.append(_value(context, column, cell, value, named, unit, start_month))
     return values
 
 
-def _label(label: str, page: int) -> str:
+def _label(label: str, context: PageContext) -> str:
     """A row's label. Raises E204 when it holds a figure (the figures do not line up)."""
     if FIGURE_TEXT.search(label):
         raise ParseError(
-            f"page {page}: the label {label[:60]!r} holds a figure; the figures do not line up "
-            "with their labels (Docling)"
+            f"page {context.page}: the label {label[:60]!r} holds a figure; the figures do not "
+            f"line up with their labels ({context.reader})"
         )
     return label
 
@@ -201,7 +211,7 @@ def _stack(rows: Grid, index: int) -> str:
 def _columns(context: PageContext, stacks: list[str], start_month: int) -> list[_Column]:
     """The period columns, named. Raises E202 when a period cannot be told or two columns hold
     the same period and scope."""
-    where = f"page {context.page} (Docling)"
+    where = f"page {context.page} ({context.reader})"
     columns: list[_Column] = []
     for index, stack in enumerate(stacks):
         end = period_end_in(stack)
@@ -242,7 +252,7 @@ def _join(row: list[Cell], indexes: list[int]) -> str:
 
 
 def _figures(
-    row: list[Cell], columns: list[_Column], page: int, table_box: Box | None
+    row: list[Cell], columns: list[_Column], context: PageContext, table_box: Box | None
 ) -> list[tuple[_Column, Cell, Decimal]]:
     """(column, cell, value) for each period column holding a figure. Raises E204 for a cell with
     digits that is not one figure, or a figure with an unpaired bracket."""
@@ -253,11 +263,15 @@ def _figures(
         if not text:
             continue
         if _DIGIT.search(text) and text.startswith("(") != text.endswith(")"):
-            raise ParseError(f"page {page}: figure {text!r} has an unpaired bracket (Docling)")
+            raise ParseError(
+                f"page {context.page}: figure {text!r} has an unpaired bracket ({context.reader})"
+            )
         value = parse_figure(text)
         if value is None:
             if _DIGIT.search(text):
-                raise ParseError(f"page {page}: cell {text[:30]!r} is not one figure (Docling)")
+                raise ParseError(
+                    f"page {context.page}: cell {text[:30]!r} is not one figure ({context.reader})"
+                )
             continue  # words under a period column ("Audited"): not a figure
         found.append((column, Cell(text, cell.header, cell.bbox or table_box), value))
     return found

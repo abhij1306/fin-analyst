@@ -1,12 +1,13 @@
-"""Docling's table grids read with fin's rules (fin.extract.docling_pages). The grids are built by
-hand the way Docling gives them (a spanning cell repeats in each column): no Docling needed."""
+"""A PDF add-on's table grids read with fin's rules (fin.extract.pdf_tables). The grids are built by
+hand the way the engines' adapters give them (a spanning cell repeats in each column): no engine
+needed."""
 
 from decimal import Decimal
 
 import pytest
 
 from fin.audit.errors import NoTablesFound, ParseError, PeriodsNotDetected, UnitNotDetected
-from fin.extract.docling_pages import Cell, PageContext, Table, read_tables, top_left
+from fin.extract.pdf_tables import Cell, PageContext, Table, read_tables, top_left
 
 
 def grid(*rows: list[str], header_rows: int = 0) -> list[list[Cell]]:
@@ -158,7 +159,7 @@ def test_two_columns_with_the_same_period_and_scope_leave_the_page_unread() -> N
 
     assert caught.value.code == "E202"
     assert caught.value.message == (
-        "page 7 (Docling): two columns hold the same period (FY25 unscoped, FY25 unscoped)"
+        "page 7 (PDF add-on): two columns hold the same period (FY25 unscoped, FY25 unscoped)"
     )
 
 
@@ -251,3 +252,17 @@ def test_docling_bottom_left_boxes_become_top_left() -> None:
         120.0,
         52.0,
     )
+
+
+def test_a_row_shorter_than_the_table_is_not_read() -> None:
+    """A row with a cell missing (a note cell an engine left out) would move its figures under the
+    wrong period: the page is refused (E204) rather than read."""
+    shifted = grid(
+        ["Particulars", "Note", "31 March 2025", "31 March 2024"],
+        ["Total assets", "3", "100.00", "90.00"],
+        ["Trade receivables", "80.00", "70.00"],
+        header_rows=1,
+    )
+
+    with pytest.raises(ParseError, match="fewer cells than the table"):
+        read_tables(page(), [Table(shifted)], start_month=4)

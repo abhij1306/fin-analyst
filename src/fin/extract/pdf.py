@@ -464,7 +464,7 @@ def _continues(previous: _Page, number: int, lines: list[Line]) -> bool:
 
 def open_pdf(path: Path, *, text_layer: bool = True) -> Any:
     """Open a PDF with pdfplumber. Raises E101 (unreadable), E102 (encrypted), and E104 (scanned)
-    unless `text_layer` is False (an evidence crop of a page Docling read by OCR)."""
+    unless `text_layer` is False (an evidence crop of a page the PDF add-on read by OCR)."""
     try:
         pdf = pdfplumber.open(path)
     except PdfminerException as exc:

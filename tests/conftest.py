@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -16,15 +17,31 @@ SAMPLES = Path(__file__).parent / "fixtures" / "sample-financials"
 _runner = CliRunner()
 
 
+# Marker -> (the module the real engine needs, the extra that installs it).
+ENGINE_MARKERS = {
+    "docling": ("docling", "docling"),
+    "liteparse": ("liteparse", "liteparse"),
+    "llamaparse": ("llama_cloud", "llamaparse"),
+}
+
+
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    """Tests marked `docling` run the real Docling: skipped where the add-on is not installed (the
-    default install; CI's docling job has it)."""
-    if importlib.util.find_spec("docling") is not None:
-        return
-    skip = pytest.mark.skip(reason="the Docling add-on is not installed (uv sync --extra docling)")
-    for item in items:
-        if item.get_closest_marker("docling") is not None:
-            item.add_marker(skip)
+    """Tests marked `docling`, `liteparse` or `llamaparse` run the real engine: skipped where that
+    add-on is not installed (the default install; CI's pdf-addon jobs have them). A `llamaparse`
+    test also skips without LLAMA_CLOUD_API_KEY (CI never calls the LlamaParse API)."""
+    for marker, (module, extra) in ENGINE_MARKERS.items():
+        missing = importlib.util.find_spec(module) is None
+        no_key = marker == "llamaparse" and not os.environ.get("LLAMA_CLOUD_API_KEY")
+        if not (missing or no_key):
+            continue
+        reason = (
+            f"the {extra} add-on is not installed (uv sync --extra {extra})"
+            if missing
+            else "LLAMA_CLOUD_API_KEY is not set"
+        )
+        for item in items:
+            if item.get_closest_marker(marker) is not None:
+                item.add_marker(pytest.mark.skip(reason=reason))
 
 
 @pytest.fixture

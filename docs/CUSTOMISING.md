@@ -21,10 +21,14 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
   `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read),
   `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
-  The optional Docling add-on (`docling` extra): `docling_run.py` runs Docling on the statement pages `pdf.py`
-  skipped (and on short scanned PDFs), once per document with one converter per process; `docling_pages.py` reads
-  Docling's table grids into `PdfValue`s with `pdf.py`'s and `periods.py`'s helpers and guards (no Docling needed,
-  so its tests are fast). Ingest uses it only when `[pdf] docling = true` in `config.toml`.
+  The optional PDF add-on (one of three uv extras, `[pdf] parser` in `config.toml`): `fallback.py` is ingest's PDF
+  reading (pdfplumber, then the chosen engine on the statement pages `pdf.py` skipped, and on short scanned PDFs
+  when fin uses the engine's OCR, `OCR = True`: not LiteParse);
+  `addon.py` runs an engine once per document on just those pages and reads its result; `docling_run.py`,
+  `liteparse_run.py` and `llamaparse_run.py` are the engines' adapters, each giving `pdf_tables.Table` grids (boxes in
+  fin's top-left points); `pdf_tables.py` reads those grids into `PdfValue`s with `pdf.py`'s and `periods.py`'s
+  helpers and guards, the same for every engine (no engine needed, so its tests are fast). `fin parser use <name>`
+  (`parser.py`) installs and records the choice.
 - `verify.py`: `fin verify`, compares a Claude reading with what is loaded for a document, records the run
   (`verify_runs`, `verify_lines`) and its disagreements as findings.
 - `diligence/`: a diligence engagement on one company (`docs/DILIGENCE_PLAN.md`). `engagement.py` (`fin engagement
@@ -45,7 +49,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
   Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).
-- `delete.py`, `update.py`, `doctor.py`: `fin delete`, `fin update`, `fin doctor`.
+- `delete.py`, `update.py`, `doctor.py`, `parser.py`: `fin delete`, `fin update`, `fin doctor`, `fin parser show|use`
+  (the PDF add-on: uv extra, models, `[pdf] parser`).
 - Outside `src/`: `templates/dictionary/` (seed CSVs), `templates/report/health.qmd`, `.claude/commands/` (slash
   commands), `.claude/hooks/` (action log), `dashboards/` (Evidence project).
 
@@ -189,10 +194,13 @@ gets a `## <Title>` heading for it, and `{{narrative:<key>}}` in the template pl
 - A rule must never load a wrong figure. When a page looks misread, raise an `E2xx` error for the page
   (`read_page`), so it is listed as not read.
 - Test the rule with a tiny synthetic PDF (`tests/synthetic_pdf.py`), asserting the rows read or the page reported.
-- A page `pdf.py` skips goes to Docling when the add-on is on. A rule for how a Docling table is read belongs in
-  `extract/docling_pages.py`, tested with a hand-built grid (`tests/unit/test_docling_pages.py`). A test that runs
-  the real Docling is marked `@pytest.mark.docling`; it runs in CI's `docling` job, locally with
-  `uv sync --extra docling` and `uv run pytest -m docling`.
+- A page `pdf.py` skips goes to the chosen PDF add-on. A rule for how an add-on's table is read belongs in
+  `extract/pdf_tables.py` (for every engine), tested with a hand-built grid (`tests/unit/test_pdf_tables.py`); an
+  engine's adapter only turns its output into grids, tested with recorded or hand-built output
+  (`tests/fixtures/pdf_addon/`). A test that runs a real engine is marked `@pytest.mark.docling` or
+  `@pytest.mark.liteparse`; it runs in CI's `pdf-addon` jobs, locally with `uv sync --extra <name>` and
+  `uv run pytest -m <name>`. A `@pytest.mark.llamaparse` test calls the paid API: it skips without
+  `LLAMA_CLOUD_API_KEY` and never runs in CI.
 
 ## Schema
 

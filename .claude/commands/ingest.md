@@ -44,10 +44,10 @@ Ingest documents for the company in `$ARGUMENTS`.
    Claude reading of those pages. Ask first; never read
    them unasked. If the user agrees, follow "Claude reading" below. A failed file is not loaded; a file that loaded
    with unread pages is, and its reading is loaded with `--force`.
-   With the optional Docling add-on on (`[pdf] docling = true`), fin has already tried Docling on those pages: the
-   outcome says how many figures Docling read (`read by Docling`) and the pages still listed are the
-   ones neither read. Without it, the run log says the pages could also be read by installing the add-on
-   (`./install.sh --docling`); mention that option, do not install it unasked.
+   With the optional PDF add-on chosen (`[pdf] parser` = docling, liteparse or llamaparse), fin has already tried it
+   on those pages: the outcome says how many figures it read (`read by Docling`, `LiteParse` or `LlamaParse`) and
+   the pages still listed are the ones neither read. Without one, the run log says the pages could also be read by
+   choosing an add-on (`/parser`); mention that option, do not choose or install one unasked.
 
 ## Claude reading (only when the user asked for it)
 
@@ -81,6 +81,6 @@ Claude does not verify its own reading: whether a Claude-read figure is trusted 
    that failed outright was never loaded, so it needs no `--force`. fin loads the reading only for the statements it
    could not read itself, through the same validation gates. Report the outcome. If the document is held with findings, follow step 7; do not edit the reading to
    make a check pass. Re-read the page and fix only a figure you misread, and say which.
-4. Say how many facts were read by Claude (or Docling). They feed metrics like any other figure; answers show them
-   as read by Claude or Docling (information, not a flag). If the user wants to check the document against a new
+4. Say how many facts were read by Claude (or the PDF add-on). They feed metrics like any other figure; answers show
+   them as read by Claude or by the add-on (information, not a flag). If the user wants to check the document against a new
    Claude reading, that is `/verify <company> <file>`, any time and as often as they like; do not start it unasked.
