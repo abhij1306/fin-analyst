@@ -5,10 +5,12 @@ anonymise names before any third-party processing. So on load, each masked value
 `mask_values` (its kind, the real value and a stable token) and the data tables get the token:
 `CUST-0001` for a customer, `VEND-0001` vendor, `USER-0001` handler or submitted-by,
 `EMP-0001` employee name, `ECODE-0001` employee code, `LEDG-0001` a ledger fin cannot classify.
-The same value (ignoring case and repeated spaces) gets the same token in every file.
+The same value (ignoring case and repeated spaces) gets the same token in every file, whatever
+kind it was first masked as.
 
 `Masker.text` masks free text: a value that is a known name becomes its token, and every known name
-inside it is replaced by its token. Nothing in fin prints `mask_values`; only the accountant export
+inside it, as whole words (so a short name never changes part of another word), is replaced by its
+token. Nothing in fin prints `mask_values`; only the accountant export
 (D8) will read it.
 """
 
@@ -29,10 +31,12 @@ PREFIX = {
 
 
 class Masker:
-    """Tokens for one load, in the load's transaction (`con`)."""
+    """Tokens for one load, in the load's transaction (`con`). `file_id` (the source file the
+    load adds) is set before the first new token is made."""
 
-    def __init__(self, con: duckdb.DuckDBPyConnection, run_id: str, file_id: int) -> None:
-        self.con, self.run_id, self.file_id = con, run_id, file_id
+    def __init__(self, con: duckdb.DuckDBPyConnection, run_id: str) -> None:
+        self.con, self.run_id = con, run_id
+        self.file_id: int | None = None
         rows = con.execute("SELECT kind, match_key, token, real_value FROM mask_values").fetchall()
         self.by_kind = {(kind, key): token for kind, key, token, _ in rows}
         self.by_key = {key: token for _, key, token, _ in rows}
@@ -42,11 +46,14 @@ class Masker:
         self._tokens: dict[str, str] = {}  # normalised real value -> token, for `text`
 
     def token(self, kind: str, value: str) -> str:
-        """The token for `value` of `kind`, made (and stored) the first time it is seen."""
+        """The token for `value`, made (and stored, as `kind`) the first time it is seen. A value
+        already masked as another kind keeps its token (a ledger masked as `LEDG` in one year
+        and found under Sundry Debtors in the next stays one ledger)."""
         key = norm(value)
-        found = self.by_kind.get((kind, key))
+        found = self.by_kind.get((kind, key)) or self.by_key.get(key)
         if found is not None:
             return found
+        assert self.file_id is not None
         count = sum(1 for k, _ in self.by_kind if k == kind)
         token = f"{PREFIX[kind]}-{count + 1:04d}"
         real = " ".join(value.split())
@@ -77,5 +84,5 @@ class Masker:
             names = sorted(self.names.items(), key=lambda item: -len(item[1]))
             self._tokens = {norm(real): token for token, real in names}
             alternatives = "|".join(r"\s+".join(map(re.escape, real.split())) for _, real in names)
-            self._pattern = re.compile(alternatives, re.IGNORECASE)
+            self._pattern = re.compile(rf"(?<!\w)(?:{alternatives})(?!\w)", re.IGNORECASE)
         return self._pattern.sub(lambda m: self._tokens[norm(m.group(0))], value)

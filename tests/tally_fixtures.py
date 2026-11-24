@@ -97,7 +97,10 @@ VOUCHERS = {
 }
 
 
-def write_ledger_vouchers(path: Path, ledgers: list[str], *, period: str = PERIOD) -> Path:
+def write_ledger_vouchers(
+    path: Path, ledgers: list[str], *, period: str = PERIOD, date_text: str | None = None
+) -> Path:
+    """`date_text`: every voucher date written as this text instead of an Excel date."""
     book = Workbook()
     sheet = book.active
     assert sheet is not None
@@ -110,18 +113,18 @@ def write_ledger_vouchers(path: Path, ledgers: list[str], *, period: str = PERIO
         sheet.cell(sheet.max_row, 1).font = Font(bold=True)
         sheet.append([None, "Opening Balance", None, None, None, None])
         for day, particulars, kind, number, debit, credit in VOUCHERS[ledger]:
-            when = datetime(2024, 5, day)
+            when = date_text or datetime(2024, 5, day)
             sheet.append([when, particulars, kind, number, debit or None, credit or None])
         sheet.append([None, "Closing Balance", None, None, 1, None])
     book.save(path)
     return path
 
 
-def write_unknown_layout(path: Path) -> Path:
+def write_unknown_layout(path: Path, *, title: str = "Account balances") -> Path:
     book = Workbook()
     sheet = book.active
     assert sheet is not None
-    sheet.append(["Account balances"])
+    sheet.append([title])
     sheet.append(["Account", "Balance"])
     sheet.append([CUSTOMERS[0], 200000])
     book.save(path)

@@ -14,6 +14,7 @@ from fin.audit.errors import (
     GroupsOnlyTrialBalance,
     LayoutUnknown,
     MaskedTableRead,
+    ParseError,
     SourcePeriodInvalid,
     TrialBalanceNeeded,
 )
@@ -183,6 +184,32 @@ def test_an_unknown_layout_lists_the_header_lines_and_no_data(root: Path, tmp_pa
     assert message.startswith("E807: x.xlsx: no trial_balance column profile matches its headers")
     assert "row 1: Account balances / row 2: Account | Balance" in message
     assert CUSTOMERS[0] not in message
+
+
+def test_e807_never_lists_a_ledger_block_heading_and_masks_known_names(
+    root: Path, tmp_path: Path
+) -> None:
+    lv = write_ledger_vouchers(tmp_path / "lv.xlsx", [CUSTOMERS[0]])
+    with pytest.raises(LayoutUnknown) as error:
+        load(root, lv, "trial_balance")
+    assert "row 4: Date | Particulars | Vch Type | Vch No. | Debit | Credit" in str(error.value)
+    assert CUSTOMERS[0] not in str(error.value)
+
+    load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
+    titled = write_unknown_layout(tmp_path / "x.xlsx", title=f"Ledger: {CUSTOMERS[0]}")
+    with pytest.raises(LayoutUnknown) as error:
+        load(root, titled, "trial_balance")
+    assert "row 1: Ledger: CUST-0001 / row 2: Account | Balance" in str(error.value)
+
+
+def test_a_voucher_row_whose_date_cannot_be_read_is_refused(root: Path, tmp_path: Path) -> None:
+    load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
+    path = write_ledger_vouchers(tmp_path / "lv.xlsx", ["Rent"], date_text="05/05/2024")
+
+    with pytest.raises(ParseError, match=r"Ledger Vouchers!7: a row with amounts but no date"):
+        load(root, path, "ledger_vouchers")
+
+    assert rows(root, "SELECT count(*) FROM ledger_entries") == [(0,)]
 
 
 def test_an_unknown_profile_is_e807(root: Path, tmp_path: Path) -> None:

@@ -173,7 +173,7 @@ The gates follow that.
 | G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |
 
 There is no report gate: the planned G5 is dropped. The diligence report (D7) shows the gate states it was rendered
-with. Renaming G1 and G2 to "Ingestion" and "Reconciliation" is a small code change with D2 and D4.
+with. G1 and G2 are named "Ingestion" and "Reconciliation" (#68).
 
 States: `approved` (inputs unchanged since its latest approval, and every earlier gate approved), `reopened` (inputs
 changed, with what changed, or an earlier gate not approved), `open` (never approved).
@@ -242,7 +242,7 @@ adjusted facts). D4 adds revenue and cost effects, which is enough for adjusted 
 Status: **first half built** (source files, the tabular loader and profiles, `trial_balance`, `ledger_entries`,
 masking; `PLAN.md` "Diligence source files"). Ledger Vouchers need their period's trial balance loaded first (E811),
 so party ledgers are known before they are masked; a Ledger Vouchers ledger not in its trial balance is masked as
-`LEDG-0001`. Next: `ledger_accounts` and `fin map ledgers`, `tb_vs_statements`, the stub, G1's checks and rename.
+`LEDG-0001`. Next: `ledger_accounts` and `fin map ledgers`, `tb_vs_statements`, the stub, G1's trial balance checks.
 - A tabular loader (`fin/extract/ledger.py`) driven by column **profiles** (`templates/profiles/*.toml`: header
   names → fields, date format, debit/credit or signed amount, unit, which fields are masked). An unknown layout
   fails with a new error code and lists the headers it found, so Claude can write a profile.
@@ -261,7 +261,7 @@ so party ledgers are known before they are masked; a Ledger Vouchers ledger not 
 - Built-in reconciliation `tb_vs_statements`: TB closing balances rolled up by account vs the audited statement
   facts, per audited period; one line per account. The stub has no statement: `stub_figures` gives its figures,
   labelled unaudited.
-- `fin engagement open --stub`; G1 gains the trial balance checks and is renamed "Ingestion" (§5).
+- `fin engagement open --stub`; G1 Ingestion gains the trial balance checks (§5).
 
 **Done when:** a synthetic TB and Ledger Vouchers load with sheet!row lineage and masked party names; a group-only TB
 is refused; a planted account difference at or above the threshold becomes a draft query, and one below it is listed;
@@ -302,7 +302,7 @@ parse that does not tie are found; a payroll file whose amounts look monthly is 
 - USD invoices: the register's Amount in Rs (Amount × Currency Rate) is compared with the books; the difference
   from the ledger's conversion rate is an `fx` line, shown as FX gain or loss, never plugged.
 - Threshold per line (§3). Claude groups the lines at or above it into issues (`fin query raise --items`); the user
-  approves them. G2 gains the reconciliation checks and is renamed "Reconciliation" (§5).
+  approves them. G2 Reconciliation gains the reconciliation checks (§5).
 - Pass-through: `fin engagement passthrough` records the user's customer list; `revenue_split` shows core and
   pass-through (project) revenue, with the Purchase Id link to the OEM purchase; growth uses core revenue. Claude
   proposes the `normalisation` adjustment that strips pass-through revenue and its cost.

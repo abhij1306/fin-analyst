@@ -5,10 +5,11 @@ layout-specific is in the profile.
 
 - Trial balance: a bold row is a group (its closing balance is the group total), any other row a
   ledger. Nesting comes from the name cell's indent (profile `level = "indent"`): a row sits in the
-  nearest group above it with a smaller indent. A ledger under a group the profile's `[mask]
-  groups` names (Sundry Debtors, Sundry Creditors) is a party: its name is stored as a token. A TB
-  with no ledger rows is refused (E809: export it in Detailed mode). A group whose net balance
-  (debit - credit) is not the net of the ledgers under it is a finding; the rows stay as filed.
+  nearest group above it with a smaller indent. A ledger (or sub-group) under a group the
+  profile's `[mask] groups` names (Sundry Debtors, Sundry Creditors) is a party: its name is
+  stored as a token. A TB with no ledger rows is refused (E809: export it in Detailed mode). A
+  group whose net balance (debit - credit) is not the net of the ledgers under it is a finding;
+  the rows stay as filed.
 - Ledger Vouchers: a row with no date whose block field holds text and which has no amounts starts a
   ledger block (the ledger name, after `block_prefix`); each dated row below is a voucher line of
   that ledger. Rows without a date (opening and closing balance, totals) are not loaded. A ledger
@@ -23,7 +24,7 @@ from typing import Any
 from fin.audit.errors import GroupsOnlyTrialBalance, ParseError
 from fin.diligence.mask import Masker
 from fin.extract.ledger import SheetRow, Table, amount, parse_date
-from fin.extract.profiles import norm
+from fin.extract.profiles import Profile, norm
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,13 @@ def _text(value: Any) -> str:
     return " ".join(str(value).split())
 
 
+def _level(r: SheetRow, profile: Profile) -> float:
+    """A row's nesting: its name cell's indent, or (level "none") groups above ledgers."""
+    if profile.level == "indent":
+        return r.indent
+    return 0.0 if r.bold else 1.0
+
+
 def trial_balance_rows(table: Table, file_name: str) -> list[TbRow]:
     """The group and ledger rows, in order. E809 when there is no ledger row; E204 on a bad
     amount."""
@@ -63,7 +71,7 @@ def trial_balance_rows(table: Table, file_name: str) -> list[TbRow]:
         where = f"{file_name} {r.sheet}!{r.row}"
         debit = amount(r.cells.get("debit"), profile, where)
         credit = amount(r.cells.get("credit"), profile, where)
-        level = r.indent if profile.level == "indent" else (0.0 if r.bold else 1.0)
+        level = _level(r, profile)
         while stack and stack[-1][0] >= level:
             stack.pop()
         parent = stack[-1][1] if stack else None
@@ -101,20 +109,23 @@ def party_kind(rows: list[TbRow], index: int, groups: dict[str, str]) -> str | N
     )
 
 
-def stored_ledger(rows: list[TbRow], index: int, table: Table, masker: Masker) -> str:
-    """A ledger's name as stored: a token for a party ledger, known names masked otherwise."""
-    kind = party_kind(rows, index, table.profile.mask_groups)
-    name = rows[index].name
-    if kind is not None:
-        return masker.token(kind, name)
-    if "name" in table.profile.mask_fields:
-        return masker.text(name) or name
-    return name
+def stored_names(rows: list[TbRow], profile: Profile, masker: Masker) -> list[str]:
+    """Each row's name as stored: a token for a row under a party group (a party ledger, or a
+    sub-group of parties), with known masked names replaced otherwise (when the profile masks
+    `name`). Parties are tokenised first, so a ledger above them that names one (an advance to a
+    customer) is masked too."""
+    kinds = [party_kind(rows, i, profile.mask_groups) for i in range(len(rows))]
+    tokens = [masker.token(k, r.name) if k else None for r, k in zip(rows, kinds, strict=True)]
+    if "name" in profile.mask_fields:
+        return [t or masker.text(r.name) or r.name for r, t in zip(rows, tokens, strict=True)]
+    return [t or r.name for r, t in zip(rows, tokens, strict=True)]
 
 
-def group_sum_findings(rows: list[TbRow], file_name: str, period: str) -> list[dict[str, Any]]:
+def group_sum_findings(
+    rows: list[TbRow], names: list[str], file_name: str, period: str
+) -> list[dict[str, Any]]:
     """A finding (columns of the `findings` table) for each group whose net balance is not the net
-    of the ledgers under it."""
+    of the ledgers under it. `names`: the rows' names as stored (`stored_names`)."""
     sums: dict[int, Decimal] = {
         i: Decimal("0.00") for i, r in enumerate(rows) if r.row_type == "group"
     }
@@ -136,14 +147,14 @@ def group_sum_findings(rows: list[TbRow], file_name: str, period: str) -> list[d
                 "finding": "group_not_sum_of_ledgers",
                 "statement": "trial_balance",
                 "period": period,
-                "label": group.name,
+                "label": names[g],
                 "fin_value": group.net,
                 "other_value": total,
                 "difference": total - group.net,
                 "fin_source": f"{group.sheet}!{group.row}",
                 "other_source": f"sum of the {counts[g]} ledgers under it",
                 "message": (
-                    f"trial balance {period}: group {group.name!r} net closing balance (debit - "
+                    f"trial balance {period}: group {names[g]!r} net closing balance (debit - "
                     f"credit) is not the net of the {counts[g]} ledgers under it; rows kept as "
                     "filed"
                 ),
@@ -177,18 +188,32 @@ def _block_name(r: SheetRow, table: Table) -> str | None:
     return text or None
 
 
+def _undated_line(r: SheetRow, profile: Profile) -> bool:
+    """An undated row with an amount that is not a row the profile skips (by any of its cells)."""
+    has_amount = any(_text(r.cells.get(field)) for field in ("debit", "credit"))
+    skipped = any(norm(_text(v)) in profile.skip for v in r.cells.values())
+    return has_amount and not skipped
+
+
 def ledger_entries(table: Table, file_name: str) -> list[Entry]:
-    """The voucher lines, each with the ledger of the block it is in. E204 on a bad amount or a
-    voucher line before any ledger name."""
+    """The voucher lines, each with the ledger of the block it is in. E204 on a bad amount, a
+    voucher line before any ledger name, a row with amounts but no date that is not a `skip` row
+    (a date in another format would otherwise drop the line), or no voucher line at all."""
     profile = table.profile
     ledger: str | None = None
     out = []
     for r in table.rows:
         when = parse_date(r.cells.get("date"), profile)
+        where = f"{file_name} {r.sheet}!{r.row}"
         if when is None:
+            if _undated_line(r, profile):
+                raise ParseError(
+                    f"{where}: a row with amounts but no date in the profile's date format "
+                    f"({profile.date_format}, profile {profile.name}). If it is not a voucher "
+                    "line, add its name to [rows] skip in the profile"
+                )
             ledger = _block_name(r, table) or ledger
             continue
-        where = f"{file_name} {r.sheet}!{r.row}"
         if ledger is None:
             raise ParseError(f"{where}: a voucher line before any ledger name")
         out.append(
@@ -204,4 +229,6 @@ def ledger_entries(table: Table, file_name: str) -> list[Entry]:
                 amount(r.cells.get("credit"), profile, where),
             )
         )
+    if not out:
+        raise ParseError(f"{file_name}: no voucher line (a dated row) below the column header")
     return out

@@ -6,11 +6,13 @@ with its sheet and row number, its cells by field, and the name cell's bold and 
 balance tells group rows from ledger rows by them). What the rows mean is `fin.diligence.tally`'s.
 
 The first profile of the kind (or the one named) whose header is found is used. E807 when none
-matches: the message lists the rows above the first row with a number (the title and header lines,
-never data rows, which may hold names), so Claude can write a profile. E808 when no header line
+matches: the message lists the title and column header lines (never data rows, which may hold
+names; known masked names replaced), so Claude can write a profile. E808 when no header line
 gives the period, or sheets give different periods.
 """
 
+import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -22,9 +24,11 @@ from openpyxl.worksheet.worksheet import Worksheet
 from fin.audit.errors import LayoutUnknown, ParseError, SourcePeriodInvalid
 from fin.extract.excel import open_workbook, parse_number
 from fin.extract.profiles import Profile, load_profile, norm, profiles_for
+from fin.extract.units import parse_figure
 
 HEADER_SEARCH_ROWS = 60  # the column header is looked for in this many rows from the top
 SHOWN_ROWS = 12  # rows listed when no profile matches
+DATE_TEXT = re.compile(r"\d{1,4}[-/. ]\w{1,9}[-/. ]\d{2,4}")  # a date written as text: 12/05/2024
 
 
 @dataclass(frozen=True)
@@ -132,21 +136,41 @@ def _rows(sheet: Worksheet, first: int, columns: dict[int, str]) -> list[SheetRo
     return out
 
 
-def _top_rows(sheet: Worksheet) -> list[str]:
-    """The text of the rows above the first row holding a number (title and header lines)."""
-    lines = []
+def _is_data(value: Any) -> bool:
+    """A number, a date, or a figure or date written as text: a cell only data rows hold."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int | float | date):  # datetime is a date
+        return True
+    text = str(value).strip()
+    return parse_figure(text) is not None or DATE_TEXT.fullmatch(text) is not None
+
+
+def _top_rows(sheet: Worksheet, hide: Callable[[str], str]) -> list[str]:
+    """The title and column header lines: the rows above the first row holding a number, a date or
+    a figure, ending before a one-cell row below a wider one (a ledger block's heading). Data
+    rows, which may hold names, are never listed; known masked names are replaced (`hide`)."""
+    lines, widest = [], 0
     for row in sheet.iter_rows(max_row=HEADER_SEARCH_ROWS):
-        if any(isinstance(c.value, int | float) and not isinstance(c.value, bool) for c in row):
+        values = [c.value for c in row if c.value is not None and str(c.value).strip()]
+        if any(_is_data(v) for v in values) or (len(values) == 1 and widest > 1):
             break
-        texts = [" ".join(str(c.value).split()) for c in row if c.value is not None]
-        if texts:
+        widest = max(widest, len(values))
+        if values:
+            texts = (hide(" ".join(str(v).split())) for v in values)
             lines.append(f"row {row[0].row}: {' | '.join(texts)}")
     return lines[:SHOWN_ROWS]
 
 
-def read_table(path: Path, kind: str, profile_name: str | None = None) -> Table:
+def read_table(
+    path: Path,
+    kind: str,
+    profile_name: str | None = None,
+    hide: Callable[[str], str] = str,
+) -> Table:
     """The rows of `path` read with the named profile, or the first profile of `kind` whose
-    header is found. E101/E102 (unreadable), E807, E808."""
+    header is found. E101/E102 (unreadable), E807 (`hide` replaces known masked names in the
+    header lines it lists), E808."""
     if profile_name is not None:
         candidates = [load_profile(profile_name)]
         if candidates[0].kind != kind:
@@ -161,10 +185,12 @@ def read_table(path: Path, kind: str, profile_name: str | None = None) -> Table:
         if headers:
             return _table(path, profile, headers)
     names = ", ".join(p.name for p in candidates) or "none"
-    shown = "; ".join(f"sheet {s.title!r}: " + " / ".join(_top_rows(s)) for s in book.worksheets)
+    shown = "; ".join(
+        f"sheet {s.title!r}: " + " / ".join(_top_rows(s, hide)) for s in book.worksheets
+    )
     raise LayoutUnknown(
         f"{path.name}: no {kind} column profile matches its headers (tried: {names}). "
-        f"Rows above the first number: {shown or 'none'}. Write a profile in templates/profiles/ "
+        f"Title and header lines: {shown or 'none'}. Write a profile in templates/profiles/ "
         "(docs/CUSTOMISING.md) and ingest again with --profile"
     )
 

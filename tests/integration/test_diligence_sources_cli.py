@@ -3,6 +3,7 @@ the CLI; fin's output, its findings and its audit log carry tokens, never the re
 refuses `mask_values` (E810)."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,13 @@ NAMES = (*CUSTOMERS, *VENDORS, "Neem Consulting")
 
 def fin(*args: str) -> Result:
     return runner.invoke(app, list(args))
+
+
+def plain(output: str) -> str:
+    """A usage error's text without the colour codes, panel border and line wrapping Typer adds
+    (CI's terminal is coloured and may be narrower)."""
+    text = re.sub(r"\x1b\[[0-9;]*m", "", output).replace("\N{BOX DRAWINGS LIGHT VERTICAL}", " ")
+    return " ".join(text.split())
 
 
 @pytest.fixture
@@ -105,4 +113,4 @@ def test_kind_usage_errors(root: Path, tmp_path: Path, args: list[str], message:
     result = fin("ingest", "acme", str(tb), *args)
 
     assert result.exit_code == 2
-    assert message in result.output
+    assert message in plain(result.output)

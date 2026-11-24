@@ -2,11 +2,12 @@
 
 For one file, `ingest_source`:
 
-1. Hashes it (a file already loaded is refused, E105) and reads it with a column profile
-   (`fin.extract.ledger`; E807 when no profile matches).
-2. Checks the period its header lines give is an annual period of the open engagement (E803 with no
-   open engagement, E808 otherwise). Ledger Vouchers need their period's trial balance loaded first
-   (E811): it says which ledgers are parties.
+1. Needs an open engagement (E803), refuses a file already loaded (same sha256, E105) and reads it
+   with a column profile (`fin.extract.ledger`; E807 when no profile matches, its header lines
+   listed with known masked names replaced).
+2. Checks the period its header lines give is an annual period of the open engagement (E808).
+   Ledger Vouchers need their period's trial balance loaded first (E811): it says which ledgers
+   are parties.
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
 4. In ONE transaction: adds the `source_files` row, the rows (`fin.diligence.tally`) with sheet and
    row, names masked (`fin.diligence.mask`), the trial balance's group findings, and marks an
@@ -107,39 +108,41 @@ def _tb_ledgers(con: duckdb.DuckDBPyConnection, engagement_id: int, period: str)
     ]
 
 
-def _name(rows: list[tally.TbRow], index: int | None) -> str | None:
-    return rows[index].name if index is not None else None
-
-
 def _load_tb(
-    run: Run, company: str, con: duckdb.DuckDBPyConnection, table: Table, file: dict[str, Any]
+    run: Run,
+    company: str,
+    con: duckdb.DuckDBPyConnection,
+    table: Table,
+    file: dict[str, Any],
+    masker: Masker,
 ) -> list[str]:
     """Insert the trial balance rows and its group findings; the lines to show."""
     file_id, name, period = file["file_id"], file["file_name"], file["period"]
     rows = tally.trial_balance_rows(table, name)
-    masker = Masker(con, run.run_id, file_id)
-    stored = []
+    names = tally.stored_names(rows, table.profile, masker)
+
+    def stored(index: int | None) -> str | None:
+        return names[index] if index is not None else None
+
+    out = []
     for i, r in enumerate(rows):
-        up = rows[r.group].group if r.group is not None else None
         if r.row_type == "group":
-            names = [r.name, _name(rows, r.group), None]
+            group, parent, ledger = names[i], stored(r.group), None
         else:
-            names = [
-                _name(rows, r.group),
-                _name(rows, up),
-                tally.stored_ledger(rows, i, table, masker),
-            ]
-        stored.append(
-            [file_id, r.sheet, r.row, period, r.row_type, *names, r.debit, r.credit, run.run_id]
+            up = rows[r.group].group if r.group is not None else None
+            group, parent, ledger = stored(r.group), stored(up), names[i]
+        out.append(
+            [file_id, r.sheet, r.row, period, r.row_type, group, parent, ledger]
+            + [r.debit, r.credit, run.run_id]
         )
     insert_rows(
         con,
         "trial_balance",
         'file_id, sheet, "row", period, row_type, group_name, parent_group, ledger, '
         "closing_debit, closing_credit, run_id",
-        stored,
+        out,
     )
-    findings = tally.group_sum_findings(rows, name, period)
+    findings = tally.group_sum_findings(rows, names, name, period)
     where = "file_id = ? AND check_name = 'tb_group_sum'"
     record(run, company, con, findings, where, [file_id], file_id)
     ledgers = sum(1 for r in rows if r.row_type == "ledger")
@@ -156,24 +159,32 @@ def _load_tb(
 
 
 def _load_lv(
-    run: Run, con: duckdb.DuckDBPyConnection, table: Table, file: dict[str, Any], tb: list[str]
+    run: Run,
+    con: duckdb.DuckDBPyConnection,
+    table: Table,
+    file: dict[str, Any],
+    tb: list[str],
+    masker: Masker,
 ) -> list[str]:
     """Insert the Ledger Vouchers lines; the lines to show, with the trial balance's ledgers
     (`tb`, as stored) missing from it and its ledgers not in the trial balance."""
     file_id, name, period = file["file_id"], file["file_name"], file["period"]
     entries = tally.ledger_entries(table, name)
-    masker = Masker(con, run.run_id, file_id)
     in_tb = set(tb)
     stored_as: dict[str, str] = {}
     outside: list[str] = []
     for entry in entries:
         if entry.ledger in stored_as:
             continue
-        known = masker.known(entry.ledger)
-        if known is None and entry.ledger not in in_tb:
-            known = masker.token("ledger", entry.ledger)
-            outside.append(known)
-        stored_as[entry.ledger] = known or entry.ledger
+        # A known name is its token; another ledger is stored as the trial balance stores it
+        # (known names inside it replaced). One not in the trial balance cannot be classified,
+        # so it is masked.
+        token = masker.known(entry.ledger)
+        shown = masker.text(entry.ledger) or entry.ledger
+        if token is None and shown not in in_tb:
+            token = masker.token("ledger", entry.ledger)
+            outside.append(token)
+        stored_as[entry.ledger] = token or shown
     masked = set(table.profile.mask_fields)
 
     def text(field: str, value: str) -> str | None:
@@ -241,7 +252,6 @@ def ingest_source(
     """Load one source file (see the module docstring). Raises E101-E105, E204, E803, E807-E811."""
     name = path.name
     sha256 = sha256_of(path)
-    table = read_table(path, kind, profile)
     with connect(company_db_path(run.root, company), write=True) as con, transaction(con):
         engagement = require_open(con, company)
         earlier = con.execute(
@@ -251,6 +261,8 @@ def ingest_source(
             raise DuplicateFile(
                 f"{name}: already loaded as source file_id {earlier[0]} (same sha256)"
             )
+        masker = Masker(con, run.run_id)
+        table = read_table(path, kind, profile, hide=lambda text: masker.text(text) or text)
         periods = engagement["periods"].split(",")
         period = period_of_file(table, periods, config.fiscal_year_start_month, name)
         tb = _tb_ledgers(con, engagement["engagement_id"], period)
@@ -282,11 +294,11 @@ def ingest_source(
             list(file.values()),
         ).fetchone()
         assert row is not None
-        file["file_id"] = row[0]
+        file["file_id"] = masker.file_id = row[0]
         if kind == "trial_balance":
-            lines = _load_tb(run, company, con, table, file)
+            lines = _load_tb(run, company, con, table, file, masker)
         else:
-            lines = _load_lv(run, con, table, file, tb)
+            lines = _load_lv(run, con, table, file, tb, masker)
         replaced = _supersede(run, company, con, file)
     head = (
         f"loaded as source file_id {file['file_id']} ({kind} {period}, profile "
