@@ -263,8 +263,8 @@ threshold becomes a draft query, and one below it is listed in the "below thresh
 
 ## 9. Questions for the diligence user
 
-**Answered on 2026-11-24** (the diligence user's reviewed answers; the plan above still has to be revised to
-match them):
+**Answered on 2026-11-24** (the diligence user's reviewed answers; phases D2–D9 above still have to be revised
+to match them):
 
 - Tally: Excel exports, not XML. Trial balances are full-year only (Particulars, closing debit and credit, under
   export-period header lines); the period is read from the export header. Ledger Vouchers: Date, Particulars, Vch
@@ -287,18 +287,33 @@ match them):
 - Gates: ingestion, reconciliation and recasting each gate on the diligence user's review; no query goes out
   without their approval.
 
+**Answered on 2026-11-24, second round** (engagement-specific variation noted; the diligence user is open to
+further targeted questions):
+
+1. **Pass-through** is identified by customer and deal, not by Order Type or Service Type: an engagement-specific
+   list of SI/reseller customers whose deals pass through at roughly zero margin. The tool takes that customer list
+   as an input per engagement. Purchase Id links a sale to the OEM purchase (Broadcom/Symantec in the current
+   engagement); rule of thumb: a Purchase Id means software or licence, a blank means services. Pass-through is
+   shown as project revenue, left out of growth figures and valued at a lower multiple.
+2. **Other income** is excluded from EBITDA and shown separately below it (as fin's EBITDA already does).
+3. **Current-year stub:** an engagement can include a year-to-date stub (April–September in the current case),
+   from unaudited management data: the period's Tally TB and Ledger Vouchers, Excel bank statements and the
+   registers, anchored to the last audited year. It is labelled as unaudited management accounts, cross-checked
+   against bank and registers, and never annualised into base figures.
+4. **Payroll:** the Sparsh export is a snapshot, one row per employee; Gross Salary and CTC are annual. Separate
+   monthly salary workbooks exist. The tool asks the user to confirm the unit and warns when amounts look monthly.
+5. **Register amounts:** Amount in Rs is before GST (the purchase register tied to audited purchases within about
+   1% with no GST adjustment). For USD invoices, the register's Amount in Rs (Amount × Currency Rate) is used to
+   reconcile with the books; a difference from the ledger's conversion rate is shown as an FX line. Axis USD
+   receipts match on customer, USD amount and a date window; the booked rupee value is compared and a difference
+   is reported as FX gain or loss, never plugged.
+6. **Tally:** Ledger Vouchers is one large export of all ledgers, in ledger-name blocks, balance-sheet ledgers
+   included. The TB has group lines. The tool tells group rows from ledger rows, asks for Detailed mode when it
+   finds only groups, asks for all ledgers, and reports the ledgers actually present.
+
 **Open:**
 
-1. **Pass-through.** Which sales register column marks a line as pass-through: Order Type, Service Type, or a
-   Purchase Id that links it to the purchase register?
-2. **Other income.** Does adjusted base EBITDA exclude other income, as fin's EBITDA does?
-3. **Current-year stub.** Does an engagement include a partial current year (e.g. Apr–Sep, from the Excel bank
-   statements)? If so, what is it based on, with no audited statement or trial balance for it?
-4. **Payroll file.** One Sparsh file per month or per year? Are Gross Salary and CTC monthly or annual?
-5. **Register amounts.** Is "Amount in Rs" before GST? For USD invoices, which rupee figure ties to the books? How
-   do receipts into the Axis USD account tie to rupee entries?
-6. **Tally scope.** Does the Ledger Vouchers export cover every ledger or only some (sales, purchases, bank)? Is the
-   trial balance exported in Detailed mode, with its group lines?
-7. **LlamaParse.** Bank PDFs carry names and go to LlamaParse, a third party. Is that acceptable?
+1. **LlamaParse.** Bank PDFs carry names. If LlamaParse (a cloud service) is the chosen PDF parser, may bank PDFs
+   go to it, or must they stay on a local parser (Docling or LiteParse)?
 
 Statement findings (E401–E405) become queries only when the user raises them, as built.
