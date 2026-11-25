@@ -13,10 +13,15 @@ CREATE SEQUENCE adjustments_seq START 1;
 -- periods: the annual periods in scope, comma-separated in order, e.g. 'FY24,FY25,FY26'.
 -- query_threshold: a difference at or above this many rupees becomes a query (config.toml [diligence], or
 -- `--threshold`), fixed when the engagement opens.
+-- stub: the optional year-to-date period after the last annual one (`--stub FY27-YTD-SEP`), from stub_start (the
+-- fiscal year's first day) to stub_end (the named month's last day). Its figures are unaudited management accounts.
 CREATE TABLE engagement (
     engagement_id INTEGER PRIMARY KEY DEFAULT nextval('engagement_seq'),
     periods VARCHAR NOT NULL,
     query_threshold DECIMAL(20, 2) NOT NULL,
+    stub VARCHAR,
+    stub_start DATE,
+    stub_end DATE,
     status VARCHAR NOT NULL CHECK (status IN ('open', 'closed')),
     opened_run_id VARCHAR NOT NULL,
     opened_at TIMESTAMP NOT NULL,
@@ -32,13 +37,15 @@ CREATE TABLE engagement (
 --   closed     the answer settles it (`fin query close`);
 --   withdrawn  dropped before it was closed (`fin query withdraw`), with the reason in note.
 -- origin: 'finding' (raised from findings.finding_id: period, scope, difference and sources copied from it; the
--- finding itself is not changed) or 'manual'. amount: the difference at issue in rupees, NULL when there is none.
+-- finding itself is not changed), 'recon' (drafted by a reconciliation for a line at or above the threshold; the
+-- line's recon_items.query_id links it) or 'manual'. amount: the difference at issue in rupees, NULL when there is
+-- none.
 -- sources: where the figures are, as file + sheet!cell or page references, '; '-separated.
 -- status_run_id / status_at: the run and time of the last status change (or of the raise).
 CREATE TABLE accountant_queries (
     query_id INTEGER PRIMARY KEY DEFAULT nextval('accountant_queries_seq'),
     engagement_id INTEGER NOT NULL,
-    origin VARCHAR NOT NULL CHECK (origin IN ('finding', 'manual')),
+    origin VARCHAR NOT NULL CHECK (origin IN ('finding', 'recon', 'manual')),
     finding_id BIGINT,
     period VARCHAR,
     scope VARCHAR CHECK (scope IN ('standalone', 'consolidated')),

@@ -5,13 +5,15 @@ For one file, `ingest_source`:
 1. Needs an open engagement (E803), refuses a file already loaded (same sha256, E105, even when
    superseded) and reads it with a column profile (`fin.extract.ledger`; E807 when no profile
    matches, its header lines listed with known masked names replaced).
-2. Checks the period its header lines give is an annual period of the open engagement (E808).
+2. Checks the period its header lines give is an annual period of the open engagement, or exactly
+   its stub (basis unaudited: unaudited management accounts) (E808).
    Ledger Vouchers need their period's trial balance loaded first (E811): it says which ledgers
    are parties.
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
 4. In ONE transaction: adds the `source_files` row, the rows (`fin.diligence.tally`) with sheet and
    row, names masked (`fin.diligence.mask`), the trial balance's group findings, and marks an
-   earlier file of the same kind and period superseded (and its findings). Any error rolls it back.
+   earlier file of the same kind and period superseded (and its findings). A trial balance adds its
+   new ledgers to `ledger_accounts` as pending (`fin.diligence.ledgers`). Any error rolls it back.
 
 It returns what was loaded: the ledgers present, and for Ledger Vouchers the trial balance ledgers
 missing from it (ask the user for the export with all ledgers) and its ledgers not in the trial
@@ -35,9 +37,10 @@ from fin.audit.errors import (
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, transaction, utcnow
-from fin.diligence import tally
+from fin.diligence import ledgers, tally
 from fin.diligence.engagement import require_open
 from fin.diligence.mask import Masker
+from fin.diligence.stub import UNAUDITED
 from fin.extract.ledger import Table, read_table
 from fin.extract.periods import fiscal_year_of
 from fin.findings import record, set_status
@@ -66,9 +69,17 @@ def insert_rows(
         )
 
 
-def period_of_file(table: Table, periods: list[str], start_month: int, name: str) -> str:
-    """The engagement period the export covers. E808 unless it is one full fiscal year in scope."""
+def period_of_file(
+    table: Table, engagement: dict[str, Any], start_month: int, name: str
+) -> tuple[str, str]:
+    """(the engagement period the export covers, its basis): an annual period in scope ('audited')
+    or the stub ('unaudited'). E808 unless it is one full fiscal year in scope or exactly the
+    stub."""
+    periods = engagement["periods"].split(",")
     start, end = table.start, table.end
+    stub = engagement.get("stub")
+    if stub and (start, end) == (engagement["stub_start"], engagement["stub_end"]):
+        return stub, "unaudited"
     full = (
         start.day == 1
         and start.month == start_month
@@ -76,11 +87,17 @@ def period_of_file(table: Table, periods: list[str], start_month: int, name: str
     )
     period = fiscal_year_of(end, start_month) if full else None
     if period in periods:
-        return period
+        return period, "audited"
     what = f"the fiscal year {period}" if period else "not a full fiscal year"
+    scope = ", ".join(periods)
+    if stub:
+        scope += (
+            f"; stub {stub}, {engagement['stub_start'].isoformat()} to "
+            f"{engagement['stub_end'].isoformat()}"
+        )
     raise SourcePeriodInvalid(
         f"{name}: its header gives {start.isoformat()} to {end.isoformat()} ({what}), which is "
-        f"not a period of the open engagement ({', '.join(periods)}). Nothing loaded"
+        f"not a period of the open engagement ({scope}). Nothing loaded"
     )
 
 
@@ -263,8 +280,7 @@ def ingest_source(
             )
         masker = Masker(con, run.run_id)
         table = read_table(path, kind, profile, hide=lambda text: masker.text(text) or text)
-        periods = engagement["periods"].split(",")
-        period = period_of_file(table, periods, config.fiscal_year_start_month, name)
+        period, basis = period_of_file(table, engagement, config.fiscal_year_start_month, name)
         tb = _tb_ledgers(con, engagement["engagement_id"], period)
         if kind == "ledger_vouchers" and not tb:
             raise TrialBalanceNeeded(
@@ -282,7 +298,7 @@ def ingest_source(
             "period": period,
             "period_start": table.start,
             "period_end": table.end,
-            "basis": "audited",
+            "basis": basis,
             "profile": table.profile.name,
             "status": "loaded",
             "run_id": run.run_id,
@@ -297,6 +313,11 @@ def ingest_source(
         file["file_id"] = masker.file_id = row[0]
         if kind == "trial_balance":
             lines = _load_tb(run, company, con, table, file, masker)
+            added = ledgers.sync(con, run.run_id)
+            if added:
+                lines.append(
+                    f"{added} new ledgers waiting for an account (`fin map ledgers {company}`)"
+                )
         else:
             lines = _load_lv(run, con, table, file, tb, masker)
         replaced = _supersede(run, company, con, file)
@@ -304,6 +325,8 @@ def ingest_source(
         f"loaded as source file_id {file['file_id']} ({kind} {period}, profile "
         f"{table.profile.name})"
     )
+    if basis == "unaudited":
+        head += f"; {period} is the stub: {UNAUDITED}"
     if replaced:
         head += f"; supersedes file_id {', '.join(map(str, replaced))}"
     run.loaded += 1

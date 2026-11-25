@@ -8,9 +8,9 @@
 CREATE SEQUENCE source_files_seq START 1;
 
 -- One row per source file loaded with `fin ingest <co> <file> --kind <kind>`.
--- kind: 'trial_balance' or 'ledger_vouchers' (D3 adds registers, bank, payroll). period: the annual period of the
--- engagement the export covers, read from its header lines (period_start, period_end). basis: 'audited' for an
--- annual period of the engagement ('unaudited' comes with the year-to-date stub). profile: the column profile used
+-- kind: 'trial_balance' or 'ledger_vouchers' (D3 adds registers, bank, payroll). period: the period of the engagement
+-- the export covers, read from its header lines (period_start, period_end): an annual period, or the stub. basis:
+-- 'audited' for an annual period, 'unaudited' for the stub (unaudited management accounts). profile: the column profile used
 -- (templates/profiles/<profile>.toml).
 --   loaded      its rows are current;
 --   superseded  a later file of the same kind and period replaced it (superseded_by); its rows stay.
@@ -82,3 +82,99 @@ CREATE TABLE ledger_entries (
     run_id VARCHAR NOT NULL,
     PRIMARY KEY (file_id, sheet, "row")
 );
+
+-- Tally ledgers mapped to Schedule III dictionary accounts (fin.diligence.ledgers): one row per ledger as stored (the
+-- token for a party ledger), for the company. A trial balance load adds its new ledgers as 'pending'.
+--   pending    not proposed yet;
+--   proposed   Claude proposed an account (`fin map ledgers <co> <file>`): account, confidence, reason;
+--   confirmed  the user confirmed it (`fin review confirm <co> <ids> --ledgers`); only confirmed ledgers count;
+--   rejected   the user rejected the proposal.
+-- statement and side come from the account when it is confirmed: side 1 for a debit-natured account (assets,
+-- expenses), -1 for a credit-natured one (equity, liabilities, income), so (closing_debit - closing_credit) * side is
+-- the balance as the statements show it. Whether a ledger is in a trial balance or Ledger Vouchers is read from those
+-- tables (`fin map ledgers <co>` shows it).
+CREATE SEQUENCE ledger_accounts_seq START 1;
+CREATE TABLE ledger_accounts (
+    ledger_id INTEGER PRIMARY KEY DEFAULT nextval('ledger_accounts_seq'),
+    ledger VARCHAR NOT NULL UNIQUE,
+    group_name VARCHAR,
+    parent_group VARCHAR,
+    status VARCHAR NOT NULL CHECK (status IN ('pending', 'proposed', 'confirmed', 'rejected')),
+    account VARCHAR,
+    statement VARCHAR CHECK (statement IN ('balance_sheet', 'profit_and_loss')),
+    side INTEGER CHECK (side IN (1, -1)),
+    confidence DOUBLE,
+    reason VARCHAR,
+    run_id VARCHAR NOT NULL,  -- the run of the last change
+    changed_at TIMESTAMP NOT NULL
+);
+
+-- Reconciliations (fin.diligence.recon): one row per run of a named comparison for one period. tb_vs_statements
+-- compares a period's trial balance (left_file_id), rolled up by confirmed ledger mapping, with the audited
+-- standalone statement figures (current_facts). input_hash: sha256 of what it compared (the trial balance, the
+-- ledger mappings, the figures, the threshold), so gate G1 can tell when it must run again. unmapped: trial balance
+-- ledgers not confirmed to an account; while there are any, no query is drafted.
+CREATE SEQUENCE recon_runs_seq START 1;
+CREATE TABLE recon_runs (
+    recon_id INTEGER PRIMARY KEY DEFAULT nextval('recon_runs_seq'),
+    engagement_id INTEGER NOT NULL,
+    name VARCHAR NOT NULL CHECK (name IN ('tb_vs_statements')),
+    period VARCHAR NOT NULL,
+    scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
+    left_file_id INTEGER NOT NULL,
+    threshold DECIMAL(20, 2) NOT NULL,
+    input_hash VARCHAR NOT NULL,
+    unmapped INTEGER NOT NULL,
+    run_id VARCHAR NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+-- The lines of a reconciliation, one per account (and one per unmapped ledger):
+--   matched     both sides equal;
+--   difference  both sides have a figure and they differ;
+--   left_only   the trial balance has a balance for the account, the statements no figure;
+--   right_only  the statements have a figure, no confirmed ledger rolls up to the account;
+--   unmapped    a ledger not confirmed to an account (ledger; left_amount its debit - credit); flagged, not guessed.
+-- difference = left_amount - right_amount (a missing side counts as 0). A line whose difference is at or above the
+-- threshold gets a draft accountant query (query_id) once every ledger is mapped; one below it is listed only.
+-- Differences are queried, never fixed. sources: file + sheet!row (trial balance) and file + sheet!cell or page.
+CREATE TABLE recon_items (
+    recon_id INTEGER NOT NULL,
+    item_no INTEGER NOT NULL,
+    kind VARCHAR NOT NULL
+        CHECK (kind IN ('matched', 'difference', 'left_only', 'right_only', 'unmapped')),
+    account VARCHAR,
+    ledger VARCHAR,
+    left_amount DECIMAL(20, 2),
+    right_amount DECIMAL(20, 2),
+    difference DECIMAL(20, 2) NOT NULL,
+    left_source VARCHAR,
+    right_source VARCHAR,
+    query_id INTEGER,
+    PRIMARY KEY (recon_id, item_no)
+);
+
+-- The current-year stub's figures: its loaded trial balance rolled up through the confirmed ledger mappings to
+-- Schedule III accounts, one row per account. Unaudited management accounts (basis), never annualised; base figures
+-- and growth use the audited years only. account NULL: the ledgers not confirmed to an account (value: their debit
+-- - credit).
+CREATE VIEW stub_figures AS
+SELECT
+    e.engagement_id,
+    e.stub AS period,
+    s.period_start,
+    s.period_end,
+    'unaudited management accounts' AS basis,
+    m.account,
+    m.statement,
+    sum((t.closing_debit - t.closing_credit) * coalesce(m.side, 1)) AS value,
+    count(*) AS ledgers,
+    s.file_id
+FROM engagement e
+JOIN source_files s
+    ON s.engagement_id = e.engagement_id AND s.period = e.stub AND s.kind = 'trial_balance'
+    AND s.status = 'loaded'
+JOIN trial_balance t ON t.file_id = s.file_id AND t.row_type = 'ledger'
+LEFT JOIN ledger_accounts m ON m.ledger = t.ledger AND m.status = 'confirmed'
+WHERE e.stub IS NOT NULL
+GROUP BY e.engagement_id, e.stub, s.period_start, s.period_end, m.account, m.statement, s.file_id;

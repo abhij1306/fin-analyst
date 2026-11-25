@@ -13,6 +13,7 @@ import typer
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
 from fin.diligence import adjustments, bridge, engagement, gates, queries
+from fin.diligence.stub import STUB
 from fin.paths import COMPANY_NAME
 
 engagement_app = typer.Typer(
@@ -54,6 +55,14 @@ def _periods(value: str) -> str:
         return ",".join(engagement.parse_periods(value))
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
+
+
+def _stub(value: str | None) -> str | None:
+    if value is not None and not STUB.match(value.strip().upper()):
+        raise typer.BadParameter(
+            "name the stub by its fiscal year and end month, e.g. FY27-YTD-SEP"
+        )
+    return None if value is None else value.strip().upper()
 
 
 def _period(value: str | None) -> str | None:
@@ -115,14 +124,22 @@ def engagement_open(
             help="Query threshold in rupees. Default: query_threshold in config.toml.",
         ),
     ] = None,
+    stub: Annotated[
+        str | None,
+        typer.Option(
+            "--stub",
+            callback=_stub,
+            help="Current-year stub after the last period, e.g. FY27-YTD-SEP (unaudited).",
+        ),
+    ] = None,
 ) -> None:
     """Open a diligence engagement for the company (one at a time)."""
 
     def body(run: Run) -> None:
-        row = engagement.open_engagement(run, company, periods.split(","), threshold)
+        row = engagement.open_engagement(run, company, periods.split(","), threshold, stub)
         typer.echo(f"{company}: {engagement.format_engagement(row)}")
 
-    args = {"company": company, "periods": periods, "threshold": threshold}
+    args = {"company": company, "periods": periods, "threshold": threshold, "stub": stub}
     execute("engagement open", args, body)
 
 
