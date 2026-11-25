@@ -99,6 +99,8 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
      `rupees`), whether or not the statement ties.
    - `core_revenue`, `passthrough_revenue`: the sum of the sales register's Amount in Rs (before GST) for invoices dated in
      the period, for customers not on, and on, the user's pass-through list. The person adds them from the register.
+   - `linked_purchase_cost`: the Amount in Rs of the purchase register lines whose Purchase Id is on a pass-through
+     sales line dated in the period, each Purchase Id counted once, whatever the purchase's own date.
    - `recast_revenue`, `recast_difference`, `recast_undated`: from the sales register's service start and end dates (Amount in Rs,
      before GST, spread over the service days by month): the revenue recognised in the period's months, the same less the
      Amount in Rs of invoices dated in the period, and the Amount in Rs of the period's invoices with no service dates (nil when
@@ -111,7 +113,8 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
      row left out, annual rupees as in the file (a blank cell adds nothing).
    - `bank_unmatched`: the receipts (credits) of the bank account that no invoice matched, summed in the account's
      currency: the person works it out from the bank statement and the sales register. `invoice_unmatched`: the
-     customer's invoices (Amount in Rs) with no receipt. `fx_line`: the customer's FX gain (positive) or loss in
+     customer's invoices (Amount in Rs) with no receipt. `customer_received`: the customer's invoices (Amount in Rs)
+     that a receipt matched, whether or not the amounts agree. `fx_line`: the customer's FX gain (positive) or loss in
      rupees (receipt as booked in Ledger Vouchers less the invoice's Amount in Rs), 0 if none. `bank_vs_tb`: the
      bank statements' closing balances less the trial balance's cash and bank ledgers.
    - customer analytics, all on the sales register's Amount in Rs (before GST), in rupees; "core" is customers not on the

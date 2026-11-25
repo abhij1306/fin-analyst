@@ -16,7 +16,7 @@ from fin.audit.logger import Run
 from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
 from fin.evals.counts import counts, related_codes
-from fin.evals.golden import LATEST_ENGAGEMENT, RECON_KINDS, Check, read_golden
+from fin.evals.golden import EXPORTED, LATEST_ENGAGEMENT, RECON_KINDS, Check, read_golden
 from fin.map.dictionary import load_accounts
 from fin.paths import evals_dir
 from fin.reconcile.bank import INVOICES as BANK_RUN
@@ -57,6 +57,14 @@ _FIN_VALUE = {
     "passthrough_revenue": (
         "SELECT passthrough_revenue FROM revenue_split WHERE period = ?",
         ("period",),
+    ),
+    "linked_purchase_cost": (
+        "SELECT linked_purchase_cost FROM revenue_split WHERE period = ?",
+        ("period",),
+    ),
+    "customer_received": (
+        "SELECT received_inr FROM customer_collections WHERE period = ? AND customer = ?",
+        ("period", "ledger"),
     ),
     "adjusted_revenue": (
         "SELECT adjusted_revenue FROM adjusted_ebitda WHERE period = ? AND scope = ?",
@@ -149,19 +157,19 @@ _FIN_VALUE = {
 }
 
 
-_EXPORTED = "a.status IN ('approved', 'sent', 'answered', 'closed')"
 _FIN_VALUE.update(
     {
         "query_issue": (
             "SELECT a.amount FROM accountant_queries a WHERE a.query_id::VARCHAR = ? "
-            f"AND a.period = ? AND a.engagement_id = {LATEST_ENGAGEMENT} AND {_EXPORTED}",
+            f"AND a.period = ? AND a.engagement_id = {LATEST_ENGAGEMENT} AND {EXPORTED}",
             ("ledger", "period"),
         ),
         "query_difference": (
-            "SELECT sum(abs(i.difference)) FROM query_items q "
+            "SELECT sum(abs(coalesce(i.amount_inr, CASE WHEN coalesce(i.currency, 'INR') = 'INR' "
+            "THEN i.difference END))) FROM query_items q "
             "JOIN recon_items i ON i.item_id = q.item_id "
             "JOIN accountant_queries a ON a.query_id = q.query_id WHERE a.period = ? "
-            f"AND a.engagement_id = {LATEST_ENGAGEMENT} AND {_EXPORTED} "
+            f"AND a.engagement_id = {LATEST_ENGAGEMENT} AND {EXPORTED} "
             "AND a.query_id::VARCHAR || ' ' || i.kind = ? HAVING count(*) > 0",
             ("period", "ledger"),
         ),

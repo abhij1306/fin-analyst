@@ -6,7 +6,8 @@ audited statements, and gates G1, G2 and G4. **D2 is built** (source files with 
 mapping, `tb_vs_statements`, the stub, G1's trial balance checks) and **D3 is built and reviewed as a whole**
 (registers, bank statements, payroll; `decisions/d3-review.md`). **D4's pass-through and adjustment-effect part is built** (`fin engagement passthrough`, `revenue_split`,
 `passthrough_lines`, revenue and cost effects on adjustments, adjusted revenue; `docs/decisions/d4-passthrough.md`).
-The rest of D4 and D5–D9 are planned, revised to the diligence user's answers in §9.
+D4–D9 are built and were reviewed as a whole (`docs/decisions/d4d9-review.md`); D7 (working capital, the diligence report) is
+the part still planned. The plan below is revised to the diligence user's answers in §9.
 No questions are open. Each phase moves into `PLAN.md` as it is built. The golden evaluation (`docs/EVAL.md`, `fin eval`)
 scores the outputs of D2 and D3 (trial balance ledgers, `tb_vs_statements` differences, stub figures, bank closing
 balances, register and payroll totals) against values a person checked; each later phase adds its own check kinds (`docs/CUSTOMISING.md`, "Eval checks").
@@ -30,12 +31,12 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Adjusted EBITDA, EBITDA bridge, EBITDA-to-cash walk | **Built** on the audited statements | D1 |
 | Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: all five (D2: trial balance, Ledger Vouchers; D3: registers, bank Excel and PDF, payroll) | D2, D3 |
 | Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers and the other sources; the export is built | D2 on; D8 |
-| Current-year stub from unaudited management data | Planned | D2 on |
+| Current-year stub from unaudited management data | **Built** (`stub_figures`, `bank_vs_tb`, the register and ledger reconciliations) | D2 on |
 | Pass-through revenue split out of core revenue and growth | **Built** | D4 |
-| Reconciliation: register ↔ ledger ↔ accounts | Planned | D4 |
+| Reconciliation: register ↔ ledger ↔ accounts | **Built** | D4 |
 | Reconciliation: bank ↔ receipts ↔ invoices, with FX lines for USD | **Built**: matching passes, `fx` lines, collections view, Claude's proposals; the stub's bank cross-check | D5 |
 
-| Service-period revenue recast from the sales register | Planned | D6 |
+| Service-period revenue recast from the sales register | **Built** | D6 |
 | Normalised working capital, diligence report and dashboard | Planned | D7 |
 | Query export: marked-up workbook and draft email, or a brief per issue | **Built** (`fin query export`, `answer --file`; choices: `docs/decisions/d8-query-export.md`) | D8 |
 | Customer, product, sector, pricing, retention analytics | **Built** | D9 |
@@ -77,7 +78,7 @@ They are in `CLAUDE.md`, "Diligence".
   cutoff.
 - **Query**: a question for the company's accountant, with the amount, period, scope and sources (raised from a
   finding, or by hand). Status: `draft` → `approved` → `sent` → `answered` → `closed`, or `withdrawn` before closed.
-  Planned (D4): a query is one **issue** that groups its difference lines (e.g. ten invoices missing from the
+  Built (D4): a query is one **issue** that groups its difference lines (e.g. ten invoices missing from the
   ledger), with the count and value of each kind of difference.
 - **Adjustment**: a proposed effect for a period and scope: a category (`config.toml [diligence]
   adjustment_categories`), optionally the dictionary account it relates to, a signed amount in rupees, a

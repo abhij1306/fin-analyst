@@ -17,6 +17,7 @@ from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import rupees
 from fin.diligence.mask import PREFIX
 from fin.reconcile.format import LEFT
+from fin.reconcile.items import kind_text, kind_totals, line_rupees
 
 TOKEN = re.compile(r"(?<![\w-])(?:" + "|".join(PREFIX.values()) + r")-\d{4,}(?![\w-])")
 
@@ -53,7 +54,7 @@ class Unmasker:
 class Issue:
     query: dict[str, Any]
     lines: list[dict[str, Any]] = field(default_factory=list)
-    kinds: list[dict[str, Any]] = field(default_factory=list)  # label, count, value
+    kinds: list[dict[str, Any]] = field(default_factory=list)  # label, count, value (rupees)
 
     @property
     def query_id(self) -> int:
@@ -65,7 +66,13 @@ class Issue:
 
     def difference_text(self) -> str:
         """'3 only in register ₹4,00,000.00; 1 different amounts ₹50,000.00'."""
-        return "; ".join(f"{k['count']} {k['label']} {rupees(k['value'])}" for k in self.kinds)
+        return "; ".join(kind_text(k["count"], k["label"], k["value"]) for k in self.kinds)
+
+
+def line_difference(line: dict[str, Any]) -> str:
+    """The line's difference in rupees; in its own currency when it has no rupee value."""
+    value = line_rupees(line)
+    return rupees(value) if value is not None else f"{line['currency']} {line['difference']:,}"
 
 
 def label(name: str, kind: str) -> str:
@@ -81,7 +88,8 @@ def label(name: str, kind: str) -> str:
 
 _LINES = (
     "SELECT i.item_id, r.name, i.kind, i.level, i.key, i.left_amount, i.right_amount, "
-    "i.difference, i.left_source, i.right_source, i.note FROM query_items q "
+    "i.difference, i.currency, i.amount_inr, i.left_source, i.right_source, i.note "
+    "FROM query_items q "
     "JOIN recon_items i USING (item_id) JOIN recon_runs r USING (recon_id) "
     "WHERE q.query_id = ? ORDER BY i.item_id"
 )
@@ -106,11 +114,7 @@ def approved_issues(
     issues = []
     for query in queries:
         issue = Issue(query, fetch_dicts(con, _LINES, [query["query_id"]]))
-        totals: dict[str, list[Any]] = {}
-        for line in issue.lines:
-            entry = totals.setdefault(label(line["name"], line["kind"]), [0, 0])
-            entry[0] += 1
-            entry[1] += abs(line["difference"])
+        totals = kind_totals(issue.lines, lambda line: label(line["name"], line["kind"]))
         issue.kinds = [{"label": k, "count": v[0], "value": v[1]} for k, v in totals.items()]
         issues.append(issue)
     return issues

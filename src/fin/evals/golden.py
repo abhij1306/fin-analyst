@@ -15,13 +15,15 @@ One line per check, the value a person read in the company's document and checke
 - `query_issue`: an exported issue's amount at issue (the lines' differences added without their
   signs) for a query that is approved or later; `ledger` is the query id.
 - `query_difference`: the value of one kind of difference in an issue, as the export shows it
-  (lines' differences without signs); `ledger` is the query id, a space and the kind
+  (lines' differences in rupees without signs); `ledger` is the query id, a space and the kind
   (`left_only`, `right_only` or `difference`), e.g. `3 left_only`.
 - `bank_closing`: a bank statement's closing balance, in the account's own currency (use unit
   `rupees` for the amount as printed, INR or USD): period is the statement's end date (YYYY-MM-DD),
   ledger its account number;
 - `core_revenue`, `passthrough_revenue`: the period's sales register revenue (Amount in Rs, before
-  GST) of customers not on, and on, the engagement's pass-through list (`revenue_split`);
+  GST) of customers not on, and on, the engagement's pass-through list (`revenue_split`), and
+  `linked_purchase_cost`: the purchase register lines whose Purchase Id is on a pass-through
+  line of the period, each Purchase Id once;
 - `recast_revenue`, `recast_difference`, `recast_undated`: the period's latest service-period
   recast (`service_recast`): the sales register's revenue recognised over service periods, the
   difference from revenue booked by invoice date (the revenue effect), and the value of sales
@@ -40,6 +42,9 @@ One line per check, the value a person read in the company's document and checke
   (ledger the customer token);
 - `fx_line`: a customer's FX gain (positive) or loss in that run, rupees (ledger the customer
   token; 0 when there is none);
+- `customer_received`: a customer's invoices matched to a receipt in that run (matched or
+  difference lines), Amount in Rs summed (`customer_collections.received_inr`; ledger the customer
+  token);
 - `bank_vs_tb`: the difference in the period's latest `bank_vs_tb` run (bank statements' closing
   balances less the trial balance's cash and bank ledgers);
 - the D9 analytics on the sales register (Amount in Rs, before GST), all in rupees:
@@ -74,8 +79,14 @@ OPTIONAL = ("note",)
 RECON_KINDS = ("sales_register_vs_gl", "purchase_register_vs_gl", "gl_vs_tb", "payroll_vs_gl")
 QUERY_KINDS = ("query_issue", "query_difference")
 RECAST_KINDS = ("recast_revenue", "recast_difference", "recast_undated")
-PASSTHROUGH_KINDS = ("core_revenue", "passthrough_revenue", "adjusted_revenue", "adjusted_ebitda")
-BANK_KINDS = ("bank_unmatched", "invoice_unmatched", "fx_line", "bank_vs_tb")
+PASSTHROUGH_KINDS = (
+    "core_revenue",
+    "passthrough_revenue",
+    "linked_purchase_cost",
+    "adjusted_revenue",
+    "adjusted_ebitda",
+)
+BANK_KINDS = ("bank_unmatched", "invoice_unmatched", "fx_line", "bank_vs_tb", "customer_received")
 ANALYTICS_KINDS = (
     "customer_revenue",
     "sector_revenue",
@@ -111,6 +122,7 @@ NEEDS = {
     **{kind: ("period",) for kind in RECAST_KINDS},
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),
+    "linked_purchase_cost": ("period",),
     "adjusted_revenue": ("period", "scope"),
     "adjusted_ebitda": ("period", "scope"),
     "register_total": ("period", "ledger"),
@@ -118,6 +130,7 @@ NEEDS = {
     "bank_unmatched": ("period", "ledger"),
     "invoice_unmatched": ("period", "ledger"),
     "fx_line": ("period", "ledger"),
+    "customer_received": ("period", "ledger"),
     "bank_vs_tb": ("period",),
     **{kind: ("period", "ledger") for kind in ANALYTICS_KINDS[:4]},
     **{kind: ("period",) for kind in ANALYTICS_KINDS[4:]},
@@ -127,6 +140,8 @@ YES, NO = "yes", ("", "no")
 # Diligence checks read the latest engagement's files and runs: a closed engagement's trial balance
 # for the same period is not added to the current one.
 LATEST_ENGAGEMENT = "(SELECT max(engagement_id) FROM engagement)"
+# Queries an export has taken in: the ones the golden set scores (alias `a` is accountant_queries).
+EXPORTED = "a.status IN ('approved', 'sent', 'answered', 'closed')"
 
 
 @dataclass(frozen=True)

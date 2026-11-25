@@ -339,13 +339,15 @@ def test_golden_checks_score_the_match_outputs(root: Path) -> None:
             ("invoice_unmatched", "CUST-0006", "450000"),
             ("fx_line", "CUST-0005", "3000"),
             ("fx_line", "CUST-0001", "0"),
+            ("customer_received", "CUST-0001", "120000"),
+            ("customer_received", "CUST-0006", "0"),
             ("invoice_unmatched", "CUST-0001", "999"),  # planted wrong
             ("bank_vs_tb", "", "1"),  # no bank_vs_tb run: missing
         ],
     )
     result = run_eval(run(root), "acme")
     outcomes = [c["outcome"] for c in result["checks"]]
-    assert outcomes == ["pass", "pass", "pass", "pass", "pass", "fail", "missing"]
+    assert outcomes == ["pass"] * 7 + ["fail", "missing"]
     assert "not_reconciled" in result["checks"][-1]["codes"]
     assert result["counts"]["bank_matches"]["lines"]["matched, reference"] == 1
 
@@ -359,4 +361,5 @@ def test_init_lists_what_a_person_can_check(root: Path) -> None:
         ("bank_unmatched", "111"),
         ("invoice_unmatched", "CUST-0006"),
         ("fx_line", "CUST-0005"),
+        ("customer_received", "CUST-0001"),
     } <= got

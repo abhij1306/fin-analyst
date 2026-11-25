@@ -3,6 +3,7 @@ views revenue_split, passthrough_lines, adjusted_ebitda, ebitda_bridge) on a syn
 workbook: a pass-through customer's revenue is split out of core revenue and growth, and a
 reclassification changes the margin on adjusted revenue with no EBITDA effect."""
 
+import csv
 import shutil
 from decimal import Decimal
 from pathlib import Path
@@ -20,6 +21,9 @@ from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
 from fin.diligence import adjustments, passthrough
 from fin.diligence.sources import ingest_source
+from fin.evals.golden import COLUMNS, golden_path
+from fin.evals.scaffold import init_golden
+from fin.evals.score import run_eval
 from fin.map.dictionary import load_seed
 from fin.paths import company_db_path, dictionary_db_path
 from tests.register_fixtures import sales_line, write_registers
@@ -177,6 +181,26 @@ def test_revenue_split_separates_passthrough_from_core_and_growth(root: Path) ->
     )
     assert fy25["linked_purchase_cost"] == D("90000.00")  # the purchase behind Purchase Id P1
     assert fy24["linked_purchase_cost"] == D("0.00")
+
+
+def test_golden_checks_score_the_linked_purchase_cost(root: Path) -> None:
+    passthrough.set_customers(run(root), "acme", [passthrough_token(root)], "email")
+    init_golden(run(root), "acme")
+    path = golden_path(root, "acme")
+    with path.open(encoding="utf-8", newline="") as handle:
+        listed = {(r["kind"], r["period"]) for r in csv.DictReader(handle)}
+    assert {("linked_purchase_cost", "FY24"), ("linked_purchase_cost", "FY25")} <= listed
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(COLUMNS)
+        for period, expected in (("FY25", "90000"), ("FY24", "5")):  # FY24 planted wrong
+            writer.writerow(
+                ("linked_purchase_cost", period, "", "", "", expected, "rupees", "s", "yes")
+            )
+
+    result = run_eval(run(root), "acme")
+
+    assert [c["outcome"] for c in result["checks"]] == ["pass", "fail"]
 
 
 def test_no_passthrough_customers_means_all_revenue_is_core(root: Path) -> None:

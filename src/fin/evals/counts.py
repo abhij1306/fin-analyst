@@ -34,6 +34,7 @@ import duckdb
 from fin.db.conn import connect
 from fin.evals.golden import (
     ANALYTICS_KINDS,
+    EXPORTED,
     LATEST_ENGAGEMENT,
     RECAST_KINDS,
     RECON_KINDS,
@@ -164,7 +165,7 @@ def _queries(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
             con,
             "SELECT count(DISTINCT q.query_id) FROM query_items q JOIN accountant_queries a "
             f"ON a.query_id = q.query_id WHERE a.engagement_id = {LATEST_ENGAGEMENT} "
-            "AND a.status IN ('approved', 'sent', 'answered', 'closed')",
+            f"AND {EXPORTED}",
         ),
     }
 

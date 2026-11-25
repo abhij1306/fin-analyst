@@ -56,15 +56,13 @@ def _line(ctx: Any, name: str, period: str) -> Line:
     if latest[1] != now[5:]:
         return False, f"{period}: {name} ran on data that has changed since ({command})"
     counts = ctx.con.execute(
-        "SELECT count(*) FILTER (WHERE needs_query AND (query_id IS NULL OR query_id IN "
-        "(SELECT query_id FROM accountant_queries WHERE status = 'withdrawn'))), "
-        "count(*) FILTER (WHERE kind = 'fx'), count(*) FILTER (WHERE kind = 'not_reconciled') "
-        "FROM recon_items WHERE recon_id = ?",
+        "SELECT count(*) FILTER (WHERE kind = 'fx'), "
+        "count(*) FILTER (WHERE kind = 'not_reconciled') FROM recon_items WHERE recon_id = ?",
         [latest[0]],
     ).fetchone()
     assert counts is not None
-    open_lines, fx, unreconciled = counts
-    if open_lines:
+    fx, unreconciled = counts
+    if open_lines := store.open_lines(ctx.con, latest[0]):
         return (
             False,
             f"{period}: {name}: {open_lines} lines at or above the threshold are not in a query "
@@ -90,19 +88,6 @@ def inputs(ctx: Any) -> dict[str, Any]:
     runs = []
     for name, period in required(ctx.con, ctx.engagement):
         latest = store.latest_run(ctx.con, ctx.engagement["engagement_id"], name, period)
-        items = (
-            []
-            if latest is None
-            else [
-                list(row)
-                for row in ctx.con.execute(
-                    "SELECT i.item_id, i.kind, i.difference, i.query_id, "
-                    "(SELECT status = 'withdrawn' FROM accountant_queries q "
-                    "WHERE q.query_id = i.query_id) FROM recon_items i "
-                    "WHERE i.recon_id = ? AND i.needs_query ORDER BY i.item_id",
-                    [latest[0]],
-                ).fetchall()
-            ]
-        )
+        items = store.query_rows(ctx.con, None if latest is None else latest[0])
         runs.append([name, period, latest, _current(ctx, name, period), items])
     return {"reconciliations": runs} if runs else {}

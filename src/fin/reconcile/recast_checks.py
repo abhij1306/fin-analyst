@@ -29,16 +29,6 @@ def _periods(ctx: Any) -> list[str]:
     return ctx.engagement["periods"].split(",")
 
 
-def _open_lines(ctx: Any, recon_id: int) -> int:
-    row = ctx.con.execute(
-        "SELECT count(*) FROM recon_items WHERE recon_id = ? AND needs_query AND (query_id IS NULL "
-        "OR query_id IN (SELECT query_id FROM accountant_queries WHERE status = 'withdrawn'))",
-        [recon_id],
-    ).fetchone()
-    assert row is not None
-    return int(row[0])
-
-
 def _difference(ctx: Any, recon_id: int) -> Decimal:
     row = ctx.con.execute(
         "SELECT difference FROM recon_items WHERE recon_id = ? AND level = 'period'", [recon_id]
@@ -57,7 +47,7 @@ def _period_lines(ctx: Any, period: str) -> list[Line]:
     if latest[1] != now:
         return [(False, f"{period}: the recast ran on data that has changed since ({command})")]
     problems: list[Line] = []
-    if open_lines := _open_lines(ctx, latest[0]):
+    if open_lines := store.open_lines(ctx.con, latest[0]):
         problems.append(
             (
                 False,
@@ -98,26 +88,12 @@ def inputs(ctx: Any) -> dict[str, Any]:
     runs = []
     for period in _periods(ctx):
         latest = store.latest_run(ctx.con, engagement["engagement_id"], recast.NAME, period)
-        items = (
-            []
-            if latest is None
-            else [
-                list(row)
-                for row in ctx.con.execute(
-                    "SELECT i.item_id, i.kind, i.difference, i.query_id, "
-                    "(SELECT status = 'withdrawn' FROM accountant_queries q "
-                    "WHERE q.query_id = i.query_id) FROM recon_items i "
-                    "WHERE i.recon_id = ? AND i.needs_query ORDER BY i.item_id",
-                    [latest[0]],
-                ).fetchall()
-            ]
-        )
         runs.append(
             [
                 period,
                 latest,
                 recast.current_hash(ctx.con, ctx.company, engagement, period),
-                items,
+                store.query_rows(ctx.con, None if latest is None else latest[0]),
                 adjustment_rows(ctx.con, engagement["engagement_id"], period),
             ]
         )

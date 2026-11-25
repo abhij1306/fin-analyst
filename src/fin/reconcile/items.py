@@ -8,6 +8,7 @@ their reconciliation, on data that has not changed since (E841), and be lines th
 are in no active query (a withdrawn one leaves its lines open) (E842).
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import duckdb
@@ -81,30 +82,48 @@ def _lines(
     return [found[i] for i in ids]
 
 
-def summary(con: duckdb.DuckDBPyConnection, query_id: int) -> str:
-    """'3 left_only ₹4,00,000.00; 1 difference ₹50,000.00': count and value per kind."""
-    rows = con.execute(
-        "SELECT i.kind, count(*), sum(abs(coalesce(i.amount_inr, CASE "
-        "WHEN coalesce(i.currency, 'INR') = 'INR' THEN i.difference END))) "
-        "FROM query_items q JOIN recon_items i USING (item_id) WHERE q.query_id = ? "
-        "GROUP BY i.kind ORDER BY i.kind",
-        [query_id],
-    ).fetchall()
-    return "; ".join(
-        f"{count} {kind} {rupees(value) if value is not None else 'with no rupee value'}"
-        for kind, count, value in rows
-    )
-
-
-def _rupees(line: dict[str, Any]) -> Any:
-    """The line's difference in rupees; None for a foreign-currency line with no rupee value."""
+def line_rupees(line: dict[str, Any]) -> Any:
+    """The line's difference in rupees; None for a foreign-currency line with no rupee value.
+    The one figure the query's amount, its count and value per kind, the export and the golden
+    checks all use."""
     if line["amount_inr"] is not None:
         return line["amount_inr"]
     return line["difference"] if (line["currency"] or "INR") == "INR" else None
 
 
+def kind_totals(
+    lines: list[dict[str, Any]], label: Callable[[dict[str, Any]], str]
+) -> dict[str, list[Any]]:
+    """label -> [count, value]: the lines' rupees added up without their signs (lines with no
+    rupee value add nothing; the value is None when none of the label's lines has one)."""
+    totals: dict[str, list[Any]] = {}
+    for line in lines:
+        entry = totals.setdefault(label(line), [0, None])
+        entry[0] += 1
+        if (value := line_rupees(line)) is not None:
+            entry[1] = (entry[1] or 0) + abs(value)
+    return totals
+
+
+def kind_text(count: int, label: str, value: Any) -> str:
+    """'3 left_only ₹4,00,000.00' (or 'with no rupee value')."""
+    return f"{count} {label} {rupees(value) if value is not None else 'with no rupee value'}"
+
+
+def summary(con: duckdb.DuckDBPyConnection, query_id: int) -> str:
+    """'3 left_only ₹4,00,000.00; 1 difference ₹50,000.00': count and value per kind."""
+    lines = fetch_dicts(
+        con,
+        "SELECT i.* FROM query_items q JOIN recon_items i USING (item_id) WHERE q.query_id = ? "
+        "ORDER BY i.item_id",
+        [query_id],
+    )
+    totals = kind_totals(lines, lambda line: line["kind"])
+    return "; ".join(kind_text(n, kind, value) for kind, (n, value) in sorted(totals.items()))
+
+
 def _amount(lines: list[dict[str, Any]]) -> Any:
-    values = [_rupees(line) for line in lines]
+    values = [line_rupees(line) for line in lines]
     return None if any(v is None for v in values) else sum(abs(v) for v in values)
 
 

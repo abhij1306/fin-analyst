@@ -5,6 +5,7 @@ exported files, tokens everywhere fin prints or logs."""
 
 import csv
 import shutil
+from decimal import Decimal as D
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from fin.db.schema import ensure_database
 from fin.diligence import gates, ledgers, payroll, queries
 from fin.diligence.answers import record_reply
 from fin.diligence.export import export_queries
+from fin.diligence.export_data import line_difference
 from fin.diligence.export_xlsx import _parse
 from fin.diligence.sources import ingest_source
 from fin.evals.golden import COLUMNS, golden_path
@@ -103,6 +105,25 @@ def raise_issue(root: Path) -> int:
         run(root), "acme", ids, f"Please explain these invoices, including those of {token}."
     )
     return int(query["query_id"])
+
+
+def test_a_foreign_currency_line_is_valued_in_rupees_everywhere() -> None:
+    usd = {
+        "kind": "difference",
+        "currency": "USD",
+        "amount_inr": D("-83000.00"),
+        "difference": D("-1000"),
+    }
+    no_rate = {"kind": "difference", "currency": "USD", "amount_inr": None, "difference": D("500")}
+    inr = {"kind": "left_only", "currency": None, "amount_inr": None, "difference": D("120000")}
+
+    totals = items.kind_totals([usd, no_rate, inr, inr], lambda line: line["kind"])
+
+    assert totals == {"difference": [2, D("83000.00")], "left_only": [2, D("240000")]}
+    assert items.kind_totals([no_rate], lambda line: line["kind"]) == {"difference": [1, None]}
+    assert items.kind_text(1, "difference", None) == "1 difference with no rupee value"
+    assert line_difference(usd) == "-₹83,000.00"
+    assert line_difference(no_rate) == "USD 500"
 
 
 def exported_paths(root: Path, output: str) -> list[Path]:

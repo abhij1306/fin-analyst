@@ -279,7 +279,8 @@ period in scope, NULL for the stub and the first period) and `passthrough_lines`
 its Purchase Id points to, with file and sheet!row of both). Claude proposes the `normalisation` adjustment with
 `--revenue-effect` minus the pass-through revenue and `--cost-effect` minus the linked purchase cost; the user accepts it. A
 reclassification with revenue and cost effects of the same size has no EBITDA effect and changes the margin on adjusted revenue;
-one between two cost accounts (`--account`, `--from-account`, `--moved-amount`) has no effect on any total.
+one between two cost accounts (`--account`, `--from-account`, `--moved-amount`) has no effect on any total. Golden eval
+kinds `core_revenue`, `passthrough_revenue`, `linked_purchase_cost` (period), `adjusted_revenue`, `adjusted_ebitda` (period, scope).
 
 Customer, product, sector, pricing and retention analytics (D9, decisions in `docs/decisions/d9-analytics.md`): views in
 `db/schema/diligence_analytics.sql` (run after `diligence_split_views.sql`) on the latest engagement's loaded sales register lines by
@@ -362,7 +363,9 @@ logs or stores (except `mask_values`) holds a name. The database does not change
 `fin query sent`. `fin query answer <co> <id> --file reply [--text ...]` archives the reply like a source
 (`answer_source` names it); a .txt/.eml/.md reply is read with known names masked and is the answer unless `--text` is
 given, any other file needs `--text` (E860). Errors E858-E861; choices `docs/decisions/d8-query-export.md`. Golden eval
-kinds: `query_issue` (the issue's amount) and `query_difference` (one kind of difference, ledger `<id> <kind>`).
+kinds: `query_issue` (the issue's amount) and `query_difference` (one kind of difference, ledger `<id> <kind>`); both are
+in rupees, a foreign-currency line at its rupee value (`fin.reconcile.items.line_rupees`), the same figure the query's
+amount, `fin query raise --items` and the export use.
 
 Bank matching (D5; `docs/decisions/d5-bank-match.md`). `fin reconcile <co> bank_vs_invoices [--period]`
 (`fin/reconcile/bank.py`, lines in `bank_lines.py`, passes in `bank_match.py`; registered with the D4 reconciliations) matches the loaded bank statements' credits
@@ -383,7 +386,7 @@ past `invoice_due_days` at the period end is `not_yet_due`, listed. The view `cu
 customer, invoiced, received and open rupees, collection days and the overdue ageing of open invoices.
 `fin reconcile <co> bank_vs_tb` (`bank.py`) compares the INR statements ending on a period's last day with the trial
 balance's cash and bank ledgers. G2 requires both through the D4 checks (`fin/reconcile/checks.py`). The engagement copies `match_window_days`, `fx_window_days`, `invoice_due_days` and `fiscal_start_month` from `config.toml` when it opens. E854-E855. Golden check kinds:
-`bank_unmatched`, `invoice_unmatched`, `fx_line`, `bank_vs_tb`.
+`bank_unmatched`, `invoice_unmatched`, `fx_line`, `customer_received`, `bank_vs_tb`.
 
 Payroll (D3, `docs/decisions/d3-payroll.md`): `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot, one
 row per employee, with the profile `templates/profiles/sparsh_payroll.toml` (the period pattern has one group,

@@ -37,9 +37,3 @@ Product-level choices for the query export (DILIGENCE_PLAN.md §7 D8), written 2
 - **Decision:** `fin query answer --file` archives any file like a source. A plain-text reply (.txt, .eml, .md) is read and, with the names fin knows replaced by tokens, becomes the answer unless `--text` is given. Excel, Word and PDF replies are not read: `--text` must say what they answer (E860). Names fin does not know (for example the accountant's own signature) are not masked.
 - **Why:** The plan says only "records a reply file (archived like any source)"; fin must not print real names, and reading arbitrary formats is extraction work the project avoids.
 - **How to change it:** `diligence/answers.py:record_reply` (`TEXT_SUFFIXES`).
-
-## 7. Golden checks for the export's figures
-
-- **Decision:** `query_issue` (the issue's amount) and `query_difference` (value of one kind of difference, ledger "<query id> <kind>") are scored for queries that are approved or later. Counts are not scored; the eval counts show queries by status.
-- **Why:** These are the figures the export puts in front of the accountant; the golden set is rupee values.
-- **How to change it:** `evals/score.py:_FIN_VALUE`, `evals/scaffold.py:_ISSUES`.

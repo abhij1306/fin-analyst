@@ -26,6 +26,7 @@ from fin.audit.errors import ExportFileError
 from fin.diligence.engagement import rupees
 from fin.diligence.export_data import Issue, Unmasker
 from fin.reconcile.format import LEFT
+from fin.reconcile.items import line_rupees
 
 HIGHLIGHT = PatternFill("solid", start_color="FFFF00", end_color="FFFF00")
 BOLD = Font(bold=True)
@@ -86,14 +87,15 @@ def _issue_sheet(book: Workbook, issue: Issue, u: Unmasker) -> None:
                 u(line["key"]),
                 line["left_amount"],
                 line["right_amount"],
-                line["difference"],
+                line_rupees(line),
+                line["currency"] or "INR",
                 u(line["left_source"]),
                 u(line["right_source"]),
                 u(line["note"]),
             ]
         )
-    heads = ["Line", "Compared", "Kind", "Key", "First figure", "Second figure", "Difference"]
-    _table(sheet, 6, [*heads, "First source", "Second source", "Note"], rows)
+    heads = ["Line", "Compared", "Kind", "Key", "First figure", "Second figure", "Difference (Rs)"]
+    _table(sheet, 6, [*heads, "Figures in", "First source", "Second source", "Note"], rows)
 
 
 def _parse(

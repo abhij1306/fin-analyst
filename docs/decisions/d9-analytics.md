@@ -43,12 +43,7 @@ Product-level choices for customer, product, sector, pricing and retention analy
 - **Decision:** Top 1, 5 and 10 are the largest customers by revenue in the period and segment (a tie goes to the lower token); their share is of that segment's revenue in the period, and with fewer than 5 or 10 customers it is all of them (100%). A customer with a net negative revenue is ranked last and counts in the total.
 - **How to change it:** `diligence_analytics.sql`: `customer_revenue` (`rank`), `customer_concentration`.
 
-## 8. Golden checks cover the money figures; shares and ratios follow from them
+## 8. The report section describes only
 
-- **Decision:** The golden check kinds are customer revenue, sector revenue (core), product revenue (core), top 1/5/10 core revenue, retained revenue, and the price, volume and mix effects: all in rupees. A person checks the amounts from the register; shares and retention percentages are not checked separately because they are ratios of the checked amounts.
-- **How to change it:** `evals/golden.py` (`ANALYTICS_KINDS`), `evals/score.py`, `evals/scaffold.py`.
-
-## 9. The report section describes only
-
-- **Decision:** The health report's "Customers, sectors and pricing" section (and the dashboard page) show the tables with a plain description; no narrative placeholder, no judgement. It appears only for a company with an engagement and sales register lines. It is a function (`customers_section`) the diligence report (D7) can include as it is.
-- **How to change it:** `report/customers.py`, `report/render.py:_blocks`, `templates/report/health.qmd`.
+- **Decision:** The health report's "Customers, sectors and pricing" section (and the dashboard page) show the tables with a plain description; no narrative placeholder, no judgement. It appears only for a company with an engagement and sales register lines.
+- **How to change it:** `report/customers.py`.

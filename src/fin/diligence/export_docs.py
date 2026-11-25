@@ -12,7 +12,7 @@ from docx.shared import Pt
 
 from fin.audit.errors import ExportFileError
 from fin.diligence.engagement import rupees
-from fin.diligence.export_data import Issue, Unmasker
+from fin.diligence.export_data import Issue, Unmasker, line_difference
 
 BRIEF_LINES = 20  # lines a brief lists, so it stays within two pages; the rest are counted
 
@@ -73,7 +73,7 @@ def write_brief(issue: Issue, u: Unmasker, path: Path) -> None:
         doc.add_heading("Lines", level=2)
         lines = doc.add_table(rows=1, cols=4, style="Light Grid Accent 1")
         for cell, head in zip(
-            lines.rows[0].cells, ("Line", "Kind", "Difference", "Source"), strict=True
+            lines.rows[0].cells, ("Line", "Kind", "Difference (Rs)", "Source"), strict=True
         ):
             cell.text = head
         for line in issue.lines[:BRIEF_LINES]:
@@ -81,7 +81,7 @@ def write_brief(issue: Issue, u: Unmasker, path: Path) -> None:
             source = "; ".join(s for s in (line["left_source"], line["right_source"]) if s)
             row[0].text = u(line["key"])
             row[1].text = line["kind"].replace("_", " ")
-            row[2].text = rupees(line["difference"])
+            row[2].text = line_difference(line)
             row[3].text = u(source)
         if len(issue.lines) > BRIEF_LINES:
             doc.add_paragraph(f"and {len(issue.lines) - BRIEF_LINES} more lines of these kinds.")

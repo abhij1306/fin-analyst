@@ -36,7 +36,9 @@ Gates in this build (docs/DILIGENCE_BUILD.md):
                     decided `recast` adjustment (`fin.reconcile.recast_checks`). Its inputs are each
                     period's run, the undated lines and their queries and the recast adjustments.
                     Unlocks approving G4;
-    G4 Adjustments  no proposed adjustment, and every accepted one has evidence. Unlocks
+    G4 Adjustments  no proposed adjustment, and every accepted one has evidence. Its inputs are each
+                    adjustment's status, effects (EBITDA, revenue, cost, the accounts of a
+                    reclassification and the amount moved), period and evidence. Unlocks
                     `fin engagement close`.
 """
 
@@ -247,7 +249,8 @@ def _adjustments_inputs(ctx: Context) -> dict[str, Any]:
     return {
         "adjustments": _rows(
             ctx,
-            "SELECT adj_id, status, amount, period, scope, query_id, finding_id, source_ref "
+            "SELECT adj_id, status, amount, revenue_effect, cost_effect, category, account, "
+            "from_account, moved_amount, period, scope, query_id, finding_id, source_ref "
             "FROM adjustments WHERE engagement_id = ? ORDER BY adj_id",
             [ctx.engagement["engagement_id"]],
         )
