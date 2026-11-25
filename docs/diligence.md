@@ -1,6 +1,6 @@
 # Diligence extension — plan
 
-Status, 2026-11-25: **D1 to D9 are built** (engagement, queries, adjustments, bridge and cash walk, gates G1 to G4, source files and masking, reconciliations, recast, working capital, analytics, the diligence report). The sections below keep the plan and its reasoning; the last section is the reference for what was built and how to run it. Each phase's design choices are in [decisions/](decisions/). The golden evaluation (`fin eval`) scores each phase's outputs; each phase adds its own check kinds ([development.md](development.md), "Eval checks").
+Status, 2026-11-25: **D1 to D9 are built** (engagement, queries, adjustments, bridge and cash walk, gates G1 to G4, source files and masking, reconciliations, recast, working capital, analytics, the diligence report). The sections below keep the plan and its reasoning; the last section is the reference for what was built and how to run it. D1 to D9 are the number core of a diligence; they do not replace a financial due diligence workstream (gap list: §10). Each phase's design choices are in [decisions/](decisions/). The golden evaluation (`fin eval`) scores each phase's outputs; each phase adds its own check kinds ([development.md](development.md), "Eval checks").
 
 Purpose: a way to manage and analyse a company's financial documents efficiently, from the audited statements down
 to the transactions behind them. The requirements started from a review of fin-analyst against a quality-of-earnings
@@ -459,6 +459,26 @@ further targeted questions):
    LlamaParse included. The README ("Install") says LlamaParse uploads pages to a cloud service, so a user picks
    a local parser (Docling or LiteParse) for documents that must not leave the machine.
 Statement findings (E401–E405) become queries only when the user raises them, as built.
+
+## 10. Not covered: the FDD gap list
+
+From the diligence user, relayed by the owner on 2026-11-25. It followed a scope comparison, not a test on the
+diligence user's documents. Their reading: the number core (D1 to D9) looks strong, but it does not replace a
+financial due diligence (FDD) workstream. Some of these items are judgement and management work, not data processing.
+Owner, 2026-11-25: build what fin can of this list, including the FDD-style report. Plan: [fdd.md](fdd.md).
+
+| # | Gap | What fin has today |
+|---|---|---|
+| 1 | Contract review of major customers and vendors: lock-in, SLA, penalties, escalation, renewal | `fin recast contracts` loads Claude's reading of a contract (customer, dates, value, billing terms) as optional evidence for the recast. No other contract terms, no vendor contracts |
+| 2 | Sample deal walkthroughs to validate commercial terms and dates | Register lines carry contract and service dates, rate and quantity; `bank_vs_invoices` matches receipts. No sample selection and no walkthrough record |
+| 3 | Management inquiries: revenue recognition, cut-off controls, MIS/KPIs, accounting-policy changes, capitalisation | Queries are built around a difference (amount, period, source). No inquiry list for policies or controls |
+| 4 | Provisioning and actuarial review: doubtful debts, gratuity and leave assumptions, wage-code impact | None. Payroll is an annual snapshot (gross salary, CTC) |
+| 5 | Contingencies, commitments, litigation, off-balance-sheet items | None |
+| 6 | Direct and indirect tax: returns, assessments, MAT, deferred tax, GST reconciliation, RCM, notices | None. Registers are before GST; the EBITDA-to-cash walk has a taxes-paid line |
+| 7 | Balance-sheet judgements: receivable recoverability and provisions, accrual and cut-off completeness, debt-like items for net debt | Working capital (`nwc_year_end`, `nwc_monthly`) and collections ageing (`customer_collections`). No net debt or debt-like items schedule (borrowings, leases and tax are outside working capital) |
+| 8 | Related-party analysis beyond a listing: terms, financing, rate comparisons | None |
+| 9 | Orderbook and revenue visibility beyond a supplied file | Historical analytics on the sales register (D9) and the recast (D6). No orderbook input |
+| 10 | An FDD-style findings report | The diligence report (D7) shows figures, differences, queries and adjustments. It describes and does not judge (`CLAUDE.md`: no ratings or recommendations), so it is not an FDD report or opinion. Changing that rule is an owner decision |
 
 ## Commands and behaviour (as built)
 

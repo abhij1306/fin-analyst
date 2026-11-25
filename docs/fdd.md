@@ -1,0 +1,153 @@
+# FDD extension — plan
+
+Owner decision, 2026-11-25 ("whatever u can build you should build including fdd style findings report"): build
+what fin can do of the diligence user's FDD gap list (`docs/diligence.md` §10), including an FDD-style findings
+report. This file is the plan; each workstream updates its own section to "built" and records its product-level
+choices in `docs/decisions/fdd-<id>.md`. Scope readings that are the orchestrator's, not the owner's, are in
+[decisions/fdd-scope.md](decisions/fdd-scope.md).
+
+## Rules (apply to every workstream)
+
+- The diligence rules hold (`CLAUDE.md`, "Diligence"): differences are queried, never fixed; Claude drafts, the user
+  decides; fin never sends anything; names are masked (tokens) in everything fin prints.
+- fin computes the repeatable parts; judgement stays with Claude (proposals) and the user (decisions). Every
+  proposal Claude makes is reviewed by the user through `fin review` or an accept/reject command, as for ledger
+  mappings and adjustments.
+- Claude's readings of documents (contracts, notes to accounts, notices) load from a reading CSV with file + page per
+  row, `read_by = claude`, as `fin recast contracts` does. fin does not check them; trusting one is the user's call.
+- A difference at or above the engagement threshold is a recon item Claude can group into a query
+  (`fin query raise --items`); below it is listed. New checks reuse `recon_runs`/`recon_items` where they compare
+  two sources.
+- Indicative figures (computed on a stated assumption) are labelled "indicative" with the assumption wherever shown,
+  and the assumption is a `config.toml [fdd]` key.
+- New tables in their own schema file `db/schema/fdd_<area>.sql`; no migrations. Error codes in the workstream's
+  range below. Diligence tables still change only through fin commands (`fin sql --write` refuses them, E806).
+- Each workstream adds: `docs/product.md` section, errors to `docs/errors.md`, synthetic fixtures, unit and
+  integration tests, a golden eval kind for each new figure a person can check, and a dashboard/report data
+  function its section in F8 can call.
+
+## Workstreams
+
+| id | Gaps | Errors | Depends on |
+|---|---|---|---|
+| f1 contracts | 1, 2 | E901–E909 | — |
+| f2 inquiries | 3 | E910–E919 | — |
+| f3 bsheet | 4, 7 (provisions, cut-off) | E920–E929 | — |
+| f4 netdebt | 7 (net debt, debt-like) | E930–E939 | — |
+| f5 disclosures | 5, 6 (notices), 8 | E940–E949 | — |
+| f6 gst | 6 | E950–E959 | — |
+| f7 orderbook | 9 | E960–E969 | — |
+| f8 fddreport | 10 | E970–E979 | f1–f7 merged |
+
+### F1: Contract terms and deal walkthroughs (gaps 1, 2)
+
+- Contract readings gain terms: party kind (customer/vendor), counterparty (token), start, end, value, lock-in
+  months, notice period days, SLA terms, penalty terms, escalation terms and escalation % a year, renewal terms,
+  auto-renew, termination for convenience, change of control, exclusivity; each with file + page. Vendor contracts
+  load the same way. Extend `contracts` and `fin recast contracts` (or one `fin contracts load`, the builder's call).
+- View `contract_coverage`: the top customers by core revenue and top vendors by purchases (count from
+  `[fdd] coverage_top_n`, default 10) for the latest period: contract on file or not, expiry within 12 months after
+  the last period end, auto-renew, change-of-control clause, lock-in left.
+- `fin sample draw <co> --kind sales|purchase --period P [--n 25]`: every line at or above the threshold (largest
+  first, up to n), then the rest drawn at random with a seed stored on the sample, so a draw is reproducible. Table
+  `samples`.
+- `fin walkthrough record <co> <sample-id> <file.json>`: Claude's walkthrough of a sample line, one result per check
+  (pass / exception / not available) with evidence: the line is in the register; a contract covers it and its rate,
+  dates and value agree; the service period sits inside the contract; a bank receipt is matched (D5); the ledger
+  posting is found (D2). Table `walkthroughs`; view `walkthrough_summary` (per sample: lines, checks passed,
+  exceptions). An exception at or above the threshold is a recon item for a query.
+
+### F2: Management inquiries (gap 3)
+
+- A query can be an inquiry: `fin query raise <co> --topic <topic> --question "..."` with no amount or source. Topics
+  from `[fdd] inquiry_topics`: revenue_recognition, cut_off, mis_kpi, accounting_policies, capitalisation,
+  provisions, related_parties, tax, contingencies, other.
+- `templates/fdd/inquiries.toml`: a standard FDD inquiry checklist per topic that Claude adapts to the company
+  (it drafts; the user approves, as for every query). `fin query checklist <co>` shows each topic with its queries and
+  their status, and the topics with none.
+- Inquiries follow the query life cycle (approve, sent, answer, close) and appear in `fin query export` (email and
+  brief) and in G4 like any query. An answer file is archived as now.
+
+### F3: Provisions, payroll liabilities and cut-off (gaps 4, 7)
+
+- `receivable_provision`: at each year end, receivables ageing (0–90, 91–180, 181–365, over 365 days from invoice date;
+  from the sales register and matched receipts, D5) against the provision for doubtful debts in the trial balance
+  (ledgers mapped to it); coverage per bucket and overall.
+- `gratuity_indicative`: from the payroll snapshot, per employee with at least `[fdd] gratuity_min_years` (5) of
+  service: 15/26 × monthly wages × completed years, capped at `[fdd] gratuity_cap` (Rs 20 lakh). Wages = gross
+  salary × `[fdd] basic_share` (assumption, default 0.5), and a second figure under the wage-code definition (wages at
+  least 50% of CTC). Total against the gratuity provision in the trial balance. Labelled "indicative, undiscounted,
+  not an actuarial valuation". Leave encashment: not built (no leave balance data).
+- Cut-off as reconciliations: `fin reconcile <co> sales_cutoff`: sales lines invoiced within `[fdd] cutoff_days`
+  (15) of a year end whose service starts on the other side; `purchase_cutoff`: purchase lines invoiced within
+  `[fdd] unrecorded_days` (60) after a year end whose service started before it (unrecorded liabilities). Lines at or
+  above the threshold are for queries.
+
+### F4: Net debt and debt-like items (gap 7)
+
+- Each trial balance ledger at a period end gets a net debt class: cash, debt, debt_like or none. fin defaults the
+  class from the ledger's confirmed account (borrowings and lease liabilities: debt; cash and bank: cash) and leaves
+  the rest unclassified; Claude proposes classes for the rest (`fin netdebt propose <co> <file.json>`, with a reason)
+  and the user confirms or rejects them (`fin review ... --netdebt`). Typical debt-like candidates: employee benefit
+  provisions, overdue statutory dues, income tax payable, capex creditors, deferred or contingent consideration,
+  customer advances not in working capital, unpaid dividends.
+- Items not in a ledger (an indicative gratuity shortfall, a probable contingency, a cut-off item): `fin netdebt item
+  propose <co> --period P --amount N --description ... --evidence <ref>`; the user accepts or rejects
+  (`fin netdebt item accept|reject`), as for adjustments.
+- View `net_debt` per period end: cash, debt, debt-like (ledgers and accepted items), net debt, proposed items shown
+  not applied; `net_debt_lines` with each ledger or item and its source. `fin netdebt <co> [--json]`.
+
+### F5: Contingencies, commitments, notices and related parties (gaps 5, 6, 8)
+
+- `fin disclosures load <co> <file> --reading <csv>`: Claude's reading of the notes to accounts, legal and tax
+  notices: one row per item with kind (contingent_liability, commitment, guarantee, litigation, tax_matter,
+  off_balance_sheet, related_party, related_party_transaction, related_party_balance), period, counterparty (masked
+  on load), nature, amount, forum and stage (litigation, tax), assessment year, demand, amount paid under protest,
+  relationship (related party), file + page. Table `disclosures`; schedules per kind.
+- Related parties: fin matches each related party to the masked customers, vendors and ledgers locally (normalised
+  name against `mask_values`, never printed); Claude proposes the rest by token; the user confirms
+  (`fin review ... --related`).
+- Views: `related_party_transactions` (from Ledger Vouchers and the registers, per party, period and nature) against
+  the disclosed amounts, a difference at or above the threshold a recon item (`fin reconcile <co> rpt_vs_books`);
+  `related_party_pricing` (a related party's average rate per product against the other customers' or vendors',
+  with the difference %); `related_party_loans` (balances and interest booked, implied rate on the average balance).
+
+### F6: GST and income tax (gap 6)
+
+- `fin ingest <co> <file> --kind gst --profile gstr1|gstr3b`: monthly return summaries (taxable value, IGST, CGST,
+  SGST, cess; for GSTR-3B also input tax credit, reverse-charge liability and tax paid in cash and credit), with file +
+  sheet!row. Synthetic profiles in `templates/profiles/`.
+- Tax ledgers: Claude proposes which trial balance ledgers are GST output, GST input, RCM, TDS, income tax; the user
+  confirms (`fin review ... --tax`).
+- Reconciliations: `gstr1_vs_sales_register` (taxable value by month), `gstr3b_vs_gstr1` (outward supplies by month),
+  `gstr3b_vs_books` (output tax and ITC against the tax ledgers by month), `rcm` (RCM liability in GSTR-3B against
+  the RCM ledger).
+- `tax_charge` view from the statements: profit before tax, current tax, deferred tax, effective tax rate, and the
+  deferred tax asset or liability movement per year; MAT credit where mapped.
+- Notices and assessments come in through F5's `tax_matter` rows.
+
+### F7: Orderbook and revenue visibility (gap 9)
+
+- `fin ingest <co> <file> --kind orderbook` (profile `orderbook`): customer, order number and date, value,
+  currency, start, end, billed to date, as at a date; file + sheet!row; customers masked.
+- Contracted backlog: unbilled orderbook value; revenue billed but not yet earned at the period end (from the
+  service-period recast, D6); contract value remaining after the period end (F1 contracts).
+- `revenue_visibility`: for the year after the last period end, revenue covered by each backlog source (spread
+  straight-line over the remaining term), against the last year's core revenue; `fin visibility <co> [--json]`.
+- `fin reconcile <co> orderbook_vs_register`: orders with no billing, billing with no order.
+
+### F8: FDD findings report (gap 10)
+
+- Table `fdd_findings`: area, title, observation, impact type (EBITDA, net debt, working capital, revenue,
+  disclosure, none), amount (only from linked evidence: an adjustment, a net debt item, a recon run or a query),
+  severity (high, medium, low), deal consideration (price, SPA indemnity or warranty, condition precedent, further
+  work, none), management response (from the linked query's answer), status (draft, final), evidence refs.
+  `fin fdd finding propose|list|update|drop <co>` (Claude); `fin fdd finding final <co> <id>` (the user's word only).
+- `fin report <co> --fdd [--render]`: key findings by severity; quality of earnings (D1, D7); working capital; net
+  debt and debt-like items (F4); revenue, contracts and visibility (F1, F7, D9); walkthroughs (F1); provisions and
+  payroll (F3); tax (F6); contingencies and commitments (F5); related parties (F5); inquiries and their answers
+  (F2); gate states; scope and limitations (what fin did not do: actuarial valuation, legal review, site visits);
+  sources appendix. A section whose data is not loaded says so.
+- Narrative rule for this report only (owner, 2026-11-25): observations, severity, implications and deal
+  considerations are allowed; no valuation, rating of the company as an investment, or buy/don't-buy language.
+  Numbers only as references, as in the other reports. Only final findings appear unless `--drafts`.
