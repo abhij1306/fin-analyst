@@ -1,4 +1,4 @@
-"""sales_register_vs_gl and purchase_register_vs_gl (DILIGENCE_PLAN.md D4).
+"""sales_register_vs_gl and purchase_register_vs_gl (docs/diligence.md D4).
 
 The register's invoice lines of the period (Amount in Rs, before GST; by invoice date, from every
 loaded registers file) are compared with the Ledger Vouchers entries of the period on the ledgers

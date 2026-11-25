@@ -1,4 +1,4 @@
-"""Masking names (docs/DILIGENCE_PLAN.md §2 rule 4 and §3, "Masking").
+"""Masking names (docs/diligence.md §2 rule 4 and §3, "Masking").
 
 What fin prints goes to Claude, and from Claude Code to Anthropic; the diligence user's rule is to
 anonymise names before any third-party processing. So on load, each masked value is stored once in

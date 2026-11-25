@@ -14,7 +14,7 @@ the audit table `diligence_events`. A gate is then
 So a gate reopens on its own when the data under it changes. Commands a gate unlocks refuse with
 E801 until it is approved (`require`), checked in the same transaction as their change.
 
-Gates in this build (docs/DILIGENCE_BUILD.md):
+Gates in this build (docs/diligence.md):
     G1 Ingestion    every annual period in scope has figures in current_facts (a loaded document,
                     mapped and confirmed: what the metrics use), no held documents, no mapping
                     items waiting for review; and the trial balance checks

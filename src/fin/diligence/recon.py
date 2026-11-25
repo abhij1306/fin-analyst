@@ -1,4 +1,4 @@
-"""Reconciliations (`fin reconcile`): the built-in `tb_vs_statements` (DILIGENCE_PLAN.md D2).
+"""Reconciliations (`fin reconcile`): the built-in `tb_vs_statements` (docs/diligence.md D2).
 
 For each audited (annual) period with a loaded trial balance, its ledger closing balances (debit -
 credit) roll up through the confirmed ledger mappings (`fin.diligence.ledgers`) and are compared

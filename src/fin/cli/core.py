@@ -1,5 +1,5 @@
 """The `fin` app: the root Typer, the `--version` option, the groups from other packages, and the
-helpers every command module shares. To add a command group, see docs/CUSTOMISING.md."""
+helpers every command module shares. To add a command group, see docs/development.md."""
 
 from typing import Annotated
 

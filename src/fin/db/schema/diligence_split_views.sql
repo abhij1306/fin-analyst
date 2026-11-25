@@ -1,4 +1,4 @@
--- Company database: the pass-through views on the registers (docs/DILIGENCE_PLAN.md D4). Run after sources.sql
+-- Company database: the pass-through views on the registers (docs/diligence.md D4). Run after sources.sql
 -- (register_lines) and diligence.sql (passthrough_customers).
 --
 -- Which lines: the sales and purchase register lines of the latest engagement's loaded (not superseded) files, by

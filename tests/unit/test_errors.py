@@ -11,7 +11,7 @@ def _subclasses(cls: type) -> list[type]:
 
 def test_every_plan_code_has_one_error_class_and_its_exit_code() -> None:
     by_code = {cls.code: cls.exit_code for cls in _subclasses(errors.FinError) if cls.code}
-    # README.md "Error codes": setup, database and output errors stop the command (2);
+    # docs/errors.md: setup, database and output errors stop the command (2);
     # per-document failures and a missing evidence source complete with failures (1); a refusal
     # pending user confirmation (3). E302 is a warning event and E401-E405 are finding codes
     # (fin.findings), not errors: they have no class.

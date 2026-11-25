@@ -1,4 +1,4 @@
-"""The D4 reconciliations (DILIGENCE_PLAN.md D4): one function per reconciliation.
+"""The D4 reconciliations (docs/diligence.md D4): one function per reconciliation.
 
 sales_register_vs_gl and purchase_register_vs_gl (`registers.py`), gl_vs_tb (`gl_vs_tb.py`) and
 payroll_vs_gl (`payroll_vs_gl.py`) compute lines from the loaded source rows; `store.py` records a

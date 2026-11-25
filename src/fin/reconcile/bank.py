@@ -1,4 +1,4 @@
-"""The D5 reconciliations (DILIGENCE_PLAN.md D5): bank receipts and invoices, and bank and books.
+"""The D5 reconciliations (docs/diligence.md D5): bank receipts and invoices, and bank and books.
 
 bank_vs_invoices: the loaded bank statements' credits (receipts) against sales register invoices,
 matched in fixed passes (`bank_match.py`; lines in `bank_lines.py`). A line is one matched group

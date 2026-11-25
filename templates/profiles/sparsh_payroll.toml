@@ -3,7 +3,7 @@
 # Date of Joining | Date of Resignation | Gross Salary | CTC, under a title line such as
 # "Employee Master as on 31-Mar-2025". Gross salary and CTC are ANNUAL rupees; the user confirms that
 # (`fin payroll confirm-unit`), and fin warns when the amounts look monthly.
-# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+# How profiles work: src/fin/extract/profiles.py and docs/development.md.
 kind = "payroll"
 header_rows = 1
 date_format = "%d-%b-%Y"

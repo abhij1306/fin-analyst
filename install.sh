@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install fin-analyst on macOS. Safe to run again: it only installs what is missing.
-# Steps (PLAN.md §10): check macOS -> Homebrew -> brew bundle -> uv sync -> npm ci -> fin init -> fin doctor.
+# Steps (docs/product.md §10): check macOS -> Homebrew -> brew bundle -> uv sync -> npm ci -> fin init -> fin doctor.
 #
 # Usage: ./install.sh [--parser docling|liteparse|llamaparse|none]
 #   --parser NAME  install that optional PDF add-on, with its models (or none: remove it), and record

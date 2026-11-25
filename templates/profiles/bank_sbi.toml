@@ -1,7 +1,7 @@
 # State Bank of India current account statement (Excel, or a PDF read by the chosen PDF add-on), INR or USD account.
 # Header lines above the table: Account Number, Account Currency, the period ("... 1 Apr 2024 to 30 Apr 2024"), Opening
 # and Closing Balance. Table: Txn Date | Value Date | Description | Ref No./Cheque No. | Debit | Credit | Balance.
-# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+# How profiles work: src/fin/extract/profiles.py and docs/development.md.
 kind = "bank"
 bank = "SBI"
 currency = "INR"

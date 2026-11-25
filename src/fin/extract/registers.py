@@ -73,5 +73,5 @@ def read_registers(
     raise LayoutUnknown(
         f"{path.name}: no registers column profile matches its headers (tried: {names}).{extra} "
         f"Title and header lines: {shown or 'none'}. Write a profile in templates/profiles/ "
-        "(docs/CUSTOMISING.md) and ingest again with --profile"
+        "(docs/development.md) and ingest again with --profile"
     )

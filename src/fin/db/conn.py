@@ -29,7 +29,7 @@ _LOCK_MARKERS = ("could not set lock", "conflicting lock", "being used by anothe
 @dataclass(frozen=True)
 class LockRetry:
     """How to retry a locked file: `attempts` tries in total, sleeping `base_delay` seconds after
-    the first failure and doubling each time. Five tries is PLAN.md §9; tests shorten
+    the first failure and doubling each time. Five tries is docs/product.md §9; tests shorten
     `base_delay`."""
 
     attempts: int = 5

@@ -1,4 +1,4 @@
-"""`fin dashboard` (PLAN.md Phase 10): Evidence dashboards over shared/analytics.duckdb.
+"""`fin dashboard` (docs/product.md): Evidence dashboards over shared/analytics.duckdb.
 
 Evidence reads its DuckDB source at `npm run sources` time. So that it never holds the live
 analytics file (an ingest rewrites it), `snapshot_analytics` first copies the analytics tables into

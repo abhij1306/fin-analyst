@@ -224,7 +224,7 @@ def read_table(
     raise LayoutUnknown(
         f"{path.name}: no {kind} column profile matches its headers (tried: {names}). "
         f"Title and header lines: {shown or 'none'}. Write a profile in templates/profiles/ "
-        "(docs/CUSTOMISING.md) and ingest again with --profile"
+        "(docs/development.md) and ingest again with --profile"
     )
 
 

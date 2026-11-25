@@ -1,4 +1,4 @@
-"""Gate G3 Recast's checks (DILIGENCE_PLAN.md §5), for `fin.diligence.gates`.
+"""Gate G3 Recast's checks (docs/diligence.md §5), for `fin.diligence.gates`.
 
 Once a sales register is loaded, for every annual period of the engagement the checklist says:
 

@@ -1,16 +1,6 @@
 # Diligence extension — plan
 
-Status, 2026-11-24: **phase D1 is built** (#43, #44, #45; build log: [DILIGENCE_BUILD.md](DILIGENCE_BUILD.md)). It
-covers the engagement, accountant queries, EBITDA adjustments, the EBITDA bridge and EBITDA-to-cash walk on the
-audited statements, and gates G1, G2 and G4. **D2 is built** (source files with column profiles, masking, ledger
-mapping, `tb_vs_statements`, the stub, G1's trial balance checks) and **D3 is built and reviewed as a whole**
-(registers, bank statements, payroll; `decisions/d3-review.md`). **D4's pass-through and adjustment-effect part is built** (`fin engagement passthrough`, `revenue_split`,
-`passthrough_lines`, revenue and cost effects on adjustments, adjusted revenue; `docs/decisions/d4-passthrough.md`).
-D4–D9 are built and were reviewed as a whole (`docs/decisions/d4d9-review.md`); D7 (working capital, the diligence report) is
-the part still planned. The plan below is revised to the diligence user's answers in §9.
-No questions are open. Each phase moves into `PLAN.md` as it is built. The golden evaluation (`docs/EVAL.md`, `fin eval`)
-scores the outputs of D2 and D3 (trial balance ledgers, `tb_vs_statements` differences, stub figures, bank closing
-balances, register and payroll totals) against values a person checked; each later phase adds its own check kinds (`docs/CUSTOMISING.md`, "Eval checks").
+Status, 2026-11-25: **D1 to D9 are built** (engagement, queries, adjustments, bridge and cash walk, gates G1 to G4, source files and masking, reconciliations, recast, working capital, analytics, the diligence report). The sections below keep the plan and its reasoning; the last section is the reference for what was built and how to run it. Each phase's design choices are in [decisions/](decisions/). The golden evaluation (`fin eval`) scores each phase's outputs; each phase adds its own check kinds ([development.md](development.md), "Eval checks").
 
 Purpose: a way to manage and analyse a company's financial documents efficiently, from the audited statements down
 to the transactions behind them. The requirements started from a review of fin-analyst against a quality-of-earnings
@@ -203,7 +193,7 @@ changed, with what changed, or an earlier gate not approved), `open` (never appr
 
 `fin status` shows an open engagement's queries, proposed adjustments and gate states.
 
-Error codes (README "Error codes"): E801 a gate the command needs is not approved; E802 a gate cannot be approved
+Error codes (docs/errors.md): E801 a gate the command needs is not approved; E802 a gate cannot be approved
 (checklist fails, or an earlier gate is not approved); E803 no open engagement, or one already open; E804 an
 adjustment is not valid (no evidence, category not in config, period not in the engagement, unknown account); E805
 an unknown query, adjustment or finding id, or a status change not allowed; E806 `fin sql --write` given a statement
@@ -254,7 +244,7 @@ adjusted facts). D4 adds revenue and cost effects, which is enough for adjusted 
 ### D2: Trial balance, Tally Ledger Vouchers, masking, stub
 Status: **built** (first half: source files, the tabular loader and profiles, `trial_balance`, `ledger_entries`,
 masking; second half: `ledger_accounts` and `fin map ledgers`, `tb_vs_statements` with `fin reconcile`, the stub
-and `stub_figures`, G1's trial balance checks; `PLAN.md` "Diligence source files"). Ledger Vouchers need their
+and `stub_figures`, G1's trial balance checks; `docs/product.md` "Diligence source files"). Ledger Vouchers need their
 period's trial balance loaded first (E811), so party ledgers are known before they are masked; a Ledger Vouchers
 ledger not in its trial balance is masked as `LEDG-0001`. While any trial balance ledger is unmapped,
 `tb_vs_statements` drafts no query (the difference may be fin's own mapping gap). The profit and loss ledgers' net
@@ -304,7 +294,7 @@ duplicate-invoice finding), bank statements (Excel and PDF), payroll. Product-le
   PR) and maps them to `bank_lines` with the same profiles as the Excel statements, keeping file + page lineage.
   LiteParse is the default for bank PDFs: nothing leaves the machine.
   - Bank PDFs go through whichever parser the user has chosen, LlamaParse included (owner, 2026-11-24). LlamaParse
-    uploads pages to a cloud service (README, "PDF add-ons"), so a user picks a local parser for documents that must
+    uploads pages to a cloud service (README, "Install"), so a user picks a local parser for documents that must
     not leave the machine. LlamaParse's API key comes from the environment (`LLAMA_CLOUD_API_KEY`), never from the repo or the data folder.
     A missing key or a failed call raises an error with the run_id; nothing is loaded.
   - A parse is saved in the data folder with the file's sha256, so ingesting the same file again does not parse it
@@ -355,7 +345,7 @@ Status, 2026-11-25: built (`docs/decisions/d5-bank-match.md`; `fin/diligence/ban
 **Done when:** the synthetic matching answer key, including a USD receipt with an FX difference, is reproduced exactly.
 
 ### D6: Service-period recast
-Status: **built** (`fin recast run|contracts`, `fin/reconcile/recast*.py`, `fin/reconcile/contracts.py`, gate G3, E863-E865, golden eval kinds `recast_revenue`, `recast_difference`, `recast_undated`; `PLAN.md` "Service-period recast"; every design choice and how to change it: [decisions/d6-recast.md](decisions/d6-recast.md)).
+Status: **built** (`fin recast run|contracts`, `fin/reconcile/recast*.py`, `fin/reconcile/contracts.py`, gate G3, E863-E865, golden eval kinds `recast_revenue`, `recast_difference`, `recast_undated`; `docs/product.md` "Service-period recast"; every design choice and how to change it: [decisions/d6-recast.md](decisions/d6-recast.md)).
 - The sales register's service start and end dates drive the recast: each line's amount in Rs is spread
   straight-line over its service period, by month, and compared with revenue booked by period. The difference by
   period is a proposed `recast` adjustment (revenue effect and EBITDA effect).
@@ -466,6 +456,171 @@ further targeted questions):
 **Resolved by the owner on 2026-11-24:**
 
 1. **LlamaParse.** Bank PDFs carry names. They go through whichever PDF parser the user has chosen (`[pdf] parser`),
-   LlamaParse included. The README ("PDF add-ons") says LlamaParse uploads pages to a cloud service, so a user picks
+   LlamaParse included. The README ("Install") says LlamaParse uploads pages to a cloud service, so a user picks
    a local parser (Docling or LiteParse) for documents that must not leave the machine.
 Statement findings (E401–E405) become queries only when the user raises them, as built.
+
+## Commands and behaviour (as built)
+
+A diligence engagement on one company keeps two things beside the reported figures, never changing them: questions
+for the company's accountant, and proposed adjustments to EBITDA. A difference is the company's to explain, so it
+becomes a query, not a fix. Claude drafts; you decide. fin never sends anything. Plan:
+this file.
+
+- `fin engagement open <company> --periods FY24,FY25,FY26 [--threshold N] [--stub FY27-YTD-SEP]`: one open
+  engagement per company, with the years in scope, the query threshold in rupees (default `query_threshold` in
+  `config.toml`) and optionally a current-year stub: the year to date after the last year (here April to
+  September of FY27), from unaudited management data. The stub is labelled "unaudited management accounts"
+  wherever it shows and is never annualised.
+  `fin engagement status <company>` counts queries and adjustments by status; `fin engagement close <company>`
+  (needs gate G4, unless the engagement has no queries and no adjustments).
+- Queries: `fin query raise <company> --finding <id> --question "..."` (the finding's period, difference and
+  sources; the finding is not changed) or `--amount N --period P --source "file sheet!cell" --question "..."`.
+  A query starts as a draft (`fin query edit` changes its wording), then `fin query approve`, `sent` (when you have
+  sent it), `answer --text` (or `--file reply`: archived like a source; a .txt, .eml or .md reply is read with known names masked, any other file needs `--text`), `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
+  `fin query export <company> [--brief]` writes the approved queries for the accountant to `exports/<company>/<run_id>/`
+  of the data folder: `queries.xlsx` (summary, a sheet per query with the count and value per kind of difference, and the
+  cited source sheets with the lines highlighted) and `email.txt` (a draft; you send it from your own email, then `fin query
+  sent`), or with `--brief` a Word brief per query. The files hold the real names; fin prints only their paths (E858-E861).
+- Adjustments: `fin adjust propose <company> --period --scope --category --description` with evidence
+  (`--query`, `--finding` or `--source`), the effects (`--revenue-effect` and `--cost-effect`, signed rupees; the
+  EBITDA effect, `--amount`, is always revenue effect minus cost effect, and `--amount` alone is a cost effect of
+  minus that) and optionally `--account`. A reclassification between two cost accounts names both
+  (`--account` the cost moves to, `--from-account`, `--moved-amount`) and has no net effect. Then
+  `fin adjust accept <ids>` or `reject <ids> --reason`; `list [--status]`. Categories are `adjustment_categories`
+  in `config.toml`.
+- Pass-through: `fin engagement passthrough <company> [--customer CUST-0001 ... --source "..."] [--clear]` records your
+  list of pass-through customers (SI/reseller deals at about zero margin, as tokens from the sales register; E845 for a
+  token not on a loaded sales register), replacing the earlier list; without options it shows the list and the
+  revenue split. The views `revenue_split` (per period: sales revenue as core and pass-through, the pass-through
+  lines with and without a Purchase Id, the linked OEM purchase cost, core revenue growth) and `passthrough_lines`
+  (each pass-through line with its OEM purchase) read it. Growth is on core revenue only. Claude proposes the
+  `normalisation` adjustment that strips pass-through revenue and its cost; you accept it. `fin` values nothing.
+- `fin engagement bridge <company> [--period FY25] [--scope standalone] [--json]`: per period and scope of the
+  latest engagement, the EBITDA bridge (reported EBITDA, each accepted adjustment, adjusted EBITDA; proposed ones are
+  listed as not applied) and the EBITDA-to-cash walk down to CFO and free cash flow, with cash conversion. Money in
+  the documents' unit, as `fin statements`; `--json` in rupees. A line whose input is missing shows `-` and names it.
+  The same figures are the views `adjusted_ebitda` (also adjusted revenue and the margin on it), `ebitda_bridge` and
+  `ebitda_to_cash`, queryable with `fin sql`.
+- Service-period recast: `fin recast run <company> [--period FY25]` spreads each sales register line's Amount in Rs over its
+  service start and end dates (by service day) and compares each year's recast with the revenue booked by invoice date.
+  The difference is proposed as a `recast` adjustment (revenue effect = EBITDA effect); running it again replaces a stale
+  proposal of its own and never overrides one you accepted or rejected. A sales invoice with no service dates is recognised on
+  its invoice date and listed (at or above the threshold it goes into a query, `fin query raise --items`). The unaudited stub is
+  not recast. `fin recast contracts <company> <file> --reading <csv>` loads Claude's reading of a contract (file + page) as
+  evidence shown beside an undated invoice; it never drives the schedule. Decisions: `docs/decisions/d6-recast.md`.
+- Gates: checkpoints you approve, in order. fin checks each one's checklist; Claude prepares a gate and shows you
+  `fin gate status <company>` (each gate's state, its checklist lines and what it unlocks), and only you approve it
+  (`fin gate approve <company> <gate>`). A Claude Code hook asks you before any command Claude runs that looks like
+  a gate approval, and `fin sql --write` cannot write gate approvals, queries, adjustments or the engagement
+  (E806): they change only through `fin engagement|query|adjust|gate` (and the source file tables only through
+  `fin ingest --kind`). An approved gate reopens on its own when the
+  data under it changes, and you approve it again.
+  - **G1 Ingestion:** every year in scope has mapped figures from a loaded document, no held documents, no mappings
+    waiting for review. Once the engagement has a trial balance (or a stub), also: a trial balance and Ledger
+    Vouchers for every year and the stub, every trial balance ledger in its Ledger Vouchers, every ledger mapped to
+    an account, and each year's `tb_vs_statements` run on the current data with every difference at or above the
+    threshold in a query (the stub is checked against its Ledger Vouchers only). A changed figure (for example a
+    fix with `fin sql --write`), a new source file, a mapping change or a new reconciliation reopens it, and so
+    does any change after which its checklist fails. Once a payroll file is loaded, G1 also needs the user to
+    have confirmed its unit (`fin payroll confirm-unit`).
+  - **G1 and bank statements:** once a bank statement is loaded, also every bank parse ties (opening + credits −
+    debits = closing, or the user has accepted its finding). Overlapping periods and balance gaps are findings for
+    queries, listed in G1 but not blocking it.
+  - **G2 Reconciliation:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
+    approved query does not. Needed by `fin adjust accept|reject`.
+  - **G3 Recast:** once a sales register is loaded, for every year: `fin recast run` ran on the current data, every sales
+    invoice at or above the threshold with no service dates is in a query, and the year's recast difference has a
+    proposed or decided `recast` adjustment. Needed to approve G4.
+  - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
+    `fin engagement close`.
+
+  A command that needs a gate that is not approved refuses with E801; a gate that cannot be approved yet, E802.
+  `fin status` shows an open engagement's queries, proposed adjustments and gates.
+- Source files: `fin ingest <company> <file> --kind trial_balance|ledger_vouchers|registers|bank|payroll [--profile <name>]` loads a Tally
+  Trial Balance (Detailed mode) or Ledger Vouchers export into `trial_balance` or `ledger_entries` (and `ledger_blocks`, every ledger block the export has, even one with no voucher lines), or a billing-system
+  registers workbook (a sales sheet and a purchase sheet) into `register_lines`, each row with
+  its file (`source_files`: sha256, archive copy, profile) and sheet!row. The period comes from the export's header
+  lines and must be a year of the open engagement, or exactly its stub (E808). A column profile (`templates/profiles/*.toml`) says how
+  to read the layout; a layout no profile matches fails with E807 and lists the header lines found, so Claude can
+  write a profile. A trial balance with group rows only is refused (E809: export it in Detailed mode); a group not
+  equal to the sum of its ledgers is a finding, kept as filed. Load a period's trial balance before its Ledger
+  Vouchers (E811); fin then lists the trial balance ledgers missing from the Ledger Vouchers. A later file of the
+  same kind and period supersedes the earlier one. A registers workbook has no period header: its period comes from
+  its invoice dates (a later registers file replaces the earlier whatever its period). Amount in Rs is before GST.
+  The same invoice number twice (sales: the number; purchases: the vendor and number) is a finding, both rows kept
+  (E813 only when a row is not an invoice line: no number, date, party or Amount in Rs, or a date in another format).
+- Bank statements: `fin ingest <company> <file> --kind bank [--profile <name>]` loads an Excel or PDF statement (ICICI,
+  SBI or Axis; INR or USD accounts, the profiles `templates/profiles/bank_*.toml`) into `bank_statements` and
+  `bank_lines`, each row with its file and sheet!row (Excel) or page and row (PDF). Remarks keep their text with
+  known masked names replaced by tokens. A statement covers part of one period of the engagement (it must not cross
+  a year end, E808). A PDF is read by the PDF add-on you chose (`fin parser use`; E816 when there is none): its
+  tables are saved in the data folder as `cache/bank/<sha256>.json`, so the same file is never parsed twice and
+  every row traces to that parse. LlamaParse uploads the pages to its cloud and needs `LLAMA_CLOUD_API_KEY` in
+  the environment (a missing key or a failed call is E206; nothing loaded); use Docling or LiteParse for statements
+  that must not leave your Mac. A statement whose opening + credits − debits is not its closing balance is a
+  finding (`bank_tie`), as are statements of one account that overlap (`bank_overlap`) or whose balances do not
+  join (`bank_balance_gap`: a statement or transaction may be missing). Findings, not failures: the rows stay as
+  filed and you decide (`fin findings accept`, or a query to the accountant).
+- Names: party ledgers (under Sundry Debtors and Sundry Creditors) are stored and printed as tokens (`CUST-0001`,
+  `VEND-0001`), the same name the same token in every file; register customers, vendors, handlers and submitted-by
+  are tokens too (`CUST-`, `VEND-`, `USER-`); known names in Ledger Vouchers particulars are
+  replaced too. A Ledger Vouchers ledger not in its trial balance is masked as `LEDG-0001`, since fin cannot tell
+  whether it is a party. The real names stay on your Mac in `mask_values`, which `fin sql` refuses to read (E810).
+- Payroll: `--kind payroll` loads the Sparsh snapshot (one row per employee, profile `sparsh_payroll`) into
+  `payroll_lines`; the snapshot date in its header ("Employee Master as on 31-Mar-2025") must fall in a year of the
+  engagement or its stub (E808). Employee name and code are tokens (`EMP-0001`, `ECODE-0001`). Gross salary and CTC are
+  read as annual rupees: fin warns when their medians are under Rs 1,50,000 (they look monthly), and you tell it
+  the unit with `fin payroll confirm-unit <company> <file> --annual|--monthly`. G1 shows "unit confirmed annual by
+  the user" for each payroll file and fails until you confirm; `--monthly` keeps it failing (fin does not convert).
+  A row with no employee name or code, or a bad date, is E821 and nothing loads.
+- Ledger mapping: each trial balance ledger maps to a Schedule III account. `fin map ledgers <company>` lists the
+  ledgers waiting; Claude proposes accounts with `fin map ledgers <company> <file.json>`; you confirm or reject
+  them with `fin review list|confirm|reject <company> ... --ledgers` (`--account` to choose another). fin never
+  confirms one itself.
+- Customer analytics (D9): `fin analytics <company> [--json]` shows, for the latest engagement's sales register (Amount in Rs,
+  before GST; customers are tokens): customer concentration (top 1, 5 and 10 share), retention of core customers against
+  the previous year (net, gross and logo; cohorts by first year), sector mix, and price, volume and mix of core products
+  that have a quantity and a rate. Core and pass-through revenue are separate segments; retention, cohorts and price,
+  volume and mix are core only, annual only (E869: no sales register in the engagement). The sector of a customer comes
+  from you: `fin map customers <company>` lists the customers waiting, Claude proposes with `fin map customers <company>
+  <file.json>` (`{customer, sector, confidence, reason}`), you confirm or reject with `fin review list|confirm|reject
+  <company> ... --customers` (`--sector` to choose another; E868). A customer without a confirmed sector is shown as
+  `unmapped`. The views are `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`,
+  `product_revenue`, `product_pvm`; the dashboard has a "Customers and sectors" page and the health report a "Customers,
+  sectors and pricing" section when the company has an engagement with a sales register. Decisions:
+  `docs/decisions/d9-analytics.md`.
+- Diligence report (D7): `fin report <company> --diligence [--scope] [--render]` writes `diligence_narrative.md` (Claude fills it with
+  `/diligence`, numbers only as `{{figure:<name>:<period>}}` references), then renders `diligence.html|docx|pdf` in `reports/<company>/<scope>/`:
+  adjusted EBITDA and the bridge, adjustments with evidence (proposed ones not applied), other income, core and project revenue,
+  the recast, the EBITDA-to-cash walk, working capital (year-end and stub from the trial balances; monthly from the Ledger Vouchers
+  for ledgers that tie, E873-E874), reconciliations and queries, collections and ageing, customers and sectors, the stub as unaudited
+  management accounts, the gate states it was rendered with and a sources appendix. The dashboard has a "Diligence figures" page.
+  Decisions: `docs/decisions/d7-qoe.md`.
+- `fin reconcile <company> [name] [--period FY25] [--json]` (name: `tb_vs_statements`, `sales_register_vs_gl`,
+  `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`; none: every one whose inputs are loaded). The last four compare
+  the registers, Ledger Vouchers, trial balance and payroll; fin drafts no query for them: Claude groups the lines
+  at or above the threshold into issues with `fin query raise <company> --items 12,13 --question "..."` and you approve
+  them; foreign-currency rate differences are `fx` lines, listed, never queried (E840-E842). `tb_vs_statements`: each year's trial balance, rolled up by
+  confirmed ledger mapping, against the audited standalone statement figures, one line per account (the year's
+  profit from the income and expense ledgers rolls into other equity, as the balance sheet shows it). A line whose
+  difference is at or above the threshold becomes a draft query (origin `recon`; you approve and send it); a line
+  below it is listed. Ledgers not mapped to an account are flagged and no query is drafted until every ledger is
+  mapped. Nothing is changed to make it tie. The stub has no audited statement: its figures are the view
+  `stub_figures`, labelled unaudited (E812 if asked to reconcile it).
+- `fin reconcile <company> bank_vs_invoices [--period]`: bank receipts (credits of the loaded statements) against sales
+  invoices, in fixed passes: the invoice number in the receipt's reference or remarks, then same customer + amount +
+  dates within the engagement's `match_window_days` (copied from `config.toml` when it opens), then same amount + dates within the window when neither has another candidate.
+  Each match records its pass; what is left is a receipt without an invoice (`left_only`) or an invoice without a
+  receipt (`right_only`). A foreign-currency receipt matches on customer, own-currency amount and date; its booked
+  rupee value (the Ledger Vouchers receipt on the customer's ledger, within `fx_window_days`) is compared with the
+  invoice's Amount in Rs and a difference is an `fx` line (gain or loss), listed and never queried or plugged. Lines at
+  or above the threshold in rupees are for Claude to group into queries (`fin query raise --items`; an invoice not yet past
+  `invoice_due_days` is listed only). The view
+  `customer_collections` gives collection days and overdue ageing. What the passes leave goes to Claude:
+  `fin reconcile <company> match --propose <file.json>`; you confirm with `fin review list|confirm|reject <company>
+  --matches`, and the next run applies the confirmed ones. `fin reconcile <company> bank_vs_tb` compares the INR
+  statements' closing balances at a period's last day with the trial balance's cash and bank ledgers (the stub's
+  cross-check against bank). G2 needs both to have run on current data.
+
+Every change, and every gate approval, is recorded in the audit table `diligence_events`.

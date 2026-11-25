@@ -1,6 +1,6 @@
 # fin-analyst — rules for Claude Code
 
-Local financial health analysis tool. Ingests company financial documents into DuckDB, answers questions with evidence, generates reports and dashboards. Spec: `PLAN.md`.
+Local financial health analysis tool. Ingests company financial documents into DuckDB, answers questions with evidence, generates reports and dashboards. Spec: `docs/product.md`.
 
 ## Purpose and focus
 
@@ -28,7 +28,7 @@ Local financial health analysis tool. Ingests company financial documents into D
 ## Diligence
 
 Rules for diligence work (`fin engagement`, `fin query`, `fin adjust`, `fin gate`; `/diligence`;
-`docs/DILIGENCE_PLAN.md`):
+`docs/diligence.md`):
 
 - Differences in diligence data are queried, never fixed. A difference is the company's: raise a query
   (`fin query raise`) or propose an adjustment with evidence (`fin adjust propose`); never change the data to make it
@@ -44,12 +44,12 @@ Rules for diligence work (`fin engagement`, `fin query`, `fin adjust`, `fin gate
 
 ## Customising
 
-This app is meant to be modified with Claude Code. Keep modules small and readable, and update `PLAN.md` with every change that changes behaviour (`CHANGELOG.md` is written at release). How to add an account, metric, validation gate or report section, how the schema and tests work, and the module map: `docs/CUSTOMISING.md`.
+This app is meant to be modified with Claude Code. Keep modules small and readable, and update `docs/product.md` with every change that changes behaviour (`CHANGELOG.md` is written at release). How to add an account, metric, validation gate or report section, how the schema and tests work, and the module map: `docs/development.md`.
 
 ## Coding rules
 
 - Python 3.12 via uv. Add dependencies only with `uv add`, and say why. Commit lockfiles. macOS is the only target.
-- Every failure path raises an error class with a code (table: `README.md`, "Error codes"). No bare `except`, no silent defaults.
+- Every failure path raises an error class with a code (table: `docs/errors.md`). No bare `except`, no silent defaults.
 - Every `fin` command creates a run record and logs through `src/fin/audit/logger.py`. No `print` for logging.
 - Database access only through `src/fin/db/conn.py`: short-lived connections, read-only unless the command writes.
 - Each document loads in one transaction: stage → validate → commit or roll back.

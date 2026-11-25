@@ -1,6 +1,6 @@
 # Customising fin-analyst with Claude Code
 
-Keep changes small. Every change needs a test, and a `PLAN.md` update if it changes behaviour (`CHANGELOG.md` is written at release).
+Keep changes small. Every change needs a test, and a `docs/product.md` update if it changes behaviour (`CHANGELOG.md` is written at release).
 Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruff format <files>`,
 `uv run pytest <test files>`.
 
@@ -34,7 +34,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   (`parser.py`) installs and records the choice.
 - `verify.py`: `fin verify`, compares a Claude reading with what is loaded for a document, records the run
   (`verify_runs`, `verify_lines`) and its disagreements as findings.
-- `diligence/`: a diligence engagement on one company (`docs/DILIGENCE_PLAN.md`). `engagement.py` (`fin engagement
+- `diligence/`: a diligence engagement on one company (`docs/diligence.md`). `engagement.py` (`fin engagement
   open|status|close`, the open-engagement check (E803), and `record_event`, which appends every change to the audit
   table `diligence_events`), `queries.py` (accountant queries and their status flow, `TRANSITIONS`),
   `export.py` with `export_data.py`, `export_xlsx.py`, `export_docs.py` (`fin query export`: the one reader of
@@ -200,7 +200,7 @@ of dicts with the columns of the company `findings` table (`check_name`, `code`,
 `other_file`, `message`). A document with any finding is held, not rejected: what a company filed that does not add
 up is for the user to see and decide.
 
-1. Pick the next free check code (E4xx) and add a row to the error-code table in `README.md` and a line to
+1. Pick the next free check code (E4xx) and add a row to the error-code table in `docs/errors.md` and a line to
    its "Findings" section. Check codes are not error classes.
 2. Write the check (see `validate/gates.py` for how a check reads the staged facts, records its result and builds
    its findings), and add the function to `VALIDATORS` in `findings.py`. It runs again on held documents after a fix;

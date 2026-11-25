@@ -2,7 +2,7 @@
 # Header lines above the table: Account Number, Account Currency, the period ("... 01/04/2024 to 30/04/2024") and
 # the Opening and Closing Balance. Table: S No. | Value Date | Transaction Date | Cheque Number | Transaction Remarks
 # | Withdrawal Amount (INR) | Deposit Amount (INR) | Balance (INR); a USD account says (USD) instead.
-# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+# How profiles work: src/fin/extract/profiles.py and docs/development.md.
 kind = "bank"
 bank = "ICICI"
 currency = "INR"

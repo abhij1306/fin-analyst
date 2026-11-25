@@ -1,5 +1,5 @@
 -- Company database: customer, product, sector, pricing and retention analytics on the registers
--- (docs/DILIGENCE_PLAN.md D9). Run after diligence_split_views.sql (revenue_split) and sources.sql (register_lines).
+-- (docs/diligence.md D9). Run after diligence_split_views.sql (revenue_split) and sources.sql (register_lines).
 --
 -- Which lines: the sales register lines of the latest engagement's loaded (not superseded) files, by
 -- register_lines.period (a line dated outside the engagement has no period and is left out). Amounts are Amount in Rs,

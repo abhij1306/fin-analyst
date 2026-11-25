@@ -1,4 +1,4 @@
-"""payroll_vs_gl (DILIGENCE_PLAN.md D4): the payroll snapshot vs employee expense in the books.
+"""payroll_vs_gl (docs/diligence.md D4): the payroll snapshot vs employee expense in the books.
 
 Left is the payroll snapshot's annual cost to company (CTC) added up over its employees (gross
 salary when no row has a CTC); right is the Ledger Vouchers' movement (debit - credit) of the

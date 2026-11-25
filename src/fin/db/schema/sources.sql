@@ -1,4 +1,4 @@
--- Company database, companies/<company>.duckdb: diligence source files and their rows (docs/DILIGENCE_PLAN.md D2,
+-- Company database, companies/<company>.duckdb: diligence source files and their rows (docs/diligence.md D2,
 -- fin.diligence.sources). Run after diligence.sql. Money is DECIMAL(20,2) rupees. No foreign keys: file_id is the
 -- link. Every row keeps its lineage: the file (sha256, archive path) and sheet + row.
 -- Masked names: party ledgers (under the groups a column profile names, e.g. Sundry Debtors and Sundry Creditors)

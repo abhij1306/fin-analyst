@@ -1,4 +1,4 @@
-"""The shared account dictionary, `shared/dictionary.duckdb` (PLAN.md §7).
+"""The shared account dictionary, `shared/dictionary.duckdb` (docs/product.md §7).
 
 - `load_seed` adds the Schedule III accounts (`templates/dictionary/schedule_iii.csv`) and the seed
   label mappings (`templates/dictionary/labels.csv`) that are not in the dictionary yet. It never

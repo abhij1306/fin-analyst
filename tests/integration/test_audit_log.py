@@ -1,5 +1,5 @@
-"""Every command gets a run_id, `runs` start/end rows, `events`, a JSONL log and a summary (PLAN.md
-§8)."""
+"""Every command gets a run_id, `runs` start/end rows, `events`, a JSONL log and a summary
+(docs/product.md §8)."""
 
 import json
 import re

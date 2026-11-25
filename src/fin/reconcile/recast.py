@@ -1,4 +1,4 @@
-"""service_recast (DILIGENCE_PLAN.md D6): the sales register's service dates drive the recast.
+"""service_recast (docs/diligence.md D6): the sales register's service dates drive the recast.
 
 Each sales line's Amount in Rs (before GST) with a usable service period (start and end dates, end
 not before start) is spread straight-line over it: each month gets the share of the service days

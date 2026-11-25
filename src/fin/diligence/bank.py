@@ -1,4 +1,4 @@
-"""Bank statements, Excel and PDF (DILIGENCE_PLAN.md D3): `fin ingest <co> <file> --kind bank`.
+"""Bank statements, Excel and PDF (docs/diligence.md D3): `fin ingest <co> <file> --kind bank`.
 
 A bank column profile (`templates/profiles/bank_*.toml`: ICICI, SBI, Axis; INR and USD accounts)
 says how to read one bank's layout. An Excel statement is read by `fin.extract.ledger.read_table`;

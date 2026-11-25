@@ -1,4 +1,4 @@
-"""Column profiles for tabular source files (`templates/profiles/*.toml`, DILIGENCE_PLAN.md D2).
+"""Column profiles for tabular source files (`templates/profiles/*.toml`, docs/diligence.md D2).
 
 A profile says how to read one export layout, so the loader (`fin.extract.ledger`) needs no layout
 special cases:

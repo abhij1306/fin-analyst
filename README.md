@@ -77,11 +77,7 @@ uv run fin parser show             # what is chosen (or /parser in Claude Code)
 | [LiteParse](https://github.com/run-llama/liteparse) | your Mac | about 12 MB plus about 50 MB of models (its `ocria-nano` package, under its own model licence) | fast; pages with a text layer are never OCR'd, and scanned PDFs are left for Claude to read |
 | [LlamaParse](https://github.com/run-llama/llama-parse-py) | LlamaIndex's cloud: the skipped pages are uploaded | a small Python SDK | paid per page; most accurate on hard tables; needs `LLAMA_CLOUD_API_KEY` in your environment |
 
-`uv run fin parser use <name>` does the same as the install flag. The choice is saved in `config.toml`
-(`[pdf] parser`), so running `./install.sh` again or `uv run fin update` keeps it. For LlamaParse, set the key in
-your shell (`export LLAMA_CLOUD_API_KEY=...` in `~/.zshrc`); fin reads it only from the environment, never stores or
-logs it, and saves LlamaParse's answer in the data folder (`cache/llamaparse/`) so the same file is never sent
-twice. Figures an add-on reads are marked as read by it; everything else works the same without one.
+`uv run fin parser use <name>` does the same as the flag; the choice is saved in `config.toml` (`[pdf] parser`). LlamaParse needs `LLAMA_CLOUD_API_KEY` in your environment (read only from there, never stored or logged). Figures an add-on reads are marked as read by it.
 
 **LlamaParse and your data.** LlamaParse is a cloud service: when it is the chosen parser, the PDF pages fin cannot
 read are uploaded to LlamaParse for parsing. Documents can contain personal or confidential data (bank statements
@@ -129,171 +125,7 @@ Claude shows each finding with both figures and where each came from, then asks 
 
 ## Diligence
 
-A diligence engagement on one company keeps two things beside the reported figures, never changing them: questions
-for the company's accountant, and proposed adjustments to EBITDA. A difference is the company's to explain, so it
-becomes a query, not a fix. Claude drafts; you decide. fin never sends anything. Plan:
-[docs/DILIGENCE_PLAN.md](docs/DILIGENCE_PLAN.md).
-
-- `fin engagement open <company> --periods FY24,FY25,FY26 [--threshold N] [--stub FY27-YTD-SEP]`: one open
-  engagement per company, with the years in scope, the query threshold in rupees (default `query_threshold` in
-  `config.toml`) and optionally a current-year stub: the year to date after the last year (here April to
-  September of FY27), from unaudited management data. The stub is labelled "unaudited management accounts"
-  wherever it shows and is never annualised.
-  `fin engagement status <company>` counts queries and adjustments by status; `fin engagement close <company>`
-  (needs gate G4, unless the engagement has no queries and no adjustments).
-- Queries: `fin query raise <company> --finding <id> --question "..."` (the finding's period, difference and
-  sources; the finding is not changed) or `--amount N --period P --source "file sheet!cell" --question "..."`.
-  A query starts as a draft (`fin query edit` changes its wording), then `fin query approve`, `sent` (when you have
-  sent it), `answer --text` (or `--file reply`: archived like a source; a .txt, .eml or .md reply is read with known names masked, any other file needs `--text`), `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
-  `fin query export <company> [--brief]` writes the approved queries for the accountant to `exports/<company>/<run_id>/`
-  of the data folder: `queries.xlsx` (summary, a sheet per query with the count and value per kind of difference, and the
-  cited source sheets with the lines highlighted) and `email.txt` (a draft; you send it from your own email, then `fin query
-  sent`), or with `--brief` a Word brief per query. The files hold the real names; fin prints only their paths (E858-E861).
-- Adjustments: `fin adjust propose <company> --period --scope --category --description` with evidence
-  (`--query`, `--finding` or `--source`), the effects (`--revenue-effect` and `--cost-effect`, signed rupees; the
-  EBITDA effect, `--amount`, is always revenue effect minus cost effect, and `--amount` alone is a cost effect of
-  minus that) and optionally `--account`. A reclassification between two cost accounts names both
-  (`--account` the cost moves to, `--from-account`, `--moved-amount`) and has no net effect. Then
-  `fin adjust accept <ids>` or `reject <ids> --reason`; `list [--status]`. Categories are `adjustment_categories`
-  in `config.toml`.
-- Pass-through: `fin engagement passthrough <company> [--customer CUST-0001 ... --source "..."] [--clear]` records your
-  list of pass-through customers (SI/reseller deals at about zero margin, as tokens from the sales register; E845 for a
-  token not on a loaded sales register), replacing the earlier list; without options it shows the list and the
-  revenue split. The views `revenue_split` (per period: sales revenue as core and pass-through, the pass-through
-  lines with and without a Purchase Id, the linked OEM purchase cost, core revenue growth) and `passthrough_lines`
-  (each pass-through line with its OEM purchase) read it. Growth is on core revenue only. Claude proposes the
-  `normalisation` adjustment that strips pass-through revenue and its cost; you accept it. `fin` values nothing.
-- `fin engagement bridge <company> [--period FY25] [--scope standalone] [--json]`: per period and scope of the
-  latest engagement, the EBITDA bridge (reported EBITDA, each accepted adjustment, adjusted EBITDA; proposed ones are
-  listed as not applied) and the EBITDA-to-cash walk down to CFO and free cash flow, with cash conversion. Money in
-  the documents' unit, as `fin statements`; `--json` in rupees. A line whose input is missing shows `-` and names it.
-  The same figures are the views `adjusted_ebitda` (also adjusted revenue and the margin on it), `ebitda_bridge` and
-  `ebitda_to_cash`, queryable with `fin sql`.
-- Service-period recast: `fin recast run <company> [--period FY25]` spreads each sales register line's Amount in Rs over its
-  service start and end dates (by service day) and compares each year's recast with the revenue booked by invoice date.
-  The difference is proposed as a `recast` adjustment (revenue effect = EBITDA effect); running it again replaces a stale
-  proposal of its own and never overrides one you accepted or rejected. A sales invoice with no service dates is recognised on
-  its invoice date and listed (at or above the threshold it goes into a query, `fin query raise --items`). The unaudited stub is
-  not recast. `fin recast contracts <company> <file> --reading <csv>` loads Claude's reading of a contract (file + page) as
-  evidence shown beside an undated invoice; it never drives the schedule. Decisions: `docs/decisions/d6-recast.md`.
-- Gates: checkpoints you approve, in order. fin checks each one's checklist; Claude prepares a gate and shows you
-  `fin gate status <company>` (each gate's state, its checklist lines and what it unlocks), and only you approve it
-  (`fin gate approve <company> <gate>`). A Claude Code hook asks you before any command Claude runs that looks like
-  a gate approval, and `fin sql --write` cannot write gate approvals, queries, adjustments or the engagement
-  (E806): they change only through `fin engagement|query|adjust|gate` (and the source file tables only through
-  `fin ingest --kind`). An approved gate reopens on its own when the
-  data under it changes, and you approve it again.
-  - **G1 Ingestion:** every year in scope has mapped figures from a loaded document, no held documents, no mappings
-    waiting for review. Once the engagement has a trial balance (or a stub), also: a trial balance and Ledger
-    Vouchers for every year and the stub, every trial balance ledger in its Ledger Vouchers, every ledger mapped to
-    an account, and each year's `tb_vs_statements` run on the current data with every difference at or above the
-    threshold in a query (the stub is checked against its Ledger Vouchers only). A changed figure (for example a
-    fix with `fin sql --write`), a new source file, a mapping change or a new reconciliation reopens it, and so
-    does any change after which its checklist fails. Once a payroll file is loaded, G1 also needs the user to
-    have confirmed its unit (`fin payroll confirm-unit`).
-  - **G1 and bank statements:** once a bank statement is loaded, also every bank parse ties (opening + credits −
-    debits = closing, or the user has accepted its finding). Overlapping periods and balance gaps are findings for
-    queries, listed in G1 but not blocking it.
-  - **G2 Reconciliation:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
-    approved query does not. Needed by `fin adjust accept|reject`.
-  - **G3 Recast:** once a sales register is loaded, for every year: `fin recast run` ran on the current data, every sales
-    invoice at or above the threshold with no service dates is in a query, and the year's recast difference has a
-    proposed or decided `recast` adjustment. Needed to approve G4.
-  - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
-    `fin engagement close`.
-
-  A command that needs a gate that is not approved refuses with E801; a gate that cannot be approved yet, E802.
-  `fin status` shows an open engagement's queries, proposed adjustments and gates.
-- Source files: `fin ingest <company> <file> --kind trial_balance|ledger_vouchers|registers|bank|payroll [--profile <name>]` loads a Tally
-  Trial Balance (Detailed mode) or Ledger Vouchers export into `trial_balance` or `ledger_entries` (and `ledger_blocks`, every ledger block the export has, even one with no voucher lines), or a billing-system
-  registers workbook (a sales sheet and a purchase sheet) into `register_lines`, each row with
-  its file (`source_files`: sha256, archive copy, profile) and sheet!row. The period comes from the export's header
-  lines and must be a year of the open engagement, or exactly its stub (E808). A column profile (`templates/profiles/*.toml`) says how
-  to read the layout; a layout no profile matches fails with E807 and lists the header lines found, so Claude can
-  write a profile. A trial balance with group rows only is refused (E809: export it in Detailed mode); a group not
-  equal to the sum of its ledgers is a finding, kept as filed. Load a period's trial balance before its Ledger
-  Vouchers (E811); fin then lists the trial balance ledgers missing from the Ledger Vouchers. A later file of the
-  same kind and period supersedes the earlier one. A registers workbook has no period header: its period comes from
-  its invoice dates (a later registers file replaces the earlier whatever its period). Amount in Rs is before GST.
-  The same invoice number twice (sales: the number; purchases: the vendor and number) is a finding, both rows kept
-  (E813 only when a row is not an invoice line: no number, date, party or Amount in Rs, or a date in another format).
-- Bank statements: `fin ingest <company> <file> --kind bank [--profile <name>]` loads an Excel or PDF statement (ICICI,
-  SBI or Axis; INR or USD accounts, the profiles `templates/profiles/bank_*.toml`) into `bank_statements` and
-  `bank_lines`, each row with its file and sheet!row (Excel) or page and row (PDF). Remarks keep their text with
-  known masked names replaced by tokens. A statement covers part of one period of the engagement (it must not cross
-  a year end, E808). A PDF is read by the PDF add-on you chose (`fin parser use`; E816 when there is none): its
-  tables are saved in the data folder as `cache/bank/<sha256>.json`, so the same file is never parsed twice and
-  every row traces to that parse. LlamaParse uploads the pages to its cloud and needs `LLAMA_CLOUD_API_KEY` in
-  the environment (a missing key or a failed call is E206; nothing loaded); use Docling or LiteParse for statements
-  that must not leave your Mac. A statement whose opening + credits − debits is not its closing balance is a
-  finding (`bank_tie`), as are statements of one account that overlap (`bank_overlap`) or whose balances do not
-  join (`bank_balance_gap`: a statement or transaction may be missing). Findings, not failures: the rows stay as
-  filed and you decide (`fin findings accept`, or a query to the accountant).
-- Names: party ledgers (under Sundry Debtors and Sundry Creditors) are stored and printed as tokens (`CUST-0001`,
-  `VEND-0001`), the same name the same token in every file; register customers, vendors, handlers and submitted-by
-  are tokens too (`CUST-`, `VEND-`, `USER-`); known names in Ledger Vouchers particulars are
-  replaced too. A Ledger Vouchers ledger not in its trial balance is masked as `LEDG-0001`, since fin cannot tell
-  whether it is a party. The real names stay on your Mac in `mask_values`, which `fin sql` refuses to read (E810).
-- Payroll: `--kind payroll` loads the Sparsh snapshot (one row per employee, profile `sparsh_payroll`) into
-  `payroll_lines`; the snapshot date in its header ("Employee Master as on 31-Mar-2025") must fall in a year of the
-  engagement or its stub (E808). Employee name and code are tokens (`EMP-0001`, `ECODE-0001`). Gross salary and CTC are
-  read as annual rupees: fin warns when their medians are under Rs 1,50,000 (they look monthly), and you tell it
-  the unit with `fin payroll confirm-unit <company> <file> --annual|--monthly`. G1 shows "unit confirmed annual by
-  the user" for each payroll file and fails until you confirm; `--monthly` keeps it failing (fin does not convert).
-  A row with no employee name or code, or a bad date, is E821 and nothing loads.
-- Ledger mapping: each trial balance ledger maps to a Schedule III account. `fin map ledgers <company>` lists the
-  ledgers waiting; Claude proposes accounts with `fin map ledgers <company> <file.json>`; you confirm or reject
-  them with `fin review list|confirm|reject <company> ... --ledgers` (`--account` to choose another). fin never
-  confirms one itself.
-- Customer analytics (D9): `fin analytics <company> [--json]` shows, for the latest engagement's sales register (Amount in Rs,
-  before GST; customers are tokens): customer concentration (top 1, 5 and 10 share), retention of core customers against
-  the previous year (net, gross and logo; cohorts by first year), sector mix, and price, volume and mix of core products
-  that have a quantity and a rate. Core and pass-through revenue are separate segments; retention, cohorts and price,
-  volume and mix are core only, annual only (E869: no sales register in the engagement). The sector of a customer comes
-  from you: `fin map customers <company>` lists the customers waiting, Claude proposes with `fin map customers <company>
-  <file.json>` (`{customer, sector, confidence, reason}`), you confirm or reject with `fin review list|confirm|reject
-  <company> ... --customers` (`--sector` to choose another; E868). A customer without a confirmed sector is shown as
-  `unmapped`. The views are `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`,
-  `product_revenue`, `product_pvm`; the dashboard has a "Customers and sectors" page and the health report a "Customers,
-  sectors and pricing" section when the company has an engagement with a sales register. Decisions:
-  `docs/decisions/d9-analytics.md`.
-- Diligence report (D7): `fin report <company> --diligence [--scope] [--render]` writes `diligence_narrative.md` (Claude fills it with
-  `/diligence`, numbers only as `{{figure:<name>:<period>}}` references), then renders `diligence.html|docx|pdf` in `reports/<company>/<scope>/`:
-  adjusted EBITDA and the bridge, adjustments with evidence (proposed ones not applied), other income, core and project revenue,
-  the recast, the EBITDA-to-cash walk, working capital (year-end and stub from the trial balances; monthly from the Ledger Vouchers
-  for ledgers that tie, E873-E874), reconciliations and queries, collections and ageing, customers and sectors, the stub as unaudited
-  management accounts, the gate states it was rendered with and a sources appendix. The dashboard has a "Diligence figures" page.
-  Decisions: `docs/decisions/d7-qoe.md`.
-- `fin reconcile <company> [name] [--period FY25] [--json]` (name: `tb_vs_statements`, `sales_register_vs_gl`,
-  `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`; none: every one whose inputs are loaded). The last four compare
-  the registers, Ledger Vouchers, trial balance and payroll; fin drafts no query for them: Claude groups the lines
-  at or above the threshold into issues with `fin query raise <company> --items 12,13 --question "..."` and you approve
-  them; foreign-currency rate differences are `fx` lines, listed, never queried (E840-E842). `tb_vs_statements`: each year's trial balance, rolled up by
-  confirmed ledger mapping, against the audited standalone statement figures, one line per account (the year's
-  profit from the income and expense ledgers rolls into other equity, as the balance sheet shows it). A line whose
-  difference is at or above the threshold becomes a draft query (origin `recon`; you approve and send it); a line
-  below it is listed. Ledgers not mapped to an account are flagged and no query is drafted until every ledger is
-  mapped. Nothing is changed to make it tie. The stub has no audited statement: its figures are the view
-  `stub_figures`, labelled unaudited (E812 if asked to reconcile it).
-- `fin reconcile <company> bank_vs_invoices [--period]`: bank receipts (credits of the loaded statements) against sales
-  invoices, in fixed passes: the invoice number in the receipt's reference or remarks, then same customer + amount +
-  dates within the engagement's `match_window_days` (copied from `config.toml` when it opens), then same amount + dates within the window when neither has another candidate.
-  Each match records its pass; what is left is a receipt without an invoice (`left_only`) or an invoice without a
-  receipt (`right_only`). A foreign-currency receipt matches on customer, own-currency amount and date; its booked
-  rupee value (the Ledger Vouchers receipt on the customer's ledger, within `fx_window_days`) is compared with the
-  invoice's Amount in Rs and a difference is an `fx` line (gain or loss), listed and never queried or plugged. Lines at
-  or above the threshold in rupees are for Claude to group into queries (`fin query raise --items`; an invoice not yet past
-  `invoice_due_days` is listed only). The view
-  `customer_collections` gives collection days and overdue ageing. What the passes leave goes to Claude:
-  `fin reconcile <company> match --propose <file.json>`; you confirm with `fin review list|confirm|reject <company>
-  --matches`, and the next run applies the confirmed ones. `fin reconcile <company> bank_vs_tb` compares the INR
-  statements' closing balances at a period's last day with the trial balance's cash and bank ledgers (the stub's
-  cross-check against bank). G2 needs both to have run on current data.
-
-Every change, and every gate approval, is recorded in the audit table `diligence_events`.
-
-Planned (docs/DILIGENCE_PLAN.md §7): sales and purchase registers, bank statements and payroll; more
-reconciliations; service-period recast; the query export; customer analytics.
+For a quality-of-earnings style review of one company, fin keeps questions for the company's accountant and proposed EBITDA adjustments beside the reported figures, never changing them: a difference is the company's to explain, so it becomes a query, not a fix. Claude drafts; you decide; fin sends nothing. Checkpoints (gates) stop the build until you approve them. Start with `/diligence <company>`; the full reference is [docs/diligence.md](docs/diligence.md).
 
 ## Pages fin can't read
 
@@ -306,11 +138,7 @@ with what is stored.
 
 ## Golden evaluation
 
-To see how well fin reads your own documents, and to help improve it, follow [docs/EVAL.md](docs/EVAL.md) (written
-for your Claude agent). `uv run fin eval init <company>` lists the figures to check with where each is printed; you
-check the values against the documents; `uv run fin eval run <company>` scores fin against them (pass, fail, missing
-in fin; lines you have not checked are not scored); `uv run fin eval bundle` writes a results file to send back. The
-bundle has no company, party or file names and, unless you add `--with-figures`, no figures.
+To see how well fin reads your own documents, follow [docs/EVAL.md](docs/EVAL.md) (written for your Claude agent): `fin eval init <company>` lists the figures to check, you check them against the documents, `fin eval run <company>` scores fin, and `fin eval bundle` writes a results file with no company, party or file names to send back.
 
 ## Your data
 
@@ -344,85 +172,18 @@ database first (`backups/<run_id>/`) and records the change in the audit log; ev
   move `~/FinAnalysis` aside, run `uv run fin init` and load your documents again.
 - **Uninstall:** delete this folder. Your data stays in `~/FinAnalysis` until you delete it.
 - **Customise:** add an account, a metric, a check or a report section with Claude Code; see
-  [docs/CUSTOMISING.md](docs/CUSTOMISING.md).
+  [docs/development.md](docs/development.md).
 
-## Error codes
+## Documentation
 
-When a command fails it prints an error code and a run id; Claude reports both. Exit codes: 0 success (held
-documents and findings included), 1 finished but some files failed, 2 the command could not run, 3 refused until you
-confirm. Every run is logged in `~/FinAnalysis/logs/<date>/<run_id>.jsonl`.
-A command-line usage error (a wrong option, argument or value, exit 2) is reported by the parser before a run starts, so it has no error code, run id or log.
+| File | What it is |
+|---|---|
+| [docs/product.md](docs/product.md) | What fin does and how it behaves: the spec |
+| [docs/diligence.md](docs/diligence.md) | The diligence extension: plan, rules and command reference |
+| [docs/development.md](docs/development.md) | Where code lives and how to add an account, metric, check, profile or report section |
+| [docs/errors.md](docs/errors.md) | Error codes: what each means and what to do |
+| [docs/decisions/](docs/decisions/) | Product-level decisions and how to change them |
+| [docs/EVAL.md](docs/EVAL.md) | Golden evaluation runbook |
+| `CLAUDE.md` | Rules for Claude Code in this repo |
 
-| Code | Meaning | What to do |
-|---|---|---|
-| E001 | A required program (uv, node, quarto), `config.toml` or the audit database is missing, or a program cannot be started | Run the fix `fin doctor` shows (`./install.sh` or `uv run fin init`) |
-| E002 | A program is the wrong version, `config.toml` is invalid, or a database was made by an older fin | Run the fix shown (`brew upgrade`, correct `config.toml`, or move the data folder away and run `uv run fin init`) |
-| E003 | The data folder is missing or not writable | Run `uv run fin init`, or fix the folder permissions |
-| E005 | `fin update` stopped: local changes in this folder, or a git, uv or npm step failed; or the `uv sync` of `fin parser use` failed | Commit or discard local changes, or fix the failing step, and run it again. The backup is in `backups/<run_id>/` |
-| E101 | File is unreadable or corrupt | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
-| E102 | File is password protected | Save an unprotected copy and ingest that |
-| E103 | Unsupported file format | Convert it to `.xlsx` or a text PDF |
-| E104 | Scanned PDF (no text layer); fin cannot read it | Get an Excel or text-PDF version, or ask Claude to read the pages |
-| E105 | The same file is already loaded | Nothing to do. Use `--force` to load it again as a new version |
-| E201 | No tables found in the file | Check the file has statement tables; read the reason in `review/<company>/` |
-| E202 | Fiscal periods or column headers not detected | Fix the headers in the file, or ask Claude to read the pages |
-| E203 | Unit (crores, lakhs, ...) not detected | Add a unit line such as "Rs. in Crores" to the file, then ingest again |
-| E204 | Parse error while reading the file | Read the reason in `review/<company>/<file>.error.json` and fix the file |
-| E205 | A Claude reading file cannot be used (missing columns, unknown statement or scope, bad figure, date or source) | Fix the line named in the message and run again |
-| E206 | The PDF add-on (Docling, LiteParse or LlamaParse; the message names it) failed on the pages pdfplumber skipped, could not download its models, or (LlamaParse) found no `LLAMA_CLOUD_API_KEY`; a warning, the pages stay unread | Read the warning in the run log; `uv run fin doctor`; set the key; or ask Claude to read the pages |
-| E301 | A line is not in the chart of accounts | Loaded as unconfirmed. Run `/review` to confirm a mapping |
-| E302 (warning) | A proposed mapping has low confidence; a warning, not an error | Check it in `/review` |
-| E303 | A line maps to conflicting accounts | You decide in `/review` |
-| E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id, invalid new account) | Nothing was applied. Check `/review` and the account name, then retry |
-| E401-E405 | Findings, not errors: balance sheet (E401), subtotal (E402), cash (E403), documents disagree (E404), unit factor (E405) | The document is held, not rejected. See [Findings](#findings) |
-| E406 | A finding to accept does not exist or is not open | Nothing was accepted. Check the ids with `uv run fin findings list <company>` |
-| E501 | A database is in use by another `fin` command | Wait for it to finish and run again |
-| E502 | `fin sql` without `--write` was given something other than one SELECT | Use `--write` only for a change you asked for |
-| E503 | A database could not be created from its schema file | Report the error |
-| E504 | A SQL statement failed (syntax, unknown column, constraint) | Nothing changed. Fix the statement |
-| E601 | Report render failed | The last good report is kept. Run `uv run fin doctor` (Quarto) and try again |
-| E602 | The report narrative contains hand-typed numbers | Replace each listed number with a `{{metric:...}}` or `{{fact:...}}` reference, or reword it |
-| E603 | Dashboard build failed | The last good build is kept. Run `uv run fin doctor` (node) and try again |
-| E604 | An evidence source file is missing from the archive, cannot be opened, or has no page a figure names | The page is still produced and flags it. Restore the original into `archive/` |
-| E701 | The action needs your confirmation | `fin delete` run by hand exits 3 when the typed name does not match; Claude uses `--yes` when you asked |
-| E801 | A diligence gate this command needs is not approved: never approved (open), or its data changed since it was approved (reopened) | Nothing changed. See what the gate needs with `uv run fin gate status <company>`; once its checklist passes, you approve it with `uv run fin gate approve <company> <gate>` |
-| E802 | A gate cannot be approved: its checklist fails, or an earlier gate is not approved | Nothing approved. Fix the failing checklist lines shown (or approve the earlier gate first), then approve again |
-| E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
-| E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, an unknown account, effects that do not add up (EBITDA effect not revenue effect minus cost effect), or a reclassification that is not valid | Nothing changed. Add the evidence or correct the value and run again |
-| E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |
-| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `customers`, `recon_runs`, `recon_items`, `recon_match_lines`, `match_proposals`, `passthrough_customers`, `query_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers or customer sectors with `fin map ledgers|customers` and `fin review --ledgers|--customers`, or run `fin reconcile` again |
-| E807 | `fin ingest --kind`: the column profile named is unknown or invalid, or no profile matches the file's headers | Nothing loaded. The message lists the header lines found: write a profile in `templates/profiles/` (docs/CUSTOMISING.md) and ingest with `--profile` |
-| E808 | `fin ingest --kind`: the export's header gives no period, or a period that is not a year of the open engagement nor exactly its stub; or `fin engagement open --stub` names a stub that is not the year to date of the fiscal year after the last period | Nothing loaded or opened. Check the export's period, or the engagement's periods and stub (`uv run fin engagement status <company>`) |
-| E809 | A trial balance with group rows only (Tally's Condensed export) | Nothing loaded. Export the trial balance again in Detailed mode, with ledgers, and ingest that |
-| E810 | `fin sql` was given SQL naming `mask_values` (the real names behind the tokens), or calling `query`, `query_table` or `read_duckdb`, which could reach it | Nothing was run. Work with the tokens; fin never prints the real names |
-| E811 | Ledger Vouchers ingested before their period's trial balance | Nothing loaded. Ingest the period's trial balance first (it says which ledgers are parties), then the Ledger Vouchers |
-| E812 | `fin reconcile`: the period is not a year of the engagement (the stub has no audited statement), or it has no loaded trial balance or no audited standalone statement figures | Nothing recorded. Load the period's trial balance and statements, or see the stub's figures in the view `stub_figures` |
-| E813 | `fin ingest --kind registers`: a register row is not an invoice line: no invoice number, date, party or Amount in Rs, a date not in the profile's date format, or a row the profile does not skip (a total) | Nothing loaded. The message names the file, sheet!row and what is missing: fix the cell, or add the row's name to `[rows] skip` in the profile |
-| E816 | A PDF bank statement cannot be read: `[pdf] parser` is `none`, its add-on is not installed, the parser could not read a page, or it found no table | Nothing loaded. Choose a PDF add-on (`uv run fin parser use docling\|liteparse\|llamaparse`; a local one keeps the pages on this Mac) and ingest again |
-| E817 | A bank statement's header lines give no account number, or no opening or closing balance when its first or last row has no balance to stand in for it | Nothing loaded. Check the header lines against the profile's `[header]` patterns in `templates/profiles/bank_*.toml` (docs/CUSTOMISING.md) |
-| E818 | The saved parse of a bank PDF (`cache/bank/<sha256>.json` in the data folder) cannot be read | Nothing loaded. Delete the file to parse the PDF again |
-| E840 | `fin reconcile`: a reconciliation (`sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`) cannot run: a period not in the engagement, Ledger Vouchers, registers covering the period, a trial balance or a payroll file (unit confirmed annual) not loaded, or no ledger confirmed to the account the books side reads (revenue, purchases, employee expense) | Nothing recorded. Load or map what the message names, then run it again |
-| E841 | `fin query raise --items` names a reconciliation line that does not exist, is not of the open engagement, or is not in the latest run (the data was reconciled again) | Nothing raised. Take the line ids from the latest `fin reconcile` output |
-| E858 | `fin query export`: the open engagement has no approved query | Nothing written. Approve drafts first: `uv run fin query approve <company> <ids>` |
-| E859 | `fin query export`: a source workbook a query cites cannot be read from the archive, or the export folder cannot be written | Nothing left in the export folder. Check the archive file and the data folder's permissions, then export again |
-| E860 | `fin query answer --file`: the reply file is missing, cannot be read or archived, or is not plain text (.txt, .eml, .md) and no `--text` says what it answers | Nothing recorded. Give `--text` with the answer (names as tokens), or a plain-text reply |
-| E861 | `fin query export`: a query's wording or line has a token (`CUST-0001`, ...) with no real value in the company's masked names | Nothing written; the token is named. Correct it with `uv run fin query edit` (a draft) or raise the query again |
-| E842 | `fin query raise --items` names a line that cannot be queried: matched, fx, not reconciled, unmapped, a month or party roll-up, below the threshold, already in a query, or lines of different periods | Nothing raised. Raise lines at or above the threshold, one period at a time |
-| E820 | `fin payroll confirm-unit` names no loaded payroll file of the open engagement (unknown name or id, not a payroll file, or superseded by a later snapshot, or several loaded files with that name) | Nothing recorded. The message lists the loaded payroll files: use one's file name or file_id |
-| E821 | A payroll snapshot row has no employee name or code, or a joining or resign date that is not a date in the profile's format | Nothing loaded. Ask the company for a corrected file, or fix the profile's `date_format`, and ingest again |
-| E830 | `fin eval run`: the company has no golden set | Make one with `uv run fin eval init <company>` ([docs/EVAL.md](docs/EVAL.md)) |
-| E831 | The golden set cannot be read: a missing column, an unknown kind, scope, account or unit, a figure that is not a number, a checked line with no value or source, or the same check twice | Nothing scored or changed. Fix the lines the message lists in `evals/<company>/golden.csv` |
-| E832 | `fin eval bundle`: no company database to evaluate, or none for the company named | Nothing written. Load the company's documents first |
-| E833 | `fin eval bundle`: the results would contain a real name (a masked party, a company or a file name) | Nothing written; the name is not printed. Report the run id: a bundle must never carry names |
-| E845 | `fin engagement passthrough`: a customer token that is not on a loaded sales register, or no sales register is loaded | Nothing changed. Load the registers (`fin ingest <company> <file> --kind registers`) and use a token from `SELECT DISTINCT customer FROM register_lines WHERE kind = 'sales'` |
-| E854 | `fin reconcile <co> match --propose`: the file is not a JSON list of matches, a match has no bank lines or invoices, names a line that is not a loaded bank credit or sales invoice line, has no reason, or a confidence outside 0 to 1 | Nothing stored. Fix the file; take the `[file_id, sheet, row]` of each line from `fin sql` on `bank_lines` and `register_lines` |
-| E855 | `fin review confirm|reject --matches`: no match proposal with that id, or it is no longer waiting | Nothing changed. List them with `fin review list <co> --matches --all` |
-| E873 | `fin report <co> --diligence`: the company has no engagement | Nothing written. Open an engagement and load its files (`/diligence`), then run it again |
-| E874 | `fin report <co> --diligence`: the narrative has a `{{figure:<name>:<period>}}` reference to a figure the report does not have (or one that needs a stub or a period the engagement has not), or a period outside the engagement | Nothing rendered. The message lists each reference; the narrative stub names the figures the report has |
-| E868 | `fin map customers` or `fin review ... --customers`: a proposal that is not an object with customer, sector, confidence and reason, a customer that is on no loaded sales register, an empty sector or the sector `unmapped`, a confirmation with no sector, a confirmed customer proposed again, or an unknown customer id | Nothing changed. List the customers with `fin map customers <company>` and fix the proposal |
-| E869 | `fin analytics`: the company has no engagement, or no sales register line in an engagement period | Nothing shown. Open an engagement and load the registers (`fin ingest <company> <file> --kind registers`) |
-| E863 | `fin recast run`: a period that is not an annual period of the open engagement, or no loaded sales register line to recast | Nothing recorded. Load the sales register (`fin ingest <company> <file> --kind registers`) and use a period of the engagement |
-| E864 | `fin recast contracts`: the contract reading cannot be used (a missing column, a bad date, amount or page, an end before its start, no rows) | Nothing recorded. Fix the CSV lines the message names |
-| E865 | `fin recast contracts`: a contract names a customer or invoice number that no loaded sales register has | Nothing recorded. Use the customer's token (`SELECT DISTINCT customer FROM register_lines WHERE kind = 'sales'`) or the invoice number as in the register |
-
-The code that raises each error is in `src/fin/audit/errors.py`.
+When a command fails it prints an error code and a run id; look the code up in [docs/errors.md](docs/errors.md).

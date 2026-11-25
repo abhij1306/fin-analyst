@@ -1,4 +1,4 @@
-"""`config.toml` in the data folder: tolerances, display unit, defaults, diligence (PLAN.md §6, §9).
+"""`config.toml` in the data folder: tolerances, display unit, defaults, diligence.
 
 `fin init` writes `DEFAULT_CONFIG_TOML` once and never overwrites it. After that the file is the
 only source of these values: `load_config` reads it strictly and raises a coded error when it is

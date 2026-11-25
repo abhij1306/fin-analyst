@@ -1,4 +1,4 @@
-"""What the D4 reconciliations share (DILIGENCE_PLAN.md D4): a line, the books side, saving a run.
+"""What the D4 reconciliations share (docs/diligence.md D4): a line, the books side, saving a run.
 
 Each reconciliation is a function `compute(con, engagement, period) -> Computed`: deterministic SQL
 and grouping over the loaded source rows, nothing written. `store.save` writes the run and its

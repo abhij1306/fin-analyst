@@ -1,4 +1,4 @@
-"""The README troubleshooting table must list every error code in fin.audit.errors."""
+"""docs/errors.md must list every error code in fin.audit.errors."""
 
 import inspect
 import re
@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fin.audit import errors
 
-README = Path(__file__).parents[2] / "README.md"
+README = Path(__file__).parents[2] / "docs" / "errors.md"
 
 
 def defined_codes() -> set[str]:

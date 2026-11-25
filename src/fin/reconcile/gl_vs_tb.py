@@ -1,4 +1,4 @@
-"""gl_vs_tb (DILIGENCE_PLAN.md D4): Ledger Vouchers movements vs the trial balance, per ledger.
+"""gl_vs_tb (docs/diligence.md D4): Ledger Vouchers movements vs the trial balance, per ledger.
 
 Left is the Ledger Vouchers' movement of the ledger in the period (debit - credit), right is what
 the trial balance says it must be, difference = movement - trial balance:

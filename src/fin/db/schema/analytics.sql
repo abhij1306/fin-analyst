@@ -1,4 +1,4 @@
--- shared/analytics.duckdb (PLAN.md §7): every company's metrics in one file for the dashboards.
+-- shared/analytics.duckdb (docs/product.md §7): every company's metrics in one file for the dashboards.
 -- Rebuilt in full after every ingest and data change (fin.metrics.export), so it never holds
 -- anything the company databases do not. A file made by an older fin (different tables or columns) is deleted and
 -- created again at the next refresh: everything in it is derived.
@@ -104,7 +104,7 @@ CREATE TABLE companies (
 );
 
 -- Diligence analytics on the registers (the company views customer_concentration, customer_retention, sector_mix and
--- product_pvm_summary, docs/DILIGENCE_PLAN.md D9): money in rupees, shares as fractions. Rows only for a company with an
+-- product_pvm_summary, docs/diligence.md D9): money in rupees, shares as fractions. Rows only for a company with an
 -- engagement and a loaded sales register.
 CREATE TABLE customer_concentration (
     company VARCHAR NOT NULL,
@@ -158,7 +158,7 @@ CREATE TABLE price_volume_mix (
     change DECIMAL(38, 2)
 );
 
--- QoE outputs (the company views adjusted_ebitda, revenue_split, ebitda_to_cash and nwc_series, docs/DILIGENCE_PLAN.md
+-- QoE outputs (the company views adjusted_ebitda, revenue_split, ebitda_to_cash and nwc_series, docs/diligence.md
 -- D7): money in rupees, ratios as fractions. Rows only for a company with an engagement.
 CREATE TABLE qoe_ebitda (
     company VARCHAR NOT NULL,

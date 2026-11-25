@@ -1,5 +1,5 @@
 """`fin doctor`: check dependencies, versions, the data folder, config.toml and the shared
-database schemas (PLAN.md §10)."""
+database schemas (docs/product.md §10)."""
 
 import importlib
 import re

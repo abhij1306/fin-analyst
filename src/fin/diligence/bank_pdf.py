@@ -1,7 +1,7 @@
 """PDF bank statements: the tables of the PDF add-on the user chose, read with a bank profile.
 
 The statement's pages go to the engine in `[pdf] parser` (Docling or LiteParse on this Mac,
-LlamaParse in the cloud: README, "PDF add-ons"), every page, once per file: its tables (grids of
+LlamaParse in the cloud: README, "Install"), every page, once per file: its tables (grids of
 text) and text lines are saved in the data folder as `cache/bank/<sha256>.json`, keyed by the
 file's sha256. Ingesting the same file again, or after a failed load, reads that saved parse and
 calls the engine no more; every loaded row traces to it (`bank_statements.parse_path`; `bank_lines`
@@ -209,6 +209,6 @@ def read_pdf(
     raise LayoutUnknown(
         f"{path.name}: no bank column profile matches the tables {data['engine']} read (tried: "
         f"{names}). Title and header lines: {' / '.join(_top_lines(pages, hide)) or 'none'}. "
-        "Write a profile in templates/profiles/ (docs/CUSTOMISING.md) and ingest again with "
+        "Write a profile in templates/profiles/ (docs/development.md) and ingest again with "
         "--profile"
     )
