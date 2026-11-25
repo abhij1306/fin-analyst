@@ -47,7 +47,10 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      never try to read `mask_values` (`fin sql` refuses, E810) or guess a name.
    - **Ledger mapping.** `uv run fin map ledgers <company>` lists the trial balance ledgers waiting for an account.
      Propose one per ledger from its name and group (`uv run fin map accounts` for the accounts: balance sheet or
-     profit and loss) in a JSON file `[{"ledger": ..., "account": ..., "confidence": 0-1, "reason": ...}]` and run
+     profit and loss). Where the audited statements have the line, propose the account they map it to
+     (`uv run fin statements <company>`): a bank ledger goes to `cash_and_bank_balances` when the statements print
+     "Cash and bank balances", not to `cash`, or `tb_vs_statements` drafts two queries for one figure.
+     Write the proposals in a JSON file `[{"ledger": ..., "account": ..., "confidence": 0-1, "reason": ...}]` and run
      `uv run fin map ledgers <company> <file.json>`. Then show `uv run fin review list <company> --ledgers` and confirm
      or reject only what the user says: `uv run fin review confirm <company> <ids> --ledgers [--account <account>]`,
      `uv run fin review reject <company> <ids> --ledgers`. Never confirm a ledger on your own.
@@ -56,7 +59,9 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      draft query (origin `recon`; reword it with `fin query edit` if needed, then step 3); lines below are listed:
      show them, do not raise them unless the user asks. Unmapped ledgers are flagged and no query is drafted until
      every ledger is mapped. A difference is queried, never fixed; a wrong mapping (fin's own error) is fixed in
-     review and the reconciliation run again. E812: the period has no trial balance or statement figures, or is the
+     review and the reconciliation run again. A run then lists `stale draft queries`: drafts fin made from a line
+     the new run no longer has. Show them; fin never withdraws a query, so withdraw them only when the user says so
+     (`fin query withdraw`). E812: the period has no trial balance or statement figures, or is the
      stub (which has no audited statement).
    - **Register, ledger, trial balance and payroll reconciliations (D4).** `uv run fin reconcile <company> [name]
      [--period FY25]` also runs `sales_register_vs_gl`, `purchase_register_vs_gl` (month, party and invoice
@@ -96,7 +101,9 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    raise it unless they ask.
    - A difference found another way (not a finding): `uv run fin query raise <company> --amount <rupees> --period
      <FY25> [--scope standalone|consolidated] --source "<file> <sheet!cell or page>" --question "..."`. The amount
-     comes from `fin` output; never compute it in prose.
+     comes from `fin` output; never compute it in prose. The period must be a year of the engagement or its stub
+     (E881). A token in the wording that the company's masked names do not have is refused (E861): copy tokens
+     from `fin` output.
    - To change the wording of a draft: `uv run fin query edit <company> <id> --question "..."`.
 3. **Show the drafts** (`uv run fin query list <company> --status draft`) with their amounts and sources, and ask the
    user to approve them. Only when the user approves: `uv run fin query approve <company> <ids...>`.
@@ -216,4 +223,4 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    misread figure) is still done through `/ingest` and `/review`. If a command fails (E801 a gate not approved, E802
    a gate not ready, E803 no open engagement, E804 an adjustment that is not valid, E805 an unknown id or a status
    change not allowed, E806 `fin sql --write` on a diligence table, E807-E811 a source file that cannot load or
-   `mask_values` read, E812 a reconciliation that cannot run, E845 a pass-through customer that is not on a loaded sales register, E820-E821 payroll: no loaded payroll file named, or an unreadable row), report the error code and run_id and stop.
+   `mask_values` read, E812 a reconciliation that cannot run, E845 a pass-through customer that is not on a loaded sales register, E820-E821 payroll: no loaded payroll file named, or an unreadable row, E861 a token that is not the company's, E881 a query period outside the engagement), report the error code and run_id and stop.

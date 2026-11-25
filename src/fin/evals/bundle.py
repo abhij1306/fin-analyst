@@ -11,6 +11,7 @@ check; `--with-figures` adds the expected and fin values in rupees."""
 
 import json
 import re
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +45,14 @@ def source_kind(source: str) -> str:
 
 
 def _percent(value: Any) -> str | None:
-    return None if value is None else f"{value * 100:+.2f}%"
+    """The relative difference as a percentage: two decimals, or two significant digits when that
+    would show a real difference as 0.00% (a misread digit in a large figure)."""
+    if value is None:
+        return None
+    percent = Decimal(value) * 100
+    if percent and abs(percent) < Decimal("0.005"):
+        return f"{percent:+.2g}%"
+    return f"{percent:+.2f}%"
 
 
 def _failures(checks: list[dict[str, Any]], with_figures: bool) -> list[dict[str, Any]]:

@@ -162,7 +162,7 @@ _FIN_VALUE.update(qoe.FIN_VALUE)
 _FIN_VALUE.update(
     {
         "query_issue": (
-            "SELECT a.amount FROM accountant_queries a WHERE a.query_id::VARCHAR = ? "
+            "SELECT abs(a.amount) FROM accountant_queries a WHERE a.query_id::VARCHAR = ? "
             f"AND a.period = ? AND a.engagement_id = {LATEST_ENGAGEMENT} AND {EXPORTED}",
             ("ledger", "period"),
         ),
@@ -221,10 +221,11 @@ def fin_value(con: duckdb.DuckDBPyConnection, check: Check) -> Decimal | None:
 
 
 def relative(fin: Decimal | None, expected: Decimal | None) -> Decimal | None:
-    """(fin - expected) / |expected|, to four places; None without both or for an expected nil."""
+    """(fin - expected) / |expected|, to six significant digits (a misread digit in a large figure
+    stays visible); None without both or for an expected nil."""
     if fin is None or expected is None or expected == 0:
         return None
-    return ((fin - expected) / abs(expected)).quantize(Decimal("0.0001"))
+    return Decimal(f"{(fin - expected) / abs(expected):.6g}")
 
 
 def score_check(con: duckdb.DuckDBPyConnection, check: Check) -> dict[str, Any]:

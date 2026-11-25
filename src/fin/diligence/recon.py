@@ -15,7 +15,8 @@ with the audited standalone statement figures (`current_facts`), one line per ac
 A line whose difference (trial balance - statements) is at or above the engagement threshold gets
 a DRAFT accountant query (origin 'recon'): fin never approves or sends one. A line that had one in
 an earlier run of the same period, with the same account and amounts (and the query not
-withdrawn), keeps it. A line below the
+withdrawn), keeps it. A draft of an earlier run whose line this run no longer has (a ledger mapping
+was fixed) is listed as stale for the user to withdraw; fin withdraws nothing. A line below the
 threshold is listed only. While any ledger is unmapped no query is drafted: the difference may be
 fin's own mapping gap. Differences are queried, never fixed: nothing here changes company data.
 
@@ -291,6 +292,8 @@ def _reconcile(
         )
         line["query_id"] = query["query_id"]
         drafted.append(query["query_id"])
+    # while a ledger is unmapped no line is checked against earlier queries: nothing is stale
+    stale = [] if unmapped else _stale_drafts(con, engagement_id, period, drafted + kept)
     new = con.execute(
         "INSERT INTO recon_runs (engagement_id, name, period, scope, left_file_id, threshold, "
         "input_hash, unmapped, run_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
@@ -320,7 +323,24 @@ def _reconcile(
         "unmapped": unmapped,
         "drafted": drafted,
         "kept": kept,
+        "stale": stale,
     }
+
+
+def _stale_drafts(
+    con: duckdb.DuckDBPyConnection, engagement_id: int, period: str, current: list[int]
+) -> list[int]:
+    """Drafts fin made from an earlier run of the period whose line this run no longer has (a
+    mapping was fixed, a figure corrected). fin never withdraws a query itself: they are listed for
+    the user to withdraw."""
+    rows = con.execute(
+        "SELECT DISTINCT q.query_id FROM accountant_queries q "
+        "JOIN recon_items i ON i.query_id = q.query_id JOIN recon_runs r USING (recon_id) "
+        "WHERE q.engagement_id = ? AND q.origin = 'recon' AND q.status = 'draft' "
+        "AND r.name = ? AND r.period = ? ORDER BY q.query_id",
+        [engagement_id, NAME, period],
+    ).fetchall()
+    return [query_id for (query_id,) in rows if query_id not in current]
 
 
 def tb_vs_statements(run: Run, company: str, period: str | None = None) -> list[dict[str, Any]]:
@@ -401,6 +421,13 @@ def format_result(result: dict[str, Any]) -> str:
             f"{rupees(line['left_amount'])}, "
             f"statements {rupees(line['right_amount'])}, difference {rupees(line['difference'])}"
             f" ({mark})"
+        )
+    if result.get("stale"):
+        ids = " ".join(str(i) for i in result["stale"])
+        out.append(
+            f"stale draft queries: {', '.join(f'#{i}' for i in result['stale'])}: their difference "
+            "is not in this run (a mapping or figure changed); nothing was withdrawn: withdraw "
+            f"them when the user says so (`fin query withdraw <company> {ids} --reason ...`)"
         )
     if result["unmapped"]:
         out.append(

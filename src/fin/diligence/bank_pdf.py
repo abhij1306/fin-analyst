@@ -218,7 +218,8 @@ def read_pdf(
     if not any(p["tables"] for p in pages.values()):
         raise BankPdfUnreadable(
             f"{path.name}: {data['engine']} found no table on any page (saved parse {rel}). "
-            "Nothing loaded"
+            "Nothing loaded. The saved parse is used again on every ingest of this file: to read "
+            "it with another add-on (`fin parser use`), delete the saved parse first"
         )
     candidates = [load_profile(profile_name)] if profile_name else profiles_for("bank")
     for profile in candidates:

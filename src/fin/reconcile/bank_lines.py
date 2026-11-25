@@ -6,7 +6,8 @@ each period's lines (`fin.reconcile.base` lines, with `match_lines`: the `recon_
 
 - a matched group is `matched` (both sides equal in the receipt's currency) or `difference`;
 - a foreign-currency group whose amounts agree is compared in rupees: the receipt's booked value
-  (the Ledger Vouchers receipt on the customer's ledger within `fx_window_days` of the bank date)
+  (the Ledger Vouchers receipt on the customer's ledger within `fx_window_days` of the bank date
+  whose rate is within FX_RATE_BAND of the invoice's; further off it is another receipt)
   against the invoice's Amount in Rs. A difference is an `fx` line (gain positive, loss negative),
   never plugged; no booked receipt found is the note `no_booked_value`;
 - an unmatched receipt is `left_only`, an unmatched invoice `right_only` (`not_yet_due` when it
@@ -31,6 +32,9 @@ from fin.reconcile.base import QUERIED_KINDS, SHOWN_ROWS, ZERO
 
 TOKEN = re.compile(r"CUST-\d+")
 CENT = Decimal("0.01")
+# a booked receipt is the foreign receipt's rupee value only when its rate is within this share of
+# the invoice's rate; further off it is another receipt (docs/decisions/test-run.md)
+FX_RATE_BAND = Decimal("0.10")
 
 
 @dataclass(frozen=True)
@@ -154,9 +158,18 @@ class _Booking:
         self.free = list(booked)
         self.window = window
 
-    def find(self, party: str | None, day: date, claim: bool) -> Booked | None:
+    def near(self, party: str | None, day: date) -> list[Booked]:
+        return [b for b in self.free if b.party == party and abs((b.day - day).days) <= self.window]
+
+    def find(
+        self, party: str | None, day: date, claim: bool, expected: Decimal | None = None
+    ) -> Booked | None:
+        """The nearest free receipt by date; with `expected` (rupees at the invoice's rate) only
+        one within FX_RATE_BAND of it."""
         found = [
-            b for b in self.free if b.party == party and abs((b.day - day).days) <= self.window
+            b
+            for b in self.near(party, day)
+            if expected is None or abs(b.credit - expected) <= abs(expected) * FX_RATE_BAND
         ]
         if not found:
             return None
@@ -198,9 +211,10 @@ def _group_lines(data: Data, group: Group, booking: _Booking) -> list[dict[str, 
     party = next((i.party for i in group.invoices if i.party), None)
     amount_inr = diff if cur == "INR" or not right else (diff * inv_inr / right).quantize(CENT)
     mlines = [_mline("invoice", i, i.party, None) for i in group.invoices]
-    booked_total, missing = ZERO, False
+    booked_total, missing, vouchers, far = ZERO, False, [], []
+    rate = inv_inr / right if right else None
     for r in group.receipts:
-        value = _receipt_value(r, cur, diff, party, booking)
+        value = _receipt_value(r, cur, diff, party, booking, rate, vouchers, far)
         missing = missing or value is None
         booked_total += value or ZERO
         mlines.append(_mline("bank", r, r.party or party, value))
@@ -213,29 +227,54 @@ def _group_lines(data: Data, group: Group, booking: _Booking) -> list[dict[str, 
     )  # fmt: skip
     out = [base]
     if cur != "INR" and diff == 0:
-        out += _fx_lines(base, missing, booked_total, inv_inr)
+        out += _fx_lines(data, base, missing, booked_total, inv_inr, vouchers, far)
     return out
 
 
 def _receipt_value(
-    r: Receipt, cur: str, diff: Decimal, party: str | None, booking: _Booking
+    r: Receipt,
+    cur: str,
+    diff: Decimal,
+    party: str | None,
+    booking: _Booking,
+    rate: Decimal | None,
+    vouchers: list[Key],
+    far: list[Key],
 ) -> Decimal | None:
-    """A receipt's value in the group: rupees as is, a foreign one at its booked value."""
+    """A receipt's value in the group: rupees as is, a foreign one at its booked value (a voucher
+    within FX_RATE_BAND of the invoice's `rate`; the voucher goes to `vouchers`, or the ones
+    near it but further off to `far`)."""
     if cur == "INR":
         return r.amount
     if diff != 0:
         return None
-    hit = booking.find(party or r.party, r.day, True)
-    return hit.credit if hit else None
+    who = party or r.party
+    hit = booking.find(who, r.day, True, r.amount * rate if rate is not None else None)
+    if hit is None:
+        far.extend(b.key for b in booking.near(who, r.day))
+        return None
+    vouchers.append(hit.key)
+    return hit.credit
 
 
 def _fx_lines(
-    base: dict[str, Any], missing: bool, booked_total: Decimal, inv_inr: Decimal
+    data: Data,
+    base: dict[str, Any],
+    missing: bool,
+    booked_total: Decimal,
+    inv_inr: Decimal,
+    vouchers: list[Key],
+    far: list[Key],
 ) -> list[dict[str, Any]]:
-    """The fx line of an agreeing foreign group (none when it ties); a note when no booked value."""
+    """The fx line of an agreeing foreign group (none when it ties), naming the booked vouchers;
+    a note when no booked value, naming the vouchers set aside as another receipt."""
     if missing:
-        base["note"] = (
-            "no booked value: no Receipt voucher on the customer's ledger near the bank date"
+        base["note"] = "no booked value: " + (
+            "the Receipt vouchers near the bank date on the customer's ledger "
+            f"({_text(data, far)}) book a rate more than {FX_RATE_BAND:.0%} from the "
+            "invoice's: another receipt"
+            if far
+            else "no Receipt voucher on the customer's ledger near the bank date"
         )
         return []
     if booked_total == inv_inr:
@@ -246,7 +285,10 @@ def _fx_lines(
             "kind": "fx", "left_amount": booked_total, "right_amount": inv_inr,
             "difference": booked_total - inv_inr, "currency": "INR",
             "amount_inr": booked_total - inv_inr,
-            "note": f"FX {kind}: receipt as booked less the invoice's Amount in Rs",
+            "left_source": _text(data, vouchers),
+            "note": f"FX {kind}: receipt as booked less the invoice's Amount in Rs (the booked "
+            "receipt is the nearest Receipt voucher on the customer's ledger at a rate within "
+            f"{FX_RATE_BAND:.0%} of the invoice's: check it is this one)",
         }
     ]  # fmt: skip
 

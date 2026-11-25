@@ -37,7 +37,7 @@ Only decisions that affect the analysis or what the user sees. Plan: docs/DILIGE
 ## 5. FX lines
 - **Decision:** a matched foreign-currency group whose currency amounts agree is compared in rupees: the receipt's booked
   rupees (the credit of a Receipt voucher on the customer's Ledger Vouchers ledger, nearest date within
-  `fx_window_days`, each used once) against the invoice's Amount in Rs. A difference is an `fx` line, difference =
+  `fx_window_days`, each used once, at a rate within 10% of the invoice's: `docs/decisions/test-run.md`) against the invoice's Amount in Rs. A difference is an `fx` line, difference =
   receipt − invoice (gain positive, loss negative); it is listed and never queried or plugged. No Receipt voucher found:
   the match carries the note `no_booked_value` and no fx line is made. A group whose currency amounts differ is a
   `difference` line in that currency, with no fx line.

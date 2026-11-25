@@ -5,6 +5,7 @@ changes a person's lines, and the results bundle has no real names and no figure
 import csv
 import json
 import shutil
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,7 @@ from fin.doctor import Check as DoctorCheck
 from fin.evals import bundle
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.scaffold import init_golden
-from fin.evals.score import run_eval
+from fin.evals.score import relative, run_eval
 from fin.map.dictionary import load_seed
 from fin.paths import audit_db_path, company_db_path, dictionary_db_path
 from tests.register_fixtures import write_registers
@@ -143,7 +144,7 @@ def test_a_planted_wrong_value_fails_and_an_unchecked_one_is_not_scored(root: Pa
     assert outcomes(result) == ["fail", "pass", "unchecked", "fail"] + ["pass"] * 3 + ["missing"]
     revenue = result["checks"][0]
     assert (revenue["expected"], revenue["fin"]) == (1001000, 1000000)
-    assert str(revenue["relative_difference"]) == "-0.0010"
+    assert str(revenue["relative_difference"]) == "-0.000999001"
     assert str(result["summary"]["score_percent"]) == "57.1"  # 4 of 7 scored
 
 
@@ -316,6 +317,16 @@ def test_pass_through_and_adjusted_figures_are_scored(root: Path, tmp_path: Path
     assert result["counts"]["passthrough"] == {"customers": 1, "adjustments": {"accepted": 1}}
     scaffold = {c["kind"] for c in init_golden_rows(root)}
     assert {"core_revenue", "passthrough_revenue", "adjusted_revenue"} <= scaffold
+
+
+def test_a_misread_digit_in_a_large_figure_does_not_show_as_no_difference() -> None:
+    # 13,409.92 lakh expected, 13,409.29 read: 0.0047%, which four places or two decimals hide
+    difference = relative(Decimal("1340929000"), Decimal("1340992000"))
+    assert difference is not None
+    assert difference != 0
+    assert bundle._percent(difference) == "-0.0047%"
+    assert bundle._percent(Decimal("-0.001")) == "-0.10%"
+    assert bundle._percent(None) is None
 
 
 def init_golden_rows(root: Path) -> list[dict[str, str]]:

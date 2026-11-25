@@ -118,7 +118,8 @@ jobs:
       - if: matrix.parser == 'llamaparse'
         run: .venv/bin/pytest tests/unit/test_llamaparse_run.py -rs
 
-  # Ingest the synthetic companies once, then render Kestrel's report (Quarto) and build the dashboard.
+  # Ingest the synthetic companies once, then render Kestrel's report (Quarto) and build the dashboard;
+  # the quarto-marked tests render the health report and the diligence report for real.
   outputs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -181,5 +182,6 @@ jobs:
           for text in profitability efficiency balance_sheet; do
             grep -rq "$text" "$build/api/prerendered_queries" || { echo "'$text' missing from the built data"; exit 1; }
           done
-      # Only the test that needs the real Quarto; the test job ran the rest (-rs lists a skip).
+      # Only the tests that need the real Quarto (the health report and the diligence report); the
+      # test job ran the rest (-rs lists a skip).
       - run: uv run --frozen pytest -m quarto -rs

@@ -24,7 +24,7 @@ from fin.evals.scaffold import init_golden
 from fin.evals.score import run_eval
 from fin.map.dictionary import load_seed
 from fin.paths import audit_db_path, company_db_path, dictionary_db_path
-from fin.reconcile import bank_match, run_new
+from fin.reconcile import bank, bank_match, run_new
 from fin.reconcile.items import raise_from_items
 
 D = Decimal
@@ -168,6 +168,12 @@ def test_what_needs_a_query_fx_and_not_yet_due(root: Path) -> None:
     fx = lines[("fx", D(3000))]
     assert not fx["needs_query"]  # listed, never queried
     assert "FX gain" in fx["note"]
+    # the booked receipt it used is named, so a person can see it is the right voucher
+    assert "!" in (fx["left_source"] or "")
+    text = bank.format_result(go(root))
+    assert "invoices None" not in text
+    assert "receipts None" not in text
+    assert fx["left_source"] in text
     assert [x["level"] for x in lines.values()].count("receipt") == 1
 
 
@@ -178,6 +184,31 @@ def test_a_foreign_receipt_with_no_booked_value_is_noted_not_guessed(root: Path)
     assert not [x for x in lines if x["kind"] == "fx"]
     usd = next(x for x in lines if x["currency"] == "USD")
     assert usd["note"].startswith("no booked value")
+
+
+def test_a_booked_receipt_at_another_receipts_amount_is_not_taken_as_the_rupee_value(
+    root: Path,
+) -> None:
+    # the customer's only Receipt voucher near the bank date books Rs 2,00,000 for USD 2,000 (a
+    # rate of 100 against the invoice's 80): it is another receipt, not this one's rupee value
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE ledger_entries SET credit = 200000")
+    lines = go(root)["lines"]
+    assert not [x for x in lines if x["kind"] == "fx"]
+    usd = next(x for x in lines if x["currency"] == "USD")
+    assert usd["note"].startswith("no booked value")
+    assert "ledger_vouchers4.xlsx L!5" in usd["note"]
+    # with the right voucher beside it, the right one is used even when the wrong one is nearer
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            'INSERT INTO ledger_entries (file_id, sheet, "row", ledger, entry_date, particulars, '
+            "voucher_type, voucher_no, debit, credit, run_id) VALUES (?, 'L', 6, 'CUST-0005', "
+            "DATE '2024-06-25', 'Axis USD', 'Receipt', '10', 0, 158000, 'r0')",
+            [LV],
+        )
+    fx = by_kind(go(root))[("fx", D(-2000))]
+    assert fx["left_amount"] == D(158000)
+    assert "L!6" in fx["left_source"]
 
 
 def test_collections_view(root: Path) -> None:

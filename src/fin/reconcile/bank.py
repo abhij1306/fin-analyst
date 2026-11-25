@@ -203,13 +203,19 @@ def _format_invoices(head: str, lines: list[dict[str, Any]]) -> str:
         if x["kind"] == "matched" and not x["note"]:
             continue
         who = x["ledger"] or "-"
+        sources = [s for s in (x["left_source"], x["right_source"]) if s]
         out.append(
             f"  [item #{x['item_id']}] {x['kind']} {x['level']} {x['key']} {who} "
-            f"[{x['match_pass'] or '-'}] {x['currency']}: receipts {x['left_amount']}, invoices "
-            f"{x['right_amount']}, difference {x['difference']} ({_mark(x)})"
+            f"[{x['match_pass'] or '-'}] {x['currency']}: receipts {_amount(x['left_amount'])}, "
+            f"invoices {_amount(x['right_amount'])}, difference {x['difference']} ({_mark(x)})"
+            + "".join(f"\n      {s}" for s in sources)
             + (f"\n      {x['note']}" if x["note"] else "")
         )
     return "\n".join(out)
+
+
+def _amount(value: Any) -> str:
+    return "-" if value is None else str(value)
 
 
 def _mark(line: dict[str, Any]) -> str:

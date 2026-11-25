@@ -59,8 +59,8 @@ def consistency_findings(statements: list[dict[str, Any]]) -> dict[int, list[dic
                     | {
                         "check_name": "bank_overlap",
                         "finding": "bank_periods_overlap",
-                        "fin_source": f"{cur['file_name']} starts {cur['period_start']}",
-                        "other_source": f"{prev['file_name']} ends {prev['period_end']}",
+                        "fin_source": f"starts {cur['period_start']}",
+                        "other_source": f"ends {prev['period_end']}",
                         "message": (
                             f"bank statements {label}: {cur['file_name']} ({period}) overlaps "
                             f"{prev['file_name']} (ends {prev['period_end']}); a transaction may "
@@ -77,8 +77,8 @@ def consistency_findings(statements: list[dict[str, Any]]) -> dict[int, list[dic
                         "fin_value": cur["opening_balance"],
                         "other_value": prev["closing_balance"],
                         "difference": cur["opening_balance"] - prev["closing_balance"],
-                        "fin_source": f"{cur['file_name']} opening balance",
-                        "other_source": f"{prev['file_name']} closing balance",
+                        "fin_source": "opening balance",
+                        "other_source": "closing balance",
                         "message": (
                             f"bank statements {label}: {cur['file_name']} opens at "
                             f"{cur['opening_balance']} but {prev['file_name']} closed at "
