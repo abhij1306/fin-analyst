@@ -7,13 +7,23 @@ records that the user sent it."""
 import json
 import re
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
 
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
-from fin.diligence import adjustments, bridge, engagement, gates, passthrough, queries
+from fin.diligence import (
+    adjustments,
+    answers,
+    bridge,
+    engagement,
+    export_cli,
+    gates,
+    passthrough,
+    queries,
+)
 from fin.diligence.stub import STUB
 from fin.paths import COMPANY_NAME
 from fin.reconcile import items as recon_items
@@ -429,21 +439,37 @@ _status_command(
 def query_answer(
     company: CompanyArg,
     query_id: Annotated[int, typer.Argument(help="A sent query's id.")],
-    text: Annotated[str, typer.Option("--text", callback=_text, help="The accountant's answer.")],
+    text: Annotated[
+        str | None, typer.Option("--text", callback=_text, help="The accountant's answer.")
+    ] = None,
     source: Annotated[
         str | None,
         typer.Option("--source", callback=_text, help="Where the answer is (a file, an email)."),
     ] = None,
+    file: Annotated[
+        Path | None,
+        typer.Option(
+            "--file",
+            help="The reply file: archived like a source. A .txt, .eml or .md reply is read "
+            "(known names masked) and is the answer; any other file needs --text.",
+        ),
+    ] = None,
 ) -> None:
-    """Record the accountant's answer to a sent query."""
+    """Record the accountant's answer to a sent query, as text and/or a reply file."""
+    if text is None and file is None:
+        raise typer.BadParameter("give --text, or --file with the reply")
 
     def body(run: Run) -> None:
+        answer, answer_source = text, source
+        if file is not None:
+            answer, from_file = answers.record_reply(run, company, file, text)
+            answer_source = f"{source}; {from_file}" if source else from_file
         rows = queries.set_status(
-            run, company, [query_id], "answered", answer=text, answer_source=source
+            run, company, [query_id], "answered", answer=answer, answer_source=answer_source
         )
         _echo_queries(rows)
 
-    args = {"company": company, "id": query_id, "text": text, "source": source}
+    args = {"company": company, "id": query_id, "text": text, "source": source, "file": file}
     execute("query answer", args, body)
 
 
@@ -464,6 +490,10 @@ def query_withdraw(
         _echo_queries(queries.set_status(run, company, ids, "withdrawn", note=reason))
 
     execute("query withdraw", {"company": company, "ids": ids, "reason": reason}, body)
+
+
+# fin query export (export_cli.py)
+export_cli.register(query_app, CompanyArg)
 
 
 # fin adjust

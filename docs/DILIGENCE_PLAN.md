@@ -25,18 +25,18 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 |---|---|---|
 | Audited statements, checks, metrics | **Built**: the statement layer | — |
 | Proposed adjustments kept separate from reported numbers | **Built**, with revenue and cost effects | D1; D4 |
-| Accountant queries (Rs 1 lakh per line, drafted for approval) | **Built**, except grouping lines into issues and the export | D1; D4, D8 |
+| Accountant queries (Rs 1 lakh per line, drafted for approval) | **Built**, with issues and the export | D1; D4, D8 |
 | Gates that stop the build for review | **Built**: G1, G2, G4; G3 planned | D1; D2, D4, D6 |
 | Adjusted EBITDA, EBITDA bridge, EBITDA-to-cash walk | **Built** on the audited statements | D1 |
 | Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: all five (D2: trial balance, Ledger Vouchers; D3: registers, bank Excel and PDF, payroll) | D2, D3 |
-| Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers; the export planned | D2 on; D8 |
+| Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers and the other sources; the export is built | D2 on; D8 |
 | Current-year stub from unaudited management data | Planned | D2 on |
 | Pass-through revenue split out of core revenue and growth | **Built** | D4 |
 | Reconciliation: register ↔ ledger ↔ accounts | Planned | D4 |
 | Reconciliation: bank ↔ receipts ↔ invoices, with FX lines for USD | Planned | D5 |
 | Service-period revenue recast from the sales register | Planned | D6 |
 | Normalised working capital, diligence report and dashboard | Planned | D7 |
-| Query export: marked-up workbook and draft email, or a brief per issue | Planned | D8 |
+| Query export: marked-up workbook and draft email, or a brief per issue | **Built** (`fin query export`, `answer --file`; choices: `docs/decisions/d8-query-export.md`) | D8 |
 | Customer, product, sector, pricing, retention analytics | Planned | D9 |
 
 ## 2. Rules for diligence data
@@ -374,6 +374,7 @@ the adjustment; a line without service dates is listed.
 **Done when:** the synthetic engagement renders a diligence report whose every number traces to source rows.
 
 ### D8: Query export
+Status: **built** (`fin/diligence/export*.py`, `answers.py`; E858–E861; choices: `docs/decisions/d8-query-export.md`).
 - `fin query export <co>`: for the approved queries, a marked-up Excel workbook (each issue's difference lines
   highlighted in the source layout, with the count and value per difference) and a draft summary email as text.
   `--brief`: a 1–2 page Word brief per issue instead. No Word query letter, no shared sheet.

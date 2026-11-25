@@ -80,6 +80,24 @@ _FIN_VALUE = {
 }
 
 
+_EXPORTED = "a.status IN ('approved', 'sent', 'answered', 'closed')"
+_FIN_VALUE.update(
+    {
+        "query_issue": (
+            "SELECT a.amount FROM accountant_queries a WHERE a.query_id::VARCHAR = ? "
+            f"AND a.period = ? AND a.engagement_id = {LATEST_ENGAGEMENT} AND {_EXPORTED}",
+            ("ledger", "period"),
+        ),
+        "query_difference": (
+            "SELECT sum(abs(i.difference)) FROM query_items q "
+            "JOIN recon_items i ON i.item_id = q.item_id "
+            "JOIN accountant_queries a ON a.query_id = q.query_id WHERE a.period = ? "
+            f"AND a.engagement_id = {LATEST_ENGAGEMENT} AND {_EXPORTED} "
+            "AND a.query_id::VARCHAR || ' ' || i.kind = ? HAVING count(*) > 0",
+            ("period", "ledger"),
+        ),
+    }
+)
 _FIN_VALUE.update(
     {
         kind: (

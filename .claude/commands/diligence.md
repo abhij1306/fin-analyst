@@ -85,10 +85,16 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    - To change the wording of a draft: `uv run fin query edit <company> <id> --question "..."`.
 3. **Show the drafts** (`uv run fin query list <company> --status draft`) with their amounts and sources, and ask the
    user to approve them. Only when the user approves: `uv run fin query approve <company> <ids...>`.
-4. **Sending is the user's.** fin never sends anything. Run `uv run fin query sent <company> <ids...>` only when the
-   user says they sent those queries.
+4. **Export and sending are the user's.** When the user asks for the files to send, run `uv run fin query export
+   <company>` (a marked-up workbook `queries.xlsx` and a draft `email.txt` in the data folder; `--brief` for a Word
+   brief per query instead). It prints only the file paths: the files hold the real names, which you never see; tell the
+   user where they are. E858: nothing is approved yet; E861: a token in the wording has no real name (fix it with
+   `fin query edit` while a draft). fin never sends anything. Run `uv run fin query sent <company> <ids...>` only
+   when the user says they sent those queries.
 5. **Answers.** When the user gives an accountant's answer: `uv run fin query answer <company> <id> --text "..."
-   [--source "<email, file or page>"]`. Then propose what follows (close it, raise a follow-up, or an adjustment)
+   [--source "<email, file or page>"]`, or with the reply file: `--file <path>` (archived like a source; a .txt, .eml or
+   .md reply is read with known names masked and is the answer, any other file needs `--text`; E860). Write `--text`
+   with tokens, never real names. Then propose what follows (close it; re-reconcile after the company sends a corrected file and the user loads it; raise a follow-up; or an adjustment)
    and close it only when the user says: `uv run fin query close <company> <ids...>`. To drop a query before it is
    closed, when the user says: `uv run fin query withdraw <company> <ids...> --reason "..."`.
 6. **Adjustments.** Propose an adjustment only with evidence: an answered query, a finding, or a source reference.

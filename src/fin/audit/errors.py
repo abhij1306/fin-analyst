@@ -30,6 +30,9 @@ a command returns when the error ends it:
   stops the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
+- E858-E861 (the query export, fin.diligence.export: no approved query, a file that cannot be read
+  or written, a reply file that cannot be recorded, a token with no real value) stop the command:
+  exit 2.
 - E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
   to bundle, a bundle that would contain a real name) stop the command: exit 2.
 """
@@ -444,3 +447,34 @@ class PassthroughInvalid(FinError):
     (or no sales register is loaded, so there is nothing to check it against). Nothing changed."""
 
     code = "E845"
+
+
+# E85x: the query export (fin.diligence.export). Stop the command.
+
+
+class NothingToExport(FinError):
+    """E858. `fin query export`: the open engagement has no approved query. Nothing written."""
+
+    code = "E858"
+
+
+class ExportFileError(FinError):
+    """E859. `fin query export`: a source workbook an issue cites cannot be read from the archive,
+    or the export folder cannot be written. Nothing is left in the export folder."""
+
+    code = "E859"
+
+
+class ReplyFileError(FinError):
+    """E860. `fin query answer --file`: the file is missing or cannot be read or archived, or it is
+    not plain text (.txt, .eml, .md) and no --text says what it answers. Nothing recorded."""
+
+    code = "E860"
+
+
+class UnknownToken(FinError):
+    """E861. `fin query export`: a query's wording or a line names a token (CUST-0001, ...) that
+    has no real value in the company's masked names, so it cannot be written as a name. The token
+    is named; nothing written. Edit the draft (or re-raise it) with the right token."""
+
+    code = "E861"

@@ -144,7 +144,11 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
 - Queries: `fin query raise <company> --finding <id> --question "..."` (the finding's period, difference and
   sources; the finding is not changed) or `--amount N --period P --source "file sheet!cell" --question "..."`.
   A query starts as a draft (`fin query edit` changes its wording), then `fin query approve`, `sent` (when you have
-  sent it), `answer --text`, `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
+  sent it), `answer --text` (or `--file reply`: archived like a source; a .txt, .eml or .md reply is read with known names masked, any other file needs `--text`), `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
+  `fin query export <company> [--brief]` writes the approved queries for the accountant to `exports/<company>/<run_id>/`
+  of the data folder: `queries.xlsx` (summary, a sheet per query with the count and value per kind of difference, and the
+  cited source sheets with the lines highlighted) and `email.txt` (a draft; you send it from your own email, then `fin query
+  sent`), or with `--brief` a Word brief per query. The files hold the real names; fin prints only their paths (E858-E861).
 - Adjustments: `fin adjust propose <company> --period --scope --category --description` with evidence
   (`--query`, `--finding` or `--source`), the effects (`--revenue-effect` and `--cost-effect`, signed rupees; the
   EBITDA effect, `--amount`, is always revenue effect minus cost effect, and `--amount` alone is a cost effect of
@@ -356,6 +360,10 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E818 | The saved parse of a bank PDF (`cache/bank/<sha256>.json` in the data folder) cannot be read | Nothing loaded. Delete the file to parse the PDF again |
 | E840 | `fin reconcile`: a reconciliation (`sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`) cannot run: a period not in the engagement, Ledger Vouchers, registers covering the period, a trial balance or a payroll file (unit confirmed annual) not loaded, or no ledger confirmed to the account the books side reads (revenue, purchases, employee expense) | Nothing recorded. Load or map what the message names, then run it again |
 | E841 | `fin query raise --items` names a reconciliation line that does not exist, is not of the open engagement, or is not in the latest run (the data was reconciled again) | Nothing raised. Take the line ids from the latest `fin reconcile` output |
+| E858 | `fin query export`: the open engagement has no approved query | Nothing written. Approve drafts first: `uv run fin query approve <company> <ids>` |
+| E859 | `fin query export`: a source workbook a query cites cannot be read from the archive, or the export folder cannot be written | Nothing left in the export folder. Check the archive file and the data folder's permissions, then export again |
+| E860 | `fin query answer --file`: the reply file is missing, cannot be read or archived, or is not plain text (.txt, .eml, .md) and no `--text` says what it answers | Nothing recorded. Give `--text` with the answer (names as tokens), or a plain-text reply |
+| E861 | `fin query export`: a query's wording or line has a token (`CUST-0001`, ...) with no real value in the company's masked names | Nothing written; the token is named. Correct it with `uv run fin query edit` (a draft) or raise the query again |
 | E842 | `fin query raise --items` names a line that cannot be queried: matched, fx, not reconciled, unmapped, a month or party roll-up, below the threshold, already in a query, or lines of different periods | Nothing raised. Raise lines at or above the threshold, one period at a time |
 | E820 | `fin payroll confirm-unit` names no loaded payroll file of the open engagement (unknown name or id, not a payroll file, or superseded by a later snapshot, or several loaded files with that name) | Nothing recorded. The message lists the loaded payroll files: use one's file name or file_id |
 | E821 | A payroll snapshot row has no employee name or code, or a joining or resign date that is not a date in the profile's format | Nothing loaded. Ask the company for a corrected file, or fix the profile's `date_format`, and ingest again |

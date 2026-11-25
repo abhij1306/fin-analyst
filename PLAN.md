@@ -317,6 +317,18 @@ kind and amounts are unchanged. G2 requires every reconciliation whose inputs ar
 current data with every `needs_query` line in a query (E840: an input missing or a ledger not mapped). Golden
 eval kinds: `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`.
 
+**Query export (D8).** `fin query export <co> [--brief]` writes the open engagement's approved queries to
+`exports/<company>/<run_id>/`: `queries.xlsx` (Summary; `Q<id>` per issue with its lines and the count and value of
+each kind of difference from `query_items`; `S<n> <sheet>` copies of the cited source sheets from the archive with the
+lines' rows highlighted and the query named beside them) and `email.txt` (a draft covering email), or `query-<id>.docx`
+(a 1-2 page brief per issue) with `--brief`. The export is the only reader of `mask_values`: tokens in the wording
+and lines become real names (a token with no real value is E861); fin prints only the paths, and nothing else it prints,
+logs or stores (except `mask_values`) holds a name. The database does not change: the user sends the files, then
+`fin query sent`. `fin query answer <co> <id> --file reply [--text ...]` archives the reply like a source
+(`answer_source` names it); a .txt/.eml/.md reply is read with known names masked and is the answer unless `--text` is
+given, any other file needs `--text` (E860). Errors E858-E861; choices `docs/decisions/d8-query-export.md`. Golden eval
+kinds: `query_issue` (the issue's amount) and `query_difference` (one kind of difference, ledger `<id> <kind>`).
+
 Payroll (D3, `docs/decisions/d3-payroll.md`): `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot, one
 row per employee, with the profile `templates/profiles/sparsh_payroll.toml` (the period pattern has one group,
 `date`: "Employee Master as on 31-Mar-2025"). The snapshot date must fall in an annual period of the engagement

@@ -486,6 +486,7 @@ dependencies = [
     { name = "duckdb" },
     { name = "openpyxl" },
     { name = "pdfplumber" },
+    { name = "python-docx" },
     { name = "typer" },
 ]
 
@@ -521,6 +522,7 @@ requires-dist = [
     { name = "llama-cloud", marker = "extra == 'llamaparse'", specifier = "==2.20.0" },
     { name = "openpyxl", specifier = "==3.1.5" },
     { name = "pdfplumber", specifier = "==0.11.10" },
+    { name = "python-docx", specifier = "==1.2.0" },
     { name = "torch", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'docling') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'docling')", specifier = "==2.15.0" },
     { name = "torch", marker = "sys_platform == 'linux' and extra == 'docling'", specifier = "==2.15.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchvision", marker = "(platform_machine != 'x86_64' and sys_platform == 'darwin' and extra == 'docling') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'docling')", specifier = "==0.29.2" },
