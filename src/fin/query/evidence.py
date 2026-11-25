@@ -24,7 +24,7 @@ from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
 from fin.extract.addon import ADDON_LABELS
-from fin.extract.pdf import render_crop
+from fin.extract.pdf_reader import render_crop
 from fin.map.dictionary import load_accounts
 from fin.paths import company_db_path
 

@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+// Pre-commit hook: staged authored source files stay under 6,000 tokens (tools/check_file_size.mjs).
+// Install once per clone: git config core.hooksPath .githooks
+import { spawnSync } from "node:child_process";
+
+const result = spawnSync("node", ["tools/check_file_size.mjs", "--staged"], { stdio: "inherit" });
+process.exit(result.status ?? 1);

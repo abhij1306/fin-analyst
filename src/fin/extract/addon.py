@@ -30,11 +30,7 @@ from typing import Protocol
 import pypdfium2
 
 from fin.audit.errors import DocumentFailure, FileUnreadable, PdfAddonFailed
-from fin.extract.pdf import (
-    TITLE_LINES,
-    Line,
-    PdfValue,
-    SkippedPage,
+from fin.extract.pdf_lines import (
     is_results,
     open_pdf,
     page_parts,
@@ -42,6 +38,7 @@ from fin.extract.pdf import (
     statement_of,
     unit_of,
 )
+from fin.extract.pdf_model import TITLE_LINES, Line, PdfValue, SkippedPage
 from fin.extract.pdf_tables import PageContext, Table, read_tables, unit_of_text
 from fin.extract.periods import STATEMENTS
 

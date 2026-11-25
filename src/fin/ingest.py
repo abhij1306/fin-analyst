@@ -59,7 +59,7 @@ from fin.db.conn import connect, utcnow
 from fin.extract import fallback
 from fin.extract.addon import ADDON_LABELS
 from fin.extract.excel import ExcelValue, extract_workbook
-from fin.extract.pdf import PdfValue
+from fin.extract.pdf_model import PdfValue
 from fin.extract.periods import fiscal_year_of, period_of, resolve_months
 from fin.extract.reading import ReadingLine, read_reading
 from fin.extract.text import write_notes_markdown

@@ -28,9 +28,13 @@ SCHEMA_FILES = {
     "company": [
         "company.sql",
         "company_views.sql",
+        "company_metric_definitions.sql",
+        "company_metric_inputs.sql",
+        "company_metrics.sql",
         "diligence.sql",
         "diligence_views.sql",
         "sources.sql",
+        "sources_views.sql",
         "diligence_split_views.sql",
         "diligence_analytics.sql",
         "diligence_nwc.sql",

@@ -22,7 +22,6 @@ on_request = true) when the `CLAUDECODE` environment variable is set, else `huma
 
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any
 
@@ -31,20 +30,18 @@ from fin.audit.logger import Run
 from fin.db.conn import connect, transaction
 from fin.map.dictionary import (
     Account,
-    account_problem,
     insert_account,
     label_key,
     load_accounts,
     upsert_label,
 )
 from fin.map.normalize import normalize_label
+from fin.map.review_accounts import check_account, new_account_row
 from fin.paths import companies_dir, company_db_path, dictionary_db_path, review_dir
 
 SCOPES = ("global", "company")
 LOW_CONFIDENCE = 0.7  # proposals below this are logged as E302
 OPEN = ("pending", "proposed")  # statuses still waiting for a decision
-ACCOUNT_NAME = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")  # snake_case
-NEW_ACCOUNT_FIELDS = ("parent", "sign", "unit", "description")
 
 Pending = dict[str, Any]  # {"company", "next_id", "items": [...]}
 Item = dict[str, Any]
@@ -160,7 +157,7 @@ def set_mapping(
         "confidence": None,
         "reason": None,
     }
-    _check_account(load_accounts(run.root), account, item)
+    check_account(load_accounts(run.root), account, item)
     key = label_key(statement, section, label)
     if not key[2]:
         raise InvalidMapping(f"label {label!r} is empty once normalized")
@@ -170,52 +167,6 @@ def set_mapping(
         decision = "edited" if outcome == "changed" else "confirmed"
         _decide(run, company, item, decision, account, "company")
     return outcome
-
-
-def _check_account(accounts: dict[str, Account], account: str, item: Item) -> None:
-    if account not in accounts:
-        raise InvalidMapping(f"unknown account {account!r}")
-    if accounts[account].statement != item["statement"]:
-        raise InvalidMapping(
-            f"account {account!r} is a {accounts[account].statement} account, but "
-            f"{item['label']!r} is on the {item['statement']}"
-        )
-
-
-def _new_account(
-    accounts: dict[str, Account], name: str, definition: Any, statement: str
-) -> dict[str, str]:
-    """Check a new-account proposal for `statement` and return it as a schedule_iii.csv row.
-    `definition` is {parent, sign, unit, description}; parent and sign are null for a top line."""
-    if not isinstance(name, str) or not ACCOUNT_NAME.match(name):
-        raise InvalidMapping(f"new account {name!r}: use a snake_case name, e.g. loans_to_nbfcs")
-    if name in accounts:
-        raise InvalidMapping(
-            f"new account {name!r} is already in the dictionary; propose it as an existing account"
-        )
-    if not isinstance(definition, dict) or set(definition) != set(NEW_ACCOUNT_FIELDS):
-        raise InvalidMapping(
-            f"new account {name!r}: new_account must have exactly {', '.join(NEW_ACCOUNT_FIELDS)}"
-        )
-    parent, sign, unit, description = (definition[field] for field in NEW_ACCOUNT_FIELDS)
-    if parent is not None and not isinstance(parent, str):
-        raise InvalidMapping(f"new account {name!r}: parent must be an account name or null")
-    if sign is not None and (isinstance(sign, bool) or sign not in (1, -1)):
-        raise InvalidMapping(f"new account {name!r}: sign must be 1, -1 or null")
-    if not isinstance(unit, str) or not isinstance(description, str) or not description.strip():
-        raise InvalidMapping(f"new account {name!r}: unit and description must be text")
-    row = {
-        "account": name,
-        "statement": statement,
-        "parent": parent or "",
-        "sign": "" if sign is None else str(sign),
-        "unit": unit,
-        "description": description.strip(),
-    }
-    problem = account_problem(row, {n: a.statement for n, a in accounts.items()})
-    if problem:
-        raise InvalidMapping(f"new account {name!r}: {problem}")
-    return row
 
 
 def _decide(
@@ -293,7 +244,7 @@ def _check_proposal(
         )
     item = matches[0]
     if "new_account" in proposal:
-        row = _new_account(
+        row = new_account_row(
             accounts, proposal["account"], proposal["new_account"], item["statement"]
         )
         if new_rows.setdefault(row["account"], row) != row:
@@ -301,11 +252,11 @@ def _check_proposal(
                 f"proposal {number}: new account {row['account']!r} is defined twice, differently"
             )
     else:
-        _check_account(accounts, proposal["account"], item)
+        check_account(accounts, proposal["account"], item)
     return item
 
 
-def _stored_new_account(new: dict[str, str] | None) -> dict[str, Any] | None:
+def _storednew_account_row(new: dict[str, str] | None) -> dict[str, Any] | None:
     """A proposed new account as kept on its pending item (sign as +1/-1, no parent as None)."""
     if new is None:
         return None
@@ -320,7 +271,7 @@ def _stored_new_account(new: dict[str, str] | None) -> dict[str, Any] | None:
 def propose(run: Run, company: str, proposals: list[dict[str, Any]]) -> int:
     """Store proposals on the matching pending items. All or nothing: any bad proposal (E304) or
     two different accounts for one label (E303) applies none. A proposal with `new_account`
-    names an account that is not in the dictionary yet (see `_new_account`)."""
+    names an account that is not in the dictionary yet (see `new_account_row`)."""
     pending = read_pending(run.root, company)
     accounts = load_accounts(run.root)
     chosen: dict[int, tuple[Item, dict[str, Any]]] = {}
@@ -340,7 +291,7 @@ def propose(run: Run, company: str, proposals: list[dict[str, Any]]) -> int:
             account=proposal["account"],
             confidence=proposal["confidence"],
             reason=proposal["reason"],
-            new_account=_stored_new_account(new),
+            new_account=_storednew_account_row(new),
         )
         _decide(run, company, item, "proposed", item["account"], None)
         if item["confidence"] < LOW_CONFIDENCE:
@@ -366,7 +317,7 @@ def _account_to_add(
     definition = {**proposed, "parent": parent or proposed["parent"]}
     if name in accounts and name == item["account"] and parent is None:
         return None  # another item with the same new account was confirmed first
-    return _new_account(accounts, name, definition, item["statement"])
+    return new_account_row(accounts, name, definition, item["statement"])
 
 
 def _resolve_account(
@@ -380,7 +331,7 @@ def _resolve_account(
     if item.get("new_account") and account in (None, item["account"]):
         new = _account_to_add(accounts, item, name, parent)
         if new is None:  # added by confirming another item with the same new account
-            _check_account(accounts, item["account"], item)
+            check_account(accounts, item["account"], item)
             return item["account"], None
         return new["account"], new
     if name is not None or parent is not None:
@@ -390,7 +341,7 @@ def _resolve_account(
     account = account or item["account"]
     if account is None:
         raise InvalidMapping(f"item {item['id']} has no proposed account; give one with --account")
-    _check_account(accounts, account, item)
+    check_account(accounts, account, item)
     return account, None
 
 

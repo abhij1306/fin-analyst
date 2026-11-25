@@ -24,7 +24,8 @@ from fin.audit.logger import Run
 from fin.config import Config
 from fin.extract import addon, docling_run, liteparse_run, llamaparse_run
 from fin.extract.addon import AddonResult, Engine
-from fin.extract.pdf import PdfValue, SkippedPage, extract_pdf
+from fin.extract.pdf import extract_pdf
+from fin.extract.pdf_model import PdfValue, SkippedPage
 
 ENGINES: dict[str, Engine] = {
     docling_run.NAME: docling_run,

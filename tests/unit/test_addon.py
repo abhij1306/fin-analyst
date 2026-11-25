@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from fin.audit.errors import ParseError, PdfAddonFailed, PeriodsNotDetected
 from fin.extract import addon
 from fin.extract.addon import Found, PageRead, Request
-from fin.extract.pdf import SkippedPage
+from fin.extract.pdf_model import SkippedPage
 from fin.extract.pdf_tables import Cell, Table
 from tests.synthetic_pdf import write_pdf
 

@@ -84,7 +84,7 @@ answers, fin keeps the behaviour in "Currently".
   and debt metrics, while gross margin counts absent purchases as nil. Currently: NULL. Option: count an omitted line
   as nil when the document prints PBT and totals, and show it as "counted as nil".
 - **Why:** An absent line is not the same as a printed zero; a gap is not filled with an assumption.
-- **How to change it:** `src/fin/db/schema/company_views.sql` (the `when_missing` rules of `ebitda`, debt and
+- **How to change it:** `src/fin/db/schema/company_metric_definitions.sql` and `company_metrics.sql` (the `when_missing` rules of `ebitda`, debt and
   related metrics in `metrics_wide`).
 
 ## D-4 One validation tolerance of 1 lakh rupees (NEEDS CLIENT CONFIRMATION)

@@ -18,7 +18,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `findings.py`: findings (what does not add up in a filing): `VALIDATORS` (the checks run on every staged
   document), holding a document with open findings, `fin findings list|accept`, and the re-check of held documents
   after a fix. `status.py`: `fin status`.
-- `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
+- `extract/`: `excel.py`, `pdf.py` (the page loop, `extract_pdf`) with `pdf_model.py` (patterns, constants, records), `pdf_lines.py` (words to lines; title, scope, unit, period), `pdf_columns.py` (column headers, spreads, row splitting) and `pdf_reader.py` (one page into rows, evidence crops), `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
   `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read),
   `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
   `profiles.py`, `ledger.py` and `registers.py`: column profiles (`templates/profiles/*.toml`) and the tabular
@@ -42,7 +42,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `adjustments.py` (adjustments to EBITDA, revenue and costs with evidence, E804; `resolve_effects` makes the EBITDA effect revenue minus cost), `passthrough.py` (`fin engagement passthrough`: the user's pass-through customers, E845; the views are `db/schema/diligence_split_views.sql`), `customers.py` (customer sectors: sync, propose, confirm, reject, E868; `fin map customers`, `fin review --customers`), `analytics.py` (`fin analytics`, E869; the views are `db/schema/diligence_analytics.sql`; the report section is `report/customers.py`), `bridge.py` (`fin engagement bridge`: reads and
   formats the EBITDA bridge and EBITDA-to-cash walk views), `gates.py` (`fin gate status|approve`: the `GATES`
   registry with each gate's checklist and inputs, the approved/reopened/open states, `require` (E801) and
-  approval (E802)), `cli.py` (the `fin engagement`, `fin query`, `fin adjust` and `fin gate` Typer groups). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
+  approval (E802)), `cli.py` (the `fin engagement`, `fin query`, `fin adjust` and `fin gate` Typer groups; `cli_checks.py` checks the options of `fin query raise`). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
   Source files (`fin ingest --kind`): `sources.py` (one file in one transaction: period check, archive,
   `source_files`, supersede), `tally.py` (what trial balance and Ledger Vouchers rows mean: groups, ledger blocks,
   the group-sum finding), `mask.py` (tokens for names, `mask_values`), `payroll.py` (the payroll snapshot:
@@ -64,7 +64,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `RECONCILIATIONS` (gate G3 reads it, not G2): `recast.py` (compute), `recast_run.py` (`fin recast run`, proposes the
   adjustment), `recast_checks.py` (G3's lines), `contracts.py` (`fin recast contracts`).
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
-  cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
+  cleaning), `review.py` (with `review_accounts.py`: checks of a proposed or new account) and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
 - `metrics/export.py`: copies every company's metrics, metric definitions, standard statements, findings,
   coverage and unread pages to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
@@ -165,7 +165,7 @@ and the next one shown), not the sign of `exceptional_items` alone.
 ## Add a metric
 
 Metrics are SQL views in each company database, so they are always current. All of a metric is in
-`src/fin/db/schema/company_views.sql`; read the rules at the top of the file first (facts come from `current_facts`,
+`src/fin/db/schema/company_views.sql` (macros, fact views and the rules at the top), `company_metric_definitions.sql`, `company_metric_inputs.sql` and `company_metrics.sql` (run in that order); read the rules at the top of `company_views.sql` first (facts come from `current_facts`,
 one value per account, period and scope; ratios use `div6`; nothing is guessed).
 
 1. `metric_definitions`: add a row: name, category (`profitability`, `returns`, `liquidity`, `solvency`,
@@ -258,10 +258,17 @@ gets a `## <Title>` heading for it, and `{{narrative:<key>}}` in the template pl
   `uv run pytest -m <name>`. A `@pytest.mark.llamaparse` test calls the paid API: it skips without
   `LLAMA_CLOUD_API_KEY` and never runs in CI.
 
+## File size
+
+Authored source files (code and SQL, not tests, lockfiles, generated code or migrations) stay under 6,000 tokens
+(bytes / 4). `node tools/check_file_size.mjs` checks every tracked file (CI's lint job runs it);
+`.githooks/pre-commit` checks the staged files: install it once per clone with `git config core.hooksPath .githooks`.
+The fix for an oversized file is to split it along its seams (pure moves), never to compress it or to exclude it.
+
 ## Schema
 
 Each database has one schema file with its final tables and views, in `src/fin/db/schema/`: `audit.sql`,
-`dictionary.sql`, `analytics.sql`, `company.sql` (tables), `company_views.sql` (metric macros and views) and
+`dictionary.sql`, `analytics.sql`, `company.sql` (tables), `company_views.sql` and the `company_metric_*.sql` / `company_metrics.sql` files (metric macros and views; `sources_views.sql` has the views over the source tables) and
 `diligence.sql` (diligence tables) and `diligence_views.sql` (EBITDA bridge and walk views). `fin init` creates the
 shared databases from them, and a company database is created from `company.sql`, `company_views.sql`,
 `diligence.sql` and `diligence_views.sql` the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
