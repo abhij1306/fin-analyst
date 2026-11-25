@@ -72,7 +72,7 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
 
    | Column | Meaning |
    |---|---|
-   | `kind` | `statement` (a statement figure), `tb_ledger` (a trial balance ledger's closing balance), `tb_vs_statements` (the difference on an account in the period's latest reconciliation), `stub` (a stub figure, unaudited), `bank_closing` (a bank statement's closing balance) |
+   | `kind` | `statement` (a statement figure), `tb_ledger` (a trial balance ledger's closing balance), `tb_vs_statements` (the difference on an account in the period's latest reconciliation), `stub` (a stub figure, unaudited), `bank_closing` (a bank statement's closing balance), `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl` (one detail line of that reconciliation: its `ledger` is the invoice number, the ledger as stored, or the period for payroll) |
    | `period`, `scope` | `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, or the stub (`FY26-YTD-SEP`); scope `standalone` or `consolidated` (statements only) |
    | `account` | the dictionary account (`uv run fin map accounts`) |
    | `ledger` | the ledger as stored: the token for a party ledger; for `bank_closing` the account number, with `period` the statement's end date (`2025-04-30`) |
@@ -87,6 +87,10 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
    - `tb_ledger`: closing debit less closing credit: a debit balance positive, a credit balance negative.
    - `tb_vs_statements`: the trial balance ledgers mapped to the account, rolled up, less the audited standalone
      statement figure. This one the person works out from the two documents.
+   - the four reconciliation kinds: the line's difference, register less books (sales and purchases: an invoice's
+     Amount in Rs less the Ledger Vouchers amount on the revenue or purchase ledgers, same number or same party and
+     amount), Ledger Vouchers movement less trial balance change (`gl_vs_tb`), payroll CTC less employee expense
+     (`payroll_vs_gl`). The person works it out from the documents.
    - `bank_closing`: the closing balance printed on the statement, in the account's own currency (INR or USD, unit
      `rupees`), whether or not the statement ties.
    - `stub`: the stub trial balance ledgers mapped to the account, as the statements show it (income and

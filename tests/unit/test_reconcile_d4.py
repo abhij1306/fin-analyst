@@ -2,6 +2,7 @@
 planted difference is found with both sources and nothing else is; the USD rate difference is an fx
 line; query raise --items groups lines; gate G2 reads the checks."""
 
+import csv
 import shutil
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,9 @@ from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
 from fin.diligence import gates, ledgers, payroll
 from fin.diligence.sources import ingest_source
+from fin.evals.golden import COLUMNS, golden_path
+from fin.evals.scaffold import init_golden
+from fin.evals.score import run_eval
 from fin.map.dictionary import load_seed
 from fin.paths import company_db_path, dictionary_db_path
 from fin.reconcile import items, run_new
@@ -225,3 +229,34 @@ def test_g2_needs_every_reconciliation_run_and_every_line_queried(root: Path) ->
         t for ok, t in after if not ok and "queries in draft" in t
     ]
     assert any("1 fx listed, not queried" in t for _, t in after)
+
+
+def test_golden_eval_checks_cover_the_reconciliation_lines(root: Path) -> None:
+    recon(root, "sales_register_vs_gl")
+    recon(root, "gl_vs_tb")
+    init_golden(run(root), "acme")
+    with golden_path(root, "acme").open(encoding="utf-8", newline="") as handle:
+        listed = {(r["kind"], r["ledger"]) for r in csv.DictReader(handle)}
+    assert ("sales_register_vs_gl", "INV-2003") in listed
+    assert ("gl_vs_tb", "Rent") in listed
+    assert ("sales_register_vs_gl", "INV-2001") not in listed  # matched: nothing to check
+
+    def line(kind: str, key: str, value: str) -> tuple[str, ...]:
+        return (kind, "FY25", "", "", key, value, "rupees", "registers.xlsx", "yes")
+
+    with golden_path(root, "acme").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(COLUMNS)
+        writer.writerows(
+            [
+                line("sales_register_vs_gl", "INV-2003", "4,00,000"),
+                line("sales_register_vs_gl", "INV-2002", "40,000"),  # planted: fin says 50,000
+                line("gl_vs_tb", "Rent", "(20,000)"),
+                line("sales_register_vs_gl", "INV-9999", "1"),  # fin has no such line
+            ]
+        )
+
+    result = run_eval(run(root), "acme")
+
+    assert [c["outcome"] for c in result["checks"]] == ["pass", "fail", "pass", "missing"]
+    assert result["counts"]["recon_lines"]["sales_register_vs_gl"]["not_in_a_query"] == 2

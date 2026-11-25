@@ -53,6 +53,12 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   side), `recon.py` (`tb_vs_statements`: `recon_runs`, `recon_items`, draft queries at or above the threshold,
   E812; CLI `cli/reconcile.py`), `stub.py` (the current-year stub, `--stub FY27-YTD-SEP`), `tb_checks.py` (gate
   G1's trial balance checklist lines and inputs).
+- `reconcile/`: the D4 reconciliations, one function each: `registers.py` (sales and purchase register vs Ledger
+  Vouchers), `gl_vs_tb.py`, `payroll_vs_gl.py`; `base.py` (a line, the books side), `store.py` (`recon_runs`,
+  `recon_items`, keeping a query on an unchanged line), `items.py` (`fin query raise --items`), `checks.py` (gate
+  G2's lines), `format.py`. To add one: a `compute(con, company, engagement, period) -> Computed` and an
+  `applies`, registered in `reconcile/__init__.py` `RECONCILIATIONS`, its name in the `recon_runs` CHECK, and its
+  golden eval kind (`evals/golden.py` `RECON_KINDS`).
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.

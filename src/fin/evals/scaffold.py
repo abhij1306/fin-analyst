@@ -16,6 +16,7 @@ from fin.diligence.recon import NAME as RECON
 from fin.evals.golden import (
     COLUMNS,
     LATEST_ENGAGEMENT,
+    RECON_KINDS,
     OPTIONAL,
     golden_path,
     read_golden,
@@ -56,6 +57,16 @@ SELECT b.period_end::VARCHAR, b.account, s.file_name, b.currency
 FROM bank_statements b JOIN source_files s USING (file_id)
 WHERE s.status = 'loaded' AND s.engagement_id = {LATEST}
 ORDER BY b.account, b.period_end, b.file_id
+"""
+_D4 = f"""
+SELECT r.name, r.period, i.key, i.left_source, i.right_source
+FROM recon_items i JOIN recon_runs r USING (recon_id)
+WHERE r.recon_id IN (
+    SELECT max(recon_id) FROM recon_runs WHERE engagement_id = {LATEST} GROUP BY name, period
+)
+    AND r.name IN ({", ".join(f"'{k}'" for k in RECON_KINDS)})
+    AND i.level IN ('invoice', 'ledger', 'payroll') AND i.kind <> 'matched'
+ORDER BY r.name, r.period, i.item_no
 """
 _STUB = f"""
 SELECT x.period, x.account, s.file_name
@@ -125,6 +136,18 @@ def candidates(
                 ledger=account,
                 unit="rupees",
                 note=f"closing balance as printed, in {currency}",
+            )
+        )
+    for name, period, key, left, right in con.execute(_D4).fetchall():
+        rows.append(
+            _row(
+                name,
+                period,
+                "; ".join(s for s in (left, right) if s),
+                ledger=key,
+                unit="rupees",
+                note="register (or Ledger Vouchers, or payroll) less books (or trial balance); "
+                "lines that show a difference",
             )
         )
     for period, account, file_name in con.execute(_STUB).fetchall():

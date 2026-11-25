@@ -311,6 +311,7 @@ to change it: `docs/decisions/d3-registers.md`); bank statements are built too (
 parse that does not tie are found; a payroll file whose amounts look monthly is warned about.
 
 ### D4: Register ↔ ledger ↔ accounts reconciliation; pass-through; adjustment effects
+Status: **reconciliations built** (`fin/reconcile/`: `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`, `query_items`, `fin query raise --items`, G2's reconciliation checks, E840–E842; choices: `docs/decisions/d4-recon.md`); pass-through, `revenue_split` and adjustment effects are built by their own workstream.
 - `sales_register_vs_gl`, `purchase_register_vs_gl` (monthly, then by party, then by invoice), `gl_vs_tb` (Ledger
   Vouchers movements vs the change in TB closing from the prior year-end; a balance-sheet ledger with no prior TB is
   listed as not reconciled), `payroll_vs_gl` (annual). Deterministic SQL, one function per reconciliation

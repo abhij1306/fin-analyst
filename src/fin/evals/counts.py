@@ -10,7 +10,9 @@
 - `unmapped_labels`: distinct printed lines with no confirmed account, and mapping items waiting;
 - `ledgers`: trial balance ledgers by mapping status (only confirmed ones count in reconciliations);
 - `bank_statements`: loaded bank statements by reader (excel or the PDF add-on), and whether they
-  tie.
+  tie;
+- `recon_lines`: the latest D4 reconciliation runs' detail lines by reconciliation and kind, and
+  how many need a query but are in none.
 """
 
 import json
@@ -20,7 +22,7 @@ from typing import Any
 import duckdb
 
 from fin.db.conn import connect
-from fin.evals.golden import LATEST_ENGAGEMENT, Check
+from fin.evals.golden import LATEST_ENGAGEMENT, RECON_KINDS, Check
 from fin.map.review import open_items, read_pending
 from fin.paths import audit_db_path
 
@@ -87,6 +89,22 @@ def _one(con: duckdb.DuckDBPyConnection, sql: str) -> int:
     return int(row[0]) if row else 0
 
 
+def _recon_lines(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
+    names = ", ".join(f"'{k}'" for k in RECON_KINDS)
+    out: dict[str, Any] = {}
+    for name, kind, needing, n in con.execute(
+        "SELECT r.name, i.kind, count(*) FILTER (WHERE i.needs_query AND i.query_id IS NULL), "
+        "count(*) FROM recon_items i JOIN recon_runs r USING (recon_id) WHERE r.recon_id IN "
+        f"(SELECT max(recon_id) FROM recon_runs WHERE engagement_id = {LATEST_ENGAGEMENT} "
+        f"GROUP BY name, period) AND r.name IN ({names}) AND i.level IN ('invoice', 'ledger', "
+        "'payroll') GROUP BY ALL ORDER BY ALL"
+    ).fetchall():
+        entry = out.setdefault(name, {"kinds": {}, "not_in_a_query": 0})
+        entry["kinds"][kind] = entry["kinds"].get(kind, 0) + n
+        entry["not_in_a_query"] += needing
+    return out
+
+
 def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
     findings: dict[str, dict[str, int]] = {}
     for code, status, n in con.execute(_FINDINGS).fetchall():
@@ -100,6 +118,7 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
         con.execute("SELECT status, count(*) FROM ledger_accounts GROUP BY 1 ORDER BY 1").fetchall()
     )
     return {
+        "recon_lines": _recon_lines(con),
         "error_codes": _audit_codes(root, company),
         "findings": findings,
         "unread_pages": _unread(con),
@@ -156,11 +175,11 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
             [check.period],
         ).fetchall()
     }
-    if check.kind == "tb_vs_statements":
+    if check.kind == "tb_vs_statements" or check.kind in RECON_KINDS:
         run = con.execute(
-            "SELECT unmapped FROM recon_runs WHERE period = ? "
+            "SELECT unmapped FROM recon_runs WHERE period = ? AND name = ? "
             f"AND engagement_id = {LATEST_ENGAGEMENT} ORDER BY recon_id DESC LIMIT 1",
-            [check.period],
+            [check.period, check.kind],
         ).fetchone()
         if run is None:
             codes.add("not_reconciled")

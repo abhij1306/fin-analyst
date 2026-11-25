@@ -283,8 +283,21 @@ with basis `unaudited` and the view `stub_figures` rolls its trial balance up by
 source file or a stub: a trial balance and Ledger Vouchers per period and the stub, every trial balance ledger in its
 Ledger Vouchers (a ledger block, even one with no voucher lines in the year), every ledger mapped, each annual period's latest `tb_vs_statements` on the current data with every
 line at or above the threshold in a query, the stub marked unaudited; its inputs add the source files, the ledger
-mappings and the latest reconciliations. `fin sql --write` refuses `ledger_accounts`, `recon_runs`, `recon_items`
+mappings and the latest reconciliations. `fin sql --write` refuses `ledger_accounts`, `recon_runs`, `recon_items`, `query_items`
 (E806).
+
+D4 reconciliations (`fin/reconcile/`, `docs/decisions/d4-recon.md`): `fin reconcile <co> [name] [--period]` (no name: every
+one whose inputs are loaded) also runs `sales_register_vs_gl`, `purchase_register_vs_gl` (register Amount in Rs vs
+the Ledger Vouchers entries of the ledgers confirmed to revenue, or purchases of stock-in-trade and cost of
+materials; month, party and invoice lines; a foreign-currency invoice differing only by rate is an `fx` line),
+`gl_vs_tb` (Ledger Vouchers movement vs trial balance, per ledger, `not_reconciled` without a prior trial balance) and
+`payroll_vs_gl` (annual), for the annual periods and the stub. One `recon_runs` row per run (`right_file_id`, input
+hash); `recon_items` gain `item_id`, `level`, `key`, `needs_query`, `note` and the kinds `fx`, `not_reconciled`. fin
+drafts no query for these: `fin query raise <co> --items 12,13 --question "..."` makes one draft issue (origin
+`recon`) from lines of one period (`query_items`; E841, E842); a rerun keeps a query on a line whose level, key,
+kind and amounts are unchanged. G2 requires every reconciliation whose inputs are loaded to have run on the
+current data with every `needs_query` line in a query (E840: an input missing or a ledger not mapped). Golden
+eval kinds: `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`.
 
 Payroll (D3, `docs/decisions/d3-payroll.md`): `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot, one
 row per employee, with the profile `templates/profiles/sparsh_payroll.toml` (the period pattern has one group,

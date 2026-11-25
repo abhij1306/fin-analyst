@@ -361,6 +361,8 @@ class BankParseUnreadable(FinError):
     loaded; delete the file to parse the PDF again."""
 
     code = "E818"
+
+
 class ReconCannotRun(FinError):
     """E840. A reconciliation (`fin reconcile`: sales_register_vs_gl, purchase_register_vs_gl,
     gl_vs_tb, payroll_vs_gl) cannot run: a period not in the engagement, or an input is not loaded

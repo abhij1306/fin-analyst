@@ -58,7 +58,19 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      every ledger is mapped. A difference is queried, never fixed; a wrong mapping (fin's own error) is fixed in
      review and the reconciliation run again. E812: the period has no trial balance or statement figures, or is the
      stub (which has no audited statement).
-   - **Golden evaluation.** The trial balance ledgers, `tb_vs_statements` differences and stub figures can be scored
+   - **Register, ledger, trial balance and payroll reconciliations (D4).** `uv run fin reconcile <company> [name]
+     [--period FY25]` also runs `sales_register_vs_gl`, `purchase_register_vs_gl` (month, party and invoice
+     lines; Amount in Rs before GST), `gl_vs_tb` (Ledger Vouchers movement vs the trial balance change from the
+     prior period; a balance sheet ledger with no prior trial balance is `not_reconciled`, listed) and `payroll_vs_gl`
+     (annual; the user must have confirmed the payroll unit) for each period (and the stub) whose inputs are loaded.
+     These draft nothing. Lines marked "needs a query" (a detail line at or above the threshold) are for you to
+     group: one issue per kind of difference (for example every invoice missing from the ledger), drafted neutrally
+     with `uv run fin query raise <company> --items 12,13,14 --question "..."` (one period per query; the user
+     approves it). `fx` lines (a foreign-currency invoice differing only by the ledger's conversion rate, shown as
+     FX gain or loss) and `not_reconciled`, `unmapped`, month and party lines are listed, not queried; never plug
+     them. E840: an input is not loaded, a payroll unit is not confirmed annual, or no ledger is confirmed to
+     revenue, purchases or employee expense. E841/E842: a line id that is unknown, stale or cannot be raised.
+   - **Golden evaluation.** The trial balance ledgers, `tb_vs_statements` and D4 reconciliation differences and stub figures can be scored
      against values a person checked (`/eval`, `docs/EVAL.md`). Never mark a golden line checked yourself.
 2. **Queries from findings.** Run `uv run fin findings list <company> --json`. For each open or accepted finding in
    a period of the engagement, with a difference at or above the engagement's query threshold, draft a short,
@@ -106,7 +118,8 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    stub, also a trial balance and Ledger Vouchers per period and the stub, every ledger in both, every ledger
    mapped, every bank parse tying (once a bank statement is loaded), and each year's `fin reconcile` on the current data with every difference at or above the threshold in
    a query; once a payroll file is loaded, its unit confirmed by the user), G2 Reconciliation (no query in draft;
-   unlocks `fin adjust accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence;
+   every D4 reconciliation whose inputs are loaded ran on the current data and every line at or above the threshold
+   is in a query, fx lines excepted; unlocks `fin adjust accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence;
    unlocks `fin engagement close`; an engagement with no queries and no adjustments closes without its gates). A
    gate reopens on its own when the data under it changes (G1 also when a figure changes) or its checklist fails.
    - Run `uv run fin gate status <company>` and show each gate's state, its checklist lines and what it unlocks.
