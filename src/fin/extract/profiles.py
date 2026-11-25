@@ -3,7 +3,7 @@
 A profile says how to read one export layout, so the loader (`fin.extract.ledger`) needs no layout
 special cases:
 
-- `kind`: the source file kind it reads (`trial_balance`, `ledger_vouchers`, `payroll`).
+- `kind`: the source file kind it reads (`trial_balance`, `ledger_vouchers`, `payroll`, `bank`).
 - `header_rows`: how many rows the column header spans. A column's header text is its cells in those
   rows joined by spaces (a merged cell counts in every column it spans), so "Closing Balance" over
   "Debit" reads "Closing Balance Debit".
@@ -24,6 +24,11 @@ special cases:
   its period is read from its invoice dates.
 - `[mask]`: `groups` (group name -> masked kind: the ledgers under it are tokenised, as
   `fin.diligence.mask`) and `fields` (fields in which known masked names are replaced by tokens).
+- Bank statements (`kind = "bank"`, Excel and PDF alike): `bank` (the bank's name), `currency` (the
+  account's currency when the header does not say) and `[header]`: regular expressions with a group
+  `value` that find `account`, `currency`, `opening` and `closing` in the lines around the table
+  (`opening` and `closing` are optional: the first row's and last row's balance stand in). The
+  amounts are in the account's own currency: `unit` stays 1.
 
 E807 when a profile is unknown or invalid, or no profile of the kind matches the file's headers.
 """
@@ -37,11 +42,12 @@ from typing import Any
 from fin.audit.errors import LayoutUnknown
 
 PROFILES_DIR = Path(__file__).resolve().parents[3] / "templates" / "profiles"
-KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll")  # D3: bank
+KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll", "bank")  # D3
 FIELDS = {
     "trial_balance": {"name", "debit", "credit"},
     "ledger_vouchers": {"date", "particulars", "voucher_type", "voucher_no", "debit", "credit"},
     "payroll": {"employee_name", "employee_code", "gross_salary", "ctc"},
+    "bank": {"date", "remarks", "debit", "credit", "balance"},  # reference is optional
 }
 REGISTER_PARTS = ("sales", "purchase")
 REGISTER_FIELDS = {
@@ -54,6 +60,7 @@ REGISTER_REQUIRED = {
     "sales": {"invoice_no", "invoice_date", "customer", "amount_inr"},
     "purchase": {"invoice_no", "invoice_date", "vendor", "amount_inr"},
 }
+HEADER_KEYS = ("account", "currency", "opening", "closing")  # a bank profile's [header]
 MASK_KINDS = ("customer", "vendor", "user", "employee_name", "employee_code", "ledger")
 
 
@@ -81,6 +88,9 @@ class Profile:
     parts: dict[str, dict[str, str]] = field(
         default_factory=dict
     )  # registers: sheet kind -> columns
+    bank: str = ""  # bank profiles: the bank's name
+    currency: str = "INR"  # bank profiles: the currency when the header gives none
+    header: dict[str, re.Pattern[str]] = field(default_factory=dict)  # bank profiles
 
 
 def _invalid(name: str, why: str) -> LayoutUnknown:
@@ -147,6 +157,11 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
             block_prefix=str(rows.get("block_prefix", "")),
             mask_groups=groups,
             mask_fields=tuple(mask.get("fields", [])),
+            bank=str(data.get("bank", "")),
+            currency=str(data.get("currency", "INR")),
+            header={
+                k: re.compile(str(v), re.IGNORECASE) for k, v in (data.get("header") or {}).items()
+            },
         )
     except (KeyError, ValueError, TypeError, re.error) as exc:
         raise _invalid(name, f"{type(exc).__name__}: {exc}") from exc
@@ -155,7 +170,20 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
         raise _invalid(name, f"period needs the named groups {' and '.join(needs)}")
     if profile.group != "bold" or profile.level not in ("indent", "none"):
         raise _invalid(name, 'rows.group must be "bold" and rows.level "indent" or "none"')
+    if kind == "bank":
+        _check_bank(name, profile)
     return profile
+
+
+def _check_bank(name: str, profile: Profile) -> None:
+    if not profile.bank or profile.unit != 1:
+        raise _invalid(name, 'a bank profile needs bank = "<name>" and unit 1')
+    bad = sorted(set(profile.header) - set(HEADER_KEYS))
+    if bad or "account" not in profile.header:
+        raise _invalid(name, f"[header] needs account and may hold {HEADER_KEYS}; got {bad}")
+    for key, pattern in profile.header.items():
+        if "value" not in pattern.groupindex:
+            raise _invalid(name, f"[header] {key} needs a group named value")
 
 
 def load_profile(name: str) -> Profile:

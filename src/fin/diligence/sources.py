@@ -104,7 +104,7 @@ def period_of_file(
     )
 
 
-def _archive(run: Run, company: str, path: Path, sha256: str) -> str:
+def archive_copy(run: Run, company: str, path: Path, sha256: str) -> str:
     target = archive_dir(run.root, company) / f"{sha256}{path.suffix.lower()}"
     try:
         if not target.exists():
@@ -113,6 +113,26 @@ def _archive(run: Run, company: str, path: Path, sha256: str) -> str:
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot copy {path} to {target}: {exc}") from exc
     return target.relative_to(run.root).as_posix()
+
+
+def refuse_duplicate(con: duckdb.DuckDBPyConnection, name: str, sha256: str) -> None:
+    """E105 when a file with this sha256 is already a source file (even a superseded one)."""
+    earlier = con.execute(
+        "SELECT file_id FROM source_files WHERE sha256 = ? ORDER BY file_id DESC", [sha256]
+    ).fetchone()
+    if earlier is not None:
+        raise DuplicateFile(f"{name}: already loaded as source file_id {earlier[0]} (same sha256)")
+
+
+def add_file(con: duckdb.DuckDBPyConnection, file: dict[str, Any]) -> int:
+    """Insert the `source_files` row (the columns given by `file`); its file_id."""
+    row = con.execute(
+        f"INSERT INTO source_files ({', '.join(file)}) VALUES ({', '.join('?' for _ in file)}) "
+        "RETURNING file_id",
+        list(file.values()),
+    ).fetchone()
+    assert row is not None
+    return int(row[0])
 
 
 def _tb_ledgers(con: duckdb.DuckDBPyConnection, engagement_id: int, period: str) -> list[str]:
@@ -295,13 +315,7 @@ def ingest_source(
     sha256 = sha256_of(path)
     with connect(company_db_path(run.root, company), write=True) as con, transaction(con):
         engagement = require_open(con, company)
-        earlier = con.execute(
-            "SELECT file_id FROM source_files WHERE sha256 = ? ORDER BY file_id DESC", [sha256]
-        ).fetchone()
-        if earlier is not None:
-            raise DuplicateFile(
-                f"{name}: already loaded as source file_id {earlier[0]} (same sha256)"
-            )
+        refuse_duplicate(con, name, sha256)
         masker = Masker(con, run.run_id)
         month = config.fiscal_year_start_month
 
@@ -327,7 +341,7 @@ def ingest_source(
                 "--kind trial_balance`): it says which ledgers are parties, whose names are "
                 "masked. Nothing loaded"
             )
-        archive = _archive(run, company, path, sha256)
+        archive = archive_copy(run, company, path, sha256)
         file = {
             "engagement_id": engagement["engagement_id"],
             "kind": kind,
@@ -343,13 +357,7 @@ def ingest_source(
             "run_id": run.run_id,
             "ingested_at": utcnow(),
         }
-        row = con.execute(
-            f"INSERT INTO source_files ({', '.join(file)}) VALUES ({', '.join('?' for _ in file)}) "
-            "RETURNING file_id",
-            list(file.values()),
-        ).fetchone()
-        assert row is not None
-        file["file_id"] = masker.file_id = row[0]
+        file["file_id"] = masker.file_id = add_file(con, file)
         if kind == "trial_balance":
             lines = _load_tb(run, company, con, table, file, masker)
             added = ledgers.sync(con, run.run_id)

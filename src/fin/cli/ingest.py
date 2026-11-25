@@ -11,6 +11,7 @@ from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company, echo_refresh
 from fin.config import load_config
 from fin.db.schema import ensure_database
+from fin.diligence.bank import ingest_bank
 from fin.diligence.sources import ingest_source
 from fin.extract.profiles import KINDS
 from fin.ingest import files_in, ingest_file
@@ -84,7 +85,8 @@ def ingest(
     ] = None,
 ) -> None:
     """Load Excel and PDF documents for one company. Files already loaded are skipped (E105).
-    With --kind, load one diligence source file (trial balance, Ledger Vouchers or registers)
+    With --kind, load one diligence source file (trial balance, Ledger Vouchers, registers, bank
+    statement, payroll)
     instead."""
 
     # Usage errors, before the run starts (like the option callbacks).
@@ -100,7 +102,11 @@ def ingest(
     def body(run: Run) -> None:
         if kind is not None and path is not None:
             ensure_database(company_db_path(run.root, company), "company")
-            loaded = ingest_source(run, load_config(run.root), company, path, kind, profile)
+            config = load_config(run.root)
+            if kind == "bank":
+                loaded = ingest_bank(run, config, company, path, profile)
+            else:
+                loaded = ingest_source(run, config, company, path, kind, profile)
             typer.echo(f"{company}/{path.name}: " + "\n  ".join(loaded.lines))
             return
         source = path if path is not None else inbox_dir(run.root, company)

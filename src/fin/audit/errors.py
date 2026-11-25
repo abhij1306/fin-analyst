@@ -19,6 +19,9 @@ a command returns when the error ends it:
 - E807-E811 (diligence source files: no column profile for the layout, a period not in the
   engagement, a trial balance with group rows only, `fin sql` naming `mask_values`, Ledger
   Vouchers before its period's trial balance) stop the command: exit 2.
+- E816-E818 (bank statements: a PDF with no PDF add-on or with pages the add-on could not read, no
+  account number in a statement's header, a saved parse that cannot be read) stop the command:
+  exit 2.
 - E812 (a reconciliation cannot run: a period not annual in the engagement, no loaded trial balance,
   or no audited statement figures for the period) stops the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
@@ -333,6 +336,29 @@ class RegisterLineInvalid(FinError):
     profile."""
 
     code = "E813"
+
+
+class BankPdfUnreadable(FinError):
+    """E816. A PDF bank statement cannot be read: `[pdf] parser` is none (a bank PDF needs Docling,
+    LiteParse or LlamaParse), the parser could not read a page, or no table on it has the columns
+    of a bank profile's header. Nothing loaded."""
+
+    code = "E816"
+
+
+class BankHeaderMissing(FinError):
+    """E817. A bank statement's header lines give no account number (the profile's `[header]
+    account` pattern finds none), or no opening balance when the first row has no balance to
+    stand in for it. Nothing loaded."""
+
+    code = "E817"
+
+
+class BankParseUnreadable(FinError):
+    """E818. The saved parse of a bank PDF (`cache/bank/<sha256>.json`) cannot be read. Nothing
+    loaded; delete the file to parse the PDF again."""
+
+    code = "E818"
 
 
 class PayrollFileNotFound(FinError):

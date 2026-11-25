@@ -49,7 +49,7 @@ def test_the_shipped_registers_profile_has_a_sheet_part_each() -> None:
             'kind = "registers"\ndate_format = "%d"\n[sales.columns]\nA = "nope"',
             "[sales.columns] fields nope are not known",
         ),
-        ('kind = "bank"', "kind 'bank' is not one of"),
+        ('kind = "weather"', "kind 'weather' is not one of"),
         ('kind = "trial_balance"\n[columns]\nParticulars = "name"', "no header for credit, debit"),
         (
             'kind = "trial_balance"\ndate_format = "%d"\nperiod = "(?P<start>x)"\n'

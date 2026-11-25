@@ -46,6 +46,7 @@ class Table:
     start: date
     end: date
     rows: list[SheetRow]
+    lines: tuple[str, ...] = ()  # text of the rows above the column header, a row's cells joined
 
 
 def _merged(sheet: Worksheet) -> dict[tuple[int, int], Any]:
@@ -125,6 +126,29 @@ def _period(sheet: Worksheet, first_data_row: int, profile: Profile) -> tuple[da
     return None
 
 
+def cell_text(value: Any) -> str:
+    """A cell as text for header-line patterns: an integer as digits, a float with two decimals
+    (an opening balance), anything else with spaces collapsed; '' for blank."""
+    if value is None or isinstance(value, bool):
+        return "" if value is None else str(value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:.2f}"
+    return " ".join(str(value).split())
+
+
+def _lines(sheet: Worksheet, first_data_row: int, profile: Profile) -> list[str]:
+    """The text of each non-blank row above the column header (a bank statement's account number,
+    currency and opening balance), its cells joined with spaces."""
+    out = []
+    for row in sheet.iter_rows(max_row=max(first_data_row - profile.header_rows - 1, 0)):
+        cells = [cell_text(c.value) for c in row]
+        if any(cells):
+            out.append(" ".join(c for c in cells if c))
+    return out
+
+
 def _rows(sheet: Worksheet, first: int, columns: dict[int, str]) -> list[SheetRow]:
     lead = min(columns)
     out = []
@@ -145,7 +169,7 @@ def _rows(sheet: Worksheet, first: int, columns: dict[int, str]) -> list[SheetRo
     return out
 
 
-def _is_data(value: Any) -> bool:
+def is_data(value: Any) -> bool:
     """A number, a date, or a figure or date written as text: a cell only data rows hold."""
     if isinstance(value, bool):
         return False
@@ -162,7 +186,7 @@ def _top_rows(sheet: Worksheet, hide: Callable[[str], str]) -> list[str]:
     lines, widest = [], 0
     for row in sheet.iter_rows(max_row=HEADER_SEARCH_ROWS):
         values = [c.value for c in row if c.value is not None and str(c.value).strip()]
-        if any(_is_data(v) for v in values) or (len(values) == 1 and widest > 1):
+        if any(is_data(v) for v in values) or (len(values) == 1 and widest > 1):
             break
         widest = max(widest, len(values))
         if values:
@@ -207,7 +231,7 @@ def read_table(
 def _table(
     path: Path, profile: Profile, headers: list[tuple[Worksheet, tuple[int, dict[int, str]]]]
 ) -> Table:
-    periods, rows = set(), []
+    periods, rows, lines = set(), [], []
     for sheet, (first, columns) in headers:
         period = _period(sheet, first, profile)
         if period is None:
@@ -218,10 +242,11 @@ def _table(
             )
         periods.add(period)
         rows.extend(_rows(sheet, first, columns))
+        lines.extend(_lines(sheet, first, profile))
     if len(periods) > 1:
         found = ", ".join(f"{a} to {b}" for a, b in sorted(periods))
         raise SourcePeriodInvalid(f"{path.name}: its sheets cover different periods ({found})")
     ((start, end),) = periods
     if not rows:
         raise ParseError(f"{path.name}: no rows below the column header")
-    return Table(profile, start, end, rows)
+    return Table(profile, start, end, rows, tuple(lines))

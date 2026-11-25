@@ -1,0 +1,29 @@
+# Axis Bank current account statement (Excel, or a PDF read by the chosen PDF add-on), INR or USD account.
+# Header lines above the table: Account No, Currency, the period ("From 01-04-2024 To 30-04-2024"), Opening and Closing
+# Balance. Table: Tran Date | CHQNO | PARTICULARS | DR | CR | BAL | SOL.
+# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+kind = "bank"
+bank = "Axis"
+currency = "INR"
+header_rows = 1
+date_format = "%d-%m-%Y"
+period = 'From\s+(?P<start>\d{2}-\d{2}-\d{4})\s+To\s+(?P<end>\d{2}-\d{2}-\d{4})'
+unit = 1
+
+[columns]
+"Tran Date" = "date"
+"CHQNO" = "reference"
+"PARTICULARS" = "remarks"
+"DR" = "debit"
+"CR" = "credit"
+"BAL" = "balance"
+
+[header]
+account = 'Account\s+(?:Number|No\.?)\s*:?\s*(?P<value>\d{6,})'
+currency = 'Currency\s*:?\s*(?P<value>[A-Z]{3})'
+opening = 'Opening\s+Balance\s*:?\s*(?P<value>-?[\d,]+(?:\.\d{1,2})?)'
+closing = 'Closing\s+Balance\s*:?\s*(?P<value>-?[\d,]+(?:\.\d{1,2})?)'
+
+# Known masked names in these fields are replaced by their tokens.
+[mask]
+fields = ["remarks", "reference"]

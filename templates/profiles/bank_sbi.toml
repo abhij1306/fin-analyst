@@ -1,0 +1,29 @@
+# State Bank of India current account statement (Excel, or a PDF read by the chosen PDF add-on), INR or USD account.
+# Header lines above the table: Account Number, Account Currency, the period ("... 1 Apr 2024 to 30 Apr 2024"), Opening
+# and Closing Balance. Table: Txn Date | Value Date | Description | Ref No./Cheque No. | Debit | Credit | Balance.
+# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+kind = "bank"
+bank = "SBI"
+currency = "INR"
+header_rows = 1
+date_format = "%d %b %Y"
+period = '(?P<start>\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+to\s+(?P<end>\d{1,2}\s+[A-Za-z]{3}\s+\d{4})'
+unit = 1
+
+[columns]
+"Txn Date" = "date"
+"Description" = "remarks"
+"Ref No./Cheque No." = "reference"
+"Debit" = "debit"
+"Credit" = "credit"
+"Balance" = "balance"
+
+[header]
+account = 'Account\s+(?:Number|No\.?)\s*:?\s*(?P<value>\d{6,})'
+currency = 'Account\s+Currency\s*:?\s*(?P<value>[A-Z]{3})'
+opening = 'Opening\s+Balance\s*:?\s*(?P<value>-?[\d,]+(?:\.\d{1,2})?)'
+closing = 'Closing\s+Balance\s*:?\s*(?P<value>-?[\d,]+(?:\.\d{1,2})?)'
+
+# Known masked names in these fields are replaced by their tokens.
+[mask]
+fields = ["remarks", "reference"]

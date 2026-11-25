@@ -1,0 +1,120 @@
+{
+ "job": {
+  "status": "COMPLETED"
+ },
+ "items": {
+  "pages": [
+   {
+    "page_number": 1,
+    "success": true,
+    "items": [
+     {
+      "type": "text",
+      "value": "Axis Bank - Statement of Account"
+     },
+     {
+      "type": "text",
+      "value": "Account Number : 917020012345678"
+     },
+     {
+      "type": "text",
+      "value": "Currency : INR"
+     },
+     {
+      "type": "text",
+      "value": "Statement of Account From 01-04-2024 To 30-04-2024"
+     },
+     {
+      "type": "text",
+      "value": "Opening Balance : 200,000.00"
+     },
+     {
+      "type": "text",
+      "value": "Closing Balance : 274,882.00"
+     },
+     {
+      "type": "table",
+      "rows": [
+       [
+        "Tran Date",
+        "CHQNO",
+        "PARTICULARS",
+        "DR",
+        "CR",
+        "BAL",
+        "SOL"
+       ],
+       [
+        "02-04-2024",
+        "REF0001",
+        "NEFT-Orchid Systems Pvt Ltd-INV202",
+        "",
+        "90000",
+        "290000",
+        "100"
+       ],
+       [
+        "09-04-2024",
+        "REF0002",
+        "RTGS to Banyan Traders",
+        "30000",
+        "",
+        "260000",
+        "100"
+       ]
+      ],
+      "bbox": [
+       {
+        "x": 40.0,
+        "y": 120.0,
+        "w": 500.0,
+        "h": 90.0
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "page_number": 2,
+    "success": true,
+    "items": [
+     {
+      "type": "text",
+      "value": "Registered Office: Synthetic Tower, Mumbai"
+     },
+     {
+      "type": "table",
+      "rows": [
+       [
+        "17-04-2024",
+        "REF0003",
+        "Cheque deposit",
+        "",
+        "15000",
+        "275000",
+        "100"
+       ],
+       [
+        "25-04-2024",
+        "REF0004",
+        "Bank charges",
+        "118",
+        "",
+        "274882",
+        "100"
+       ]
+      ],
+      "bbox": [
+       {
+        "x": 40.0,
+        "y": 120.0,
+        "w": 500.0,
+        "h": 90.0
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

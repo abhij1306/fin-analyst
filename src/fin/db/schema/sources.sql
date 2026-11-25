@@ -8,8 +8,9 @@
 CREATE SEQUENCE source_files_seq START 1;
 
 -- One row per source file loaded with `fin ingest <co> <file> --kind <kind>`.
--- kind: 'trial_balance', 'ledger_vouchers' or 'registers' or 'payroll' (D3 adds bank). period: the period of the engagement
--- the export covers, read from its header lines (period_start, period_end): an annual period, or the stub. A registers
+-- kind: 'trial_balance', 'ledger_vouchers', 'registers', 'payroll' or 'bank'. period: the period of the engagement
+-- the export covers, read from its header lines (period_start, period_end): an annual period, or the stub (a bank
+-- statement covers part of one: the period that holds all its dates). A registers
 -- file has no period header: period_start and period_end are its first and last invoice date, period names the fiscal
 -- years they fall in ('FY25', or 'FY24-FY25'), and basis is 'unaudited' when any invoice date is in the stub. basis:
 -- 'audited' for an annual period, 'unaudited' for the stub (unaudited management accounts). profile: the column profile used
@@ -19,7 +20,7 @@ CREATE SEQUENCE source_files_seq START 1;
 CREATE TABLE source_files (
     file_id INTEGER PRIMARY KEY DEFAULT nextval('source_files_seq'),
     engagement_id INTEGER NOT NULL,
-    kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers', 'registers', 'payroll')),
+    kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers', 'registers', 'payroll', 'bank')),
     file_name VARCHAR NOT NULL,
     sha256 VARCHAR NOT NULL,
     archive_path VARCHAR NOT NULL,  -- archive/<company>/<sha256>.<ext>, relative to the data folder
@@ -153,6 +154,54 @@ CREATE TABLE register_lines (
     service_type VARCHAR,
     handler VARCHAR,
     submitted_by VARCHAR,
+    run_id VARCHAR NOT NULL,
+    PRIMARY KEY (file_id, sheet, "row")
+);
+
+-- One row per bank statement file (kind 'bank', Excel or PDF): the account it is for and what it says it covers.
+-- opening_balance / closing_balance come from the statement's header lines ('header') or, when it has none, from its
+-- first row's balance minus its movement and its last row's balance ('rows'). ties: opening + credits - debits =
+-- closing; a statement that does not tie has an open finding (check_name 'bank_tie') and stays as filed. Money is in
+-- the account's own currency (INR or USD). reader: 'excel', or the PDF add-on that read it (docling, liteparse,
+-- llamaparse); parse_path: the saved parse of a PDF (cache/bank/<sha256>.json, relative to the data folder).
+CREATE TABLE bank_statements (
+    file_id INTEGER PRIMARY KEY,
+    bank VARCHAR NOT NULL,
+    account VARCHAR NOT NULL,
+    currency VARCHAR NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    opening_balance DECIMAL(20, 2) NOT NULL,
+    opening_from VARCHAR NOT NULL CHECK (opening_from IN ('header', 'rows')),
+    closing_balance DECIMAL(20, 2) NOT NULL,
+    closing_from VARCHAR NOT NULL CHECK (closing_from IN ('header', 'rows')),
+    total_debits DECIMAL(20, 2) NOT NULL,
+    total_credits DECIMAL(20, 2) NOT NULL,
+    line_count INTEGER NOT NULL,
+    ties BOOLEAN NOT NULL,
+    reader VARCHAR NOT NULL,
+    parse_path VARCHAR,
+    run_id VARCHAR NOT NULL
+);
+
+-- Bank statement rows, one per transaction, with lineage: sheet and row (Excel), or page (PDF: sheet is 'page N',
+-- row counts the table rows on that page, so it is the position in the saved parse). remarks and reference: text as
+-- filed with every known masked name replaced by its token. Debit and credit are the movement out of and into the
+-- account (blank is 0); balance is the running balance the bank printed (NULL when it printed none).
+CREATE TABLE bank_lines (
+    file_id INTEGER NOT NULL,
+    sheet VARCHAR NOT NULL,
+    page INTEGER,
+    "row" INTEGER NOT NULL,
+    bank VARCHAR NOT NULL,
+    account VARCHAR NOT NULL,
+    currency VARCHAR NOT NULL,
+    txn_date DATE NOT NULL,
+    remarks VARCHAR,
+    reference VARCHAR,
+    debit DECIMAL(20, 2) NOT NULL,
+    credit DECIMAL(20, 2) NOT NULL,
+    balance DECIMAL(20, 2),
     run_id VARCHAR NOT NULL,
     PRIMARY KEY (file_id, sheet, "row")
 );
