@@ -14,4 +14,6 @@ select company, documents, facts, last_ingested_at from analytics.companies orde
 - [One company](/company): metrics by category over the years, quarters, standard statements, findings and
   coverage
 - [Companies side by side](/compare): one metric, picked by category, across companies
+- [Customers and sectors](/customers): concentration, retention, sector mix and price/volume/mix from a diligence
+  engagement's registers
 - [Data quality](/quality): findings, held documents, coverage, unread pages

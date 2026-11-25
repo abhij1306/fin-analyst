@@ -28,6 +28,8 @@ a command returns when the error ends it:
   unknown or stale; a line cannot be raised as a query) stop the command: exit 2.
 - E845 (`fin engagement passthrough`: a customer token that is not on a loaded sales register)
   stops the command: exit 2.
+- E868-E869 (D9 analytics: a customer sector proposal or review that is not valid; `fin analytics`
+  with no engagement or no loaded sales register) stop the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
 - E858-E861 (the query export, fin.diligence.export: no approved query, a file that cannot be read
@@ -499,3 +501,19 @@ class MatchChangeRefused(FinError):
     longer waiting. Nothing changed."""
 
     code = "E855"
+
+
+class CustomerMappingInvalid(FinError):
+    """E868. `fin map customers` or `fin review ... --customers`: a proposal that is not an object
+    with customer, sector, confidence and reason, a customer that is on no loaded sales register, a
+    sector that is empty or 'unmapped', a confirmation with no sector, or an unknown id. Nothing
+    changed."""
+
+    code = "E868"
+
+
+class AnalyticsUnavailable(FinError):
+    """E869. `fin analytics`: the company has no engagement, or no sales register loaded for it, so
+    there is nothing to analyse. Nothing changed."""
+
+    code = "E869"

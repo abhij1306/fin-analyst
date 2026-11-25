@@ -32,7 +32,7 @@ from fin.audit.errors import SourcePeriodInvalid, TrialBalanceNeeded
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, transaction
-from fin.diligence import ledgers, payroll, registers, tally
+from fin.diligence import customers, ledgers, payroll, registers, tally
 from fin.diligence.engagement import require_open
 from fin.diligence.loading import (
     Loaded,
@@ -310,6 +310,11 @@ def ingest_source(
             lines = _load_payroll(run, company, con, table, file, masker)
         elif kind == "registers":
             lines = registers.load(run, company, con, parsed, file, masker, engagement, month)
+            added = customers.sync(con, run.run_id)
+            if added:
+                lines.append(
+                    f"{added} new customers waiting for a sector (`fin map customers {company}`)"
+                )
         else:
             lines = _load_lv(run, con, table, file, tb, masker)
         replaced = _supersede(run, company, con, file)

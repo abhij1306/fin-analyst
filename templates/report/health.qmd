@@ -22,6 +22,8 @@ Placeholders:
                            table (latest five fiscal years) and a chart
   {{section:quarters}}     the latest quarters (empty when no quarters are loaded)
   {{section:peers}}        the peer comparison (empty without --peers)
+  {{section:customers}}    customers, sectors and pricing from a diligence engagement's registers (empty
+                           without one)
 Every value comes from SQL on the company database (metrics, current_facts, standard statements,
 findings, statement_coverage). To add a section, see docs/CUSTOMISING.md "Add a report section".
 -->
@@ -42,6 +44,8 @@ Key metrics for the latest fiscal years, for each set of statements loaded.
 {{section:quarters}}
 
 {{section:peers}}
+
+{{section:customers}}
 
 ## Findings
 

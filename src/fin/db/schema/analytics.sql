@@ -102,3 +102,58 @@ CREATE TABLE companies (
     open_findings BIGINT,                 -- findings still open
     accepted_findings BIGINT              -- findings accepted, kept as filed
 );
+
+-- Diligence analytics on the registers (the company views customer_concentration, customer_retention, sector_mix and
+-- product_pvm_summary, docs/DILIGENCE_PLAN.md D9): money in rupees, shares as fractions. Rows only for a company with an
+-- engagement and a loaded sales register.
+CREATE TABLE customer_concentration (
+    company VARCHAR NOT NULL,
+    period VARCHAR,
+    basis VARCHAR,
+    segment VARCHAR,
+    customers INTEGER,
+    revenue DECIMAL(38, 2),
+    top1_share DECIMAL(38, 6),
+    top5_share DECIMAL(38, 6),
+    top10_share DECIMAL(38, 6)
+);
+
+CREATE TABLE customer_retention (
+    company VARCHAR NOT NULL,
+    period VARCHAR,
+    prior_period VARCHAR,
+    prior_customers INTEGER,
+    retained_customers INTEGER,
+    lost_customers INTEGER,
+    new_customers INTEGER,
+    prior_revenue DECIMAL(38, 2),
+    retained_revenue DECIMAL(38, 2),
+    lost_revenue DECIMAL(38, 2),
+    new_revenue DECIMAL(38, 2),
+    net_retention DECIMAL(38, 6),
+    gross_retention DECIMAL(38, 6),
+    logo_retention DECIMAL(38, 6)
+);
+
+CREATE TABLE sector_mix (
+    company VARCHAR NOT NULL,
+    period VARCHAR,
+    basis VARCHAR,
+    segment VARCHAR,
+    sector VARCHAR,
+    customers INTEGER,
+    revenue DECIMAL(38, 2),
+    share DECIMAL(38, 6)
+);
+
+CREATE TABLE price_volume_mix (
+    company VARCHAR NOT NULL,
+    period VARCHAR,
+    prior_period VARCHAR,
+    price_effect DECIMAL(38, 2),
+    volume_effect DECIMAL(38, 2),
+    mix_effect DECIMAL(38, 2),
+    new_revenue DECIMAL(38, 2),
+    discontinued_revenue DECIMAL(38, 2),
+    change DECIMAL(38, 2)
+);

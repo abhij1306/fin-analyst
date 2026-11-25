@@ -31,6 +31,7 @@ from fin.config import load_config
 from fin.db.schema import ensure_database
 from fin.paths import company_db_path
 from fin.report.chart import line_chart
+from fin.report.customers import customers_section
 from fin.report.data import (
     CATEGORIES,
     CHARTS,
@@ -245,6 +246,8 @@ def _blocks(
             "quarter; last four quarters (TTM) need four consecutive quarters.",
             quarters_table(data, display_unit),
         )
+    if data.get("customers"):
+        blocks["customers"] = customers_section(data, display_unit)
     if "peers" in present:
         blocks["peers"] = _section(
             f"## {TITLES['peers']}", texts.get("peers", ""), peers_table(data, display_unit)
@@ -279,7 +282,7 @@ def build(
             return texts.get(key, "")
         if kind == "table" and key in tables:
             return tables[key]
-        if kind == "section" and key in ("categories", "quarters", "peers"):
+        if kind == "section" and key in ("categories", "quarters", "peers", "customers"):
             return blocks.get(key, "")
         if key is None and kind in fields:
             return fields[kind]

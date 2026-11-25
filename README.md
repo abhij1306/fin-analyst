@@ -235,6 +235,18 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   ledgers waiting; Claude proposes accounts with `fin map ledgers <company> <file.json>`; you confirm or reject
   them with `fin review list|confirm|reject <company> ... --ledgers` (`--account` to choose another). fin never
   confirms one itself.
+- Customer analytics (D9): `fin analytics <company> [--json]` shows, for the latest engagement's sales register (Amount in Rs,
+  before GST; customers are tokens): customer concentration (top 1, 5 and 10 share), retention of core customers against
+  the previous year (net, gross and logo; cohorts by first year), sector mix, and price, volume and mix of core products
+  that have a quantity and a rate. Core and pass-through revenue are separate segments; retention, cohorts and price,
+  volume and mix are core only, annual only (E869: no sales register in the engagement). The sector of a customer comes
+  from you: `fin map customers <company>` lists the customers waiting, Claude proposes with `fin map customers <company>
+  <file.json>` (`{customer, sector, confidence, reason}`), you confirm or reject with `fin review list|confirm|reject
+  <company> ... --customers` (`--sector` to choose another; E868). A customer without a confirmed sector is shown as
+  `unmapped`. The views are `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`,
+  `product_revenue`, `product_pvm`; the dashboard has a "Customers and sectors" page and the health report a "Customers,
+  sectors and pricing" section when the company has an engagement with a sales register. Decisions:
+  `docs/decisions/d9-analytics.md`.
 - `fin reconcile <company> [name] [--period FY25] [--json]` (name: `tb_vs_statements`, `sales_register_vs_gl`,
   `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`; none: every one whose inputs are loaded). The last four compare
   the registers, Ledger Vouchers, trial balance and payroll; fin drafts no query for them: Claude groups the lines
@@ -361,7 +373,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
 | E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, an unknown account, effects that do not add up (EBITDA effect not revenue effect minus cost effect), or a reclassification that is not valid | Nothing changed. Add the evidence or correct the value and run again |
 | E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |
-| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `recon_runs`, `recon_items`, `recon_match_lines`, `match_proposals`, `passthrough_customers`, `query_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
+| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `customers`, `recon_runs`, `recon_items`, `recon_match_lines`, `match_proposals`, `passthrough_customers`, `query_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers or customer sectors with `fin map ledgers|customers` and `fin review --ledgers|--customers`, or run `fin reconcile` again |
 | E807 | `fin ingest --kind`: the column profile named is unknown or invalid, or no profile matches the file's headers | Nothing loaded. The message lists the header lines found: write a profile in `templates/profiles/` (docs/CUSTOMISING.md) and ingest with `--profile` |
 | E808 | `fin ingest --kind`: the export's header gives no period, or a period that is not a year of the open engagement nor exactly its stub; or `fin engagement open --stub` names a stub that is not the year to date of the fiscal year after the last period | Nothing loaded or opened. Check the export's period, or the engagement's periods and stub (`uv run fin engagement status <company>`) |
 | E809 | A trial balance with group rows only (Tally's Condensed export) | Nothing loaded. Export the trial balance again in Detailed mode, with ledgers, and ingest that |
@@ -388,5 +400,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E845 | `fin engagement passthrough`: a customer token that is not on a loaded sales register, or no sales register is loaded | Nothing changed. Load the registers (`fin ingest <company> <file> --kind registers`) and use a token from `SELECT DISTINCT customer FROM register_lines WHERE kind = 'sales'` |
 | E854 | `fin reconcile <co> match --propose`: the file is not a JSON list of matches, a match has no bank lines or invoices, names a line that is not a loaded bank credit or sales invoice line, has no reason, or a confidence outside 0 to 1 | Nothing stored. Fix the file; take the `[file_id, sheet, row]` of each line from `fin sql` on `bank_lines` and `register_lines` |
 | E855 | `fin review confirm|reject --matches`: no match proposal with that id, or it is no longer waiting | Nothing changed. List them with `fin review list <co> --matches --all` |
+| E868 | `fin map customers` or `fin review ... --customers`: a proposal that is not an object with customer, sector, confidence and reason, a customer that is on no loaded sales register, an empty sector or the sector `unmapped`, a confirmation with no sector, a confirmed customer proposed again, or an unknown customer id | Nothing changed. List the customers with `fin map customers <company>` and fix the proposal |
+| E869 | `fin analytics`: the company has no engagement, or no sales register line in an engagement period | Nothing shown. Open an engagement and load the registers (`fin ingest <company> <file> --kind registers`) |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

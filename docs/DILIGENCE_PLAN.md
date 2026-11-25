@@ -38,7 +38,7 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Service-period revenue recast from the sales register | Planned | D6 |
 | Normalised working capital, diligence report and dashboard | Planned | D7 |
 | Query export: marked-up workbook and draft email, or a brief per issue | **Built** (`fin query export`, `answer --file`; choices: `docs/decisions/d8-query-export.md`) | D8 |
-| Customer, product, sector, pricing, retention analytics | Planned | D9 |
+| Customer, product, sector, pricing, retention analytics | **Built** | D9 |
 
 ## 2. Rules for diligence data
 
@@ -389,6 +389,7 @@ Status: **built** (`fin/diligence/export*.py`, `answers.py`; E858–E861; choice
 export holds real names while fin's output holds only tokens.
 
 ### D9: Customer, product, sector, pricing, retention analytics
+**Status: built** (`fin analytics`, `fin map customers`, `docs/decisions/d9-analytics.md`).
 - Views on `register_lines`: customer concentration (top 1/5/10 share), cohort retention and net revenue retention
   by year, price/volume/mix for products with quantity and rate, sector mix (needs a customer → sector list: a
   `customers` table Claude fills, the user reviews). Core and pass-through revenue shown separately. Customers appear
