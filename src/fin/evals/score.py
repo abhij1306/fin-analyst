@@ -40,6 +40,12 @@ _FIN_VALUE = {
         f"AND engagement_id = {LATEST_ENGAGEMENT})",
         ("account", "period"),
     ),
+    "bank_closing": (
+        "SELECT b.closing_balance FROM bank_statements b JOIN source_files s USING (file_id) "
+        f"WHERE s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT} "
+        "AND b.period_end::VARCHAR = ? AND b.account = ? ORDER BY file_id LIMIT 1",
+        ("period", "ledger"),
+    ),
     "stub": (
         "SELECT value FROM stub_figures WHERE period = ? AND account = ? "
         f"AND engagement_id = {LATEST_ENGAGEMENT}",

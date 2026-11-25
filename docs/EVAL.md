@@ -72,10 +72,10 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
 
    | Column | Meaning |
    |---|---|
-   | `kind` | `statement` (a statement figure), `tb_ledger` (a trial balance ledger's closing balance), `tb_vs_statements` (the difference on an account in the period's latest reconciliation), `stub` (a stub figure, unaudited) |
+   | `kind` | `statement` (a statement figure), `tb_ledger` (a trial balance ledger's closing balance), `tb_vs_statements` (the difference on an account in the period's latest reconciliation), `stub` (a stub figure, unaudited), `bank_closing` (a bank statement's closing balance) |
    | `period`, `scope` | `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, or the stub (`FY26-YTD-SEP`); scope `standalone` or `consolidated` (statements only) |
    | `account` | the dictionary account (`uv run fin map accounts`) |
-   | `ledger` | the ledger as stored: the token for a party ledger |
+   | `ledger` | the ledger as stored: the token for a party ledger; for `bank_closing` the account number, with `period` the statement's end date (`2025-04-30`) |
    | `expected` | the figure as printed in the document: `1,234.56`, `(56.67)` or `-56.67` for a negative, `-` for nil |
    | `unit` | the unit it is printed in: `rupees`, `thousand`, `lakh`, `million`, `crore` (plurals are fine) |
    | `source` | where it is printed: `file sheet!cell`, `file sheet!row` or `file page N` |
@@ -87,6 +87,8 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
    - `tb_ledger`: closing debit less closing credit: a debit balance positive, a credit balance negative.
    - `tb_vs_statements`: the trial balance ledgers mapped to the account, rolled up, less the audited standalone
      statement figure. This one the person works out from the two documents.
+   - `bank_closing`: the closing balance printed on the statement, in the account's own currency (INR or USD, unit
+     `rupees`), whether or not the statement ties.
    - `stub`: the stub trial balance ledgers mapped to the account, as the statements show it (income and
      liabilities positive).
 3. Choose what to check. About 30 `statement` lines per company is a good start, spread over:
@@ -96,7 +98,7 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
    - every line whose note says fin adds several printed lines into the account (see section 8, "Which line is the
      total");
    - with diligence sources: some `tb_ledger` lines (party tokens and others), the `tb_vs_statements` lines that show
-     a difference, and the stub lines.
+     a difference, the stub lines and the `bank_closing` line of each bank statement.
    You may delete lines nobody will check, or leave them: an unchecked line is not scored.
 4. **Draft the expected values from the documents, never from fin.** Open the file at `source` (Read tool: Excel
    cells, or the PDF page as an image) and copy the figure exactly as printed, with its unit. Do not run `fin sql`,
