@@ -146,7 +146,7 @@ def test_rpt_vs_books_finds_the_planted_differences(root: Path, tmp_path: Path) 
     )
     assert sales["needs_query"] and sales["left_source"] == "notes.pdf p.13"
     loan = found[f"PRTY-0001 credit {LOAN}"]
-    assert (loan["difference"], loan["needs_query"]) == (-50000, False)
+    assert (loan["difference"], loan["needs_query"]) == (-60000, False)
     unlinked = found["PRTY-0001 sales"]
     assert unlinked["kind"] == "not_reconciled" and "no customer is linked" in unlinked["note"]
 
@@ -164,7 +164,8 @@ def test_links_count_only_once_the_user_confirms(root: Path, tmp_path: Path) -> 
     ids = [row["link_id"] for row in related.list_links(run(root), "acme")]
     related.decide(run(root), "acme", ids, "confirmed")
     sales = lines(root)["PRTY-0001 sales"]
-    [loan] = sql(root, "SELECT * FROM related_party_loans WHERE period = 'FY25'")
+    loans = {row["period"]: row for row in sql(root, "SELECT * FROM related_party_loans")}
+    loan = loans["FY25"]
 
     assert (sales["kind"], sales["difference"], sales["needs_query"]) == (
         "difference",
@@ -177,6 +178,7 @@ def test_links_count_only_once_the_user_confirms(root: Path, tmp_path: Path) -> 
         50000,
         10,
     )
+    assert (loans["FY24"]["interest"], loans["FY24"]["implied_rate_pct"]) == (None, None)
     assert related.list_links(run(root), "acme") == []
 
 
@@ -231,3 +233,30 @@ def test_the_report_data_and_the_write_guard(root: Path, tmp_path: Path) -> None
     assert len(data["schedules"]["related_party_transaction"]) == 3
     assert {line["key"] for line in data["rpt_vs_books"]} >= {"CUST-0001 sales"}
     assert data["pricing"] and data["matches"] and data["loans"] == []
+
+
+def test_a_ledger_named_like_a_new_counterparty_stays_that_ledger(
+    root: Path, tmp_path: Path
+) -> None:
+    reading = [
+        row("related_party_transaction", "Loan taken", 3, counterparty=LOAN, amount="150000",
+            books="credit", ledger=LOAN),
+    ]  # fmt: skip
+    notes = tmp_path / "notes.pdf"
+    notes.write_bytes(b"other notes")
+
+    [item] = load.load(run(root), "acme", notes, write_reading(tmp_path / "r.csv", reading))
+
+    assert (item["counterparty"], item["ledger"]) == ("PRTY-0001", LOAN)
+
+
+def test_review_decides_only_the_open_engagements_links(root: Path, tmp_path: Path) -> None:
+    loaded(root, tmp_path)
+    proposal = {"party": "PRTY-0001", "kind": "customer", "target": "CUST-0002"}
+    related.propose(run(root), "acme", [proposal | {"confidence": 0.5, "reason": "r"}])
+    [link] = related.list_links(run(root), "acme")
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE related_party_links SET engagement_id = 99")
+
+    with pytest.raises(RelatedPartyLinkInvalid, match="in the open engagement"):
+        related.decide(run(root), "acme", [link["link_id"]], "confirmed")

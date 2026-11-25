@@ -7,11 +7,13 @@ Planted:
   10 lakh, the sales register has 8,60,000 for it: a difference of 1,40,000 (at or above the
   1,00,000 threshold);
 - Ravi Menon (a director, PRTY-0001: in no loaded file) took a loan: the notes disclose 1.5 lakh
-  taken; the Loan from Director ledger has 2,00,000 of credits in FY25 (50,000 interest + 1,50,000
-  received): a difference of -50,000 (below the threshold); disclosed sales of 1 lakh to him have no
+  taken; the Loan from Director ledger has 2,10,000 of credits in FY25 (50,000 interest, 1,50,000
+  received and a 10,000 accrual reversed by a 10,000 debit): a difference of -60,000 (below the
+  threshold); disclosed sales of 1 lakh to him have no
   customer linked until a link to CUST-0002 (2,50,000 of sales) is confirmed;
-- the loan: 4,00,000 owed at the end of FY24, 6,00,000 at the end of FY25, 50,000 interest: an
-  implied rate of 10% on the 5,00,000 average;
+- the loan: 4,00,000 owed at the end of FY24, 6,00,000 at the end of FY25, 50,000 interest net of
+  the reversal: an implied rate of 10% on the 5,00,000 average; FY24 has no Ledger Vouchers, so its
+  interest is not known (NULL);
 - a tax demand (AY 2021-22, 12.5 lakh, 2.5 lakh paid under protest) and a guarantee given to Orchid
   (its name masked in the nature).
 """
@@ -34,8 +36,14 @@ ACCOUNTS = {**rf.ACCOUNTS, LOAN: "lt_borrowings", INTEREST: "finance_cost"}
 J = datetime(2025, 3, 31)
 VOUCHERS = {
     **rf.VOUCHERS,
-    LOAN: [(J, INTEREST, "Journal", 31, 0, 50000), (J, BANK, "Receipt", 32, 0, 150000)],
-    INTEREST: [(J, LOAN, "Journal", 31, 50000, 0)],
+    LOAN: [
+        (J, INTEREST, "Journal", 31, 0, 50000),
+        (J, BANK, "Receipt", 32, 0, 150000),
+        (J, INTEREST, "Journal", 33, 0, 10000),  # an accrual reversed by voucher 34
+        (J, INTEREST, "Journal", 34, 10000, 0),
+    ],
+    INTEREST: [(J, LOAN, "Journal", 31, 50000, 0), (J, LOAN, "Journal", 33, 10000, 0)]
+    + [(J, LOAN, "Journal", 34, 0, 10000)],
 }
 COLUMNS = [
     "kind", "period", "counterparty", "nature", "amount", "unit", "relationship", "books",

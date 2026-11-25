@@ -44,20 +44,23 @@ def _ledgers(con: duckdb.DuckDBPyConnection, engagement_id: int) -> set[str]:
 
 
 def _mask(masker: Masker, rows: list[dict[str, Any]], ledgers: set[str]) -> None:
-    """Counterparties to tokens (new names first, so the free text masks them too), then the free
-    text and the ledgers. E940 for a ledger in no loaded file (its name is not printed)."""
+    """Ledgers to the ledger as loaded (before any new token, so a ledger stored under its name
+    stays that ledger), then counterparties to tokens (new names first, so the free text masks
+    them too), then the free text. E940 for a ledger in no loaded file (its name is not printed)."""
+    unknown = []
+    for row in rows:
+        ledger = row["ledger"]
+        if ledger is not None and ledger not in ledgers:
+            row["ledger"] = masker.known(ledger)
+            if row["ledger"] not in ledgers:
+                unknown.append(f"line {row['line']}")
     for row in rows:
         value = row["counterparty"]
         if value is not None and value not in masker.names:
             row["counterparty"] = masker.known(value) or masker.token("party", value)
-    unknown = []
     for row in rows:
         row["nature"] = masker.text(row["nature"])
         row["relationship"] = masker.text(row["relationship"])
-        if row["ledger"] is not None:
-            row["ledger"] = masker.known(row["ledger"]) or row["ledger"]
-            if row["ledger"] not in ledgers:
-                unknown.append(f"line {row['line']}")
     if unknown:
         raise DisclosureReadingInvalid(
             f"{', '.join(unknown)}: the ledger is in no loaded trial balance or Ledger Vouchers of "

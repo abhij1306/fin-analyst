@@ -131,35 +131,40 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
     return len(proposals)
 
 
-def _rows(con: duckdb.DuckDBPyConnection, ids: list[int]) -> list[dict[str, Any]]:
+def _rows(con: duckdb.DuckDBPyConnection, engagement_id: int, ids: list[int]) -> list[Any]:
+    """The open engagement's links with these ids, in the order given (E941 for any other id)."""
     found = {
         row["link_id"]: row
         for row in fetch_dicts(
             con,
-            "SELECT * FROM related_party_links WHERE list_contains(?::INTEGER[], link_id)",
-            [ids],
+            "SELECT * FROM related_party_links WHERE engagement_id = ? "
+            "AND list_contains(?::INTEGER[], link_id)",
+            [engagement_id, ids],
         )
     }
     missing = [str(i) for i in ids if i not in found]
     if missing:
         raise RelatedPartyLinkInvalid(
-            f"no related party link with id {', '.join(missing)} (`fin review list <co> --related`)"
+            f"no related party link with id {', '.join(missing)} in the open engagement "
+            "(`fin review list <co> --related --all`)"
         )
     return [found[i] for i in ids]
 
 
 def decide(run: Run, company: str, ids: list[int], status: str) -> list[dict[str, Any]]:
-    """Confirm or reject links (status), all or nothing. E941 for an unknown id. Only the user."""
+    """Confirm or reject links of the open engagement (status), all or nothing. E803 without an
+    open engagement; E941 for an id not in it. Only the user."""
     ids = list(dict.fromkeys(ids))
     with company_database(run, company, write=True) as con, transaction(con):
-        for row in _rows(con, ids):
+        engagement_id = require_open(con, company)["engagement_id"]
+        for row in _rows(con, engagement_id, ids):
             con.execute(
                 "UPDATE related_party_links SET status = ?, run_id = ?, changed_at = ? "
                 "WHERE link_id = ?",
                 [status, run.run_id, utcnow(), row["link_id"]],
             )
             _record(run, company, row, status)
-        return _rows(con, ids)
+        return _rows(con, engagement_id, ids)
 
 
 def read_links(con: duckdb.DuckDBPyConnection, engagement_id: int, waiting: bool) -> list[Any]:

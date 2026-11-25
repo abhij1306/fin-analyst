@@ -170,7 +170,8 @@ LEFT JOIN others o
 -- given; negative: a borrowing); opening: the previous period's trial balance closing (NULL when none is loaded);
 -- average_balance: (opening + closing) / 2, or the closing alone (average_basis says which). interest: the period's
 -- Ledger Vouchers entries on the ledger whose other ledger (particulars) is confirmed to finance_cost,
--- interest_expended, other_income or interest_income (debit + credit). implied_rate_pct: interest / |average| x 100.
+-- interest_expended, other_income or interest_income, netted (|debit - credit|, so a reversed accrual cancels); NULL
+-- when the period has no loaded Ledger Vouchers (not known, not zero). implied_rate_pct: interest / |average| x 100.
 CREATE VIEW related_party_loans AS
 WITH tb AS (
     SELECT f.engagement_id, f.period, f.period_start, f.period_end, t.ledger,
@@ -188,26 +189,34 @@ loans AS (
         'st_borrowings', 'borrowings')
 ),
 interest AS (
-    SELECT f.engagement_id, f.period, e.ledger, sum(e.debit + e.credit) AS interest
+    SELECT f.engagement_id, f.period, e.ledger, abs(sum(e.debit - e.credit)) AS interest
     FROM ledger_entries e
     JOIN source_files f ON f.file_id = e.file_id AND f.kind = 'ledger_vouchers' AND f.status = 'loaded'
     JOIN ledger_accounts a ON a.ledger = e.particulars AND a.status = 'confirmed'
         AND a.account IN ('finance_cost', 'interest_expended', 'other_income', 'interest_income')
     GROUP BY ALL
 ),
+vouchers AS (
+    SELECT DISTINCT engagement_id, period FROM source_files WHERE kind = 'ledger_vouchers' AND status = 'loaded'
+),
 balances AS (
     SELECT l.engagement_id, l.party, l.ledger, l.account, c.period, c.closing,
         (SELECT p.closing FROM tb p WHERE p.engagement_id = c.engagement_id AND p.ledger = c.ledger
             AND p.period_end = c.period_start - INTERVAL 1 DAY) AS opening
     FROM loans l JOIN tb c ON c.engagement_id = l.engagement_id AND c.ledger = l.ledger
+),
+rated AS (
+    SELECT b.*, CASE WHEN v.period IS NULL THEN NULL ELSE coalesce(i.interest, 0) END AS interest
+    FROM balances b
+    LEFT JOIN vouchers v ON v.engagement_id = b.engagement_id AND v.period = b.period
+    LEFT JOIN interest i ON i.engagement_id = b.engagement_id AND i.period = b.period AND i.ledger = b.ledger
 )
 SELECT b.engagement_id, b.party, b.ledger, b.account, b.period, b.opening, b.closing,
     CASE WHEN b.opening IS NULL THEN b.closing ELSE (b.opening + b.closing) / 2 END AS average_balance,
     CASE WHEN b.opening IS NULL THEN 'closing only' ELSE 'opening and closing' END AS average_basis,
-    coalesce(i.interest, 0) AS interest,
-    CASE WHEN b.opening IS NULL AND b.closing <> 0 THEN round(coalesce(i.interest, 0) / abs(b.closing) * 100, 2)
+    b.interest,
+    CASE WHEN b.opening IS NULL AND b.closing <> 0 THEN round(b.interest / abs(b.closing) * 100, 2)
         WHEN b.opening IS NOT NULL AND b.opening + b.closing <> 0
-            THEN round(coalesce(i.interest, 0) / abs((b.opening + b.closing) / 2) * 100, 2)
+            THEN round(b.interest / abs((b.opening + b.closing) / 2) * 100, 2)
     END AS implied_rate_pct
-FROM balances b
-LEFT JOIN interest i ON i.engagement_id = b.engagement_id AND i.period = b.period AND i.ledger = b.ledger;
+FROM rated b;

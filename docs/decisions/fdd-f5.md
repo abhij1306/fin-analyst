@@ -57,9 +57,10 @@ Builder's readings of [fdd.md](../fdd.md) F5. None is an owner decision.
   quantity above 0; difference % = (party − others) / others × 100. `related_party_loans`: linked ledgers confirmed to
   a loan or borrowing account (loans_non_current, loans_current, loans, lt_borrowings, st_borrowings, borrowings); the
   balance at each year end from the trial balance (debit − credit), the average of the previous and this year end (the
-  closing alone when no previous trial balance is loaded, labelled), interest = entries on the loan ledger whose
-  other ledger is confirmed to finance_cost, interest_expended, other_income or interest_income, and the implied rate
-  = interest / |average| × 100.
+  closing alone when no previous trial balance is loaded, labelled), interest = the entries on the loan ledger whose
+  other ledger is confirmed to finance_cost, interest_expended, other_income or interest_income, netted
+  (|debit − credit|, so a reversed accrual cancels), and NULL when the period has no loaded Ledger Vouchers (not
+  known, never shown as zero); the implied rate = interest / |average| × 100.
 - **Why**: the plan names the three views; these are the simplest figures the loaded files support. The implied rate
   on a two-point average is approximate, and the view says which average it used.
 - **How to change it**: `db/schema/fdd_disclosures.sql`.
