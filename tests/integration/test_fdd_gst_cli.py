@@ -4,6 +4,7 @@
 the tax charge view reads a clean synthetic company's statements."""
 
 import json
+import re
 import shutil
 from collections.abc import Callable
 from decimal import ROUND_HALF_UP, Decimal
@@ -23,6 +24,12 @@ runner = CliRunner()
 
 def fin(*args: str) -> Result:
     return runner.invoke(app, list(args))
+
+
+def plain(output: str) -> str:
+    """A usage error's text without Typer's colour codes, panel border and line wrapping."""
+    text = re.sub(r"\x1b\[[0-9;]*m", "", output).replace("\N{BOX DRAWINGS LIGHT VERTICAL}", " ")
+    return " ".join(text.split())
 
 
 @pytest.fixture
@@ -45,7 +52,7 @@ def test_gst_returns_tax_ledgers_and_reconciliations(root: Path, tmp_path: Path)
     gstr3b = fin("ingest", "acme", str(files["gstr3b"]), "--kind", "gst", "--profile", "gstr3b")
 
     assert no_profile.exit_code == 2
-    assert "needs --profile" in " ".join(no_profile.output.split())
+    assert "needs --profile" in plain(no_profile.output)
     assert gstr1.exit_code == 0, gstr1.output
     assert "(gstr1 FY25, profile gstr1)" in gstr1.stdout
     assert "GSTR-3B FY25: 3 months" in gstr3b.stdout
