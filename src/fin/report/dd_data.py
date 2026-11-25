@@ -205,20 +205,17 @@ def gate_states(
 def _figures(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """name -> period -> value for every FIGURES name, from the rows read."""
     out: dict[str, dict[str, Any]] = {name: {} for name in FIGURES}
-    for row in data["ebitda"]:
-        for name, (_, _, view) in FIGURES.items():
-            if view == "adjusted_ebitda":
+    for rows_key, view in (
+        ("ebitda", "adjusted_ebitda"),
+        ("revenue_split", "revenue_split"),
+        ("walk", "ebitda_to_cash"),
+    ):
+        names = [name for name, (_, _, v) in FIGURES.items() if v == view]
+        for row in data[rows_key]:
+            for name in names:
                 out[name][row["period"]] = row[name]
     for row in data["other_income"]:
         out["other_income"][row["period"]] = row["value"]
-    for row in data["revenue_split"]:
-        for name, (_, _, view) in FIGURES.items():
-            if view == "revenue_split":
-                out[name][row["period"]] = row[name]
-    for row in data["walk"]:
-        for name, (_, _, view) in FIGURES.items():
-            if view == "ebitda_to_cash":
-                out[name][row["period"]] = row[name]
     for row in data["recast"]:
         if row["level"] == "period":
             out["recast_revenue_effect"][row["period"]] = row["difference"]

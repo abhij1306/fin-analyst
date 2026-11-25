@@ -44,6 +44,37 @@ def _date(text: str) -> date:
     return date.fromisoformat(text.strip())
 
 
+def _value(text: str | None) -> Decimal | None:
+    if not text:
+        return None
+    figure = parse_figure(text)
+    if figure is None:
+        raise ValueError(f"value {text!r} is not a figure")
+    return Decimal(figure)
+
+
+def _parse_row(number: int, row: dict[str, str]) -> dict[str, Any]:
+    """One validated reading row; ValueError or InvalidOperation names what is wrong."""
+    start, end = _date(row["start"]), _date(row["end"])
+    if end < start:
+        raise ValueError("end is before start")
+    page = int(row["page"])
+    if page < 1:
+        raise ValueError("page starts at 1")
+    if not row["customer"]:
+        raise ValueError("customer is empty")
+    return {
+        "line": number,
+        "customer": row["customer"],
+        "invoice_no": row.get("invoice_no") or None,
+        "start_date": start,
+        "end_date": end,
+        "value": _value(row.get("value")),
+        "billing_terms": row.get("billing_terms") or None,
+        "page": page,
+    }
+
+
 def read_rows(path: Path) -> list[dict[str, Any]]:
     """The reading's rows (validated, line numbers kept). E864 listing every line at fault."""
     with path.open(encoding="utf-8-sig", newline="") as handle:
@@ -60,37 +91,10 @@ def read_rows(path: Path) -> list[dict[str, Any]]:
         raise ContractReadingInvalid(f"{path.name}: no rows; nothing recorded")
     rows, problems = [], []
     for number, raw in enumerate(table, start=2):
-        row = {key: (value or "").strip() for key, value in raw.items() if key}
         try:
-            start, end = _date(row["start"]), _date(row["end"])
-            if end < start:
-                raise ValueError("end is before start")
-            page = int(row["page"])
-            if page < 1:
-                raise ValueError("page starts at 1")
-            if not row["customer"]:
-                raise ValueError("customer is empty")
-            value = None
-            if row.get("value"):
-                figure = parse_figure(row["value"])
-                if figure is None:
-                    raise ValueError(f"value {row['value']!r} is not a figure")
-                value = Decimal(figure)
+            rows.append(_parse_row(number, {k: (v or "").strip() for k, v in raw.items() if k}))
         except (ValueError, InvalidOperation) as exc:
             problems.append(f"line {number}: {exc}")
-            continue
-        rows.append(
-            {
-                "line": number,
-                "customer": row["customer"],
-                "invoice_no": row.get("invoice_no") or None,
-                "start_date": start,
-                "end_date": end,
-                "value": value,
-                "billing_terms": row.get("billing_terms") or None,
-                "page": page,
-            }
-        )
     if problems:
         raise ContractReadingInvalid(f"{path.name}: {'; '.join(problems)}; nothing recorded")
     return rows

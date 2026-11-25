@@ -49,6 +49,22 @@ def _ingest_files(
     echo_refresh(run)
 
 
+def _check_usage(
+    path: Path | None, force: bool, reading: Path | None, kind: str | None, profile: str | None
+) -> None:
+    """Usage errors, before the run starts (like the option callbacks)."""
+    one_file = path is not None and path.is_file()
+    if reading is not None and not one_file:
+        raise typer.BadParameter("--reading needs PATH to be the one file it was read from")
+    if kind is not None:
+        if kind not in KINDS or not one_file:
+            raise typer.BadParameter(f"--kind takes {' or '.join(KINDS)} and PATH as one file")
+        if force or reading is not None:
+            raise typer.BadParameter("--kind does not take --force or --reading")
+    elif profile is not None:
+        raise typer.BadParameter("--profile needs --kind")
+
+
 @app.command()
 def ingest(
     company: Annotated[
@@ -89,15 +105,7 @@ def ingest(
     statement, payroll)
     instead."""
 
-    # Usage errors, before the run starts (like the option callbacks).
-    if reading is not None and (path is None or not path.is_file()):
-        raise typer.BadParameter("--reading needs PATH to be the one file it was read from")
-    if kind is not None and (kind not in KINDS or path is None or not path.is_file()):
-        raise typer.BadParameter(f"--kind takes {' or '.join(KINDS)} and PATH as one file")
-    if kind is not None and (force or reading is not None):
-        raise typer.BadParameter("--kind does not take --force or --reading")
-    if profile is not None and kind is None:
-        raise typer.BadParameter("--profile needs --kind")
+    _check_usage(path, force, reading, kind, profile)
 
     def body(run: Run) -> None:
         if kind is not None and path is not None:

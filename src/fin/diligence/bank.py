@@ -115,9 +115,8 @@ def _money(text: str) -> Decimal:
     return figure.quantize(Decimal("0.01"))
 
 
-def read_statement(raw: Raw, name: str) -> Statement:
-    """The statement a `Raw` holds. E204 on a bad amount or no transaction row, E817 when the
-    header gives no account number, or no opening balance and the first row has no balance."""
+def _read_lines(raw: Raw, name: str) -> tuple[list[BankLine], list[str]]:
+    """(the transaction lines, the header lines plus the text of each undated row)."""
     profile, lines, out = raw.profile, list(raw.lines), []
     for r in raw.rows:
         where = f"{name} {r.sheet}!{r.row}"
@@ -139,6 +138,33 @@ def read_statement(raw: Raw, name: str) -> Statement:
                 None if blank else amount(balance, profile, where),
             )
         )
+    return out, lines
+
+
+def _edge_balance(
+    header: str | None,
+    row_balance: Decimal | None,
+    name: str,
+    profile: Profile,
+    edge: tuple[str, str],
+) -> tuple[Decimal, str]:
+    """(balance, "header" or "rows") of an edge ("opening", "first" or "closing", "last")."""
+    if header is not None:
+        return _money(header), "header"
+    if row_balance is not None:
+        return row_balance, "rows"
+    which, side = edge
+    raise BankHeaderMissing(
+        f"{name}: no {which} balance in the header lines and the {side} row has no balance "
+        f"(profile {profile.name}, [header] {which}). Nothing loaded"
+    )
+
+
+def read_statement(raw: Raw, name: str) -> Statement:
+    """The statement a `Raw` holds. E204 on a bad amount or no transaction row, E817 when the
+    header gives no account number, or no opening balance and the first row has no balance."""
+    profile = raw.profile
+    out, lines = _read_lines(raw, name)
     if not out:
         raise ParseError(f"{name}: no transaction row (a dated row) below the column header")
     patterns = profile.header
@@ -149,26 +175,14 @@ def read_statement(raw: Raw, name: str) -> Statement:
             f"[header] account = {patterns['account'].pattern!r}). Nothing loaded"
         )
     currency = (_find(patterns.get("currency"), lines) or profile.currency).upper()
-    opening, closing = _find(patterns.get("opening"), lines), _find(patterns.get("closing"), lines)
     first, last = out[0], out[-1]
-    if opening is not None:
-        opening_balance, opening_from = _money(opening), "header"
-    elif first.balance is not None:
-        opening_balance, opening_from = first.balance - first.credit + first.debit, "rows"
-    else:
-        raise BankHeaderMissing(
-            f"{name}: no opening balance in the header lines and the first row has no balance "
-            f"(profile {profile.name}, [header] opening). Nothing loaded"
-        )
-    if closing is not None:
-        closing_balance, closing_from = _money(closing), "header"
-    elif last.balance is not None:
-        closing_balance, closing_from = last.balance, "rows"
-    else:
-        raise BankHeaderMissing(
-            f"{name}: no closing balance in the header lines and the last row has no balance "
-            f"(profile {profile.name}, [header] closing). Nothing loaded"
-        )
+    derived = None if first.balance is None else first.balance - first.credit + first.debit
+    opening_balance, opening_from = _edge_balance(
+        _find(patterns.get("opening"), lines), derived, name, profile, ("opening", "first")
+    )
+    closing_balance, closing_from = _edge_balance(
+        _find(patterns.get("closing"), lines), last.balance, name, profile, ("closing", "last")
+    )
     return Statement(
         profile,
         account,

@@ -100,6 +100,16 @@ def read_parse(run: Run, config: Config, path: Path, sha256: str) -> tuple[dict[
     return data, rel
 
 
+def _header_text(rows: list[list[str]], column: int) -> str:
+    """The text of one column over the header rows (a repeated line once)."""
+    parts: list[str] = []
+    for row in rows:
+        text = norm(row[column]) if column < len(row) else ""
+        if text and (not parts or parts[-1] != text):
+            parts.append(text)
+    return " ".join(parts)
+
+
 def _header(grid: list[list[str]], profile: Profile) -> tuple[int, dict[int, str]] | None:
     """(first data row, column -> field) where the profile's column header is in the grid."""
     width = max(len(row) for row in grid)
@@ -108,17 +118,46 @@ def _header(grid: list[list[str]], profile: Profile) -> tuple[int, dict[int, str
             break
         found: dict[int, str] = {}
         for column in range(width):
-            parts: list[str] = []
-            for row in grid[top : top + profile.header_rows]:
-                text = norm(row[column]) if column < len(row) else ""
-                if text and (not parts or parts[-1] != text):
-                    parts.append(text)
-            field = profile.columns.get(" ".join(parts))
+            text = _header_text(grid[top : top + profile.header_rows], column)
+            field = profile.columns.get(text)
             if field is not None and field not in found.values():
                 found[column] = field
         if len(found) == len(set(profile.columns.values())):
             return top + profile.header_rows, found
     return None
+
+
+def _table_start(
+    grid: list[list[str]], profile: Profile, mapping: dict[int, str] | None, width: int
+) -> tuple[int | None, dict[int, str] | None, int]:
+    """(the first transaction row, None for a summary table; the column mapping; the width)."""
+    header = _header(grid, profile)
+    if header is not None:
+        return header[0], header[1], max(len(r) for r in grid)
+    if mapping is not None and all(len(r) == width for r in grid):
+        return 0, mapping, width  # the table goes on from the page before
+    return None, mapping, width
+
+
+def _split_table(
+    grid: list[list[str]],
+    start: int | None,
+    mapping: dict[int, str] | None,
+    seen: tuple[int, int],
+) -> tuple[list[RawRow], list[str]]:
+    """(the transaction rows, the other lines) of one table; `seen` is (page number, rows seen
+    on the page before this table)."""
+    number, at = seen
+    rows: list[RawRow] = []
+    lines: list[str] = []
+    for i, row in enumerate(grid):
+        if start is None or i < start or mapping is None:
+            text = " ".join(" ".join(c.split()) for c in row if c.strip())
+            lines.extend([text] if text else [])
+        else:
+            cells = {f: row[c] for c, f in mapping.items() if c < len(row)}
+            rows.append(RawRow(f"page {number}", number, at + i + 1, cells))
+    return rows, lines
 
 
 def rows_of(pages: Pages, profile: Profile) -> tuple[list[RawRow], list[str]] | None:
@@ -134,19 +173,10 @@ def rows_of(pages: Pages, profile: Profile) -> tuple[list[RawRow], list[str]] | 
         for grid in page["tables"]:
             if not grid:
                 continue
-            header = _header(grid, profile)
-            start: int | None = None  # the first transaction row, None: a summary table
-            if header is not None:
-                start, mapping, width = header[0], header[1], max(len(r) for r in grid)
-            elif mapping is not None and all(len(r) == width for r in grid):
-                start = 0  # the table goes on from the page before
-            for i, row in enumerate(grid):
-                if start is None or i < start or mapping is None:
-                    text = " ".join(" ".join(c.split()) for c in row if c.strip())
-                    lines.extend([text] if text else [])
-                else:
-                    cells = {f: row[c] for c, f in mapping.items() if c < len(row)}
-                    rows.append(RawRow(f"page {number}", number, at + i + 1, cells))
+            start, mapping, width = _table_start(grid, profile, mapping, width)
+            table_rows, table_lines = _split_table(grid, start, mapping, (number, at))
+            rows.extend(table_rows)
+            lines.extend(table_lines)
             at += len(grid)
         lines.extend(page["texts"])
     return (rows, lines) if mapping is not None else None

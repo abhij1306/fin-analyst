@@ -22,7 +22,7 @@ from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
 from fin.diligence import gates
-from fin.diligence.adjustments import list_adjustments, propose
+from fin.diligence.adjustments import Evidence, list_adjustments, propose
 from fin.diligence.sources import ingest_source
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.score import run_eval
@@ -338,7 +338,7 @@ def test_a_hand_proposed_recast_adjustment_is_never_replaced_by_a_run(root: Path
     run_recast(run(root), "acme", None)
     manual = propose(
         run(root), "acme", period="FY25", scope="standalone", category="recast", amount=Decimal(7),
-        description="by hand", source_ref="note.xlsx Sheet1!A1",
+        description="by hand", evidence=Evidence(source_ref="note.xlsx Sheet1!A1"),
     )  # fmt: skip
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute("UPDATE register_lines SET amount_inr = 130000 WHERE invoice_no = 'INV-1001'")

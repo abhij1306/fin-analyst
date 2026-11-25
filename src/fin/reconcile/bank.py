@@ -68,7 +68,7 @@ def bank_vs_invoices(
     register = min(i.key[0] for i in data.invoices)
     return Computed(
         lines,
-        min(f for f in {k[0] for k, p in data.receipt_period.items() if p == period} or {0}),
+        min((k[0] for k, p in data.receipt_period.items() if p == period), default=0),
         register,
         0,
         as_of=data.periods[period][1],
@@ -171,14 +171,21 @@ def format_result(result: dict[str, Any]) -> str:
         f"{result['name']} {result['period']} (recon #{result['recon_id']}, threshold "
         f"{rupees(threshold)})"
     )
-    out = []
     if result["name"] == TB:
-        x = lines[0]
-        note = f"; {x['note']}" if x["note"] else ""
-        return (
-            f"{head}: bank {rupees(x['left_amount'])}, trial balance {rupees(x['right_amount'])}, "
-            f"difference {rupees(x['difference'])} ({x['kind']}, {_mark(x)}){note}"
-        )
+        return _format_tb(head, lines[0])
+    return _format_invoices(head, lines)
+
+
+def _format_tb(head: str, x: dict[str, Any]) -> str:
+    note = f"; {x['note']}" if x["note"] else ""
+    return (
+        f"{head}: bank {rupees(x['left_amount'])}, trial balance {rupees(x['right_amount'])}, "
+        f"difference {rupees(x['difference'])} ({x['kind']}, {_mark(x)}){note}"
+    )
+
+
+def _format_invoices(head: str, lines: list[dict[str, Any]]) -> str:
+    out = []
     count = {k: sum(1 for x in lines if x["kind"] == k) for k in ("matched", "difference", "fx")}
     only = {k: sum(1 for x in lines if x["kind"] == k) for k in ("left_only", "right_only")}
     passes: dict[str, int] = {}

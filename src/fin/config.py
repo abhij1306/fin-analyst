@@ -90,7 +90,7 @@ class Config:
 
 # The value only, so indentation, a quoted key and a trailing comment are kept.
 _PARSER_LINE = re.compile(
-    r"""^([ \t]*)(["']?)parser\2[ \t]*=[ \t]*(?:"[a-z]*"|'[a-z]*')(?=[ \t]*(?:#.*)?$)""", re.M
+    r"""^([ \t]*)(["']?)parser\2[ \t]*=[ \t]*(["'])[a-z]*\3(?=[ \t]*(?:#|$))""", re.M
 )
 _PDF_TABLE = """
 [pdf]

@@ -4,6 +4,7 @@
 import csv
 import io
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -188,6 +189,46 @@ def _items(run: Run, company: str | None, include_rejected: bool = False) -> lis
     return found
 
 
+def _list_matches(run: Run, company: str, all_items: bool, json_output: bool) -> None:
+    rows = bank_proposals.list_proposals(run, company, not all_items)
+    if json_output:
+        typer.echo(json.dumps(rows, indent=2, default=str))
+    else:
+        typer.echo("\n".join(map(bank_proposals.format_proposal, rows)) or "nothing waiting")
+
+
+def _rows_by_company(
+    run: Run, company: str | None, all_items: bool, lister: Callable[[Run, str, bool], list[Any]]
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for name in [company] if company else _ledger_companies(run):
+        rows += [{"company": name, **row} for row in lister(run, name, not all_items)]
+    return rows
+
+
+def _list_review_items(run: Run, company: str | None, all_items: bool, json_output: bool) -> None:
+    items = _items(run, company, all_items)
+    run.pending_review = len(items)
+    if json_output:
+        typer.echo(json.dumps(items, indent=2))
+        return
+    for item in items:
+        typer.echo(_line(item))
+    if not items:
+        typer.echo("nothing to review")
+    if company and company_db_path(run.root, company).is_file():
+        _echo_waiting(run, company)
+
+
+def _echo_waiting(run: Run, company: str) -> None:
+    if waiting := len(list_ledgers(run, company, True)):
+        typer.echo(f"{waiting} ledgers waiting for review: `fin review list {company} --ledgers`")
+    if waiting := len(list_customers(run, company, True)):
+        typer.echo(
+            f"{waiting} customers waiting for a sector: `fin review list {company} --customers`"
+        )
+
+
 @review_app.command("list")
 def review_list(
     company: OptionalCompany = None,
@@ -206,46 +247,15 @@ def review_list(
         if match_items:
             if company is None:
                 raise typer.BadParameter("--matches needs a company")
-            rows = bank_proposals.list_proposals(run, company, not all_items)
-            if json_output:
-                typer.echo(json.dumps(rows, indent=2, default=str))
-            else:
-                typer.echo(
-                    "\n".join(map(bank_proposals.format_proposal, rows)) or "nothing waiting"
-                )
-            return
-        if customer_items:
-            rows = []
-            for name in [company] if company else _ledger_companies(run):
-                rows += [
-                    {"company": name, **row} for row in list_customers(run, name, not all_items)
-                ]
+            _list_matches(run, company, all_items, json_output)
+        elif customer_items:
+            rows = _rows_by_company(run, company, all_items, list_customers)
             _echo_customers(rows, json_output)
-            return
-        if ledger_items:
-            rows = []
-            for name in [company] if company else _ledger_companies(run):
-                rows += [{"company": name, **row} for row in list_ledgers(run, name, not all_items)]
+        elif ledger_items:
+            rows = _rows_by_company(run, company, all_items, list_ledgers)
             _echo_ledgers(rows, json_output)
-            return
-        items = _items(run, company, all_items)
-        run.pending_review = len(items)
-        if json_output:
-            typer.echo(json.dumps(items, indent=2))
-            return
-        for item in items:
-            typer.echo(_line(item))
-        if not items:
-            typer.echo("nothing to review")
-        has_db = company and company_db_path(run.root, company).is_file()
-        if has_db and (waiting := len(list_ledgers(run, company, True))):
-            typer.echo(
-                f"{waiting} ledgers waiting for review: `fin review list {company} --ledgers`"
-            )
-        if has_db and (waiting := len(list_customers(run, company, True))):
-            typer.echo(
-                f"{waiting} customers waiting for a sector: `fin review list {company} --customers`"
-            )
+        else:
+            _list_review_items(run, company, all_items, json_output)
 
     args = {
         "company": company,
@@ -255,6 +265,53 @@ def review_list(
         "customers": customer_items,
     }
     execute("review list", args, body)
+
+
+def _confirm_matches(run: Run, company: str, ids: list[int]) -> None:
+    for i in bank_proposals.decide(run, company, ids, "confirmed"):
+        typer.echo(f"match #{i} confirmed; applied by the next bank_vs_invoices run")
+
+
+def _confirm_customers(
+    run: Run, company: str, ids: list[int], sector: str | None, other_options: bool
+) -> None:
+    if other_options:
+        raise typer.BadParameter("with --customers use only --sector")
+    for crow in customers.confirm(run, company, ids, sector):
+        typer.echo(
+            f"customer #{crow['customer_id']} {crow['customer']} confirmed as {crow['sector']}"
+        )
+
+
+def _confirm_ledgers(
+    run: Run, company: str, ids: list[int], account: str | None, other_options: bool
+) -> None:
+    if other_options:
+        raise typer.BadParameter("--scope, --name and --parent do not apply to --ledgers")
+    for row in ledgers.confirm(run, company, ids, account):
+        typer.echo(f"ledger #{row['ledger_id']} {row['ledger']!r} confirmed as {row['account']}")
+
+
+def _confirm_items(
+    run: Run,
+    company: str,
+    ids: list[int],
+    account: str | None,
+    scope: str,
+    name: str | None,
+    parent: str | None,
+) -> None:
+    confirmed, changed = review.confirm(run, company, ids, account, scope, name, parent)
+    for item_id, facts in confirmed:
+        typer.echo(f"#{item_id} confirmed ({scope} scope); {facts} facts updated")
+    rechecked = recheck_held(run, company, changed)
+    for doc in rechecked:
+        typer.echo(
+            f"doc_id {doc['doc_id']} {doc['file']} checked again: {doc['open']} open "
+            f"findings, {doc['status']}"
+        )
+    if changed or any(doc["status"] == "loaded" for doc in rechecked):
+        refresh_analytics(run)
 
 
 @review_app.command("confirm")
@@ -291,39 +348,19 @@ def review_confirm(
 
     def body(run: Run) -> None:
         if match_items:
-            for i in bank_proposals.decide(run, company, ids, "confirmed"):
-                typer.echo(f"match #{i} confirmed; applied by the next bank_vs_invoices run")
+            _confirm_matches(run, company, ids)
             return
         if customer_items:
-            if ledger_items or account or scope != "company" or name or parent:
-                raise typer.BadParameter("with --customers use only --sector")
-            for crow in customers.confirm(run, company, ids, sector):
-                typer.echo(
-                    f"customer #{crow['customer_id']} {crow['customer']} confirmed as "
-                    f"{crow['sector']}"
-                )
+            others = bool(ledger_items or account or scope != "company" or name or parent)
+            _confirm_customers(run, company, ids, sector, others)
             return
         if sector is not None:
             raise typer.BadParameter("--sector applies to --customers")
         if ledger_items:
-            if scope != "company" or name or parent:
-                raise typer.BadParameter("--scope, --name and --parent do not apply to --ledgers")
-            for row in ledgers.confirm(run, company, ids, account):
-                typer.echo(
-                    f"ledger #{row['ledger_id']} {row['ledger']!r} confirmed as {row['account']}"
-                )
+            others = bool(scope != "company" or name or parent)
+            _confirm_ledgers(run, company, ids, account, others)
             return
-        confirmed, changed = review.confirm(run, company, ids, account, scope, name, parent)
-        for item_id, facts in confirmed:
-            typer.echo(f"#{item_id} confirmed ({scope} scope); {facts} facts updated")
-        rechecked = recheck_held(run, company, changed)
-        for doc in rechecked:
-            typer.echo(
-                f"doc_id {doc['doc_id']} {doc['file']} checked again: {doc['open']} open "
-                f"findings, {doc['status']}"
-            )
-        if changed or any(doc["status"] == "loaded" for doc in rechecked):
-            refresh_analytics(run)
+        _confirm_items(run, company, ids, account, scope, name, parent)
 
     execute(
         "review confirm",
@@ -343,6 +380,27 @@ def review_confirm(
     )
 
 
+def _reject_matches(run: Run, company: str, ids: list[int]) -> None:
+    for i in bank_proposals.decide(run, company, ids, "rejected"):
+        typer.echo(f"match #{i} rejected")
+
+
+def _reject_customers(run: Run, company: str, ids: list[int]) -> None:
+    for crow in customers.reject(run, company, ids):
+        typer.echo(f"customer #{crow['customer_id']} {crow['customer']} rejected")
+
+
+def _reject_ledgers(run: Run, company: str, ids: list[int]) -> None:
+    for row in ledgers.reject(run, company, ids):
+        typer.echo(f"ledger #{row['ledger_id']} {row['ledger']!r} rejected")
+
+
+def _reject_items(run: Run, company: str, ids: list[int]) -> None:
+    review.reject(run, company, ids)
+    for item_id in dict.fromkeys(ids):
+        typer.echo(f"#{item_id} rejected")
+
+
 @review_app.command("reject")
 def review_reject(
     company: CompanyArg,
@@ -357,20 +415,13 @@ def review_reject(
 
     def body(run: Run) -> None:
         if match_items:
-            for i in bank_proposals.decide(run, company, ids, "rejected"):
-                typer.echo(f"match #{i} rejected")
-            return
-        if customer_items:
-            for crow in customers.reject(run, company, ids):
-                typer.echo(f"customer #{crow['customer_id']} {crow['customer']} rejected")
-            return
-        if ledger_items:
-            for row in ledgers.reject(run, company, ids):
-                typer.echo(f"ledger #{row['ledger_id']} {row['ledger']!r} rejected")
-            return
-        review.reject(run, company, ids)
-        for item_id in dict.fromkeys(ids):
-            typer.echo(f"#{item_id} rejected")
+            _reject_matches(run, company, ids)
+        elif customer_items:
+            _reject_customers(run, company, ids)
+        elif ledger_items:
+            _reject_ledgers(run, company, ids)
+        else:
+            _reject_items(run, company, ids)
 
     args = {
         "ids": ids,

@@ -118,7 +118,7 @@ def propose(root: Path, **kwargs: Any) -> dict[str, Any]:
     defaults = {
         "period": "FY25",
         "scope": "standalone",
-        "source_ref": "reg.xlsx Sales!2",
+        "evidence": adjustments.Evidence(source_ref="reg.xlsx Sales!2"),
         "category": "normalisation",
         "description": "d",
     }

@@ -89,7 +89,7 @@ Figures: {names}
 {headings}"""
 
 
-def _text(name: str, value: Any, unit: str, display_unit: str) -> str:
+def _text(name: str, value: Any, display_unit: str) -> str:
     return (
         metric_text("ratio", value, display_unit)
         if FIGURES[name][1] == "ratio"
@@ -114,7 +114,7 @@ def substitute(text: str, data: dict[str, Any], display_unit: str) -> tuple[str,
                 )
             else:
                 value = data["figures"][name].get(period)
-                values[match.group()] = _text(name, value, display_unit, display_unit)
+                values[match.group()] = _text(name, value, display_unit)
     if problems:
         raise FigureReferenceUnknown(
             "the narrative has references that cannot be filled:\n"

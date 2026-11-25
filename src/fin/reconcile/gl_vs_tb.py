@@ -99,6 +99,25 @@ def applies(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], period: 
     )
 
 
+def _prior_tb(
+    con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], period: str
+) -> dict[str, Side] | None:
+    """The prior period's trial balance, None when there is none loaded."""
+    prior_name = _prior_period(engagement, period)
+    if not prior_name:
+        return None
+    prior_file = loaded_file(con, engagement["engagement_id"], "trial_balance", prior_name)
+    return _tb(con, prior_file[0], prior_file[1]) if prior_file else None
+
+
+def _confirmed(con: duckdb.DuckDBPyConnection) -> dict[str, tuple[Any, Any]]:
+    """ledger -> (account, statement) of the confirmed ledger mappings."""
+    rows = con.execute(
+        "SELECT ledger, account, statement FROM ledger_accounts WHERE status = 'confirmed'"
+    ).fetchall()
+    return {ledger: (account, statement) for ledger, account, statement in rows}
+
+
 def gl_vs_tb(
     con: duckdb.DuckDBPyConnection, company: str, engagement: dict[str, Any], period: str
 ) -> Computed:
@@ -108,15 +127,8 @@ def gl_vs_tb(
     tb = require_file(con, company, eid, "trial_balance", period, "trial balance")
     lv = require_file(con, company, eid, "ledger_vouchers", period, "Ledger Vouchers")
     closing, moved = _tb(con, tb[0], tb[1]), _movements(con, lv[0], lv[1])
-    prior_name = _prior_period(engagement, period)
-    prior_file = loaded_file(con, eid, "trial_balance", prior_name) if prior_name else None
-    before = _tb(con, prior_file[0], prior_file[1]) if prior_file else None
-    mapping = {
-        ledger: (account, statement)
-        for ledger, account, statement in con.execute(
-            "SELECT ledger, account, statement FROM ledger_accounts WHERE status = 'confirmed'"
-        ).fetchall()
-    }
+    before = _prior_tb(con, engagement, period)
+    mapping = _confirmed(con)
     lines: list[dict[str, Any]] = []
     retained: list[str] = []
     for ledger in sorted({*closing, *moved, *(before or {})}):

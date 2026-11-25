@@ -175,13 +175,12 @@ def confirm_unit(run: Run, company: str, ref: str, unit: str) -> list[str]:
         ).fetchall()
         loaded = [f for f in found if f[3] == "loaded"]
         if len(loaded) != 1:
-            why = (
-                f"{len(loaded)} loaded payroll files match, use the file_id"
-                if loaded
-                else "a later snapshot superseded it"
-                if found
-                else "no payroll file of that name or id"
-            )
+            if loaded:
+                why = f"{len(loaded)} loaded payroll files match, use the file_id"
+            elif found:
+                why = "a later snapshot superseded it"
+            else:
+                why = "no payroll file of that name or id"
             known = ", ".join(
                 f"file_id {i} {n}"
                 for i, n in con.execute(

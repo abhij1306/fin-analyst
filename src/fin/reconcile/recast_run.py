@@ -22,7 +22,7 @@ import duckdb
 from fin.audit.errors import RecastCannotRun
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
-from fin.diligence.adjustments import propose_in
+from fin.diligence.adjustments import Evidence, propose_in
 from fin.diligence.engagement import company_database, record_event, require_open, rupees
 from fin.reconcile import recast, store
 from fin.reconcile.base import DETAIL_LEVELS, ZERO
@@ -90,7 +90,7 @@ def _propose(
             f"{rupees(recon_line['left_amount'])} against {rupees(recon_line['right_amount'])} "
             "booked by invoice date"
         ),
-        source_ref=f"service_recast {period} (recon #{result['recon_id']})",
+        evidence=Evidence(source_ref=f"service_recast {period} (recon #{result['recon_id']})"),
     )
     return f"proposed adjustment #{adjustment['adj_id']} ({rupees(delta)})"
 

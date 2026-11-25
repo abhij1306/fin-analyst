@@ -35,27 +35,12 @@ def write_notes_markdown(path: Path, out_dir: Path) -> list[Path]:
     Returns the files written; a section the PDF does not have is not written.
     Raises E101/E102/E104 like the value extractor, and E003 when a file cannot be written.
     """
-    pages: dict[str, list[tuple[int, list[list[dict[str, Any]]]]]] = {s: [] for s in SECTIONS}
-    current: str | None = None
-    with open_pdf(path) as pdf:
-        for page in pdf.pages:
-            for lines in page_parts(page):
-                current = _section_of(lines, current)
-                if current is not None:
-                    pages[current].append((page.page_number, lines))
-
+    pages = _section_pages(path)
     written = []
     for section in SECTIONS:
         if not pages[section]:
             continue
-        numbers = ", ".join(str(n) for n in dict.fromkeys(n for n, _ in pages[section]))
-        blocks = [f"Source: {path.name}, page(s) {numbers}"]
-        previous = None
-        for number, lines in pages[section]:
-            if number != previous:  # the two halves of a spread share one marker
-                blocks.append(f"<!-- page {number} -->")
-                previous = number
-            blocks.extend(_markdown_blocks(lines))
+        blocks = _section_blocks(path, pages[section])
         out = out_dir / f"{path.stem}.{section}.md"
         try:
             out_dir.mkdir(parents=True, exist_ok=True)
@@ -64,6 +49,34 @@ def write_notes_markdown(path: Path, out_dir: Path) -> list[Path]:
             raise DataFolderNotWritable(f"cannot write {out}: {exc}") from exc
         written.append(out)
     return written
+
+
+_Pages = list[tuple[int, list[list[dict[str, Any]]]]]
+
+
+def _section_pages(path: Path) -> dict[str, _Pages]:
+    """The pages (number, lines) of each section."""
+    pages: dict[str, _Pages] = {s: [] for s in SECTIONS}
+    current: str | None = None
+    with open_pdf(path) as pdf:
+        for page in pdf.pages:
+            for lines in page_parts(page):
+                current = _section_of(lines, current)
+                if current is not None:
+                    pages[current].append((page.page_number, lines))
+    return pages
+
+
+def _section_blocks(path: Path, pages: _Pages) -> list[str]:
+    numbers = ", ".join(str(n) for n in dict.fromkeys(n for n, _ in pages))
+    blocks = [f"Source: {path.name}, page(s) {numbers}"]
+    previous = None
+    for number, lines in pages:
+        if number != previous:  # the two halves of a spread share one marker
+            blocks.append(f"<!-- page {number} -->")
+            previous = number
+        blocks.extend(_markdown_blocks(lines))
+    return blocks
 
 
 def _section_of(lines: list[list[dict[str, Any]]], current: str | None) -> str | None:

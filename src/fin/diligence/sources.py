@@ -22,6 +22,7 @@ missing from it (ask the user for the export with all ledgers) and its ledgers n
 balance (masked: fin cannot tell whether they are parties).
 """
 
+from collections.abc import Callable
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -256,6 +257,65 @@ def _supersede(
     return earlier
 
 
+def _read_source(
+    path: Path,
+    kind: str,
+    profile: str | None,
+    hide: Callable[[str], str],
+    engagement: dict[str, Any],
+    month: int,
+) -> tuple[Any, tuple[str, str, date, date, str]]:
+    """The file's content (register lines, or the table) and (period, basis, start, end, profile
+    name)."""
+    name = path.name
+    if kind == "registers":
+        reg_table = read_registers(path, profile, hide)
+        parsed = registers.parse(reg_table, name)
+        period, basis, start, end = registers.file_period(parsed, engagement, month)
+        return parsed, (period, basis, start, end, reg_table.profile.name)
+    table = read_table(path, kind, profile, hide=hide)
+    if kind == "payroll":
+        period, basis = payroll.snapshot_period(table, engagement, month, name)
+    else:
+        period, basis = period_of_file(table, engagement, month, name)
+    return table, (period, basis, table.start, table.end, table.profile.name)
+
+
+def _load_source(
+    run: Run,
+    company: str,
+    con: duckdb.DuckDBPyConnection,
+    kind: str,
+    content: Any,
+    file: dict[str, Any],
+    masking: tuple[list[str], Masker],
+    when: tuple[dict[str, Any], int],
+) -> list[str]:
+    """Load the content by kind; the lines for the load's summary. `masking`: (the period's trial
+    balance ledgers, masker). `when`: (engagement, fiscal year start month)."""
+    tb, masker = masking
+    if kind == "trial_balance":
+        lines = _load_tb(run, company, con, content, file, masker)
+        added = ledgers.sync(con, run.run_id)
+        if added:
+            lines.append(
+                f"{added} new ledgers waiting for an account (`fin map ledgers {company}`)"
+            )
+        return lines
+    if kind == "payroll":
+        return _load_payroll(run, company, con, content, file, masker)
+    if kind == "registers":
+        engagement, month = when
+        lines = registers.load(run, company, con, content, file, masker, engagement, month)
+        added = customers.sync(con, run.run_id)
+        if added:
+            lines.append(
+                f"{added} new customers waiting for a sector (`fin map customers {company}`)"
+            )
+        return lines
+    return _load_lv(run, con, content, file, tb, masker)
+
+
 def ingest_source(
     run: Run, config: Config, company: str, path: Path, kind: str, profile: str | None
 ) -> Loaded:
@@ -271,18 +331,8 @@ def ingest_source(
         def hide(text: str) -> str:
             return masker.text(text) or text
 
-        if kind == "registers":
-            reg_table = read_registers(path, profile, hide)
-            parsed = registers.parse(reg_table, name)
-            period, basis, start, end = registers.file_period(parsed, engagement, month)
-            profile_name = reg_table.profile.name
-        else:
-            table = read_table(path, kind, profile, hide=hide)
-            if kind == "payroll":
-                period, basis = payroll.snapshot_period(table, engagement, month, name)
-            else:
-                period, basis = period_of_file(table, engagement, month, name)
-            start, end, profile_name = table.start, table.end, table.profile.name
+        content, found = _read_source(path, kind, profile, hide, engagement, month)
+        period, basis, start, end, profile_name = found
         tb = _tb_ledgers(con, engagement["engagement_id"], period)
         if kind == "ledger_vouchers" and not tb:
             raise TrialBalanceNeeded(
@@ -299,24 +349,9 @@ def ingest_source(
             (period, basis, start, end, profile_name),
         )
         masker.file_id = file["file_id"]
-        if kind == "trial_balance":
-            lines = _load_tb(run, company, con, table, file, masker)
-            added = ledgers.sync(con, run.run_id)
-            if added:
-                lines.append(
-                    f"{added} new ledgers waiting for an account (`fin map ledgers {company}`)"
-                )
-        elif kind == "payroll":
-            lines = _load_payroll(run, company, con, table, file, masker)
-        elif kind == "registers":
-            lines = registers.load(run, company, con, parsed, file, masker, engagement, month)
-            added = customers.sync(con, run.run_id)
-            if added:
-                lines.append(
-                    f"{added} new customers waiting for a sector (`fin map customers {company}`)"
-                )
-        else:
-            lines = _load_lv(run, con, table, file, tb, masker)
+        lines = _load_source(
+            run, company, con, kind, content, file, (tb, masker), (engagement, month)
+        )
         replaced = _supersede(run, company, con, file)
     head = f"loaded as source file_id {file['file_id']} ({kind} {period}, profile {profile_name})"
     if basis == "unaudited":

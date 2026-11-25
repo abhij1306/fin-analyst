@@ -76,7 +76,7 @@ _STATEMENTS = (
 )
 _SCOPE_WORD = re.compile(r"\b(standalone|consolidated)\b")  # in lower-case text
 # An audit status after a heading or alone: "Quarter ended (Unaudited)", "(Audited)".
-_AUDIT_STATUS = re.compile(r"\s*\(\s*(?:audited|unaudited|reviewed)\s*\)$")  # in lower-case text
+_AUDIT_STATUS = re.compile(r" ?\( ?(?:audited|unaudited|reviewed) ?\)$")  # in lower-case text
 
 
 @dataclass(frozen=True)

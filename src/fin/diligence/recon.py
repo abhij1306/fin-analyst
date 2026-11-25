@@ -50,7 +50,7 @@ SHOWN_ROWS = 5  # trial balance rows named in a line's source; the rest are coun
 class Ledger:
     sheet: str
     row: int
-    ledger: str
+    name: str
     net: Decimal  # closing debit - closing credit
     account: str | None  # its confirmed account
 
@@ -99,7 +99,7 @@ def input_hash(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], perio
         return None
     value = {
         "file": tb[0],
-        "ledgers": [[x.ledger, x.net, x.account] for x in _ledgers(con, tb[0])],
+        "ledgers": [[x.name, x.net, x.account] for x in _ledgers(con, tb[0])],
         "figures": [[a, v] for a, v, _ in statement_figures(con, period)],
         "threshold": engagement["query_threshold"],
     }
@@ -143,7 +143,7 @@ def build_lines(
             {
                 "kind": "unmapped",
                 "account": None,
-                "ledger": ledger.ledger,
+                "ledger": ledger.name,
                 "left_amount": ledger.net,
                 "right_amount": None,
                 "difference": ledger.net,

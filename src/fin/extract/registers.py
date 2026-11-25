@@ -14,6 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from openpyxl import Workbook
+
 from fin.audit.errors import LayoutUnknown
 from fin.extract.excel import open_workbook
 from fin.extract.ledger import SheetRow, _header, _rows, _top_rows
@@ -39,32 +41,11 @@ def read_registers(
     else:
         candidates = profiles_for("registers")
     book = open_workbook(path, data_only=True)
-    problems = []
+    problems: list[str] = []
     for profile in candidates:
-        found = {}
-        for part, columns in profile.parts.items():
-            sub = replace(profile, columns=columns)
-            hits = [(s, h) for s in book.worksheets if (h := _header(s, sub)) is not None]
-            if len(hits) > 1:
-                names = ", ".join(repr(s.title) for s, _ in hits)
-                problems.append(
-                    f"{profile.name}: the {part} headers are on several sheets ({names})"
-                )
-            if len(hits) == 1:
-                found[part] = hits[0]
-        if len(found) == len(profile.parts):
-            if len({sheet.title for sheet, _ in found.values()}) < len(found):
-                problems.append(
-                    f"{profile.name}: one sheet has both the sales and purchase headers"
-                )
-                continue
-            rows = {
-                part: _rows(sheet, first, cols) for part, (sheet, (first, cols)) in found.items()
-            }
-            if all(rows.values()):
-                return RegisterTable(profile, rows)
-            empty = ", ".join(part for part, r in rows.items() if not r)
-            problems.append(f"{profile.name}: no rows below the {empty} column header")
+        table = _read_profile(book, profile, problems)
+        if table is not None:
+            return table
     names = ", ".join(p.name for p in candidates) or "none"
     shown = "; ".join(
         f"sheet {s.title!r}: " + " / ".join(_top_rows(s, hide)) for s in book.worksheets
@@ -75,3 +56,33 @@ def read_registers(
         f"Title and header lines: {shown or 'none'}. Write a profile in templates/profiles/ "
         "(docs/development.md) and ingest again with --profile"
     )
+
+
+def _find_parts(book: Workbook, profile: Profile, problems: list[str]) -> dict[str, tuple]:
+    """For each sheet kind of the profile, the one sheet and header that fit it."""
+    found = {}
+    for part, columns in profile.parts.items():
+        sub: Profile = replace(profile, columns=columns)
+        hits = [(s, h) for s in book.worksheets if (h := _header(s, sub)) is not None]
+        if len(hits) > 1:
+            names = ", ".join(repr(s.title) for s, _ in hits)
+            problems.append(f"{profile.name}: the {part} headers are on several sheets ({names})")
+        if len(hits) == 1:
+            found[part] = hits[0]
+    return found
+
+
+def _read_profile(book: Workbook, profile: Profile, problems: list[str]) -> RegisterTable | None:
+    """The table when the profile fits the workbook; else None, with the reason in `problems`."""
+    found = _find_parts(book, profile, problems)
+    if len(found) != len(profile.parts):
+        return None
+    if len({sheet.title for sheet, _ in found.values()}) < len(found):
+        problems.append(f"{profile.name}: one sheet has both the sales and purchase headers")
+        return None
+    rows = {part: _rows(sheet, first, cols) for part, (sheet, (first, cols)) in found.items()}
+    if all(rows.values()):
+        return RegisterTable(profile, rows)
+    empty = ", ".join(part for part, r in rows.items() if not r)
+    problems.append(f"{profile.name}: no rows below the {empty} column header")
+    return None
