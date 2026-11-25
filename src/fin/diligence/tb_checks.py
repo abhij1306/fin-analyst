@@ -102,7 +102,8 @@ def _recon_line(ctx: Any, period: str) -> Line:
         )
     open_lines = con.execute(
         "SELECT count(*) FROM recon_items WHERE recon_id = ? AND kind NOT IN ('matched', "
-        "'unmapped') AND abs(difference) >= ? AND query_id IS NULL",
+        "'unmapped') AND abs(difference) >= ? AND (query_id IS NULL "
+        "OR query_id IN (SELECT query_id FROM accountant_queries WHERE status = 'withdrawn'))",
         [latest[0], ctx.engagement["query_threshold"]],
     ).fetchone()
     assert open_lines is not None
@@ -178,7 +179,9 @@ def inputs(ctx: Any) -> dict[str, Any]:
         latest = _latest_run(con, engagement_id, period)
         if latest is not None:
             items = con.execute(
-                "SELECT item_no, kind, account, ledger, difference, query_id FROM recon_items "
+                "SELECT item_no, kind, account, ledger, difference, query_id, "
+                "coalesce((SELECT status = 'withdrawn' FROM accountant_queries q "
+                "WHERE q.query_id = i.query_id), false) FROM recon_items i "
                 "WHERE recon_id = ? ORDER BY item_no",
                 [latest[0]],
             ).fetchall()

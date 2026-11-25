@@ -111,7 +111,10 @@ def files_in(path: Path) -> list[Path]:
     if path.is_file():
         return [path]
     if not path.is_dir():
-        raise FileUnreadable(f"{path} does not exist")
+        raise FileUnreadable(
+            f"{path} does not exist; put the company's files in <data folder>/inbox/<company>/ "
+            "(lower-case name) or pass a path"
+        )
     return sorted(p for p in path.iterdir() if p.is_file() and not p.name.startswith("."))
 
 

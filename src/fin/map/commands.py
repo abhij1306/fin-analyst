@@ -10,8 +10,9 @@ from typing import Annotated, Any
 
 import typer
 
-from fin.audit.errors import InvalidMapping
+from fin.audit.errors import DependencyMissing, InvalidMapping
 from fin.audit.logger import Run, execute
+from fin.db.conn import no_company_message
 from fin.diligence import bank_proposals, customers, ledgers
 from fin.diligence.customers import list_customers
 from fin.diligence.ledgers import list_ledgers
@@ -207,6 +208,8 @@ def _rows_by_company(
 
 
 def _list_review_items(run: Run, company: str | None, all_items: bool, json_output: bool) -> None:
+    if company and not company_db_path(run.root, company).is_file():
+        raise DependencyMissing(no_company_message(company))
     items = _items(run, company, all_items)
     run.pending_review = len(items)
     if json_output:

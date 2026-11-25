@@ -86,8 +86,9 @@ WITH lines AS (
         -- label and heading without a list marker ("(b)", "ii)", "b.") or a trailing colon
         regexp_replace(lower(trim(r.raw_label)), '^(\([a-z0-9]{1,4}\)|[a-z0-9]{1,4}[.)])\s*|\s*:$', '', 'g') AS label,
         regexp_replace(lower(trim(r.section)), '^(\([a-z0-9]{1,4}\)|[a-z0-9]{1,4}[.)])\s*|\s*:$', '', 'g') AS section,
-        sum(f.value) OVER w AS lines_total,
-        count(*) OVER w AS line_count
+        -- nil lines are left out of the total test: 500, 500 and a nil line are two lines, not a total and its parts
+        sum(f.value) FILTER (WHERE f.value <> 0) OVER w AS lines_total,
+        count(*) FILTER (WHERE f.value <> 0) OVER w AS line_count
     FROM facts f
     LEFT JOIN raw_values r ON r.raw_id = f.raw_id
     WHERE f.confirmed AND f.account IS NOT NULL

@@ -15,7 +15,7 @@ from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
-from fin.diligence import gates, ledgers, recon
+from fin.diligence import gates, ledgers, queries, recon
 from fin.diligence.engagement import open_engagement
 from fin.diligence.sources import ingest_source
 from fin.diligence.stub import parse_stub
@@ -363,6 +363,30 @@ def test_g1_checks_the_trial_balance_and_reopens_when_it_changes(
         "FY25: tb_vs_statements ran on data that has changed since (`fin reconcile acme "
         "--period FY25`)",
     )
+
+
+def test_a_withdrawn_query_does_not_count_for_g1_and_changes_its_hash(
+    root: Path, tmp_path: Path
+) -> None:
+    load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
+    map_all(root)
+    [first] = recon.tb_vs_statements(run(root), "acme")
+    quiet = "FY25: trial balance reconciled to the statements; every difference at or above"
+
+    def g1() -> tuple[list[str], str]:
+        with connect(company_db_path(root, "acme")) as con:
+            [gate, *_] = gates.evaluate(gates.context(con, root, "acme"))
+        return [line["text"] for line in gate["checklist"]], gate["input_hash"]
+
+    texts, before = g1()
+    assert any(t.startswith(quiet) for t in texts)
+
+    queries.set_status(run(root), "acme", first["drafted"], "withdrawn", note="not needed")
+
+    texts, after = g1()
+    assert not any(t.startswith(quiet) for t in texts)
+    assert any("not in a query" in t for t in texts)
+    assert after != before
 
 
 def test_a_stub_loads_labelled_unaudited_and_is_not_reconciled(root: Path, tmp_path: Path) -> None:

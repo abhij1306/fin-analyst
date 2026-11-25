@@ -39,6 +39,14 @@ class LockRetry:
 DEFAULT_RETRY = LockRetry()
 
 
+def no_company_message(company: str) -> str:
+    """E001's text for a company with no database (never ingested, or deleted)."""
+    return (
+        f"no database for company {company}; ingest its documents first "
+        f"(`uv run fin ingest {company}`)"
+    )
+
+
 @contextmanager
 def connect(
     path: Path, *, write: bool = False, retry: LockRetry = DEFAULT_RETRY
@@ -51,6 +59,8 @@ def connect(
     for any other reason.
     """
     if not write and not path.is_file():
+        if path.parent.name == "companies":
+            raise DependencyMissing(no_company_message(path.stem))
         raise DependencyMissing(f"database {path} does not exist; run `uv run fin init`")
     con = _open(path, write, retry)
     try:

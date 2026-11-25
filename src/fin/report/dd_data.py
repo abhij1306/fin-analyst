@@ -138,7 +138,8 @@ FROM accountant_queries WHERE engagement_id = ? ORDER BY query_id
 """
 _COLLECTIONS = """
 SELECT period, count(*) AS customers, sum(invoiced_inr) AS invoiced_inr,
-    sum(received_inr) AS received_inr, sum(open_inr) AS open_inr, sum(not_due_inr) AS not_due_inr,
+    sum(received_inr) AS received_inr, sum(partly_paid_inr) AS partly_paid_inr,
+    sum(open_inr) AS open_inr, sum(not_due_inr) AS not_due_inr,
     sum(overdue_1_30_inr) AS overdue_1_30_inr,
     sum(overdue_31_60_inr) AS overdue_31_60_inr, sum(overdue_61_90_inr) AS overdue_61_90_inr,
     sum(overdue_over_90_inr) AS overdue_over_90_inr

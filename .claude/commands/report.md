@@ -23,6 +23,8 @@ write the narrative.
 2. Read the data the report is built from, with `uv run fin sql <company> --sql "..."` only (never open `.duckdb` files):
    - Metrics by category: `SELECT category, metric, period, value, unit FROM metrics WHERE scope = '<scope>' ORDER BY category, metric, period`
    - What each metric means: `SELECT metric, category, definition, formula FROM metric_definitions`
+   - Account names: `uv run fin map accounts` or `SELECT DISTINCT account FROM current_facts`; zero rows usually
+     means a wrong account name or period, not missing data.
    - Facts: `SELECT account, period, value FROM current_facts WHERE scope = '<scope>' ORDER BY account, period`
    - Coverage: `SELECT * FROM statement_coverage WHERE scope = '<scope>'`, and pages not read:
      `SELECT file_name, unread_pages FROM documents WHERE status = 'loaded' AND unread_pages IS NOT NULL`

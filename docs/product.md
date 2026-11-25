@@ -122,7 +122,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `documents` — doc_id, file_name, sha256, version, fiscal_year, period_end (latest in the document), scope (standalone/consolidated), status, run_id, superseded_by, ingested_at
 - `raw_values` — raw_id, doc_id, sheet, cell, page, bbox, raw_label, raw_value_text, raw_unit, run_id
 - `facts` — fact_id, raw_id, account, fiscal_year, period, period_months, period_end, scope, value `DECIMAL(20,2)` in rupees, mapping_id, confirmed, run_id
-- `document_facts` and `current_facts` (views): one value per account, period and scope (lines a document maps to the same account are summed, a total line is not added to its parts; of just two equal lines, one is the total only when it is labelled "Total..." or the other sits under it)
+- `document_facts` and `current_facts` (views): one value per account, period and scope (lines a document maps to the same account are summed, a total line is not added to its parts; nil lines are left out of this test; of just two equal lines, one is the total only when it is labelled "Total..." or the other sits under it)
 - `notes` — doc_id, section, markdown_path
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
@@ -178,7 +178,9 @@ Every `fin` command:
   that looks like a gate approval, since only the user approves a diligence gate. It normalises the command (quotes
   and backslashes removed, whitespace collapsed, lower case) and asks when it has the word `gate` followed later by
   `approve`, or names `gate_approvals`, `approve_in`, `gates.approve` or `from fin.diligence.gates import`; when in
-  doubt it asks. It prints nothing for any other command or for input it cannot read, so it never blocks anything
+  doubt it asks. It is a guard for an agent that follows CLAUDE.md, not enforcement: other ways to approve are not
+  matched, and the controls are E801 (a command that needs a gate refuses until it is approved) and E802 (a gate with a
+  failing checklist cannot be approved). It prints nothing for any other command or for input it cannot read, so it never blocks anything
   else. `fin sql --write` cannot write gate approvals (E806, below). Every other data change goes through `fin`, which
   backs up and records it, without a prompt (the general guard hook was removed on 2026-11-07).
 
@@ -687,10 +689,10 @@ above the threshold in rupees (`difference`, `left_only`, `right_only`; a foreig
 `needs_query` (grouped with `fin query raise --items`, levels `match`, `receipt`, `invoice`); an `fx` line (the receipt's booked rupees in Ledger Vouchers, found on the customer's ledger within
 `fx_window_days` of the bank date at a rate within 10% of the invoice's, else the note `no booked value` naming the vouchers set aside, against the invoice's Amount in Rs) is listed, never queried; an unmatched invoice not
 past `invoice_due_days` at the period end is `not_yet_due`, listed. The view `customer_collections` gives, per period and
-customer, invoiced, received and open rupees, collection days and the overdue ageing of open invoices.
+customer, invoiced, received (matched in full), partly paid (invoices in a group whose receipts differ from them: the invoice amount) and open rupees (invoiced = received + partly paid + open), collection days (matched invoices only) and the overdue ageing of open invoices.
 `fin reconcile <co> bank_vs_tb` (`bank.py`) compares the INR statements ending on a period's last day with the trial
 balance's cash and bank ledgers. G2 requires both through the D4 checks (`fin/reconcile/checks.py`). The engagement copies `match_window_days`, `fx_window_days`, `invoice_due_days` and `fiscal_start_month` from `config.toml` when it opens. E854-E855. Golden check kinds:
-`bank_unmatched`, `invoice_unmatched`, `fx_line`, `customer_received`, `bank_vs_tb`.
+`bank_unmatched`, `invoice_unmatched`, `fx_line`, `customer_received`, `customer_partly_paid`, `bank_vs_tb`.
 
 Payroll (D3, `docs/decisions/d3-payroll.md`): `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot, one
 row per employee, with the profile `templates/profiles/sparsh_payroll.toml` (the period pattern has one group,

@@ -35,8 +35,8 @@ from typing import Any
 
 import duckdb
 
-from fin.audit.errors import ReportRenderFailed
-from fin.db.conn import connect
+from fin.audit.errors import DependencyMissing, ReportRenderFailed
+from fin.db.conn import connect, no_company_message
 from fin.db.rows import fetch_dicts
 from fin.extract.units import RUPEES_PER_UNIT
 from fin.map.dictionary import read_seed
@@ -208,7 +208,7 @@ def statement_rows(
     with its `unit` (see the module docstring). Raises E601 when there is nothing to show."""
     db = company_db_path(root, company)
     if not db.is_file():
-        raise ReportRenderFailed(f"no database for {company}; ingest its documents first")
+        raise DependencyMissing(no_company_message(company))
     with connect(db) as con:
         add_view(con, root)
         unit = document_unit(con)

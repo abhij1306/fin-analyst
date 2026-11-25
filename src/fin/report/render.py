@@ -28,6 +28,7 @@ from typing import Any
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing, ReportRenderFailed
 from fin.audit.logger import Run
 from fin.config import load_config
+from fin.db.conn import no_company_message
 from fin.db.schema import ensure_database
 from fin.paths import company_db_path
 from fin.report.chart import line_chart
@@ -392,7 +393,7 @@ def make_report(
     scope = scope or config.default_scope
     db = company_db_path(root, company)
     if not db.is_file():
-        raise ReportRenderFailed(f"no database for {company}; ingest its documents first")
+        raise DependencyMissing(no_company_message(company))
     ensure_database(db, "company")
     folder = report_dir(root, company, scope)
     narrative_path = folder / "narrative.md"

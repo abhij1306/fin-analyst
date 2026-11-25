@@ -138,6 +138,13 @@ answer with the date, in the client's words. Do not change fin; the maintainers 
     and **which line is the total when several map to one account** (two lines: a total only when labelled "Total"
     or the other sits under it; three or more: the line equal to the sum of the others). Report how many
     `statement` lines carried the "adds N printed lines" note, and how many passed and failed.
+11. **Audit findings, items D-1 to D-10, D-13 and D-14** ([final-fixes.md](decisions/final-fixes.md), "Client
+    decisions"; each marked NEEDS CLIENT CONFIRMATION, with its options): D-1 the first period's recast has no
+    opening deferral; D-2 `bank_vs_tb` includes cash in hand and deposits; D-3 an omitted nil line makes EBITDA and
+    debt NULL; D-4 the 1 lakh validation tolerance; D-5 below-threshold differences that never roll up; D-6 lakh/crore
+    digit grouping; D-7 exact full-name masking; D-8 typed free text stored unmasked; D-9 bank account numbers in full;
+    D-10 which Tally groups are party groups (the trial balance load lists the groups it treated as party groups: show
+    them); D-13 permission mode and allow rules for this agent; D-14 the PDF layout heuristics.
 
 Skip the decisions the eval and their documents do not touch. The gate-reopening question in
 [test-run.md](decisions/test-run.md) ("Open for the owner") is for fin's owner, not the client.

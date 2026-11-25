@@ -284,6 +284,7 @@ def collections_table(data: dict[str, Any], unit: str) -> str:
             str(runs[r["period"]]["as_of"]) if r["period"] in runs else "",
             _m(r["invoiced_inr"], unit),
             _m(r["received_inr"], unit),
+            _m(r["partly_paid_inr"], unit),
             _m(r["open_inr"], unit),
             _m(r["not_due_inr"], unit),
             _m(r["overdue_1_30_inr"], unit),
@@ -294,8 +295,8 @@ def collections_table(data: dict[str, Any], unit: str) -> str:
         for r in data["collections"]
     ]
     return table(
-        ["Period", "Aged at", "Invoiced", "Received", "Open", "Not yet due", "Overdue 1-30 days",
-         "31-60", "61-90", "Over 90"],
+        ["Period", "Aged at", "Invoiced", "Received", "Partly paid", "Open", "Not yet due",
+         "Overdue 1-30 days", "31-60", "61-90", "Over 90"],
         rows,
         "No bank statement is matched to invoices.",
     )  # fmt: skip
@@ -308,13 +309,14 @@ def collections_customers_table(data: dict[str, Any], unit: str) -> str:
             r["customer"],
             _m(r["invoiced_inr"], unit),
             _m(r["received_inr"], unit),
+            _m(r["partly_paid_inr"], unit),
             _m(r["open_inr"], unit),
             "n/a" if r["collection_days"] is None else f"{r['collection_days']} days",
         ]
         for r in data["collections_by_customer"]
     ]
     return table(
-        ["Period", "Customer", "Invoiced", "Received", "Open", "Days to collect"],
+        ["Period", "Customer", "Invoiced", "Received", "Partly paid", "Open", "Days to collect"],
         rows,
         "No bank statement is matched to invoices.",
     )
