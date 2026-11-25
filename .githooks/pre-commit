@@ -1,0 +1,12 @@
+#!/usr/bin/env node
+// Pre-commit hook: staged authored source files stay under 6,000 tokens (tools/check_file_size.mjs).
+// Install once per clone: git config core.hooksPath .githooks
+import { spawnSync } from "node:child_process";
+
+const staged = spawnSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
+  encoding: "utf8",
+});
+const files = (staged.stdout ?? "").split("\n").filter(Boolean);
+if (files.length === 0) process.exit(0);
+const result = spawnSync("node", ["tools/check_file_size.mjs", ...files], { stdio: "inherit" });
+process.exit(result.status ?? 1);

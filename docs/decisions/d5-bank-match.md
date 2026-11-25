@@ -67,7 +67,7 @@ Only decisions that affect the analysis or what the user sees. Plan: docs/dilige
   due (up to the due days), then overdue 1–30, 31–60, 61–90 and over 90 days past the due days.
 - **Partial payments:** an invoice matched with a difference (a short payment, tax deducted) counts as received in full
   in the view; the shortfall is its own `difference` line, queried like any other, not an open invoice.
-- **Change:** `db/schema/sources.sql` view `customer_collections`.
+- **Change:** `db/schema/sources_views.sql` view `customer_collections`.
 
 ## 9. Claude's proposals
 - **Decision:** a proposal joins bank credit lines and invoice lines (n:m); it is applied only after the user confirms it

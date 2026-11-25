@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from fin.extract.pdf import extract_pdf, period_end_in
+from fin.extract.pdf import extract_pdf
+from fin.extract.pdf_lines import period_end_in
 from tests.synthetic_pdf import write_pdf
 
 

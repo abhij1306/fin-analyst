@@ -16,7 +16,8 @@ from fin.audit.errors import (
     ScannedPdf,
     UnitNotDetected,
 )
-from fin.extract.pdf import extract_pdf, render_crop
+from fin.extract.pdf import extract_pdf
+from fin.extract.pdf_reader import render_crop
 from tests.synthetic_pdf import write_pdf
 
 SAMPLES = Path(__file__).parent.parent / "fixtures" / "sample-financials"

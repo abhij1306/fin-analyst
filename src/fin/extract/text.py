@@ -13,16 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from fin.audit.errors import DataFolderNotWritable
-from fin.extract.pdf import (
-    TITLE_LINES,
-    Column,
-    header_starting,
-    line_text,
-    open_pdf,
-    page_parts,
-    split_row,
-    statement_of,
-)
+from fin.extract.pdf_columns import header_starting, split_row
+from fin.extract.pdf_lines import line_text, open_pdf, page_parts, statement_of
+from fin.extract.pdf_model import TITLE_LINES, Column
 
 _AUDITOR_TITLE = re.compile(r"auditor['’]?s['’]? report", re.I)
 SECTIONS = ("auditor_report", "notes")

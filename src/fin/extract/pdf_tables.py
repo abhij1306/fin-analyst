@@ -36,7 +36,8 @@ from datetime import date
 from decimal import Decimal
 
 from fin.audit.errors import NoTablesFound, ParseError, PeriodsNotDetected, UnitNotDetected
-from fin.extract.pdf import FIGURE_TEXT, SUB_HEADING, PdfValue, period_end_in
+from fin.extract.pdf_lines import period_end_in
+from fin.extract.pdf_model import FIGURE_TEXT, SUB_HEADING, PdfValue
 from fin.extract.periods import fiscal_year_of, months_in, period_of, resolve_months
 from fin.extract.units import parse_figure, to_rupees, unit_in
 

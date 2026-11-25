@@ -29,6 +29,7 @@ jobs:
       - run: uv run --frozen ruff check .
       - run: uv run --frozen ruff format --check .
       - run: shellcheck install.sh
+      - run: node tools/check_file_size.mjs
 
   # The suite is split into 3 groups of about equal time (pytest-split, from .test_durations), each
   # on its own runner with one pytest worker per core. Refresh the timings when they drift:
