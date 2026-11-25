@@ -87,6 +87,11 @@ def backups_dir(root: Path) -> Path:
     return root / "backups"
 
 
+def evals_dir(root: Path) -> Path:
+    """Golden sets, eval reports and results bundles (docs/EVAL.md). Made on first use."""
+    return root / "evals"
+
+
 def probe_writable(folder: Path) -> None:
     """Raise E003 unless a file can be created and removed in `folder`."""
     probe = folder / ".fin_write_probe"

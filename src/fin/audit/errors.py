@@ -23,6 +23,8 @@ a command returns when the error ends it:
   or no audited statement figures for the period) stops the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
+- E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
+  to bundle, a bundle that would contain a real name) stop the command: exit 2.
 """
 
 # Exit codes
@@ -347,3 +349,35 @@ class PayrollRowInvalid(FinError):
     mask or trace a row it cannot identify, and never drops one."""
 
     code = "E821"
+
+
+# E83x: golden evaluation (fin.evals, docs/EVAL.md). Stop the command.
+
+
+class GoldenSetMissing(FinError):
+    """E830. `fin eval run`: the company has no golden set (`evals/<company>/golden.csv`); make one
+    with `fin eval init <company>`."""
+
+    code = "E830"
+
+
+class GoldenSetInvalid(FinError):
+    """E831. The golden set cannot be read: a missing column, an unknown kind, scope, account or
+    unit, a figure that is not a number, a checked line with no expected value or source, or the
+    same check twice. The message lists every line at fault. Nothing scored or changed."""
+
+    code = "E831"
+
+
+class NothingToBundle(FinError):
+    """E832. `fin eval bundle`: no company database to evaluate (or the company named has none).
+    Nothing written."""
+
+    code = "E832"
+
+
+class BundleNotAnonymous(FinError):
+    """E833. `fin eval bundle`: the results would contain a real name (a masked party, a company
+    or a file name). The name is not printed. Nothing written."""
+
+    code = "E833"
