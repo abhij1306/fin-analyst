@@ -59,8 +59,9 @@ def reconcile(
     Differences are queried, never fixed."""
 
     def body(run: Run) -> None:
+        not_run: list[str] = []
         if name is None:
-            results = run_all(run, company, period)
+            results, not_run = run_all(run, company, period)
         elif name in RECONCILIATIONS:
             results = run_new(run, company, name, period)
         else:
@@ -69,5 +70,7 @@ def reconcile(
             typer.echo(json.dumps(results, indent=2, default=str))
         else:
             typer.echo("\n".join(_text(result) for result in results))
+        for message in not_run:
+            typer.echo(f"not run: {message}", err=True)
 
     execute("reconcile", {"company": company, "name": name, "period": period}, body)

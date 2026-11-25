@@ -56,7 +56,8 @@ def _line(ctx: Any, name: str, period: str) -> Line:
     if latest[1] != now[5:]:
         return False, f"{period}: {name} ran on data that has changed since ({command})"
     counts = ctx.con.execute(
-        "SELECT count(*) FILTER (WHERE needs_query AND query_id IS NULL), "
+        "SELECT count(*) FILTER (WHERE needs_query AND (query_id IS NULL OR query_id IN "
+        "(SELECT query_id FROM accountant_queries WHERE status = 'withdrawn'))), "
         "count(*) FILTER (WHERE kind = 'fx'), count(*) FILTER (WHERE kind = 'not_reconciled') "
         "FROM recon_items WHERE recon_id = ?",
         [latest[0]],
@@ -95,8 +96,10 @@ def inputs(ctx: Any) -> dict[str, Any]:
             else [
                 list(row)
                 for row in ctx.con.execute(
-                    "SELECT item_id, kind, difference, query_id FROM recon_items "
-                    "WHERE recon_id = ? AND needs_query ORDER BY item_id",
+                    "SELECT i.item_id, i.kind, i.difference, i.query_id, "
+                    "(SELECT status = 'withdrawn' FROM accountant_queries q "
+                    "WHERE q.query_id = i.query_id) FROM recon_items i "
+                    "WHERE i.recon_id = ? AND i.needs_query ORDER BY i.item_id",
                     [latest[0]],
                 ).fetchall()
             ]

@@ -4,7 +4,8 @@ Claude groups the lines at or above the threshold of one period into an issue an
 wording; the user approves it like any query. The query's amount is the lines' differences added
 up without their signs; its sources are the lines' two sources; `query_items` links the lines, so
 the count and value of each kind of difference come from it. The lines must be in the latest run of
-their reconciliation (E841) and be lines that need a query and are not in one yet (E842).
+their reconciliation, on data that has not changed since (E841), and be lines that need a query and
+are in no active query (a withdrawn one leaves its lines open) (E842).
 """
 
 from typing import Any
@@ -17,27 +18,30 @@ from fin.db.conn import transaction
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
 from fin.diligence.queries import draft_in
+from fin.reconcile import current_hash
 
 SHOWN = 10  # lines whose sources a query names; the rest are counted
 
 
 def parse_ids(text: str) -> list[int]:
     """'12,13, 14' -> [12, 13, 14]. ValueError for anything else."""
-    ids = [int(part) for part in text.replace(" ", "").split(",") if part]
+    ids = [int(part.strip()) for part in text.split(",") if part.strip()]
     if not ids:
         raise ValueError("no item ids")
     return list(dict.fromkeys(ids))
 
 
 def _lines(
-    con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], ids: list[int]
+    con: duckdb.DuckDBPyConnection, company: str, engagement: dict[str, Any], ids: list[int]
 ) -> list[dict[str, Any]]:
     marks = ", ".join("?" for _ in ids)
     found = {
         row["item_id"]: row
         for row in fetch_dicts(
             con,
-            "SELECT i.*, r.engagement_id, r.name, r.period, r.recon_id = (SELECT max(recon_id) "
+            "SELECT i.*, r.engagement_id, r.name, r.period, r.input_hash, "
+            "(SELECT status FROM accountant_queries q WHERE q.query_id = i.query_id) AS "
+            "query_status, r.recon_id = (SELECT max(recon_id) "
             "FROM recon_runs WHERE engagement_id = r.engagement_id AND name = r.name "
             f"AND period = r.period) AS is_latest FROM recon_items i JOIN recon_runs r "
             f"USING (recon_id) WHERE i.item_id IN ({marks})",
@@ -59,6 +63,21 @@ def _lines(
             "of their reconciliation (it was run again since); nothing raised. Take the ids from "
             "the latest `fin reconcile`"
         )
+    changed = sorted(
+        {
+            (line["name"], line["period"])
+            for line in found.values()
+            if current_hash(con, company, engagement, line["name"], line["period"])
+            != line["input_hash"]
+        }
+    )
+    if changed:
+        raise ReconItemUnknown(
+            "the data of "
+            + ", ".join(f"{name} {period}" for name, period in changed)
+            + " has changed since it was reconciled; nothing raised. Run `fin reconcile "
+            f"{company}` again and take the ids from it"
+        )
     return [found[i] for i in ids]
 
 
@@ -79,11 +98,12 @@ def raise_from_items(
     unknown or stale line, E842 for a line that cannot be raised or lines of several periods."""
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
-        lines = _lines(con, engagement, ids)
+        lines = _lines(con, company, engagement, ids)
         bad = [
             f"#{line['item_id']}"
             for line in lines
-            if not line["needs_query"] or line["query_id"] is not None
+            if not line["needs_query"]
+            or (line["query_id"] is not None and line["query_status"] != "withdrawn")
         ]
         if bad:
             raise ReconItemNotQueryable(

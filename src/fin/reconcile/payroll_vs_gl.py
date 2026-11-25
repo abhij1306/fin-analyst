@@ -34,8 +34,14 @@ def applies(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], period: 
     eid = engagement["engagement_id"]
     return (
         period in engagement["periods"].split(",")
-        and loaded_file(con, eid, "payroll", period) is not None
         and loaded_file(con, eid, "ledger_vouchers", period) is not None
+        and con.execute(
+            "SELECT count(*) FROM source_files s JOIN payroll_units u USING (file_id) "
+            "WHERE s.engagement_id = ? AND s.kind = 'payroll' AND s.period = ? "
+            "AND s.status = 'loaded' AND u.unit = 'annual'",
+            [eid, period],
+        ).fetchone()[0]
+        > 0
     )
 
 
@@ -66,7 +72,9 @@ def payroll_vs_gl(
         [payroll[0]],
     ).fetchall()
     use_ctc = any(row[3] is not None for row in rows)
-    total = sum((Decimal(r[3 if use_ctc else 2] or 0) for r in rows), ZERO)
+    column = 3 if use_ctc else 2
+    total = sum((Decimal(r[column] or 0) for r in rows), ZERO)
+    blank = sum(1 for r in rows if r[column] is None)
     entries = books_entries(con, company, period, voucher[0], ACCOUNTS, "employee expense")
     books = sum((e[5] - e[6] for e in entries), ZERO)
     measure = "CTC" if use_ctc else "gross salary"
@@ -81,7 +89,13 @@ def payroll_vs_gl(
                 rows_text([(voucher[1], e[0], e[1]) for e in entries]),
                 note=f"the payroll snapshot's annual {measure} for {len(rows)} employees "
                 "(a snapshot at its date: it omits earlier leavers) vs the debit less credit of "
-                "the employee expense ledgers",
+                "the employee expense ledgers"
+                + (
+                    f"; INCOMPLETE: {blank} employees have no {measure} in the file and add "
+                    "nothing to the payroll figure"
+                    if blank
+                    else ""
+                ),
             )
         ],
         payroll[0],

@@ -10,7 +10,7 @@ Product-level choices for the register, ledger, trial balance and payroll reconc
 
 ## 2. How a register invoice meets a ledger voucher
 
-- **Decision:** Pass 1: the register's invoice number equals the voucher number. Pass 2: of what is left, the same party token and exactly the same rupee amount (the note says the voucher number differs). Lines with the same number are added up on each side. Anything else is left_only (register only) or right_only (books only).
+- **Decision:** Pass 1: the register's invoice number equals the voucher number. Pass 2: of what is left, the same party token and exactly the same rupee amount (the note says the voucher number differs). Lines with the same number are added up on each side; a purchase invoice is identified by vendor and number (vendors number their own invoices), so the same number from two vendors stays two invoices and is shown with its vendor. Anything else is left_only (register only) or right_only (books only).
 - **Why:** The Ledger Vouchers export has no supplier invoice number, so purchase vouchers rarely carry the vendor's number; party plus amount is the only deterministic link. No fuzzy matching.
 - **How to change it:** `reconcile/registers.py:_pairs`.
 
@@ -34,13 +34,13 @@ Product-level choices for the register, ledger, trial balance and payroll reconc
 
 ## 6. payroll_vs_gl compares CTC with the books' employee expense
 
-- **Decision:** One line per annual period: the payroll snapshot's CTC (gross salary when no row has one) vs the debit less credit of the employee expense ledgers over the year. It refuses unless the user confirmed the unit is annual. The stub has none.
+- **Decision:** One line per annual period: the payroll snapshot's CTC (gross salary when no row has one) vs the debit less credit of the employee expense ledgers over the year. It refuses unless the user confirmed the unit is annual. The stub has none. An employee with no value in the measure adds nothing, and the line's note says "INCOMPLETE" with how many.
 - **Why:** CTC includes employer costs, so it is closer to the books than gross. The snapshot omits earlier leavers, so a difference is expected and is a question, not an error; the note says so.
 - **How to change it:** `reconcile/payroll_vs_gl.py:payroll_vs_gl`.
 
 ## 7. Queries on these lines are raised by Claude, grouped, and kept across reruns
 
-- **Decision:** fin drafts no query for these lines. `fin query raise --items` makes one draft issue from lines of one period that need a query and are in none; its amount is the lines' differences added without signs. Running again keeps a query on a line whose level, key, kind and amounts are unchanged; a changed line needs a new query. A withdrawn query leaves its lines open.
+- **Decision:** fin drafts no query for these lines. `fin query raise --items` makes one draft issue from lines of one period that need a query and are in none; its amount is the lines' differences added without signs. Running again keeps a query on a line whose level, key, kind and amounts are unchanged; a changed line needs a new query. A withdrawn query leaves its lines open (G2 counts them as not in a query, and they can be raised again). Lines can only be raised while the data is unchanged since the run.
 - **Why:** Plan D4: Claude groups, the user approves.
 - **How to change it:** `reconcile/items.py`, `reconcile/store.py:_earlier_query`.
 

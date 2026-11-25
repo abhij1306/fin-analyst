@@ -20,7 +20,7 @@ from fin.diligence.engagement import company_database, require_open
 from fin.reconcile import gl_vs_tb as gl_module
 from fin.reconcile import payroll_vs_gl as payroll_module
 from fin.reconcile import registers, store
-from fin.reconcile.base import Computed
+from fin.reconcile.base import Computed, input_hash
 from fin.reconcile.format import format_result
 
 Compute = Callable[[duckdb.DuckDBPyConnection, str, dict[str, Any], str], Computed]
@@ -40,6 +40,19 @@ RECONCILIATIONS: dict[str, tuple[Compute, Applies]] = {
     payroll_module.NAME: (payroll_module.payroll_vs_gl, payroll_module.applies),
 }
 NAMES = (recon.NAME, *RECONCILIATIONS)
+
+
+def current_hash(
+    con: duckdb.DuckDBPyConnection, company: str, engagement: dict[str, Any], name: str, period: str
+) -> str | None:
+    """The hash of what the reconciliation compares now (None when it cannot run now)."""
+    if name == recon.NAME:
+        return recon.input_hash(con, engagement, period)
+    try:
+        computed = RECONCILIATIONS[name][0](con, company, engagement, period)
+    except ReconCannotRun:
+        return None
+    return input_hash(computed, engagement["query_threshold"])
 
 
 def periods_of(engagement: dict[str, Any]) -> list[str]:
@@ -81,10 +94,13 @@ def run_new(run: Run, company: str, name: str, period: str | None) -> list[dict[
     return results
 
 
-def run_all(run: Run, company: str, period: str | None) -> list[dict[str, Any]]:
+def run_all(run: Run, company: str, period: str | None) -> tuple[list[dict[str, Any]], list[str]]:
     """tb_vs_statements for the annual periods with a trial balance and statement figures, then
-    every other reconciliation for the periods it applies to. E840 when none could run."""
+    every other reconciliation for the periods it applies to: (results, the E840 messages of the
+    ones that could not run, for example no ledger confirmed to revenue yet). E840 when none
+    ran."""
     results: list[dict[str, Any]] = []
+    not_run: list[str] = []
     with company_database(run, company) as con:
         engagement = require_open(con, company)
         periods = [p for p in periods_of(engagement) if period in (None, p)]
@@ -103,10 +119,14 @@ def run_all(run: Run, company: str, period: str | None) -> list[dict[str, Any]]:
     for p in statements:
         results += recon.tb_vs_statements(run, company, p)
     for name in todo:
-        results += run_new(run, company, name, period)
+        try:
+            results += run_new(run, company, name, period)
+        except ReconCannotRun as error:
+            not_run.append(str(error))
     if not results:
         raise ReconCannotRun(
             f"{company}: no reconciliation has its inputs loaded (a trial balance with statements, "
             "Ledger Vouchers with registers, or payroll); nothing recorded"
+            + "".join(f"; {message}" for message in not_run)
         )
-    return results
+    return results, not_run

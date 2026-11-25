@@ -73,6 +73,7 @@ class Doc:
     key: str
     party: str | None
     day: date
+    number: str = ""
     amount: Decimal = ZERO
     refs: list[tuple[str, str, int]] = field(default_factory=list)
     foreign: Decimal | None = None
@@ -103,16 +104,26 @@ def applies(
     )
 
 
-def _docs(register: list[Any], spec: Spec) -> dict[str, Doc]:
-    docs: dict[str, Doc] = {}
+def _docs(register: list[Any], spec: Spec) -> list[Doc]:
+    """Register invoices: lines with the same number (and, for purchases, the same vendor: vendors
+    number their own invoices) added up. A number that two parties share is shown with the party."""
+    docs: dict[tuple[str, str], Doc] = {}
     for _, file_name, sheet, row, number, day, party, amount_inr, amount, currency in register:
-        doc = docs.setdefault(str(number).strip(), Doc(str(number).strip(), party, day))
+        number = str(number).strip()
+        scope = party if spec.kind == "purchase" else ""
+        doc = docs.setdefault((scope, number), Doc(number, party, day, number))
         doc.amount += amount_inr
         doc.refs.append((file_name, sheet, row))
         if currency and currency.upper() != "INR" and amount is not None:
             doc.currency = currency
             doc.foreign = (doc.foreign or ZERO) + Decimal(amount)
-    return docs
+    counts: dict[str, int] = {}
+    for doc in docs.values():
+        counts[doc.number] = counts.get(doc.number, 0) + 1
+    for doc in docs.values():
+        if counts[doc.number] > 1:
+            doc.key = f"{doc.number} ({doc.party})"
+    return list(docs.values())
 
 
 def _vouchers(entries: list[Any], file_name: str, spec: Spec) -> dict[str, Doc]:
@@ -126,21 +137,30 @@ def _vouchers(entries: list[Any], file_name: str, spec: Spec) -> dict[str, Doc]:
 
 
 def _pairs(
-    register: dict[str, Doc], books: dict[str, Doc]
+    register: list[Doc], books: dict[str, Doc], spec: Spec
 ) -> list[tuple[Doc | None, Doc | None, str | None]]:
-    pairs: list[tuple[Doc | None, Doc | None, str | None]] = [
-        (doc, books[key], None) for key, doc in register.items() if key in books
-    ]
-    free = sorted((d for k, d in books.items() if k not in register), key=lambda d: (d.day, d.key))
-    for doc in sorted(
-        (d for k, d in register.items() if k not in books), key=lambda d: (d.day, d.key)
-    ):
+    pairs: list[tuple[Doc | None, Doc | None, str | None]] = []
+    used: set[str] = set()
+    left: list[Doc] = []
+    for doc in register:
+        voucher = books.get(doc.number)
+        if (
+            voucher
+            and (spec.kind == "sales" or voucher.party == doc.party)
+            and doc.number not in used
+        ):
+            used.add(doc.number)
+            pairs.append((doc, voucher, None))
+        else:
+            left.append(doc)
+    free = sorted((d for k, d in books.items() if k not in used), key=lambda d: (d.day, d.key))
+    for doc in sorted(left, key=lambda d: (d.day, d.key)):
         match = next((v for v in free if v.party == doc.party and v.amount == doc.amount), None)
         if match is None:
             pairs.append((doc, None, None))
             continue
         free.remove(match)
-        note = f"matched on party and amount: the voucher number is {match.key}, not {doc.key}"
+        note = f"matched on party and amount: the voucher number is {match.key}, not {doc.number}"
         pairs.append((doc, match, note))
     pairs += [(None, voucher, None) for voucher in free]
     return sorted(pairs, key=lambda p: ((p[0] or p[1]).day, (p[0] or p[1]).key))  # type: ignore[union-attr]
@@ -256,7 +276,7 @@ def compute(
         ),
         sources,
     )
-    invoices = [_invoice_line(spec, pair) for pair in _pairs(register, books)]
+    invoices = [_invoice_line(spec, pair) for pair in _pairs(register, books, spec)]
     return Computed(
         [*by_month, *by_party, *invoices],
         first_file,

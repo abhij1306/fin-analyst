@@ -260,3 +260,33 @@ def test_golden_eval_checks_cover_the_reconciliation_lines(root: Path) -> None:
 
     assert [c["outcome"] for c in result["checks"]] == ["pass", "fail", "pass", "missing"]
     assert result["counts"]["recon_lines"]["sales_register_vs_gl"]["not_in_a_query"] == 2
+
+
+def test_a_withdrawn_query_leaves_its_lines_open_and_they_can_be_raised_again(root: Path) -> None:
+    from fin.diligence import queries
+
+    result = recon(root, "purchase_register_vs_gl")
+    ids = [x["item_id"] for x in result["lines"] if x["needs_query"]]
+    query, _ = items.raise_from_items(run(root), "acme", ids, "first")
+    assert g2(root)  # computed
+
+    queries.set_status(run(root), "acme", [query["query_id"]], "withdrawn", note="reworded")
+
+    assert any("not in a query" in t for ok, t in g2(root) if not ok and "purchase" in t)
+    again, _ = items.raise_from_items(run(root), "acme", ids, "second")
+    assert again["query_id"] != query["query_id"]
+
+
+def test_vendors_sharing_an_invoice_number_stay_apart_and_stale_data_is_refused(
+    root: Path,
+) -> None:
+    result = recon(root, "sales_register_vs_gl")
+    ids = [x["item_id"] for x in result["lines"] if x["needs_query"]]
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "UPDATE ledger_accounts SET account = 'other_expenses' WHERE ledger = 'Software Sales'"
+        )
+    with pytest.raises(ReconItemUnknown, match="has changed since"):
+        items.raise_from_items(run(root), "acme", ids, "stale data")
+    with pytest.raises(ValueError):
+        items.parse_ids("1 2")
