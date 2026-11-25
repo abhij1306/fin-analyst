@@ -97,7 +97,7 @@ def _insert(
     engagement: dict[str, Any],
     values: dict[str, Any],
 ) -> dict[str, Any]:
-    check_tokens(con, values["question"])
+    check_tokens(con, f"{values['question']} {values['sources'] or ''}")
     now = utcnow()
     row = {
         "engagement_id": engagement["engagement_id"],

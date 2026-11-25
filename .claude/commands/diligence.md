@@ -49,7 +49,8 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      Propose one per ledger from its name and group (`uv run fin map accounts` for the accounts: balance sheet or
      profit and loss). Where the audited statements have the line, propose the account they map it to
      (`uv run fin statements <company>`): a bank ledger goes to `cash_and_bank_balances` when the statements print
-     "Cash and bank balances", not to `cash`, or `tb_vs_statements` drafts two queries for one figure in a JSON file `[{"ledger": ..., "account": ..., "confidence": 0-1, "reason": ...}]` and run
+     "Cash and bank balances", not to `cash`, or `tb_vs_statements` drafts two queries for one figure.
+     Write the proposals in a JSON file `[{"ledger": ..., "account": ..., "confidence": 0-1, "reason": ...}]` and run
      `uv run fin map ledgers <company> <file.json>`. Then show `uv run fin review list <company> --ledgers` and confirm
      or reject only what the user says: `uv run fin review confirm <company> <ids> --ledgers [--account <account>]`,
      `uv run fin review reject <company> <ids> --ledgers`. Never confirm a ledger on your own.

@@ -233,6 +233,10 @@ def test_nothing_approved_and_unknown_tokens_are_refused(root: Path) -> None:
     manual = {"amount": D(1), "scope": None, "sources": "x"}
     with pytest.raises(UnknownToken, match="CUST-0099"):
         queries.raise_manual(context, "acme", period="FY25", question="About CUST-0099?", **manual)
+    with pytest.raises(UnknownToken, match="CUST-0098"):
+        queries.raise_manual(
+            context, "acme", period="FY25", question="About?", **(manual | {"sources": "CUST-0098"})
+        )
     with pytest.raises(QueryPeriodInvalid, match="FY99"):
         queries.raise_manual(context, "acme", period="FY99", question="?", **manual)
     query = queries.raise_manual(context, "acme", period="FY25", question="About?", **manual)
