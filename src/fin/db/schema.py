@@ -40,6 +40,7 @@ SCHEMA_FILES = {
         "diligence_nwc.sql",
         "fdd_contracts.sql",
         "fdd_bsheet.sql",
+        "fdd_inquiries.sql",
     ],
 }
 

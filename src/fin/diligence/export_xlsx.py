@@ -74,7 +74,9 @@ def _issue_sheet(book: Workbook, issue: Issue, u: Unmasker) -> None:
     sheet["A1"] = f"Query {issue.query_id}: {issue.title}"
     sheet["A1"].font = BOLD
     sheet["A2"] = u(issue.query["question"])
-    sheet["A3"] = f"Amount at issue: {rupees(issue.query['amount'])}"
+    sheet["A3"] = (
+        "" if issue.query["amount"] is None else f"Amount at issue: {rupees(issue.query['amount'])}"
+    )
     sheet["A4"] = u(issue.query["sources"]) if not issue.lines else issue.difference_text()
     rows = []
     for line in issue.lines:

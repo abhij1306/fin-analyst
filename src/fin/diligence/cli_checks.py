@@ -8,11 +8,21 @@ from fin.reconcile import items as recon_items
 
 
 def check_raise_options(
-    items: str | None, finding: int | None, manual: tuple[Any, Any, Any, Any]
+    items: str | None,
+    finding: int | None,
+    manual: tuple[Any, Any, Any, Any],
+    topic: str | None = None,
 ) -> list[int]:
     """The item ids of `query raise --items` ([] otherwise); BadParameter for a bad mix of the
     options. `manual` is (amount, period, scope, source)."""
     amount, period, _, source = manual
+    if topic is not None:
+        if items is not None or finding is not None or amount is not None or source is not None:
+            raise typer.BadParameter(
+                "--topic raises an inquiry (no amount or source); do not give --finding, "
+                "--items, --amount or --source too"
+            )
+        return []
     if items is not None:
         if finding is not None or any(value is not None for value in manual):
             raise typer.BadParameter(

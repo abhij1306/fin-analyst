@@ -67,6 +67,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   for sampled lines.
 - `sampling/`: FDD F1 samples and walkthroughs: `draw.py` (`fin sample`), `walkthrough.py` (`fin walkthrough`); CLI `cli/fdd_contracts.py`
   (also `fin contracts coverage`); schema `db/schema/fdd_contracts.sql`; golden kinds `evals/fdd_contracts.py`.
+  F2's inquiries: `diligence/inquiries.py` (a query with a topic; `collect` for the FDD report), `diligence/inquiry_cli.py` (`fin query checklist`),
+  `templates/fdd/inquiries.toml`, schema `db/schema/fdd_inquiries.sql`.
   F3's cut-off tests are reconciliations too: `cutoff.py` (`sales_cutoff`, `purchase_cutoff`, in `RECONCILIATIONS`;
   windows copied onto the engagement from `config.toml [fdd]`).
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label

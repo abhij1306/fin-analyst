@@ -21,6 +21,8 @@ from fin.diligence import (
     engagement,
     export_cli,
     gates,
+    inquiries,
+    inquiry_cli,
     passthrough,
     queries,
 )
@@ -333,6 +335,15 @@ def query_raise(
             help="Without --finding: where the figures are (file + sheet!cell or page).",
         ),
     ] = None,
+    topic: Annotated[
+        str | None,
+        typer.Option(
+            "--topic",
+            callback=_text,
+            help="An inquiry for management on this topic (config.toml [fdd] inquiry_topics): "
+            "no amount or source; --period and --scope are optional.",
+        ),
+    ] = None,
     items: Annotated[
         str | None,
         typer.Option(
@@ -344,13 +355,19 @@ def query_raise(
     ] = None,
 ) -> None:
     """Raise a draft query: from a finding (its period, scope, difference and sources; the finding
-    is not changed), from reconciliation lines (--items: one issue, many lines), or with --amount,
-    --period and --source."""
+    is not changed), from reconciliation lines (--items: one issue, many lines), as an inquiry
+    for management (--topic), or with --amount, --period and --source."""
 
     # Usage errors, before the run starts (like the option callbacks).
-    item_ids = check_raise_options(items, finding, (amount, period, scope, source))
+    item_ids = check_raise_options(items, finding, (amount, period, scope, source), topic)
 
     def body(run: Run) -> None:
+        if topic is not None:
+            row = inquiries.raise_inquiry(
+                run, company, topic=topic, question=question, period=period, scope=scope
+            )
+            typer.echo(queries.format_query(row))
+            return
         if items is not None:
             row, summary = recon_items.raise_from_items(run, company, item_ids, question)
             typer.echo(queries.format_query(row))
@@ -380,6 +397,7 @@ def query_raise(
         "scope": scope,
         "source": source,
         "items": items,
+        "topic": topic,
     }
     execute("query raise", args, body)
 
@@ -476,6 +494,7 @@ def query_withdraw(
 
 # fin query export (export_cli.py)
 export_cli.register(query_app, CompanyArg)
+inquiry_cli.register(query_app, CompanyArg)
 
 
 # fin adjust

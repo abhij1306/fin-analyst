@@ -32,7 +32,8 @@ def email_text(company: str, issues: list[Issue], u: Unmasker) -> str:
         "",
     ]
     for issue in issues:
-        out.append(f"{issue.query_id}. {issue.title}, {rupees(issue.query['amount'])}")
+        amount = "" if issue.query["amount"] is None else f", {rupees(issue.query['amount'])}"
+        out.append(f"{issue.query_id}. {issue.title}{amount}")
         out.append(f"   {u(issue.query['question'])}")
         if issue.kinds:
             out.append(
@@ -56,7 +57,8 @@ def write_brief(issue: Issue, u: Unmasker, path: Path) -> None:
     doc = Document()
     doc.styles["Normal"].font.size = Pt(10)  # type: ignore[attr-defined]
     doc.add_heading(f"Query {issue.query_id}: {issue.title}", level=1)
-    doc.add_paragraph(f"Amount at issue: {rupees(issue.query['amount'])}")
+    if issue.query["amount"] is not None:
+        doc.add_paragraph(f"Amount at issue: {rupees(issue.query['amount'])}")
     doc.add_paragraph(u(issue.query["question"]))
     if issue.kinds:
         doc.add_heading("What differs", level=2)

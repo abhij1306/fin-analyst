@@ -37,6 +37,8 @@ a command returns when the error ends it:
   reference to a figure or period the report does not have) stop the command: exit 2.
 - E901-E903 (FDD walkthroughs, fin.sampling: a sample that cannot be drawn, a walkthrough file that
   cannot be used, an unknown sample id) stop the command: exit 2.
+- E910 (FDD inquiries, fin.diligence.inquiries: an unknown topic or an unusable checklist template)
+  stops the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
 - E858-E861 (the query export, fin.diligence.export: no approved query, a file that cannot be read
@@ -308,7 +310,7 @@ class DiligenceTableWrite(FinError):
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
     recon_items, passthrough_customers, recon_match_lines, match_proposals, contracts, samples,
-    sample_lines, walkthroughs): those change
+    sample_lines, walkthroughs, provision_ledgers, inquiries): those change
     only through `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
     `fin map ledgers` with `fin review --ledgers`, `fin reconcile` (with `fin review --matches`) and
     `fin recast`, `fin sample` and `fin walkthrough`. Nothing was run."""
@@ -614,6 +616,17 @@ class SampleUnknown(FinError):
     engagement. Nothing changed."""
 
     code = "E903"
+
+
+# E910-E919: FDD F2, management inquiries (fin.diligence.inquiries). Stop the command.
+
+
+class InquiryInvalid(FinError):
+    """E910. `fin query raise --topic` or `fin query checklist`: a topic that is not one of
+    config.toml [fdd] inquiry_topics, or a templates/fdd/inquiries.toml that cannot be used (a
+    topic not in inquiry_topics, or a topic with no list of questions). Nothing raised."""
+
+    code = "E910"
 
 
 # E920-E929: FDD F3, provisions and cut-off (fin.diligence.provisions, fin.reconcile.cutoff).
