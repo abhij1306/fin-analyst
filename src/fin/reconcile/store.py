@@ -35,6 +35,34 @@ def latest_run(
     return None if row is None else (row[0], row[1])
 
 
+def open_lines(con: duckdb.DuckDBPyConnection, recon_id: int) -> int:
+    """Lines of the run that need a query and are in none (or only in a withdrawn one)."""
+    row = con.execute(
+        "SELECT count(*) FROM recon_items WHERE recon_id = ? AND needs_query AND (query_id IS NULL "
+        "OR query_id IN (SELECT query_id FROM accountant_queries WHERE status = 'withdrawn'))",
+        [recon_id],
+    ).fetchone()
+    assert row is not None
+    return int(row[0])
+
+
+def query_rows(con: duckdb.DuckDBPyConnection, recon_id: int | None) -> list[list[Any]]:
+    """What gates G2 and G3 hash of a run: its lines that need a query, with their query and
+    whether it is withdrawn. Empty without a run."""
+    if recon_id is None:
+        return []
+    return [
+        list(row)
+        for row in con.execute(
+            "SELECT i.item_id, i.kind, i.difference, i.query_id, "
+            "(SELECT status = 'withdrawn' FROM accountant_queries q "
+            "WHERE q.query_id = i.query_id) FROM recon_items i "
+            "WHERE i.recon_id = ? AND i.needs_query ORDER BY i.item_id",
+            [recon_id],
+        ).fetchall()
+    ]
+
+
 def _earlier_query(
     con: duckdb.DuckDBPyConnection, engagement_id: int, name: str, period: str, line: dict[str, Any]
 ) -> int | None:

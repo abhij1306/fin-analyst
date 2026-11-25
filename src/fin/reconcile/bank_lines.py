@@ -27,12 +27,10 @@ import duckdb
 
 from fin.diligence.stub import fiscal_start
 from fin.reconcile.bank_match import Group, Invoice, Key, Receipt, match
+from fin.reconcile.base import QUERIED_KINDS, SHOWN_ROWS, ZERO
 
 TOKEN = re.compile(r"CUST-\d+")
-SHOWN = 5
 CENT = Decimal("0.01")
-ZERO = Decimal("0.00")
-QUERIED_KINDS = ("difference", "left_only", "right_only")
 
 
 @dataclass(frozen=True)
@@ -141,8 +139,8 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
 
 def _text(data: Data, keys: list[Key]) -> str:
     keys = sorted(keys)
-    shown = ", ".join(f"{data.names.get(f, f)} {s}!{r}" for f, s, r in keys[:SHOWN])
-    return shown + (f" and {len(keys) - SHOWN} more" if len(keys) > SHOWN else "")
+    shown = ", ".join(f"{data.names.get(f, f)} {s}!{r}" for f, s, r in keys[:SHOWN_ROWS])
+    return shown + (f" and {len(keys) - SHOWN_ROWS} more" if len(keys) > SHOWN_ROWS else "")
 
 
 def _period_of(day: date, periods: dict[str, tuple[date, date]]) -> str | None:

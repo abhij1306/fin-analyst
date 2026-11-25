@@ -15,6 +15,7 @@ from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
 from fin.evals.golden import (
     COLUMNS,
+    EXPORTED,
     LATEST_ENGAGEMENT,
     OPTIONAL,
     RECON_KINDS,
@@ -74,7 +75,8 @@ ORDER BY r.name, r.period, i.item_no
 _SPLIT = """
 SELECT r.period,
        (SELECT string_agg(DISTINCT f.file_name, '; ') FROM source_files f
-        WHERE f.kind = 'registers' AND f.status = 'loaded' AND f.engagement_id = r.engagement_id)
+        WHERE f.kind = 'registers' AND f.status = 'loaded' AND f.engagement_id = r.engagement_id),
+       r.passthrough_lines
 FROM revenue_split r WHERE r.sales_revenue IS NOT NULL AND r.basis = 'audited' ORDER BY r.period
 """
 _RECAST = f"""
@@ -104,7 +106,7 @@ ORDER BY s.file_id
 """
 _ISSUES = f"""
 SELECT a.query_id, a.period, a.sources FROM accountant_queries a
-WHERE a.engagement_id = {LATEST} AND a.status IN ('approved', 'sent', 'answered', 'closed')
+WHERE a.engagement_id = {LATEST} AND {EXPORTED}
     AND a.amount IS NOT NULL
 ORDER BY a.query_id
 """
@@ -113,7 +115,7 @@ SELECT a.query_id, a.period, i.kind, string_agg(
     coalesce(i.left_source, i.right_source), '; ' ORDER BY i.item_id)
 FROM query_items q JOIN recon_items i ON i.item_id = q.item_id
 JOIN accountant_queries a ON a.query_id = q.query_id
-WHERE a.engagement_id = {LATEST} AND a.status IN ('approved', 'sent', 'answered', 'closed')
+WHERE a.engagement_id = {LATEST} AND {EXPORTED}
 GROUP BY a.query_id, a.period, i.kind ORDER BY a.query_id, i.kind
 """
 _MATCH = f"""
@@ -128,6 +130,18 @@ WHERE r.name = ? AND i.kind = ? AND m.side = ? AND r.engagement_id = {LATEST}
         SELECT max(recon_id) FROM recon_runs WHERE name = ? GROUP BY period
     )
 GROUP BY r.period, {{column}}
+ORDER BY 1, 2
+"""
+_RECEIVED = f"""
+SELECT r.period, m.party, string_agg(DISTINCT s.file_name, '; ' ORDER BY s.file_name)
+FROM recon_match_lines m
+JOIN recon_items i ON i.recon_id = m.recon_id AND i.item_no = m.item_no
+JOIN recon_runs r ON r.recon_id = m.recon_id
+JOIN source_files s ON s.file_id = m.file_id
+WHERE r.name = ? AND i.kind IN ('matched', 'difference') AND m.side = 'invoice'
+    AND r.engagement_id = {LATEST}
+    AND r.recon_id IN (SELECT max(recon_id) FROM recon_runs WHERE name = ? GROUP BY period)
+GROUP BY r.period, m.party
 ORDER BY 1, 2
 """
 _BANK_TB = f"""
@@ -189,6 +203,11 @@ def _matches(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
                 _row(kind, period, f"{file_name} (unmatched lines of the run)", ledger=ledger,
                      unit="rupees", note=note)
             )  # fmt: skip
+    for period, party, file_name in con.execute(_RECEIVED, [BANK_RUN, BANK_RUN]).fetchall():
+        rows.append(
+            _row("customer_received", period, f"{file_name} (matched lines of the run)",
+                 ledger=party, unit="rupees", note="invoices matched to a receipt, Amount in Rs")
+        )  # fmt: skip
     for period, left, right in con.execute(_BANK_TB, [BANK_TB, BANK_TB]).fetchall():
         rows.append(
             _row("bank_vs_tb", period, "; ".join(s for s in (left, right) if s), unit="rupees",
@@ -264,12 +283,17 @@ def candidates(
                 "lines that show a difference",
             )
         )
-    for period, files in con.execute(_SPLIT).fetchall():
+    for period, files, passthrough_lines in con.execute(_SPLIT).fetchall():
         for kind, note in (
             ("core_revenue", "sales register, customers not on the pass-through list"),
             ("passthrough_revenue", "sales register, customers on the pass-through list"),
+            (
+                "linked_purchase_cost",
+                "purchase register lines of the pass-through sales' Purchase Ids",
+            ),
         ):
-            rows.append(_row(kind, period, files or "", unit="rupees", note=note))
+            if kind != "linked_purchase_cost" or passthrough_lines:
+                rows.append(_row(kind, period, files or "", unit="rupees", note=note))
     for period, files in con.execute(_RECAST).fetchall():
         for kind, note in (
             ("recast_revenue", "revenue recognised over the service periods (sales register)"),
