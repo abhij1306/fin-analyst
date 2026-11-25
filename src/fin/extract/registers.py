@@ -11,7 +11,7 @@ found on more than one sheet, or one sheet fits both kinds.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +60,8 @@ def read_registers(
 
 
 def _with_columns(profile: Profile, columns: Any) -> Profile:
-    return replace(profile, columns=columns)
+    values = {f.name: getattr(profile, f.name) for f in fields(profile)}
+    return Profile(**{**values, "columns": columns})
 
 
 def _find_parts(book: Workbook, profile: Profile, problems: list[str]) -> dict[str, tuple]:
