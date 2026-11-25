@@ -16,7 +16,7 @@ from fin.cli import app
 from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
-from fin.diligence import ledgers, recon
+from fin.diligence import ledgers, passthrough, recon
 from fin.diligence.sources import ingest_source
 from fin.doctor import Check as DoctorCheck
 from fin.evals import bundle
@@ -25,6 +25,7 @@ from fin.evals.scaffold import init_golden
 from fin.evals.score import run_eval
 from fin.map.dictionary import load_seed
 from fin.paths import audit_db_path, company_db_path, dictionary_db_path
+from tests.register_fixtures import write_registers
 from tests.tally_fixtures import CUSTOMERS, VENDORS, write_trial_balance
 from tests.unit.test_diligence_recon import ACCOUNTS, FIGURES
 
@@ -178,7 +179,7 @@ def test_init_lists_what_to_check_and_never_changes_a_persons_lines(root: Path) 
     revenue = next(r for r in rows if r["kind"] == "statement" and r["account"] == "revenue")
     assert (revenue["source"], revenue["expected"], revenue["checked"]) == ("fs.xlsx BS!C8", "", "")
     kinds = {r["kind"] for r in rows}
-    assert kinds == {"statement", "tb_ledger", "tb_vs_statements", "stub"}
+    assert kinds == {"statement", "tb_ledger", "tb_vs_statements", "stub", "adjusted_revenue"}
     assert not any(name in first["path"].read_text(encoding="utf-8") for name in CUSTOMERS)
 
     revenue.update(expected="10.00", unit="lakh", checked="yes")
@@ -275,3 +276,44 @@ def test_fin_eval_run_prints_the_score_and_the_report_path(
     assert result.exit_code == 0, result.output
     assert "acme: score 100.0%: 6 pass, 0 fail, 0 missing in fin, 1 unchecked" in result.output
     assert "eval-" in result.output
+
+
+def test_pass_through_and_adjusted_figures_are_scored(root: Path, tmp_path: Path) -> None:
+    config = load_config(root)
+    registers = write_registers(tmp_path / "reg.xlsx")
+    ingest_source(run(root), config, "acme", registers, "registers", None)
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        [(token,)] = con.execute(
+            "SELECT customer FROM register_lines WHERE invoice_no = 'INV-1001'"
+        ).fetchall()
+        con.execute(
+            "INSERT INTO adjustments (engagement_id, period, scope, category, amount, "
+            "revenue_effect, cost_effect, description, source_ref, status, created_run_id, "
+            "created_at, status_run_id, status_at) VALUES (1, 'FY25', 'standalone', "
+            "'normalisation', -190000, -280000, -90000, 'd', 'x', 'accepted', 'r', now(), 'r', "
+            "now())"
+        )
+    passthrough.set_customers(run(root), "acme", [token], "email")
+    lines = [
+        ("core_revenue", "FY25", "", "", "", "80,000", "rupees", "reg.xlsx", "yes"),
+        ("passthrough_revenue", "FY25", "", "", "", "2,80,000", "rupees", "reg.xlsx", "yes"),
+        ("adjusted_revenue", "FY25", "standalone", "", "", "7.20", "lakh", "fs.xlsx; adj 1", "yes"),
+    ]
+    write_golden(root, lines)
+
+    assert outcomes(run_eval(run(root), "acme")) == ["pass", "pass", "pass"]
+
+    write_golden(root, [lines[0], (*lines[1][:5], "2,80,001", *lines[1][6:]), lines[2]])
+    result = run_eval(run(root), "acme")
+    assert outcomes(result) == ["pass", "fail", "pass"]
+    assert result["counts"]["passthrough"] == {"customers": 1, "adjustments": {"accepted": 1}}
+    scaffold = {c["kind"] for c in init_golden_rows(root)}
+    assert {"core_revenue", "passthrough_revenue", "adjusted_revenue"} <= scaffold
+
+
+def init_golden_rows(root: Path) -> list[dict[str, str]]:
+    path = golden_path(root, "acme")
+    path.unlink()
+    init_golden(run(root), "acme")
+    with path.open(encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))

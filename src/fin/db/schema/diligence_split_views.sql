@@ -79,7 +79,7 @@ SELECT
     CASE WHEN f.basis = 'audited' THEN growth6(to_paise(f.core_revenue), to_paise(e.core_revenue)) END
         AS core_revenue_growth
 FROM figures f
-LEFT JOIN figures e ON e.period = prior_fy(f.period) AND e.basis = 'audited';
+LEFT JOIN figures e ON e.basis = 'audited' AND e.period = CASE WHEN f.basis = 'audited' THEN prior_fy(f.period) END;
 
 -- Each pass-through sales line of the latest engagement with the OEM purchase it points to (its Purchase Id):
 -- link 'licence' (Purchase Id given: software or licence) or 'services' (none). The purchase columns are NULL when

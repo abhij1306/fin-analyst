@@ -72,7 +72,7 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
 
    | Column | Meaning |
    |---|---|
-   | `kind` | `statement` (a statement figure), `tb_ledger` (a trial balance ledger's closing balance), `tb_vs_statements` (the difference on an account in the period's latest reconciliation), `stub` (a stub figure, unaudited), `bank_closing` (a bank statement's closing balance), `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl` (one detail line of that reconciliation: its `ledger` is the invoice number, the ledger as stored, or the period for payroll) |
+   | `kind` | `statement` (a statement figure), `tb_ledger` (a trial balance ledger's closing balance), `tb_vs_statements` (the difference on an account in the period's latest reconciliation), `stub` (a stub figure, unaudited), `core_revenue` and `passthrough_revenue` (the period's sales register revenue of customers not on / on the pass-through list), `adjusted_revenue` and `adjusted_ebitda` (after accepted adjustments, by scope), `bank_closing` (a bank statement's closing balance), `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl` (one detail line of that reconciliation: its `ledger` is the invoice number, the ledger as stored, or the period for payroll) |
    | `period`, `scope` | `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, or the stub (`FY26-YTD-SEP`); scope `standalone` or `consolidated` (statements only) |
    | `account` | the dictionary account (`uv run fin map accounts`) |
    | `ledger` | the ledger as stored: the token for a party ledger; for `bank_closing` the account number, with `period` the statement's end date (`2025-04-30`) |
@@ -93,6 +93,10 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
      (`payroll_vs_gl`). The person works it out from the documents.
    - `bank_closing`: the closing balance printed on the statement, in the account's own currency (INR or USD, unit
      `rupees`), whether or not the statement ties.
+   - `core_revenue`, `passthrough_revenue`: the sum of the sales register's Amount in Rs (before GST) for invoices dated in
+     the period, for customers not on, and on, the user's pass-through list. The person adds them from the register.
+   - `adjusted_revenue`, `adjusted_ebitda`: the statement's revenue (or EBITDA) plus the revenue effects (or the EBITDA
+     effects) of the adjustments the user accepted; the person works it out from the statements and the accepted adjustments.
    - `stub`: the stub trial balance ledgers mapped to the account, as the statements show it (income and
      liabilities positive).
 3. Choose what to check. About 30 `statement` lines per company is a good start, spread over:

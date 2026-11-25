@@ -14,7 +14,11 @@ One line per check, the value a person read in the company's document and checke
   stored, or the period for payroll.
 - `bank_closing`: a bank statement's closing balance, in the account's own currency (use unit
   `rupees` for the amount as printed, INR or USD): period is the statement's end date (YYYY-MM-DD),
-  ledger its account number.
+  ledger its account number;
+- `core_revenue`, `passthrough_revenue`: the period's sales register revenue (Amount in Rs, before
+  GST) of customers not on, and on, the engagement's pass-through list (`revenue_split`);
+- `adjusted_revenue`, `adjusted_ebitda`: the period's figure after accepted adjustments
+  (`adjusted_ebitda` view), by scope.
 
 `expected` is the figure as printed (brackets or a minus for negative) in `unit`; `source` is where
 it is printed (file + sheet!cell, sheet!row or page). Only a line whose `checked` is `yes` is
@@ -37,7 +41,16 @@ from fin.paths import evals_dir
 COLUMNS = ("kind", "period", "scope", "account", "ledger", "expected", "unit", "source", "checked")
 OPTIONAL = ("note",)
 RECON_KINDS = ("sales_register_vs_gl", "purchase_register_vs_gl", "gl_vs_tb", "payroll_vs_gl")
-KINDS = ("statement", "tb_ledger", "tb_vs_statements", "stub", "bank_closing", *RECON_KINDS)
+PASSTHROUGH_KINDS = ("core_revenue", "passthrough_revenue", "adjusted_revenue", "adjusted_ebitda")
+KINDS = (
+    "statement",
+    "tb_ledger",
+    "tb_vs_statements",
+    "stub",
+    "bank_closing",
+    *RECON_KINDS,
+    *PASSTHROUGH_KINDS,
+)
 NEEDS = {
     "statement": ("period", "scope", "account"),
     "tb_ledger": ("period", "ledger"),
@@ -45,6 +58,10 @@ NEEDS = {
     "stub": ("period", "account"),
     "bank_closing": ("period", "ledger"),
     **{kind: ("period", "ledger") for kind in RECON_KINDS},
+    "core_revenue": ("period",),
+    "passthrough_revenue": ("period",),
+    "adjusted_revenue": ("period", "scope"),
+    "adjusted_ebitda": ("period", "scope"),
 }
 YES, NO = "yes", ("", "no")
 # Diligence checks read the latest engagement's files and runs: a closed engagement's trial balance
@@ -94,7 +111,7 @@ def unit_name(text: str) -> str:
 
 def _problems(check: Check, accounts: Mapping[str, Account]) -> list[str]:
     out = [f"{name} is empty" for name in NEEDS[check.kind] if not getattr(check, name)]
-    if check.kind == "statement" and check.scope and check.scope not in SCOPES:
+    if check.scope and check.scope not in SCOPES:
         out.append(f"scope {check.scope!r} is not one of {', '.join(SCOPES)}")
     if check.account and check.account not in accounts:
         out.append(f"account {check.account!r} is not in the dictionary (`fin map accounts`)")
