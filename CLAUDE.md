@@ -23,6 +23,9 @@ Local financial health analysis tool. Ingests company financial documents into D
   as is (`fin findings accept`) or have Claude fix it.
 - Mappings: you propose (`fin map propose`); the user reviews them.
 - Report narrative: describe, don't judge. No recommendations, ratings, or buy/don't-buy language. Numbers in narrative only as inline references, never typed.
+  Exception, the FDD report (`fin report --fdd`, `docs/fdd.md` F8): findings may carry severity, implications and deal
+  considerations; still no valuation, investment rating or buy/don't-buy language. Claude proposes findings; only the
+  user marks one final.
 - If a command fails, report the error code and run_id. Don't work around a failure.
 
 ## Diligence
