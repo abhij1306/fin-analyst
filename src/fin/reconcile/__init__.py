@@ -20,6 +20,7 @@ from fin.diligence.engagement import company_database, require_open
 from fin.reconcile import bank, recast, registers, store
 from fin.reconcile import gl_vs_tb as gl_module
 from fin.reconcile import payroll_vs_gl as payroll_module
+from fin.reconcile import walkthrough as walkthrough_module
 from fin.reconcile.base import Computed, input_hash
 from fin.reconcile.format import format_result
 
@@ -40,6 +41,7 @@ RECONCILIATIONS: dict[str, tuple[Compute, Applies]] = {
     payroll_module.NAME: (payroll_module.payroll_vs_gl, payroll_module.applies),
     bank.INVOICES: (bank.bank_vs_invoices, bank.applies_invoices),
     bank.TB: (bank.bank_vs_tb, bank.applies_tb),
+    walkthrough_module.NAME: (walkthrough_module.compute, walkthrough_module.applies),
 }
 NAMES = (recon.NAME, *RECONCILIATIONS)
 

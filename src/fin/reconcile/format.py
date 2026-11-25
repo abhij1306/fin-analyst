@@ -17,6 +17,7 @@ LEFT = {
     "purchase_register_vs_gl": ("register", "books"),
     "gl_vs_tb": ("Ledger Vouchers", "trial balance"),
     "payroll_vs_gl": ("payroll", "books"),
+    "walkthrough": ("register", "evidence"),
 }
 
 

@@ -128,9 +128,9 @@ WHERE r.engagement_id = ? AND r.name = 'service_recast' AND r.recon_id = (
 ORDER BY r.period, i.level <> 'period', i.level, i.key
 """
 _CONTRACTS = """
-SELECT contract_id, customer, invoice_no, start_date, end_date, value, billing_terms, file_name,
-       page
-FROM contracts WHERE engagement_id = ? ORDER BY contract_id
+SELECT contract_id, counterparty AS customer, invoice_no, start_date, end_date, value,
+       billing_terms, file_name, page
+FROM contracts WHERE engagement_id = ? AND party_kind = 'customer' ORDER BY contract_id
 """
 _QUERIES = """
 SELECT query_id, origin, period, scope, status, amount, sources, question

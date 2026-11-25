@@ -258,7 +258,7 @@ CREATE TABLE recon_runs (
     recon_id INTEGER PRIMARY KEY DEFAULT nextval('recon_runs_seq'),
     engagement_id INTEGER NOT NULL,
     name VARCHAR NOT NULL CHECK (name IN ('tb_vs_statements', 'sales_register_vs_gl',
-        'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl', 'bank_vs_invoices', 'bank_vs_tb', 'service_recast')),
+        'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl', 'bank_vs_invoices', 'bank_vs_tb', 'service_recast', 'walkthrough')),
     period VARCHAR NOT NULL,
     scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
     left_file_id INTEGER NOT NULL,

@@ -258,7 +258,7 @@ def test_a_contract_is_evidence_beside_the_line_and_not_the_schedule(
     )
     after = run_recast(run(root), "acme", "FY25")[0]
 
-    assert (stored["customer"], stored["page"], stored["read_by"]) == (token, 3, "claude")
+    assert (stored["counterparty"], stored["page"], stored["read_by"]) == (token, 3, "claude")
     assert stored["value"] == Decimal("150000.00")
     assert stored["file_name"] == "contract.pdf"
     note = next(x["note"] for x in after["lines"] if x["key"] == "INV-1004")

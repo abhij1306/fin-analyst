@@ -112,7 +112,8 @@ def contract_note(con: duckdb.DuckDBPyConnection, engagement_id: int, sale: Sale
     """The contracts Claude read for the invoice or its customer, as text (evidence only)."""
     rows = con.execute(
         "SELECT contract_id, start_date, end_date, page, file_name FROM contracts "
-        "WHERE engagement_id = ? AND (invoice_no = ? OR (invoice_no IS NULL AND customer = ?)) "
+        "WHERE engagement_id = ? AND party_kind = 'customer' "
+        "AND (invoice_no = ? OR (invoice_no IS NULL AND counterparty = ?)) "
         "ORDER BY contract_id",
         [engagement_id, sale.key, sale.customer],
     ).fetchall()

@@ -66,6 +66,11 @@ match_window_days = 60
 fx_window_days = 7
 invoice_due_days = 30
 
+[fdd]
+# FDD extension (docs/fdd.md). coverage_top_n: how many of the top customers (core revenue) and
+# the top vendors (purchases) `fin contracts coverage` checks for a contract on file.
+coverage_top_n = 10
+
 [pdf]
 # The optional PDF add-on that reads the statement pages pdfplumber cannot (and scanned results
 # filings): "none", "docling", "liteparse" or "llamaparse". `uv run fin parser use <name>` (or
@@ -86,6 +91,7 @@ class Config:
     match_window_days: int = 60  # [diligence]: date window of bank matching passes 2 and 3
     fx_window_days: int = 7  # [diligence]: window for a receipt's booked rupee value
     invoice_due_days: int = 30  # [diligence]: an unmatched invoice is overdue after this
+    coverage_top_n: int = 10  # [fdd]: the top customers and vendors checked for a contract
 
 
 # The value only, so indentation, a quoted key and a trailing comment are kept.
@@ -190,11 +196,14 @@ def _choice(
 
 
 def _parse(data: dict[str, Any], path: Path) -> Config:
-    # [pdf] is optional: a config.toml written before the PDF add-on has none, and the add-on is
-    # opt-in, so no table means none chosen.
+    # [pdf] and [fdd] are optional: a config.toml written before the PDF add-on or the FDD
+    # extension has none. The add-on is opt-in, so no [pdf] means none chosen; no [fdd] means the
+    # defaults of the default file.
     tables = ("config_version", "display", "defaults", "tolerances", "diligence")
-    _keys(data, (*tables, "pdf") if "pdf" in data else tables, "the file", path)
+    optional = tuple(name for name in ("pdf", "fdd") if name in data)
+    _keys(data, (*tables, *optional), "the file", path)
     pdf = _table(data, "pdf", path) if "pdf" in data else {"parser": "none"}
+    fdd = _table(data, "fdd", path) if "fdd" in data else {"coverage_top_n": 10}
     version = data["config_version"]
     if version != CONFIG_VERSION or isinstance(version, bool):
         raise _invalid(
@@ -241,6 +250,11 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
             "names in lower-case letters, digits and '_'",
         )
 
+    _keys(fdd, ("coverage_top_n",), "[fdd]", path)
+    top_n = fdd["coverage_top_n"]
+    if isinstance(top_n, bool) or not isinstance(top_n, int) or not 1 <= top_n <= 1000:
+        raise _invalid(path, f"fdd.coverage_top_n = {top_n!r}; expected a whole number, 1 to 1000")
+
     _keys(pdf, ("parser",), "[pdf]", path)
     parser = _choice(pdf, "parser", PARSERS, "pdf", path)
 
@@ -255,6 +269,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         match_window_days=diligence["match_window_days"],
         fx_window_days=diligence["fx_window_days"],
         invoice_due_days=diligence["invoice_due_days"],
+        coverage_top_n=top_n,
     )
 
 

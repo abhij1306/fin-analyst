@@ -8,11 +8,12 @@ company is checked again (`fin.findings.recheck_held`): a fix that clears its fi
 A statement other than a SELECT that names a diligence table (engagement, accountant_queries,
 adjustments, gate_approvals, the source file tables source_files, trial_balance,
 ledger_entries, ledger_blocks, register_lines, payroll_lines, payroll_units, bank_statements,
-bank_lines, passthrough_customers, contracts, the ledger mappings ledger_accounts and the
-reconciliations recon_runs, recon_items, query_items) is refused with E806 before the backup:
-those tables change only through
+bank_lines, passthrough_customers, contracts, samples, sample_lines, walkthroughs, the ledger
+mappings ledger_accounts and the reconciliations recon_runs, recon_items, query_items) is refused
+with E806 before the backup: those tables change only through
 `fin engagement|query|adjust|gate`, `fin ingest --kind`, `fin map ledgers` with `fin review
---ledgers`, `fin reconcile` and `fin recast`, which check the gates and log every change. SQL naming
+--ledgers`, `fin reconcile`, `fin recast`, `fin sample` and `fin walkthrough`, which check the
+gates and log every change. SQL naming
 mask_values is refused with E810 (fin.query.run.refuse_masked). A statement that would end the
 transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH, DETACH, COPY FROM
 DATABASE, LOAD/INSTALL) or change the schema (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) is
@@ -46,7 +47,7 @@ DILIGENCE_TABLE = re.compile(
     r"\b(engagement|accountant_queries|adjustments|gate_approvals|source_files|trial_balance"
     r"|ledger_entries|ledger_blocks|register_lines|ledger_accounts|recon_runs|recon_items"
     r"|query_items|payroll_lines|payroll_units|bank_statements|bank_lines|passthrough_customers"
-    r"|recon_match_lines|match_proposals|customers|contracts)\b"
+    r"|recon_match_lines|match_proposals|customers|contracts|samples|sample_lines|walkthroughs)\b"
 )
 
 # Statements that would end the wrapping transaction or reach past the company database.
