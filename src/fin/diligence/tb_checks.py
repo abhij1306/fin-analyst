@@ -31,7 +31,7 @@ def _files(con: duckdb.DuckDBPyConnection, engagement_id: int) -> dict[tuple[str
         (kind, period): file_id
         for file_id, kind, period in con.execute(
             "SELECT file_id, kind, period FROM source_files WHERE engagement_id = ? "
-            "AND status = 'loaded'",
+            "AND status = 'loaded' AND kind IN ('trial_balance', 'ledger_vouchers')",
             [engagement_id],
         ).fetchall()
     }

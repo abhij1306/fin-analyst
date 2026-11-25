@@ -274,6 +274,21 @@ line at or above the threshold in a query, the stub marked unaudited; its inputs
 mappings and the latest reconciliations. `fin sql --write` refuses `ledger_accounts`, `recon_runs`, `recon_items`
 (E806).
 
+Payroll (D3, `docs/decisions/d3-payroll.md`): `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot, one
+row per employee, with the profile `templates/profiles/sparsh_payroll.toml` (the period pattern has one group,
+`date`: "Employee Master as on 31-Mar-2025"). The snapshot date must fall in an annual period of the engagement
+(basis `audited`) or in the stub (`unaudited`), else E808; a later file for the same period supersedes it.
+`payroll_lines` (`db/schema/sources.sql`) keeps file_id, sheet, row, snapshot date, employee name and code as tokens
+(`EMP-0001`, `ECODE-0001`), designation, department, vertical, sub-vertical, joining and resign date, gross salary
+and CTC (annual rupees; a blank cell is NULL; no month column). A row with no name or code, or a bad date, is E821;
+an amount that is not a number is E204; rows named Total are skipped (profile `skip`). fin cannot know the unit, so
+it warns when the median gross salary or CTC is under Rs 1,50,000 (`MONTHLY_BELOW` in `fin/diligence/payroll.py`),
+at load, in `confirm-unit` and in G1; `fin payroll confirm-unit <co> <file> --annual|--monthly` records the user's
+answer in `payroll_units` (one row per file, replaced by a later answer, logged as an event; E820 for no loaded
+payroll file). G1 gains one line per loaded payroll file (none without one): passes on `annual`, fails when
+unconfirmed or `monthly` (fin never converts amounts); its inputs add the confirmations. `fin sql --write` refuses
+`payroll_lines` and `payroll_units` (E806).
+
 ---
 
 ## 1. What it does
@@ -399,7 +414,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - Diligence: `engagement`, `accountant_queries`, `adjustments` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash` (views on the latest engagement)
-- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, the view `stub_figures`
+- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
 
 **Shared**
 
@@ -522,7 +537,8 @@ claude
 | `fin init`, `fin doctor` | — | Human |
 | `fin ingest <co> [path] [--force]` | `/ingest` | Either |
 | `fin ingest <co> <file> --reading <csv>` | `/ingest` (offered after a failure or skipped page) | Claude, when the user asks |
-| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers [--profile]` | `/diligence` | Either |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|payroll [--profile]` | `/diligence` | Either |
+| `fin payroll confirm-unit <co> <file> --annual\|--monthly` | `/diligence` | Either (only when the user says which) |
 | `fin ingest-batch [folder]` (default `inbox/`) | `/ingest-batch` | Either |
 | `fin verify <co> <file> --reading <csv>` | `/verify` | Either (when the user asks) |
 | `fin map propose <co> <file.json>` | used inside `/ingest` | Claude |

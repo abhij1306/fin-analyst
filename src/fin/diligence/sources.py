@@ -1,4 +1,4 @@
-"""`fin ingest <co> <file> --kind trial_balance|ledger_vouchers`: load a diligence source file.
+"""`fin ingest <co> <file> --kind trial_balance|ledger_vouchers|payroll`: load a source file.
 
 For one file, `ingest_source`:
 
@@ -6,7 +6,8 @@ For one file, `ingest_source`:
    superseded) and reads it with a column profile (`fin.extract.ledger`; E807 when no profile
    matches, its header lines listed with known masked names replaced).
 2. Checks the period its header lines give is an annual period of the open engagement, or exactly
-   its stub (basis unaudited: unaudited management accounts) (E808).
+   its stub (basis unaudited: unaudited management accounts) (E808). A payroll snapshot has one
+   date, which must fall in an annual period or the stub (`fin.diligence.payroll`).
    Ledger Vouchers need their period's trial balance loaded first (E811): it says which ledgers
    are parties.
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
@@ -37,7 +38,7 @@ from fin.audit.errors import (
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, transaction, utcnow
-from fin.diligence import ledgers, tally
+from fin.diligence import ledgers, payroll, tally
 from fin.diligence.engagement import require_open
 from fin.diligence.mask import Masker
 from fin.diligence.stub import UNAUDITED
@@ -246,6 +247,21 @@ def _load_lv(
     return lines
 
 
+def _load_payroll(
+    run: Run,
+    company: str,
+    con: duckdb.DuckDBPyConnection,
+    table: Table,
+    file: dict[str, Any],
+    masker: Masker,
+) -> list[str]:
+    """Insert the payroll snapshot rows (names and codes as tokens); the lines to show."""
+    insert_rows(
+        con, "payroll_lines", payroll.COLUMNS, payroll.rows(table, file, run.run_id, masker)
+    )
+    return payroll.summary(con, company, file, masker)
+
+
 def _supersede(
     run: Run, company: str, con: duckdb.DuckDBPyConnection, file: dict[str, Any]
 ) -> list[int]:
@@ -286,7 +302,12 @@ def ingest_source(
             )
         masker = Masker(con, run.run_id)
         table = read_table(path, kind, profile, hide=lambda text: masker.text(text) or text)
-        period, basis = period_of_file(table, engagement, config.fiscal_year_start_month, name)
+        if kind == "payroll":
+            period, basis = payroll.snapshot_period(
+                table, engagement, config.fiscal_year_start_month, name
+            )
+        else:
+            period, basis = period_of_file(table, engagement, config.fiscal_year_start_month, name)
         tb = _tb_ledgers(con, engagement["engagement_id"], period)
         if kind == "ledger_vouchers" and not tb:
             raise TrialBalanceNeeded(
@@ -324,6 +345,8 @@ def ingest_source(
                 lines.append(
                     f"{added} new ledgers waiting for an account (`fin map ledgers {company}`)"
                 )
+        elif kind == "payroll":
+            lines = _load_payroll(run, company, con, table, file, masker)
         else:
             lines = _load_lv(run, con, table, file, tb, masker)
         replaced = _supersede(run, company, con, file)

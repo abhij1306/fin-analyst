@@ -38,6 +38,11 @@ def test_the_shipped_profiles_load() -> None:
             '[columns]\nA = "name"\nB = "debit"\nC = "credit"',
             "named groups start and end",
         ),
+        (
+            'kind = "payroll"\ndate_format = "%d"\nperiod = "(?P<end>x)"\n'
+            '[columns]\nA = "employee_name"\nB = "employee_code"\nC = "gross_salary"\nD = "ctc"',
+            "named groups date",
+        ),
     ],
 )
 def test_an_invalid_profile_is_e807(

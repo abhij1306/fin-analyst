@@ -1,0 +1,27 @@
+# Sparsh payroll snapshot (employee master, one row per employee) exported to Excel.
+# One header row: Employee Code | Employee Name | Designation | Department | Vertical | Sub Vertical |
+# Date of Joining | Date of Resignation | Gross Salary | CTC, under a title line such as
+# "Employee Master as on 31-Mar-2025". Gross salary and CTC are ANNUAL rupees; the user confirms that
+# (`fin payroll confirm-unit`), and fin warns when the amounts look monthly.
+# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+kind = "payroll"
+header_rows = 1
+date_format = "%d-%b-%Y"
+period = 'as on\s+(?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})'
+unit = 1
+
+[columns]
+"Employee Code" = "employee_code"
+"Employee Name" = "employee_name"
+"Designation" = "designation"
+"Department" = "department"
+"Vertical" = "vertical"
+"Sub Vertical" = "sub_vertical"
+"Date of Joining" = "joining_date"
+"Date of Resignation" = "resign_date"
+"Gross Salary" = "gross_salary"
+"CTC" = "ctc"
+
+# Rows whose employee code or name is one of these are not employees.
+[rows]
+skip = ["Total", "Grand Total"]

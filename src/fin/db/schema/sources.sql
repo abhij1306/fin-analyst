@@ -8,7 +8,7 @@
 CREATE SEQUENCE source_files_seq START 1;
 
 -- One row per source file loaded with `fin ingest <co> <file> --kind <kind>`.
--- kind: 'trial_balance' or 'ledger_vouchers' (D3 adds registers, bank, payroll). period: the period of the engagement
+-- kind: 'trial_balance', 'ledger_vouchers' or 'payroll' (D3 adds registers, bank). period: the period of the engagement
 -- the export covers, read from its header lines (period_start, period_end): an annual period, or the stub. basis:
 -- 'audited' for an annual period, 'unaudited' for the stub (unaudited management accounts). profile: the column profile used
 -- (templates/profiles/<profile>.toml).
@@ -17,7 +17,7 @@ CREATE SEQUENCE source_files_seq START 1;
 CREATE TABLE source_files (
     file_id INTEGER PRIMARY KEY DEFAULT nextval('source_files_seq'),
     engagement_id INTEGER NOT NULL,
-    kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers')),
+    kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers', 'payroll')),
     file_name VARCHAR NOT NULL,
     sha256 VARCHAR NOT NULL,
     archive_path VARCHAR NOT NULL,  -- archive/<company>/<sha256>.<ext>, relative to the data folder
@@ -91,6 +91,39 @@ CREATE TABLE ledger_blocks (
     "row" INTEGER NOT NULL,
     ledger VARCHAR NOT NULL,
     PRIMARY KEY (file_id, sheet, "row")
+);
+
+-- Payroll snapshot (fin.diligence.payroll): one row per employee, as the company's payroll system (Sparsh) lists them
+-- on snapshot_date; no month column. employee_name and employee_code are tokens (EMP-0001, ECODE-0001). gross_salary
+-- and ctc are ANNUAL rupees as filed, once the user confirms the unit (payroll_units); a blank cell is NULL. The
+-- period of the file is the engagement period (or the stub) that contains snapshot_date.
+CREATE TABLE payroll_lines (
+    file_id INTEGER NOT NULL,
+    sheet VARCHAR NOT NULL,
+    "row" INTEGER NOT NULL,
+    snapshot_date DATE NOT NULL,
+    employee_name VARCHAR NOT NULL,
+    employee_code VARCHAR NOT NULL,
+    designation VARCHAR,
+    department VARCHAR,
+    vertical VARCHAR,
+    sub_vertical VARCHAR,
+    joining_date DATE,
+    resign_date DATE,
+    gross_salary DECIMAL(20, 2),
+    ctc DECIMAL(20, 2),
+    run_id VARCHAR NOT NULL,
+    PRIMARY KEY (file_id, sheet, "row")
+);
+
+-- The user's statement of a payroll file's unit (`fin payroll confirm-unit`): 'annual' (what the plan expects) or
+-- 'monthly' (the file is not usable as it is: gate G1 fails until an annual snapshot is loaded). One row per file;
+-- a later confirmation replaces it (every one is in the audit log).
+CREATE TABLE payroll_units (
+    file_id INTEGER PRIMARY KEY,
+    unit VARCHAR NOT NULL CHECK (unit IN ('annual', 'monthly')),
+    run_id VARCHAR NOT NULL,
+    confirmed_at TIMESTAMP NOT NULL
 );
 
 -- Tally ledgers mapped to Schedule III dictionary accounts (fin.diligence.ledgers): one row per ledger as stored (the

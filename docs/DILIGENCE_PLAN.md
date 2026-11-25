@@ -2,7 +2,8 @@
 
 Status, 2026-11-24: **phase D1 is built** (#43, #44, #45; build log: [DILIGENCE_BUILD.md](DILIGENCE_BUILD.md)). It
 covers the engagement, accountant queries, EBITDA adjustments, the EBITDA bridge and EBITDA-to-cash walk on the
-audited statements, and gates G1, G2 and G4. **D2's first half is built**: source files (trial balance, Ledger
+audited statements, and gates G1, G2 and G4. **D3's payroll part is built** (the Sparsh snapshot,
+`fin payroll confirm-unit`, G1's unit line); registers and bank are separate workstreams. **D2's first half is built**: source files (trial balance, Ledger
 Vouchers) with column profiles, and masking. The rest of D2 (ledger mapping, `tb_vs_statements`, the stub, G1's
 trial balance checks) and D3–D9 are planned, revised to the diligence user's answers in §9.
 No questions are open. Each phase moves into `PLAN.md` as it is built.
@@ -140,7 +141,7 @@ and every gate approval.
 | `ledger_blocks` (**built**) | file_id, sheet, row, ledger: one per ledger block in a Ledger Vouchers export, with or without voucher lines; G1's "every ledger is in the Ledger Vouchers" reads it | D2 |
 | `register_lines` | file_id, sheet, row, kind (sales/purchase), bill id, purchase id, customer id, customer (token), location, invoice no, contract start, contract end, invoice date, order type, product, service start, service end, quantity, rate, amount, currency, currency rate, amount in Rs (before GST), service type, handler and submitted-by (tokens) | D3 |
 | `bank_lines` | file_id, sheet or page, row, bank, account, currency, date, remarks (names as tokens), reference, debit, credit, balance | D3 |
-| `payroll_lines` | file_id, sheet, row, snapshot date, employee name and code (tokens), designation, department, vertical, sub-vertical, joining date, resign date, gross salary and CTC (annual, unit confirmed by the user). No month column | D3 |
+| `payroll_lines` (**built**) | file_id, sheet, row, snapshot date, employee name and code (tokens), designation, department, vertical, sub-vertical, joining date, resign date, gross salary and CTC (annual, unit confirmed by the user). No month column | D3 |
 | `recon_runs`, `recon_items` (**built** for `tb_vs_statements`) | each reconciliation run (name, period, scope, left file, threshold, hash of its inputs, unmapped count) and its lines (`matched`, `difference`, `left_only`, `right_only`, `unmapped`; D5 adds `fx`), each with both sources, both amounts, the difference and its query | D2, D4, D5 |
 | `query_items` | query_id, recon item id: the lines an issue groups; count and value per kind of difference come from it | D4 |
 | `adjustments` (changed) | adds revenue effect and cost effect; the EBITDA effect (`amount`) must equal revenue effect minus cost effect; a reclassification between cost accounts names both (`account`, `from_account`) | D4 |
@@ -168,7 +169,7 @@ The gates follow that.
 
 | Gate | Checklist fin evaluates | Unlocks | Status |
 |---|---|---|---|
-| G1 Ingestion | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it. D2 adds: a trial balance and Ledger Vouchers per period (and for the stub); every ledger mapped; every TB ledger present in Ledger Vouchers; each audited year's TB ties to its statements (each account difference at or above the threshold is in a query). The stub has no audited statement: its TB is checked against Ledger Vouchers only, and it is marked unaudited. D3 adds: payroll unit confirmed; every bank parse ties | approving G2 | **Built** as "Ingestion": statement checks, and D2's trial balance checks once the engagement has a source file or a stub (`fin/diligence/tb_checks.py`) |
+| G1 Ingestion | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it. D2 adds: a trial balance and Ledger Vouchers per period (and for the stub); every ledger mapped; every TB ledger present in Ledger Vouchers; each audited year's TB ties to its statements (each account difference at or above the threshold is in a query). The stub has no audited statement: its TB is checked against Ledger Vouchers only, and it is marked unaudited. D3 adds: payroll unit confirmed (**built**, only when a payroll file is loaded, `fin/diligence/payroll.py`); every bank parse ties | approving G2 | **Built** as "Ingestion": statement checks, and D2's trial balance checks once the engagement has a source file or a stub (`fin/diligence/tb_checks.py`) |
 | G2 Reconciliation | No query in draft. A new or reworded query reopens it; sending, answering, closing or withdrawing one does not. D4–D5 add: every required reconciliation ran; every line at or above the threshold is in a query (`fx` lines are listed, not queried) | `fin adjust accept\|reject` | **Built** as "Reconciliation" |
 | G3 Recast | Every sales line at or above the threshold has service start and end dates, or is in a query; the recast ran for every period; each period's recast difference has a proposed or decided `recast` adjustment. Contracts are optional evidence | approving G4 | Planned (D6) |
 | G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |
@@ -204,9 +205,9 @@ that writes to a diligence table.
 | CLI | Phase |
 |---|---|
 | `fin engagement open <co> --periods ... [--stub FY27-YTD-SEP]` | D2 (**built**) |
-| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 (**built**: `payroll`) |
 | `fin map ledgers <co> [file.json]` (Tally ledger → account; the user confirms with `fin review confirm <co> <ids> --ledgers`) | D2 (**built**) |
-| `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 |
+| `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 (**built**) |
 | `fin engagement passthrough <co> --customers <file>` (the user's SI/reseller list; fin prints the tokens it matched) | D4 |
 | `fin reconcile <co> [name] [--period]` (**built** in D2 for `tb_vs_statements`), more reconciliations and `fin reconcile match --propose <file.json>` | D2, D4, D5 |
 | `fin query raise <co> --items <recon item ids>` (one issue, many lines) | D4 |
@@ -292,7 +293,7 @@ a synthetic stub loads and is labelled unaudited.
     again, and every loaded row can be traced to the parse it came from.
   - A parse whose rows do not tie (opening balance + credits − debits ≠ closing balance) is a finding, not a load.
   - Tests use recorded parser output for a synthetic PDF; CI never calls the LlamaParse API.
-- **Payroll**: the Sparsh snapshot, one row per employee; gross salary and CTC are annual. fin asks the user to
+- **Payroll** (**built**, `docs/decisions/d3-payroll.md`): the Sparsh snapshot, one row per employee; gross salary and CTC are annual. fin asks the user to
   confirm the unit (`fin payroll confirm-unit`) and warns when the amounts look monthly. Employee name and code are
   masked. The separate monthly salary workbooks are out of scope for now: a later optional profile.
 - Duplicate and overlap checks: the same invoice number twice, overlapping bank periods, a gap in bank balances
