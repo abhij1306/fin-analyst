@@ -16,6 +16,7 @@ from fin.db.conn import no_company_message
 from fin.diligence import bank_proposals, customers, ledgers
 from fin.diligence.customers import list_customers
 from fin.diligence.ledgers import list_ledgers
+from fin.disclosures import related
 from fin.fdd import tax_ledgers
 from fin.findings import recheck_held
 from fin.map import review
@@ -56,6 +57,10 @@ TaxOption = Annotated[
 ]
 TaxClassOption = Annotated[
     str | None, typer.Option(help="--tax: the class to use instead of the proposed one.")
+]
+RelatedOption = Annotated[
+    bool,
+    typer.Option("--related", help="Related party links (`fin disclosures related`) instead."),
 ]
 OptionalCompany = Annotated[
     str | None, typer.Argument(callback=_company, help="Only this company.")
@@ -248,14 +253,22 @@ def review_list(
     match_items: MatchesOption = False,
     customer_items: CustomersOption = False,
     tax_items: TaxOption = False,
+    related_items: RelatedOption = False,
 ) -> None:
     """List the items waiting for review (from review/<company>/pending.json), or with --ledgers
     the Tally ledgers waiting for an account (--all: every ledger), or with --customers the
     customers waiting for a sector, or with --matches the bank match proposals waiting for the
-    user, or with --tax the tax ledger classes waiting (--all: every one)."""
+    user, or with --tax the tax ledger classes waiting (--all: every one), or with --related the
+    related party links Claude proposed (--all: every link)."""
 
     def body(run: Run) -> None:
-        if match_items:
+        if related_items:
+            if company is None:
+                raise typer.BadParameter("--related needs a company")
+            rows = related.list_links(run, company, not all_items)
+            text = "\n".join(map(related.format_link, rows)) or "no related party links waiting"
+            typer.echo(json.dumps(rows, indent=2, default=str) if json_output else text)
+        elif match_items:
             if company is None:
                 raise typer.BadParameter("--matches needs a company")
             _list_matches(run, company, all_items, json_output)
@@ -277,6 +290,7 @@ def review_list(
         "matches": match_items,
         "customers": customer_items,
         "tax": tax_items,
+        "related": related_items,
     }
     execute("review list", args, body)
 
@@ -284,6 +298,13 @@ def review_list(
 def _confirm_matches(run: Run, company: str, ids: list[int]) -> None:
     for i in bank_proposals.decide(run, company, ids, "confirmed"):
         typer.echo(f"match #{i} confirmed; applied by the next bank_vs_invoices run")
+
+
+def _decide_related(run: Run, company: str, ids: list[int], status: str) -> None:
+    for row in related.decide(run, company, ids, status):
+        typer.echo(
+            f"link #{row['link_id']} {row['party']} -> {row['link_kind']} {row['target']} {status}"
+        )
 
 
 def _confirm_customers(
@@ -363,6 +384,7 @@ def review_confirm(
     ] = None,
     tax_items: TaxOption = False,
     tax_class: TaxClassOption = None,
+    related_items: RelatedOption = False,
 ) -> None:
     """Confirm items, all or nothing: the label joins the dictionary and the company's matching
     facts are confirmed. The item must have a proposed account, or pass --account. A proposed new
@@ -372,9 +394,13 @@ def review_confirm(
     now fails a check is held). With --ledgers the ids are ledger ids: their proposed accounts
     (or --account) are confirmed; only the user does this. With --customers the ids are customer
     ids: their proposed sectors (or --sector) are confirmed; only the user does this. With --tax the
-    ids are tax ledger ids: their proposed classes (or --tax-class) are confirmed."""
+    ids are tax ledger ids: their proposed classes (or --tax-class) are confirmed. With --related
+    the ids are related party link ids; only the user does this."""
 
     def body(run: Run) -> None:
+        if related_items:
+            _decide_related(run, company, ids, "confirmed")
+            return
         if tax_items:
             others = any((ledger_items, match_items, customer_items, account, sector, name, parent))
             _confirm_tax(run, company, ids, tax_class, others)
@@ -411,6 +437,7 @@ def review_confirm(
             "sector": sector,
             "tax": tax_items,
             "tax_class": tax_class,
+            "related": related_items,
         },
         body,
     )
@@ -452,14 +479,17 @@ def review_reject(
     match_items: MatchesOption = False,
     customer_items: CustomersOption = False,
     tax_items: TaxOption = False,
+    related_items: RelatedOption = False,
 ) -> None:
     """Reject items, all or nothing: their facts stay unconfirmed. With --ledgers the ids are
     ledger ids: the ledgers stay unmapped. With --customers the ids are customer ids: the
     customers stay unmapped. With --matches they are match proposal ids. With --tax they are tax
-    ledger ids: the ledgers have no tax class."""
+    ledger ids: the ledgers have no tax class. With --related, related party link ids."""
 
     def body(run: Run) -> None:
-        if tax_items:
+        if related_items:
+            _decide_related(run, company, ids, "rejected")
+        elif tax_items:
             _reject_tax(run, company, ids, any((ledger_items, match_items, customer_items)))
         elif match_items:
             _reject_matches(run, company, ids)
@@ -477,70 +507,9 @@ def review_reject(
         "matches": match_items,
         "customers": customer_items,
         "tax": tax_items,
+        "related": related_items,
     }
     execute("review reject", args, body)
-
-
-@map_app.command("ledgers")
-def map_ledgers(
-    company: CompanyArg,
-    file: Annotated[
-        Path | None,
-        typer.Argument(help="JSON list of proposals: {ledger, account, confidence, reason}."),
-    ] = None,
-) -> None:
-    """Tally ledgers -> Schedule III accounts. Without FILE: list the ledgers waiting for an
-    account. With FILE: store Claude's proposals; nothing is confirmed (the user confirms them:
-    `fin review confirm <co> <ids> --ledgers`). Party ledgers go by their token."""
-
-    def body(run: Run) -> None:
-        if file is None:
-            _echo_ledgers(list_ledgers(run, company, True), False)
-            return
-        try:
-            proposals = json.loads(file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise InvalidMapping(f"cannot read proposals from {file}: {exc}") from exc
-        if not isinstance(proposals, list):
-            raise InvalidMapping(f"{file}: expected a JSON list of proposals")
-        count = ledgers.propose(run, company, proposals)
-        typer.echo(
-            f"{count} ledger proposals stored for {company}; the user reviews them: "
-            f"`fin review list {company} --ledgers`"
-        )
-
-    execute("map ledgers", {"company": company, "file": file}, body)
-
-
-@map_app.command("customers")
-def map_customers(
-    company: CompanyArg,
-    file: Annotated[
-        Path | None,
-        typer.Argument(help="JSON list of proposals: {customer, sector, confidence, reason}."),
-    ] = None,
-) -> None:
-    """Customer sectors, for the sector mix. Without FILE: list the customers (tokens) waiting for a
-    sector. With FILE: store Claude's proposals; nothing is confirmed (the user confirms them:
-    `fin review confirm <co> <ids> --customers`)."""
-
-    def body(run: Run) -> None:
-        if file is None:
-            _echo_customers(list_customers(run, company, True), False)
-            return
-        try:
-            proposals = json.loads(file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise InvalidMapping(f"cannot read proposals from {file}: {exc}") from exc
-        if not isinstance(proposals, list):
-            raise InvalidMapping(f"{file}: expected a JSON list of proposals")
-        count = customers.propose(run, company, proposals)
-        typer.echo(
-            f"{count} customer sector proposals stored for {company}; the user reviews them: "
-            f"`fin review list {company} --customers`"
-        )
-
-    execute("map customers", {"company": company, "file": file}, body)
 
 
 def _echo_customers(rows: list[dict[str, Any]], json_output: bool) -> None:

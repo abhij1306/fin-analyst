@@ -4,7 +4,8 @@ What fin prints goes to Claude, and from Claude Code to Anthropic; the diligence
 anonymise names before any third-party processing. So on load, each masked value is stored once in
 `mask_values` (its kind, the real value and a stable token) and the data tables get the token:
 `CUST-0001` for a customer, `VEND-0001` vendor, `USER-0001` handler or submitted-by,
-`EMP-0001` employee name, `ECODE-0001` employee code, `LEDG-0001` a ledger fin cannot classify.
+`EMP-0001` employee name, `ECODE-0001` employee code, `LEDG-0001` a ledger fin cannot classify,
+`PRTY-0001` a disclosure counterparty (fin.disclosures) no loaded file had.
 The same value (ignoring case and repeated spaces) gets the same token in every file, whatever
 kind it was first masked as.
 
@@ -30,6 +31,7 @@ PREFIX = {
     "employee_name": "EMP",
     "employee_code": "ECODE",
     "ledger": "LEDG",
+    "party": "PRTY",  # a counterparty in a disclosure reading (fin.disclosures) no loaded file had
 }
 
 
@@ -50,6 +52,8 @@ FREE_TEXT_COLUMNS = (
     ("contracts", "renewal_terms"),
     ("walkthroughs", "evidence"),
     ("recon_items", "note"),  # the walkthrough reconciliation copies the evidence into its notes
+    ("disclosures", "nature"),
+    ("disclosures", "relationship"),
 )
 
 

@@ -9,7 +9,8 @@ A statement other than a SELECT that names a diligence table (engagement, accoun
 adjustments, gate_approvals, the source file tables source_files, trial_balance,
 ledger_entries, ledger_blocks, register_lines, payroll_lines, payroll_units, bank_statements,
 bank_lines, passthrough_customers, contracts, samples, sample_lines, walkthroughs, gst_returns, the
-ledger mappings ledger_accounts and tax_ledgers, and the reconciliations recon_runs, recon_items,
+FDD disclosures disclosure_files, disclosures and related_party_links, the ledger mappings
+ledger_accounts and tax_ledgers, and the reconciliations recon_runs, recon_items,
 query_items) is refused with E806 before the backup: those tables change only through
 `fin engagement|query|adjust|gate`, `fin ingest --kind`, `fin map ledgers` with `fin review
 --ledgers`, `fin reconcile`, `fin recast`, `fin sample` and `fin walkthrough`, which check the
@@ -48,7 +49,8 @@ DILIGENCE_TABLE = re.compile(
     r"|ledger_entries|ledger_blocks|register_lines|ledger_accounts|recon_runs|recon_items"
     r"|query_items|payroll_lines|payroll_units|bank_statements|bank_lines|passthrough_customers"
     r"|recon_match_lines|match_proposals|customers|contracts|samples|sample_lines|walkthroughs"
-    r"|provision_ledgers|inquiries|orderbook_lines|gst_returns|tax_ledgers)\b"
+    r"|provision_ledgers|inquiries|orderbook_lines|gst_returns|tax_ledgers"
+    r"|disclosure_files|disclosures|related_party_links)\b"
 )
 
 # Statements that would end the wrapping transaction or reach past the company database.

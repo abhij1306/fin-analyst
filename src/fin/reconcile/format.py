@@ -22,6 +22,7 @@ LEFT = {
     "purchase_cutoff": ("register", "not compared"),
     "orderbook_vs_register": ("orderbook", "register"),
     **gst.LEFT,
+    "rpt_vs_books": ("disclosed", "books"),
 }
 
 

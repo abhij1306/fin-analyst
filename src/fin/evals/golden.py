@@ -20,6 +20,8 @@ One line per check, the value a person read in the company's document and checke
   month and measure (`2024-05 taxable_value`, `2024-05 output_tax`, `2024-05 itc`,
   `2024-05 rcm_liability`);
 - `gst_return`: a GST return month's figure as filed (`fin.evals.gst`);
+- `rpt_vs_books` (F5): a related party transaction the notes disclose less the books; `ledger` is
+  the line's key (`PRTY-0001 sales`, or `PRTY-0001 debit <ledger>`).
 - `query_issue`: an exported issue's amount at issue (the lines' differences added without their
   signs) for a query that is approved or later; `ledger` is the query id.
 - `query_difference`: the value of one kind of difference in an issue, as the export shows it
@@ -109,6 +111,7 @@ RECON_KINDS = (
     "gstr3b_vs_gstr1",
     "gstr3b_vs_books",
     "rcm",
+    "rpt_vs_books",
 )
 QUERY_KINDS = ("query_issue", "query_difference")
 RECAST_KINDS = ("recast_revenue", "recast_difference", "recast_undated")

@@ -842,3 +842,20 @@ deferred and total tax, effective tax rate, net deferred tax asset and its movem
 ledgers) and `tax_ledger_balances`. `fin sql --write` refuses `gst_returns` and `tax_ledgers` (E806). Golden eval
 kinds `gst_return` (`ledger` `gstr3b 2024-05 itc`) and the four reconciliation names. The FDD report's tax section
 reads `fin.fdd.tax_data.collect`.
+
+Contingencies, commitments, notices and related parties (FDD F5, `docs/fdd.md` F5; decisions in
+`docs/decisions/fdd-f5.md`): `fin disclosures load <co> <file> --reading <csv>` (`fin/disclosures/`) stores Claude's
+reading of notes to accounts and legal and tax notices for the open engagement in `disclosures` (with
+`disclosure_files`: file name, sha256, reading; the same document again replaces its rows), one row per item with
+kind, period (a period of the engagement or its stub), counterparty, nature, amount in rupees (the reading's `unit`
+applied), forum, stage, assessment year, demand, paid under protest, relationship and page, read_by `claude`. A
+counterparty is masked on load: a name fin already masked keeps its token, a new one gets `PRTY-0001`; nature and
+relationship have known names replaced (and are masked again when a later load learns a name). E940 for a reading
+that cannot be used. `fin disclosures list <co> [--kind]` prints the schedules. Related parties are matched to the
+books by token (view `related_party_matches`); Claude proposes the other links (`fin disclosures related <co>
+<file.json>`, E941) and the user confirms or rejects them (`fin review list|confirm|reject <co> --related`; logged in
+`mapping_decisions`, scope `related_party`). Views `related_party_transactions`, `related_party_pricing`,
+`related_party_loans`. `fin reconcile <co> rpt_vs_books` compares each disclosed transaction (per party and
+`books`: sales, purchases, Ledger Vouchers debits or credits on a ledger) with the books; lines at or above the
+threshold are for queries, gate G2 requires the run once a reading has one. Golden eval kind `rpt_vs_books`. `fin sql
+--write` refuses `disclosure_files`, `disclosures` and `related_party_links` (E806).
