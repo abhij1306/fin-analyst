@@ -140,19 +140,36 @@ CREATE TABLE gate_approvals (
 );
 
 -- Contracts Claude read from a contract document (`fin recast contracts`, a reading CSV with file + page): optional
--- evidence for the service-period recast, never the source of its schedule. customer is a token (CUST-0001); invoice_no
--- links the contract to a sales invoice when the reading names one. value: the contract value as read, in rupees (NULL
--- when not read); billing_terms: as read. file_name, sha256 and page say where it was read; read_by is 'claude'.
+-- evidence for the service-period recast, never the source of its schedule, and the contract terms of the FDD
+-- extension (docs/fdd.md F1). party_kind: 'customer' or 'vendor'; counterparty is its token (CUST-0001, VEND-0001);
+-- invoice_no links the contract to a sales (customer) or purchase (vendor) invoice when the reading names one.
+-- value: the contract value as read, in rupees (NULL when not read); billing_terms, sla_terms, penalty_terms,
+-- escalation_terms and renewal_terms: as read, names replaced by tokens. The terms are NULL when the reading did not
+-- say (not read), which is not the same as no clause: lock_in_months and notice_days (whole numbers), escalation_pct
+-- (a year), and the yes/no clauses auto_renew, termination_convenience (termination for convenience),
+-- change_of_control and exclusivity. file_name, sha256 and page say where it was read; read_by is 'claude'.
 CREATE SEQUENCE contracts_seq START 1;
 CREATE TABLE contracts (
     contract_id INTEGER PRIMARY KEY DEFAULT nextval('contracts_seq'),
     engagement_id INTEGER NOT NULL,
-    customer VARCHAR NOT NULL,
+    party_kind VARCHAR NOT NULL DEFAULT 'customer' CHECK (party_kind IN ('customer', 'vendor')),
+    counterparty VARCHAR NOT NULL,
     invoice_no VARCHAR,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     value DECIMAL(20, 2),
     billing_terms VARCHAR,
+    lock_in_months INTEGER,
+    notice_days INTEGER,
+    sla_terms VARCHAR,
+    penalty_terms VARCHAR,
+    escalation_terms VARCHAR,
+    escalation_pct DECIMAL(7, 2),
+    renewal_terms VARCHAR,
+    auto_renew BOOLEAN,
+    termination_convenience BOOLEAN,
+    change_of_control BOOLEAN,
+    exclusivity BOOLEAN,
     file_name VARCHAR NOT NULL,
     sha256 VARCHAR NOT NULL,
     page INTEGER NOT NULL,

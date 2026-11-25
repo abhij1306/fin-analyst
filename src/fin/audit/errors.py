@@ -35,6 +35,8 @@ a command returns when the error ends it:
   no loaded sales register has) stop the command: exit 2.
 - E873-E874 (the diligence report, fin.report.dd_render: the company has no engagement; a narrative
   reference to a figure or period the report does not have) stop the command: exit 2.
+- E901-E903 (FDD walkthroughs, fin.sampling: a sample that cannot be drawn, a walkthrough file that
+  cannot be used, an unknown sample id) stop the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
 - E858-E861 (the query export, fin.diligence.export: no approved query, a file that cannot be read
@@ -305,10 +307,11 @@ class DiligenceTableWrite(FinError):
     """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
-    recon_items, passthrough_customers, recon_match_lines, match_proposals, contracts): those change
+    recon_items, passthrough_customers, recon_match_lines, match_proposals, contracts, samples,
+    sample_lines, walkthroughs): those change
     only through `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
     `fin map ledgers` with `fin review --ledgers`, `fin reconcile` (with `fin review --matches`) and
-    `fin recast`. Nothing was run."""
+    `fin recast`, `fin sample` and `fin walkthrough`. Nothing was run."""
 
     code = "E806"
 
@@ -585,3 +588,29 @@ class FigureReferenceUnknown(FinError):
     figure the report does not have, or in a period outside the engagement. Nothing rendered."""
 
     code = "E874"
+
+
+# E901-E903: FDD contracts and walkthroughs (fin.sampling, docs/fdd.md F1). Stop the command.
+
+
+class SampleCannotDraw(FinError):
+    """E901. `fin sample draw`: a period that is not a period of the open engagement, a size below
+    1, or no loaded register line of the kind in the period. Nothing recorded."""
+
+    code = "E901"
+
+
+class WalkthroughInvalid(FinError):
+    """E902. `fin walkthrough record`: the file is not a JSON list of results, or a result has a
+    line_no not in the sample, a check or result that is not one of the allowed ones, no evidence,
+    a bad page, or repeats a line and check. The message names each result at fault. Nothing
+    recorded."""
+
+    code = "E902"
+
+
+class SampleUnknown(FinError):
+    """E903. `fin sample show` or `fin walkthrough record`: no sample with that id in the open
+    engagement. Nothing changed."""
+
+    code = "E903"

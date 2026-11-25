@@ -62,6 +62,9 @@ One line per check, the value a person read in the company's document and checke
   core revenue from customers active the year before), `pvm_price_effect`, `pvm_volume_effect`,
   `pvm_mix_effect` (the period's price, volume and mix effects on core products, against the
   previous year).
+- `contract_value`, `sample_exception_amount`: a contract's value as Claude read it (`ledger` the
+  contract id), and the Amount in Rs of a walkthrough sample's lines with an exception (`ledger`
+  the sample id; fin.evals.fdd_contracts).
 
 `expected` is the figure as printed (brackets or a minus for negative) in `unit`; `source` is where
 it is printed (file + sheet!cell, sheet!row or page). Only a line whose `checked` is `yes` is
@@ -77,7 +80,7 @@ from pathlib import Path
 
 from fin.audit.errors import GoldenSetInvalid, GoldenSetMissing
 from fin.config import SCOPES
-from fin.evals import qoe
+from fin.evals import fdd_contracts, qoe
 from fin.extract.units import RUPEES_PER_UNIT, parse_figure, to_rupees
 from fin.map.dictionary import Account
 from fin.paths import evals_dir
@@ -127,6 +130,7 @@ KINDS = (
     *ANALYTICS_KINDS,
     *RECAST_KINDS,
     *qoe.KINDS,
+    *fdd_contracts.KINDS,
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -137,6 +141,7 @@ NEEDS = {
     **{kind: ("period", "ledger") for kind in (*RECON_KINDS, *QUERY_KINDS)},
     **{kind: ("period",) for kind in RECAST_KINDS},
     **{kind: ("period", "ledger") for kind in qoe.KINDS},
+    **fdd_contracts.NEEDS,
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),
     "linked_purchase_cost": ("period",),

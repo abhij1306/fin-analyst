@@ -39,7 +39,13 @@ choices in `docs/decisions/fdd-<id>.md`. Scope readings that are the orchestrato
 | f7 orderbook | 9 | E960–E969 | — |
 | f8 fddreport | 10 | E970–E979 | f1–f7 merged |
 
-### F1: Contract terms and deal walkthroughs (gaps 1, 2)
+### F1: Contract terms and deal walkthroughs (gaps 1, 2) — built
+
+Built as below; commands and views in `docs/product.md` ("FDD contracts and walkthroughs"), choices in
+[decisions/fdd-f1.md](decisions/fdd-f1.md). Commands: `fin recast contracts` (extended, loads customer and vendor
+contracts with terms), `fin contracts coverage`, `fin sample draw|show`, `fin walkthrough record|summary`. Views:
+`contract_coverage`, `walkthrough_summary`. Data functions for F8: `fin.reconcile.contract_coverage.coverage`,
+`fin.sampling.walkthrough.summaries`. Errors E901–E903 (the contracts loader keeps E864–E865).
 
 - Contract readings gain terms: party kind (customer/vendor), counterparty (token), start, end, value, lock-in
   months, notice period days, SLA terms, penalty terms, escalation terms and escalation % a year, renewal terms,

@@ -278,6 +278,7 @@ claude
 | `fin map customers <co> [file]`, `fin review list\|confirm\|reject <co> --customers` | `/diligence` | Claude proposes sectors; the user decides |
 | `fin analytics <co> [--json]` | `/diligence` | Either |
 | `fin recast run <co> [--period]`, `fin recast contracts <co> [<file> --reading <csv>]` | `/diligence` | Claude runs it; the user accepts or rejects the proposed adjustments |
+| `fin contracts coverage <co> [--json]`, `fin sample draw <co> --kind sales\|purchase --period P [--n] [--seed]`, `fin sample show <co> [id]`, `fin walkthrough record <co> <sample-id> <file.json>`, `fin walkthrough summary <co>` | `/diligence` | Claude runs them; a walkthrough exception at or above the threshold is grouped into a query the user approves |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
 | `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
 | `fin gate status <co> [--json]` | `/diligence` | Either |
@@ -619,6 +620,28 @@ recast. `fin recast contracts <co> [<file> --reading <csv>]` loads Claude's read
 token, invoice number, start, end, value, billing terms, file + page, read_by; E864, E865) as evidence named beside an undated line; it
 never drives the schedule. `engagement.fiscal_start_month` (config at open) says which months a period holds. E863: the recast cannot run.
 Golden eval kinds `recast_revenue`, `recast_difference`, `recast_undated` (period).
+
+FDD contracts and walkthroughs (F1, `docs/fdd.md`, decisions in `docs/decisions/fdd-f1.md`). `fin recast contracts` also loads vendor
+contracts and contract terms: the reading adds `party_kind` (customer or vendor), `counterparty` (`customer` is still read as it),
+`lock_in_months`, `notice_days`, `escalation_pct`, the free-text `sla_terms`, `penalty_terms`, `escalation_terms`, `renewal_terms` (known
+names masked) and the yes/no clauses `auto_renew`, `termination_convenience`, `change_of_control`, `exclusivity`; an empty cell is "not read"
+(NULL), not "no clause". A vendor is checked against the purchase register, a customer against the sales register (E865).
+View `contract_coverage` (`db/schema/fdd_contracts.sql`): the customers (core revenue, pass-through customers left out) and vendors
+(purchases) of the engagement's last annual period, ranked by Amount in Rs, each with its contract that ends last: on file or not,
+expired, expires within 12 months of the period end, auto-renew, change of control, lock-in months left. `fin contracts coverage <co>`
+shows the top `[fdd] coverage_top_n` (default 10, config.toml; a file without `[fdd]` uses the default) of each; the data function is
+`fin.reconcile.contract_coverage.coverage`. `fin sample draw <co> --kind sales|purchase --period P [--n 25] [--seed S]` (`fin/sampling/draw.py`)
+takes every register line at or above the engagement threshold (largest first, up to n), then draws the rest at random from the lines below
+it; the seed is stored on the sample (`samples`, `sample_lines`), so the draw repeats; `fin sample show <co> [id]` lists samples and lines.
+`fin walkthrough record <co> <sample-id> <file.json>` (`fin/sampling/walkthrough.py`) stores Claude's results, one per line and check
+(`in_register`, `contract_covers`, `service_in_contract`, `bank_matched`, `ledger_posting`; pass, exception or not_available; evidence required,
+file and page optional; table `walkthroughs`, read_by claude, not verified). View `walkthrough_summary` per sample: lines, lines walked, checks
+passed, exceptions, not available, exception lines and amount (`fin walkthrough summary <co>`; data function
+`fin.sampling.walkthrough.summaries`). Recording runs the reconciliation `walkthrough` (`fin/reconcile/walkthrough.py`, in `RECONCILIATIONS`, so
+`fin reconcile` and gate G2 see it): one invoice-level line per sample line with an exception (left = its Amount in Rs, no right side, note =
+the failed checks with their evidence); a line at or above the threshold is grouped into a query (`fin query raise --items`), below it is listed.
+E901-E903 (and E864-E865 for the contracts). `fin sql --write` refuses `samples`, `sample_lines` and `walkthroughs` (E806). Golden eval kinds
+`contract_value` (ledger = contract id) and `sample_exception_amount` (period, ledger = sample id).
 
 Ledger mapping, `tb_vs_statements`, the stub and G1's trial balance checks (D2, second half). `ledger_accounts`
 (`fin/diligence/ledgers.py`): a trial balance load adds its new ledgers as pending; `fin map ledgers <co>` lists

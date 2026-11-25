@@ -1,16 +1,20 @@
 """Contracts (`fin recast contracts <company> <file> --reading <csv>`): optional evidence for the
-recast, never the source of its schedule.
+recast, never the source of its schedule, and the contract terms of the FDD extension.
 
 Claude reads a contract document and writes a reading CSV, one row per contract (a UTF-8 file with a
 header row; columns in any order):
 
-- `customer` (required): the customer's token (CUST-0001) or name as printed; a name is masked to
-  its token (`mask_values`, whichever kind first masked it); one no loaded sales register has is
-  E865;
-- `invoice_no`: the sales invoice the contract supports; one no register has is E865;
+- `counterparty` (required; `customer` is read as the same column): the party's token (CUST-0001,
+  VEND-0001) or name as printed; a name is masked to its token (`mask_values`, whichever kind first
+  masked it); one no loaded register has (sales for a customer, purchase for a vendor) is E865;
+- `party_kind`: customer (default) or vendor;
+- `invoice_no`: the sales (customer) or purchase (vendor) invoice the contract supports; one no
+  register has is E865;
 - `start`, `end` (required): the contract's dates, YYYY-MM-DD;
 - `value`: the contract value as printed (`12,00,000.00`), in rupees; `billing_terms`: as read,
   with known names replaced by their tokens;
+- the terms in `contract_terms.py` (lock-in, notice, SLA, penalty, escalation, renewal and the
+  yes/no clauses), each optional;
 - `page` (required): the page of the document it was read from, from 1.
 
 Every row is stored in `contracts` with the file name, its sha256 and the page, read_by 'claude'.
@@ -35,9 +39,16 @@ from fin.diligence.engagement import company_database, require_open, rupees
 from fin.diligence.mask import Masker
 from fin.extract.profiles import norm
 from fin.extract.units import parse_figure
+from fin.reconcile.contract_terms import (
+    OPTIONAL,
+    TERM_COLUMNS,
+    TEXT_TERMS,
+    parse_terms,
+    terms_text,
+)
 
-REQUIRED = ("customer", "start", "end", "page")
-OPTIONAL = ("invoice_no", "value", "billing_terms")
+REQUIRED = ("counterparty", "start", "end", "page")
+REGISTER = {"customer": ("sales", "customer"), "vendor": ("purchase", "vendor")}  # kind, column
 
 
 def _date(text: str) -> date:
@@ -61,17 +72,17 @@ def _parse_row(number: int, row: dict[str, str]) -> dict[str, Any]:
     page = int(row["page"])
     if page < 1:
         raise ValueError("page starts at 1")
-    if not row["customer"]:
-        raise ValueError("customer is empty")
+    if not row["counterparty"]:
+        raise ValueError("counterparty is empty")
     return {
         "line": number,
-        "customer": row["customer"],
+        "counterparty": row["counterparty"],
         "invoice_no": row.get("invoice_no") or None,
         "start_date": start,
         "end_date": end,
         "value": _value(row.get("value")),
-        "billing_terms": row.get("billing_terms") or None,
         "page": page,
+        **parse_terms(row),
     }
 
 
@@ -80,6 +91,11 @@ def read_rows(path: Path) -> list[dict[str, Any]]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         names = set(reader.fieldnames or [])
+        if "counterparty" not in names and "customer" in names:
+            names.add("counterparty")
+            reader.fieldnames = [
+                "counterparty" if name == "customer" else name for name in reader.fieldnames or []
+            ]
         table = list(reader)
     missing = [name for name in REQUIRED if name not in names]
     if missing:
@@ -100,13 +116,28 @@ def read_rows(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def _token(con: duckdb.DuckDBPyConnection, customer: str) -> str | None:
-    """The customer token the reading's customer is (a token as given, or a name masked to one)."""
+def _token(con: duckdb.DuckDBPyConnection, party: str) -> str | None:
+    """The token the reading's counterparty is (a token as given, or a name masked to one)."""
     found = con.execute(
         "SELECT token FROM mask_values WHERE token = ? OR match_key = ?",
-        [customer, norm(customer)],
+        [party, norm(party)],
     ).fetchone()
     return found[0] if found else None
+
+
+def _on_register(con: duckdb.DuckDBPyConnection, engagement_id: int) -> dict[str, set[str]]:
+    """Per party kind, the tokens and the invoice numbers of its loaded register ('customer',
+    'vendor', 'customer_invoices', 'vendor_invoices')."""
+    found: dict[str, set[str]] = {}
+    for party_kind, (kind, column) in REGISTER.items():
+        rows = con.execute(
+            f"SELECT r.{column}, trim(r.invoice_no) FROM register_lines r JOIN source_files f "
+            "USING (file_id) WHERE f.engagement_id = ? AND f.status = 'loaded' AND r.kind = ?",
+            [engagement_id, kind],
+        ).fetchall()
+        found[party_kind] = {party for party, _ in rows}
+        found[f"{party_kind}_invoices"] = {number for _, number in rows}
+    return found
 
 
 def load(run: Run, company: str, path: Path, reading: Path) -> list[dict[str, Any]]:
@@ -116,50 +147,39 @@ def load(run: Run, company: str, path: Path, reading: Path) -> list[dict[str, An
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
         engagement_id = engagement["engagement_id"]
-        on_register = {
-            customer
-            for (customer,) in con.execute(
-                "SELECT DISTINCT r.customer FROM register_lines r JOIN source_files f USING "
-                "(file_id) WHERE f.engagement_id = ? AND f.status = 'loaded' AND r.kind = 'sales'",
-                [engagement_id],
-            ).fetchall()
-        }
-        invoices = {
-            number
-            for (number,) in con.execute(
-                "SELECT DISTINCT trim(r.invoice_no) FROM register_lines r JOIN source_files f "
-                "USING (file_id) WHERE f.engagement_id = ? AND f.status = 'loaded' "
-                "AND r.kind = 'sales'",
-                [engagement_id],
-            ).fetchall()
-        }
+        on_register = _on_register(con, engagement_id)
         masker = Masker(con, run.run_id)
         unknown = []
         for row in rows:
-            row["billing_terms"] = masker.text(row["billing_terms"])
-            row["customer"] = _token(con, row["customer"])
-            if row["customer"] not in on_register or (
-                row["invoice_no"] and row["invoice_no"] not in invoices
+            for name in TEXT_TERMS:
+                row[name] = masker.text(row[name])
+            row["counterparty"] = _token(con, row["counterparty"])
+            kind = row["party_kind"]
+            if row["counterparty"] not in on_register[kind] or (
+                row["invoice_no"] and row["invoice_no"] not in on_register[f"{kind}_invoices"]
             ):
                 unknown.append(f"line {row['line']}")
         if unknown:
             raise ContractNotOnRegister(
-                f"{reading.name}: {', '.join(unknown)} name a customer or invoice number that no "
-                "loaded sales register has; nothing recorded"
+                f"{reading.name}: {', '.join(unknown)} name a counterparty or invoice number that "
+                "no loaded register of its party kind has; nothing recorded"
             )
         con.execute(
             "DELETE FROM contracts WHERE engagement_id = ? AND sha256 = ?", [engagement_id, sha256]
         )
         now = utcnow()
+        names = (
+            "party_kind", "counterparty", "invoice_no", "start_date", "end_date", "value",
+            *TERM_COLUMNS, "page",
+        )  # fmt: skip
         for row in rows:
             con.execute(
-                "INSERT INTO contracts (engagement_id, customer, invoice_no, start_date, end_date, "
-                "value, billing_terms, file_name, sha256, page, read_by, run_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'claude', ?, ?)",
+                f"INSERT INTO contracts (engagement_id, {', '.join(names)}, file_name, sha256, "
+                f"read_by, run_id, created_at) VALUES (?, {', '.join('?' for _ in names)}, ?, ?, "
+                "'claude', ?, ?)",
                 [
-                    engagement_id, row["customer"], row["invoice_no"], row["start_date"],
-                    row["end_date"], row["value"], row["billing_terms"], path.name, sha256,
-                    row["page"], run.run_id, now,
+                    engagement_id, *(row[name] for name in names), path.name, sha256, run.run_id,
+                    now,
                 ],
             )  # fmt: skip
         return list_contracts_in(con, engagement_id)
@@ -181,7 +201,7 @@ def format_contract(row: dict[str, Any]) -> str:
     value = f", value {rupees(row['value'])}" if row["value"] is not None else ""
     terms = f", billing {row['billing_terms']}" if row["billing_terms"] else ""
     return (
-        f"#{row['contract_id']} {row['customer']}{invoice}: {row['start_date']} to "
-        f"{row['end_date']}{value}{terms} ({row['file_name']} p.{row['page']}, read by "
-        f"{row['read_by']}, not verified)"
+        f"#{row['contract_id']} {row['party_kind']} {row['counterparty']}{invoice}: "
+        f"{row['start_date']} to {row['end_date']}{value}{terms}{terms_text(row)} "
+        f"({row['file_name']} p.{row['page']}, read by {row['read_by']}, not verified)"
     )

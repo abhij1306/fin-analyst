@@ -62,7 +62,11 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `applies`, registered in `reconcile/__init__.py` `RECONCILIATIONS`, its name in the `recon_runs` CHECK, and its
   golden eval kind (`evals/golden.py` `RECON_KINDS`). The service-period recast is a reconciliation too but is not in
   `RECONCILIATIONS` (gate G3 reads it, not G2): `recast.py` (compute), `recast_run.py` (`fin recast run`, proposes the
-  adjustment), `recast_checks.py` (G3's lines), `contracts.py` (`fin recast contracts`).
+  adjustment), `recast_checks.py` (G3's lines), `contracts.py` (`fin recast contracts`), `contract_terms.py` (the term columns of a
+  contract reading), `contract_coverage.py` (`fin contracts coverage`). `walkthrough.py` is in `RECONCILIATIONS`: the exceptions Claude recorded
+  for sampled lines.
+- `sampling/`: FDD F1 samples and walkthroughs: `draw.py` (`fin sample`), `walkthrough.py` (`fin walkthrough`); CLI `cli/fdd_contracts.py`
+  (also `fin contracts coverage`); schema `db/schema/fdd_contracts.sql`; golden kinds `evals/fdd_contracts.py`.
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` (with `review_accounts.py`: checks of a proposed or new account) and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.

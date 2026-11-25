@@ -38,6 +38,7 @@ SCHEMA_FILES = {
         "diligence_split_views.sql",
         "diligence_analytics.sql",
         "diligence_nwc.sql",
+        "fdd_contracts.sql",
     ],
 }
 

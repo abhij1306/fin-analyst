@@ -44,6 +44,11 @@ FREE_TEXT_COLUMNS = (
     ("register_lines", "product"),
     ("register_lines", "service_type"),
     ("contracts", "billing_terms"),
+    ("contracts", "sla_terms"),
+    ("contracts", "penalty_terms"),
+    ("contracts", "escalation_terms"),
+    ("contracts", "renewal_terms"),
+    ("walkthroughs", "evidence"),
 )
 
 
