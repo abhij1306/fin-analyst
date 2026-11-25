@@ -28,7 +28,7 @@ Product-level choices for pass-through and adjustment effects (DILIGENCE_PLAN.md
 
 ## 5. A reclassification between cost accounts has no effect; it names both accounts and the amount moved
 
-- **Decision:** With `--from-account`, the category must be `reclassification`, both accounts must be expenses of the profit and loss, they must differ, `--moved-amount` is positive, and the revenue, cost and EBITDA effects are 0. It shows as a zero step in the bridge naming both accounts and the amount. A reclassification that moves revenue and cost together (revenue effect and cost effect of the same size) has no EBITDA effect and changes the margin on adjusted revenue.
+- **Decision:** With `--from-account`, the category must be `reclassification`, both accounts must be expenses of the profit and loss within EBITDA (not finance cost, depreciation, interest expended or provisions, which EBITDA adds back), they must differ, `--moved-amount` is positive, and the revenue, cost and EBITDA effects are 0. It shows as a zero step in the bridge naming both accounts and the amount. A reclassification that moves revenue and cost together (revenue effect and cost effect of the same size) has no EBITDA effect and changes the margin on adjusted revenue.
 - **Why:** The plan says it names both accounts and that a reclassification changes margins with zero EBITDA effect. fin has no cost-line margins (only EBITDA margin), so only revenue-and-cost moves change a margin it shows.
 - **How to change it:** `adjustments.py:_check_reclassification`; to also show adjusted gross margin, extend `adjusted_ebitda` in `diligence_views.sql`.
 

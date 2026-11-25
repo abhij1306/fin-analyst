@@ -238,6 +238,7 @@ def test_a_cost_reclassification_names_both_accounts_and_has_no_effect(root: Pat
         ({"from_account": "other_expenses"}, "go together"),
         ({"moved_amount": D("1")}, "go together"),
         ({"from_account": "revenue", "moved_amount": D("1")}, "must be a cost account"),
+        ({"from_account": "depreciation", "moved_amount": D("1")}, "must be a cost account"),
         ({"from_account": "employee_expense", "moved_amount": D("1")}, "two different"),
         ({"from_account": "other_expenses", "moved_amount": D("-1")}, "positive"),
         (

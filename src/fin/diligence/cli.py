@@ -80,8 +80,10 @@ def _text(value: str | None) -> str | None:
 
 
 def _tokens(values: list[str] | None) -> list[str] | None:
-    if values is not None and not all(re.fullmatch(r"CUST-\d+", v.strip()) for v in values):
-        raise typer.BadParameter("a customer is a token such as CUST-0001")
+    if values is not None and not all(re.fullmatch(r"[A-Z]+-\d+", v.strip()) for v in values):
+        raise typer.BadParameter(
+            "a customer is a token such as CUST-0001 (letters, a dash, digits)"
+        )
     return None if values is None else [v.strip() for v in values]
 
 

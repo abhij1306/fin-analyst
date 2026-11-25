@@ -78,6 +78,8 @@ def _check_links(
 
 
 ZERO = Decimal("0.00")
+# Expense accounts EBITDA adds back: a cost moved across them would change EBITDA.
+BELOW_EBITDA = ("finance_cost", "depreciation", "interest_expended", "provisions_and_contingencies")
 
 
 def resolve_effects(
@@ -124,13 +126,15 @@ def _check_reclassification(
     accounts = load_accounts(run.root)
     for name, value in (("--account", account), ("--from-account", from_account)):
         found = accounts.get(value) if value else None
-        if found is None or (found.statement, found.parent) != (
-            "profit_and_loss",
-            "total_expenses",
+        if (
+            found is None
+            or (found.statement, found.parent) != ("profit_and_loss", "total_expenses")
+            or value in BELOW_EBITDA
         ):
             raise AdjustmentInvalid(
-                f"{name} {value!r} must be a cost account (an expense of the profit and loss, "
-                "see `fin map accounts`); nothing proposed"
+                f"{name} {value!r} must be a cost account within EBITDA (an expense of the profit "
+                "and loss other than finance cost and depreciation, see `fin map accounts`); "
+                "nothing proposed"
             )
     if account == from_account:
         raise AdjustmentInvalid("a reclassification needs two different accounts; nothing proposed")
