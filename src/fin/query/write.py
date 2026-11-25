@@ -15,7 +15,9 @@ those tables change only through
 --ledgers`, `fin reconcile` and `fin recast`, which check the gates and log every change. SQL naming
 mask_values is refused with E810 (fin.query.run.refuse_masked). A statement that would end the
 transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH, DETACH, COPY FROM
-DATABASE, LOAD/INSTALL) is refused with E504, also before the backup.
+DATABASE, LOAD/INSTALL) or change the schema (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) is
+refused with E504, also before the backup. The statements run with file access closed
+(`fin.db.conn.lock_files`).
 """
 
 import re
@@ -33,7 +35,7 @@ from fin.audit.errors import (
     SqlFailed,
 )
 from fin.audit.logger import Run
-from fin.db.conn import connect
+from fin.db.conn import connect, lock_files
 from fin.findings import recheck_held
 from fin.metrics.export import refresh_analytics
 from fin.paths import backups_dir, company_db_path
@@ -54,6 +56,21 @@ REFUSED = {
     duckdb.StatementType.DETACH: "DETACH",
     duckdb.StatementType.COPY_DATABASE: "COPY FROM DATABASE",
     duckdb.StatementType.LOAD: "LOAD and INSTALL",
+}
+
+# Statements that change the schema or the session: a dropped view would stop every command (the
+# database would read as an old format), so `fin sql --write` changes data only.
+SCHEMA_CHANGE = {
+    duckdb.StatementType.CREATE,
+    duckdb.StatementType.CREATE_FUNC,
+    duckdb.StatementType.DROP,
+    duckdb.StatementType.ALTER,
+    duckdb.StatementType.PRAGMA,
+    duckdb.StatementType.SET,
+    duckdb.StatementType.VARIABLE_SET,
+    duckdb.StatementType.EXPORT,
+    duckdb.StatementType.EXTENSION,
+    duckdb.StatementType.VACUUM,
 }
 
 COUNTED = {
@@ -113,6 +130,12 @@ def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
                 f"{', '.join(named)}); use `fin engagement`, `fin query`, `fin adjust`, "
                 "`fin gate` or `fin ingest --kind`. Nothing was run"
             )
+        if statement.type in SCHEMA_CHANGE:
+            raise SqlFailed(
+                f"schema changes are not allowed ({statement.type.name}): `fin sql --write` "
+                "changes data only; restore from backups/<run_id> if a company database was "
+                "changed. Nothing was run"
+            )
 
 
 def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> dict[str, Any]:
@@ -141,6 +164,7 @@ def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> 
     saved = backup(run.root, path, run)
     rows_affected = 0
     with connect(path, write=True) as con:
+        lock_files(con)
         con.execute("BEGIN TRANSACTION")
         try:
             for statement in con.extract_statements(sql):

@@ -159,6 +159,20 @@ class PdfAddonFailed(DocumentFailure):
     code = "E206"
 
 
+class ValueOutOfRange(DocumentFailure):
+    """E890. A figure in the document is too large to store (10**16 rupees or more): a misread
+    cell or a wrong unit. The file goes to review/ with the cell named; the next file loads."""
+
+    code = "E890"
+
+
+class LoadRejected(DocumentFailure):
+    """E891. The database refused a document's rows (a value or text it cannot store). The
+    document is rolled back and goes to review/; the next file loads."""
+
+    code = "E891"
+
+
 # E3xx: mapping. Loaded as unconfirmed and queued for review.
 
 

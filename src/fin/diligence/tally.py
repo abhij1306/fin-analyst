@@ -109,6 +109,26 @@ def party_kind(rows: list[TbRow], index: int, groups: dict[str, str]) -> str | N
     )
 
 
+def group_summary(rows: list[TbRow], names: list[str], profile: Profile) -> str:
+    """Which groups the ledgers sit in, as the load shows it: "party groups: Sundry Debtors (12
+    ledgers), ...; other groups: Bank Accounts (3 ledgers), ..." (a ledger counts under its nearest
+    group; a party group's ledgers are masked). Group names and counts only, no ledger names."""
+    party: dict[str, int] = {}
+    other: dict[str, int] = {}
+    for i, r in enumerate(rows):
+        if r.row_type != "ledger":
+            continue
+        group = names[r.group] if r.group is not None else "(no group)"
+        bucket = party if party_kind(rows, i, profile.mask_groups) else other
+        bucket[group] = bucket.get(group, 0) + 1
+
+    def shown(counts: dict[str, int]) -> str:
+        ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        return ", ".join(f"{name} ({n} ledgers)" for name, n in ordered) or "none"
+
+    return f"party groups (ledgers masked): {shown(party)}; other groups: {shown(other)}"
+
+
 def stored_names(rows: list[TbRow], profile: Profile, masker: Masker) -> list[str]:
     """Each row's name as stored: a token for a row under a party group (a party ledger, or a
     sub-group of parties), with known masked names replaced otherwise (when the profile masks

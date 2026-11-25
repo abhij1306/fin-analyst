@@ -83,6 +83,14 @@ def reports_dir(root: Path, company: str) -> Path:
     return root / "reports" / company
 
 
+def exports_dir(root: Path, company: str) -> Path:
+    return root / "exports" / company
+
+
+def company_evals_dir(root: Path, company: str) -> Path:
+    return evals_dir(root) / company
+
+
 def backups_dir(root: Path) -> Path:
     return root / "backups"
 

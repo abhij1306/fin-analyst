@@ -23,7 +23,7 @@ import duckdb
 
 from fin.audit.errors import MaskedTableRead, ReadOnlyViolation, SqlFailed
 from fin.audit.logger import Run
-from fin.db.conn import connect
+from fin.db.conn import connect, lock_files
 from fin.db.rows import fetch_dicts
 from fin.paths import company_db_path
 from fin.query.evidence import write_evidence
@@ -90,6 +90,7 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
     with connect(company_db_path(root, company)) as con:
         check_select(con, sql)
         add_view(con, root)  # standard_statements
+        lock_files(con)
         try:
             rows = fetch_dicts(con, sql)
         except duckdb.Error as exc:
