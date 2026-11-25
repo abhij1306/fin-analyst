@@ -16,7 +16,7 @@ Product-level decisions of the D7 workstream (DILIGENCE_PLAN.md §7 D7, §4 `nwc
 
 ## 3. The monthly view uses only ledgers that tie, and says what it left out
 
-- **Decision:** A working capital ledger is in the monthly view when the previous period's trial balance is loaded (the previous annual period; the last annual period for the stub) and the latest `gl_vs_tb` run of the period has its movement equal to the trial balance. A ledger absent from the previous trial balance opens at nil, as in `gl_vs_tb`. Other ledgers are left out with the reason, and every month shows how many ledgers are in and out, so a month with ledgers left out is not read as the complete working capital. A period with no previous trial balance has no monthly view.
+- **Decision:** A working capital ledger is in the monthly view when the previous period's trial balance is loaded (the previous annual period; the last annual period for the stub) and the latest `gl_vs_tb` run of the period has its movement equal to the trial balance. The `gl_vs_tb` run must be on the loaded Ledger Vouchers and trial balance and later than the previous trial balance's load (else "gl_vs_tb has not run on the current files"). A ledger absent from the previous trial balance opens at nil, as in `gl_vs_tb`. Other ledgers are left out with the reason, and every month shows how many ledgers are in and out, so a month with ledgers left out is not read as the complete working capital. A period with no previous trial balance has no monthly view.
 - **Why:** Plan §4 (an inferred opening would make the check circular); showing the partial coverage keeps a part view from looking complete.
 - **How to change it:** `diligence_nwc.sql`: `nwc_monthly_ledgers` (the `status` CASE), `nwc_monthly`.
 

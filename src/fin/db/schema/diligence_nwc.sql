@@ -89,7 +89,9 @@ GROUP BY b.engagement_id, b.period, b.basis, b.period_start, b.period_end, b.fil
 --   included  when the previous trial balance is loaded and the latest gl_vs_tb run of the period has its movement
 --             equal to the trial balance (a 'matched' ledger line);
 --   excluded  otherwise, with the reason: no previous trial balance (an opening is never inferred from the same
---             movements), gl_vs_tb has not run, or its movement does not tie to the trial balance.
+--             movements), gl_vs_tb has not run on the current files (the latest run's Ledger Vouchers and trial balance
+--             are the loaded ones and it ran after the previous trial balance was loaded), or its movement does not tie
+--             to the trial balance.
 -- opening is the previous closing in the statements' sign (NULL: the ledger is not in it) and opening_source its
 -- file + sheet!row.
 CREATE VIEW nwc_monthly_ledgers AS
@@ -107,7 +109,7 @@ lv AS (
     WHERE s.kind = 'ledger_vouchers' AND s.status = 'loaded'
 ),
 tb AS (
-    SELECT s.period, s.file_id, s.file_name FROM source_files s
+    SELECT s.period, s.file_id, s.file_name, s.ingested_at FROM source_files s
     WHERE s.kind = 'trial_balance' AND s.status = 'loaded'
         AND s.engagement_id = (SELECT engagement_id FROM eng)
 ),
@@ -139,7 +141,7 @@ SELECT
     END AS status,
     CASE
         WHEN ptb.period IS NULL THEN 'no previous trial balance'
-        WHEN r.recon_id IS NULL THEN 'gl_vs_tb has not run'
+        WHEN r.recon_id IS NULL THEN 'gl_vs_tb has not run on the current files'
         WHEN i.kind IS NULL THEN 'gl_vs_tb has no line for it'
         WHEN i.kind <> 'matched' THEN 'movements do not tie to the trial balance'
     END AS reason,
@@ -150,8 +152,10 @@ JOIN ledgers l ON l.period = lv.period
 JOIN ledger_accounts m ON m.ledger = l.ledger AND m.status = 'confirmed'
 JOIN nwc_accounts n ON n.account = m.account
 LEFT JOIN tb ptb ON ptb.period = lv.prior_period
+LEFT JOIN tb ctb ON ctb.period = lv.period
 LEFT JOIN opening o ON o.period = lv.prior_period AND o.ledger = l.ledger
-LEFT JOIN runs r ON r.period = lv.period
+LEFT JOIN recon_runs r ON r.recon_id = (SELECT recon_id FROM runs WHERE runs.period = lv.period)
+    AND r.left_file_id = lv.file_id AND r.right_file_id = ctb.file_id AND r.created_at >= ptb.ingested_at
 LEFT JOIN recon_items i ON i.recon_id = r.recon_id AND i.level = 'ledger' AND i.key = l.ledger;
 
 -- The balance of each included ledger at each month end of its period (the Ledger Vouchers' span: a month per row,
@@ -210,17 +214,17 @@ GROUP BY l.engagement_id, l.period, l.month_end, c.ledgers_included, c.ledgers_e
 
 -- Year-end (and stub-end) and month-end working capital in one list, for the dashboard: granularity 'year_end' (as_of
 -- the period's end date, from the trial balance) or 'month_end' (from the Ledger Vouchers). ledgers_included and
--- ledgers_excluded are NULL for a year-end row.
+-- ledgers_excluded are NULL for a year-end row; unmapped_ledgers is NULL for a month-end row.
 CREATE VIEW nwc_series AS
 SELECT
     period, 'year_end' AS granularity, period_end AS as_of, basis, trade_receivables, inventories,
     other_current_assets, trade_payables, other_current_liabilities, net_working_capital,
-    NULL::BIGINT AS ledgers_included, NULL::BIGINT AS ledgers_excluded
+    unmapped_ledgers, NULL::BIGINT AS ledgers_included, NULL::BIGINT AS ledgers_excluded
 FROM nwc_year_end
 UNION ALL
 SELECT
     m.period, 'month_end', m.month_end, CASE WHEN m.period = e.stub THEN 'unaudited' ELSE 'audited' END,
     m.trade_receivables, m.inventories, m.other_current_assets, m.trade_payables, m.other_current_liabilities,
-    m.net_working_capital, m.ledgers_included, m.ledgers_excluded
+    m.net_working_capital, NULL::BIGINT, m.ledgers_included, m.ledgers_excluded
 FROM nwc_monthly m
 JOIN (SELECT stub FROM engagement ORDER BY engagement_id DESC LIMIT 1) e ON true;

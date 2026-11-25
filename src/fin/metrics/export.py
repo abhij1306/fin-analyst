@@ -139,6 +139,7 @@ ANALYTICS_VIEWS = [
             "trade_payables",
             "other_current_liabilities",
             "net_working_capital",
+            "unmapped_ledgers",
             "ledgers_included",
             "ledgers_excluded",
         ],

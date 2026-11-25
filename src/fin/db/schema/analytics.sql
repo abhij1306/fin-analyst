@@ -213,6 +213,7 @@ CREATE TABLE qoe_nwc (
     trade_payables DECIMAL(38, 2),
     other_current_liabilities DECIMAL(38, 2),
     net_working_capital DECIMAL(38, 2),
+    unmapped_ledgers BIGINT,
     ledgers_included BIGINT,
     ledgers_excluded BIGINT
 );

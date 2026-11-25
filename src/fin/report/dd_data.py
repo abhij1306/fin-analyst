@@ -312,6 +312,11 @@ def collect(root: Path, company: str, scope: str) -> dict[str, Any]:
                 "WHERE status <> 'confirmed' "
                 "GROUP BY status ORDER BY status",
             ),
+            "facts_not_confirmed": con.execute(
+                "SELECT count(*) FROM facts f JOIN documents d ON d.doc_id = f.doc_id "
+                "WHERE d.status = 'loaded' AND NOT f.confirmed AND f.scope = ?",
+                [scope],
+            ).fetchone()[0],
             "periods_shown": everything,
         }
     data["figures"] = _figures(data)

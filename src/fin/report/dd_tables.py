@@ -349,13 +349,19 @@ def findings_table(data: dict[str, Any]) -> str:
 
 def mappings_text(data: dict[str, Any]) -> str:
     rows = data["ledgers_not_confirmed"]
-    if not rows:
-        return "Every ledger is confirmed to an account."
-    return (
+    text = (
         "Ledgers not confirmed to an account: "
         + ", ".join(f"{r['ledgers']} {r['status']}" for r in rows)
         + ". Their balances are left out of every figure by account."
+        if rows
+        else "Every ledger is confirmed to an account."
     )
+    if data["facts_not_confirmed"]:
+        text += (
+            f" Statement figures not confirmed to an account: {data['facts_not_confirmed']}; "
+            "they are left out of every metric."
+        )
+    return text
 
 
 def recast_section(data: dict[str, Any], unit: str) -> str:

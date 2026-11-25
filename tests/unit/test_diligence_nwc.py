@@ -2,6 +2,7 @@
 tests/qoe_fixtures.py: year-end and stub figures from the trial balances, monthly figures from the
 Ledger Vouchers on the previous trial balance's closing, only for ledgers that tie."""
 
+import shutil
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -83,6 +84,16 @@ def test_a_ledger_that_does_not_tie_is_left_out_with_its_reason(root: Path) -> N
         "WHERE period = 'FY26-YTD-SEP' ORDER BY month_end",
     )
     assert month and month[-1][0] == "2025-09-30" and month[-1][2] > 0
+
+
+def test_a_reconciliation_that_ran_on_other_files_is_not_used(root: Path, tmp_path: Path) -> None:
+    copy = Path(shutil.copytree(root, tmp_path / "data"))
+    with connect(company_db_path(copy, "acme"), write=True) as con:
+        con.execute("UPDATE recon_runs SET right_file_id = 999 WHERE period = 'FY25'")
+    assert rows(copy, "SELECT count(*) FROM nwc_monthly WHERE period = 'FY25'") == [(0,)]
+    assert rows(copy, "SELECT DISTINCT reason FROM nwc_monthly_ledgers WHERE period = 'FY25'") == [
+        ("gl_vs_tb has not run on the current files",)
+    ]
 
 
 def test_the_first_year_has_no_monthly_view_without_the_previous_trial_balance(
