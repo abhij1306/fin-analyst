@@ -19,6 +19,7 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction
 from fin.diligence import recon
 from fin.diligence.engagement import company_database, require_open
+from fin.disclosures import rpt
 from fin.reconcile import bank, cutoff, gst, orderbook_vs_register, recast, registers, store
 from fin.reconcile import gl_vs_tb as gl_module
 from fin.reconcile import payroll_vs_gl as payroll_module
@@ -54,6 +55,7 @@ RECONCILIATIONS: dict[str, tuple[Compute, Applies]] = {
     gst.GSTR3B_VS_GSTR1: (gst.gstr3b_vs_gstr1, gst.applies_returns),
     gst.GSTR3B_VS_BOOKS: (gst.gstr3b_vs_books, gst.applies_books),
     gst.RCM: (gst.rcm, gst.applies_rcm),
+    rpt.NAME: (rpt.rpt_vs_books, rpt.applies),
 }
 NAMES = (recon.NAME, *RECONCILIATIONS)
 

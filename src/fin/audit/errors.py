@@ -50,6 +50,8 @@ a command returns when the error ends it:
   exit 2.
 - E854-E855 (bank matching: a match proposal file that is not valid, an unknown match proposal id or
   a status change not allowed) stop the command: exit 2.
+- E940-E941 (FDD disclosures: a reading CSV that cannot be used; a related party link proposal or
+  review that is not valid) stop the command: exit 2.
 - E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
   to bundle, a bundle that would contain a real name) stop the command: exit 2.
 """
@@ -314,10 +316,11 @@ class DiligenceTableWrite(FinError):
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
     recon_items, passthrough_customers, recon_match_lines, match_proposals, contracts, samples,
-    sample_lines, walkthroughs, provision_ledgers, inquiries, orderbook_lines): those change
-    only through `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
-    `fin map ledgers` with `fin review --ledgers`, `fin reconcile` (with `fin review --matches`) and
-    `fin recast`, `fin sample` and `fin walkthrough`. Nothing was run."""
+    sample_lines, walkthroughs, provision_ledgers, inquiries, orderbook_lines, disclosure_files,
+    disclosures, related_party_links): those change only through `fin engagement`, `fin query`,
+    `fin adjust`, `fin gate`, `fin ingest --kind`, `fin map ledgers` with `fin review --ledgers`,
+    `fin reconcile` (with `fin review --matches`), `fin recast`, `fin sample`, `fin walkthrough` and
+    `fin disclosures` (with `fin review --related`). Nothing was run."""
 
     code = "E806"
 
@@ -599,12 +602,14 @@ class FigureReferenceUnknown(FinError):
 # E9xx: the FDD extension, in fin.audit.errors_fdd (split for size), re-exported here.
 from fin.audit.errors_fdd import (  # noqa: E402, F401
     CutoffCannotRun,
+    DisclosureReadingInvalid,
     GstReturnInvalid,
     InquiryInvalid,
     OrderbookRowInvalid,
     ProvisionLedgerInvalid,
     ProvisionLedgerUnknown,
     ProvisionsUnavailable,
+    RelatedPartyLinkInvalid,
     SampleCannotDraw,
     SampleUnknown,
     TaxLedgerInvalid,

@@ -110,3 +110,24 @@ class TaxLedgerInvalid(FinError):
     Nothing changed."""
 
     code = "E951"
+
+
+# E940-E949: FDD disclosures and related parties (fin.disclosures). Stop the command.
+
+
+class DisclosureReadingInvalid(FinError):
+    """E940. `fin disclosures load`: the reading CSV cannot be used (a missing column, an unknown
+    kind or books, a period not of the open engagement, a bad amount, unit or page, a related party
+    row without its counterparty, amount or relationship, no rows), or a ledger it names is in no
+    loaded file. The message names each CSV line at fault. Nothing recorded."""
+
+    code = "E940"
+
+
+class RelatedPartyLinkInvalid(FinError):
+    """E941. `fin disclosures related` or `fin review ... --related`: a proposal that is not an
+    object with party, kind, target, confidence and reason, a party that is not a related party of
+    the open engagement, a target that is not a loaded customer, vendor or ledger, a link fin
+    already matched, or an unknown link id. Nothing changed."""
+
+    code = "E941"

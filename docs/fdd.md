@@ -124,20 +124,32 @@ Decisions: [decisions/fdd-f3.md](decisions/fdd-f3.md). Schema: `db/schema/fdd_bs
 - View `net_debt` per period end: cash, debt, debt-like (ledgers and accepted items), net debt, proposed items shown
   not applied; `net_debt_lines` with each ledger or item and its source. `fin netdebt <co> [--json]`.
 
-### F5: Contingencies, commitments, notices and related parties (gaps 5, 6, 8)
+### F5: Contingencies, commitments, notices and related parties (gaps 5, 6, 8) — built
+
+Built (decisions: [decisions/fdd-f5.md](decisions/fdd-f5.md); module `fin/disclosures/`, schema
+`db/schema/fdd_disclosures.sql`, errors E940–E941):
 
 - `fin disclosures load <co> <file> --reading <csv>`: Claude's reading of the notes to accounts, legal and tax
-  notices: one row per item with kind (contingent_liability, commitment, guarantee, litigation, tax_matter,
+  notices, one row per item: kind (contingent_liability, commitment, guarantee, litigation, tax_matter,
   off_balance_sheet, related_party, related_party_transaction, related_party_balance), period, counterparty (masked
-  on load), nature, amount, forum and stage (litigation, tax), assessment year, demand, amount paid under protest,
-  relationship (related party), file + page. Table `disclosures`; schedules per kind.
-- Related parties: fin matches each related party to the masked customers, vendors and ledgers locally (normalised
-  name against `mask_values`, never printed); Claude proposes the rest by token; the user confirms
-  (`fin review ... --related`).
-- Views: `related_party_transactions` (from Ledger Vouchers and the registers, per party, period and nature) against
-  the disclosed amounts, a difference at or above the threshold a recon item (`fin reconcile <co> rpt_vs_books`);
-  `related_party_pricing` (a related party's average rate per product against the other customers' or vendors',
-  with the difference %); `related_party_loans` (balances and interest booked, implied rate on the average balance).
+  on load), nature, amount and `unit` (rupees, thousand, lakh, crore, million), forum and stage, assessment year,
+  demand, amount paid under protest, relationship, page; for a related party transaction, `books` (sales,
+  purchases, debit, credit) and `ledger` say what it is compared with. Tables `disclosure_files`, `disclosures`.
+  `fin disclosures list <co> [--kind K] [--json]`: the schedules, one per kind, each row with file + page, "not
+  verified".
+- Related parties: a counterparty whose name a loaded file already had gets that file's token, so fin matches it to
+  the masked customers, vendors and ledgers by token (view `related_party_matches`, status `matched`; names never
+  printed). `fin disclosures related <co>` lists each party and its matches; `fin disclosures related <co>
+  <file.json>` stores Claude's link proposals by token (`{party, kind: customer|vendor|ledger, target, confidence,
+  reason}`, table `related_party_links`); the user confirms or rejects them (`fin review list|confirm|reject <co>
+  --related`).
+- Views: `related_party_transactions` (per party and period: the linked customers' sales register, vendors' purchase
+  register and linked ledgers' Ledger Vouchers entries per voucher type), `related_party_pricing` (rate per product
+  against the other customers or vendors, difference %), `related_party_loans` (balances at each year end, average,
+  interest booked, implied rate). `fin reconcile <co> rpt_vs_books` compares the disclosed transactions with the
+  books (level `related_party` lines; at or above the threshold for queries; not_reconciled when the books side
+  cannot be read); it is in `RECONCILIATIONS`, so gate G2 requires it once a reading has a transaction to compare.
+- Golden eval kind `rpt_vs_books`. Report data: `fin.disclosures.data.section_data(con, engagement_id)`.
 
 ### F6: GST and income tax (gap 6)
 

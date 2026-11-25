@@ -250,7 +250,9 @@ CREATE TABLE ledger_accounts (
 -- D4 adds sales_register_vs_gl and purchase_register_vs_gl (register lines vs the Ledger Vouchers entries of the
 -- ledgers confirmed to revenue / purchases: left_file_id the first register file, right_file_id the Ledger Vouchers),
 -- gl_vs_tb (Ledger Vouchers movements vs the trial balance: left_file_id the Ledger Vouchers, right_file_id the trial
--- balance) and payroll_vs_gl (left_file_id the payroll file, right_file_id the Ledger Vouchers). tb_vs_statements
+-- balance) and payroll_vs_gl (left_file_id the payroll file, right_file_id the Ledger Vouchers). rpt_vs_books (FDD F5,
+-- fin.disclosures.rpt; left_file_id the first disclosure_files reading, right_file_id the Ledger Vouchers or NULL;
+-- level 'related_party' lines, key the party, books and ledger). tb_vs_statements
 -- compares a period's trial balance (left_file_id), rolled up by confirmed ledger mapping, with the audited
 -- standalone statement figures (current_facts). input_hash: sha256 of what it compared (the trial balance, the
 -- ledger mappings, the figures, the threshold), so gate G1 can tell when it must run again. unmapped: trial balance
@@ -262,7 +264,8 @@ CREATE TABLE recon_runs (
     name VARCHAR NOT NULL CHECK (name IN ('tb_vs_statements', 'sales_register_vs_gl',
         'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl', 'bank_vs_invoices', 'bank_vs_tb', 'service_recast', 'walkthrough',
         'sales_cutoff', 'purchase_cutoff', 'orderbook_vs_register',
-        'gstr1_vs_sales_register', 'gstr3b_vs_gstr1', 'gstr3b_vs_books', 'rcm')),
+        'gstr1_vs_sales_register', 'gstr3b_vs_gstr1', 'gstr3b_vs_books', 'rcm',
+        'rpt_vs_books')),
     period VARCHAR NOT NULL,
     scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
     left_file_id INTEGER NOT NULL,

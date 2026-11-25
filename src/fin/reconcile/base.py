@@ -29,6 +29,7 @@ DETAIL_LEVELS = (
     "balance",
     "order",
     "gst",
+    "related_party",  # rpt_vs_books (fin.disclosures.rpt)
 )  # lines a query can be raised on
 SHOWN_ROWS = 5  # source rows named in a line's source; the rest are counted
 

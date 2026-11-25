@@ -1,6 +1,6 @@
 """Creating the databases from their schema files (docs/product.md §10).
 
-Each database kind has one schema file (eight for `company`: tables, metric views, diligence
+Each database kind has one schema file (several for `company`: tables, metric views, diligence
 tables, diligence views, diligence source files, views on the registers) in `schema/`, holding
 its final tables and views: `audit` for
 `shared/audit.duckdb`, `dictionary` for `shared/dictionary.duckdb`, `analytics` for
@@ -43,6 +43,7 @@ SCHEMA_FILES = {
         "fdd_inquiries.sql",
         "fdd_orderbook.sql",
         "fdd_gst.sql",
+        "fdd_disclosures.sql",
     ],
 }
 

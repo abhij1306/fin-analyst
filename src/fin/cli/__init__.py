@@ -11,6 +11,8 @@ from fin.cli import fdd_contracts  # noqa: F401, E402
 from fin.cli import provisions  # noqa: F401, E402
 from fin.cli import orderbook  # noqa: F401, E402
 from fin.cli import tax  # noqa: F401, E402
+from fin.cli import disclosures  # noqa: F401, E402
+from fin.map import proposal_commands  # noqa: F401, E402
 # isort: on
 
 __all__ = ["app"]

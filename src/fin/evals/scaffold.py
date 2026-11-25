@@ -69,7 +69,7 @@ WHERE r.recon_id IN (
     SELECT max(recon_id) FROM recon_runs WHERE engagement_id = {LATEST} GROUP BY name, period
 )
     AND r.name IN ({", ".join(f"'{k}'" for k in RECON_KINDS)})
-    AND i.level IN ('invoice', 'ledger', 'payroll', 'gst')
+    AND i.level IN ('invoice', 'ledger', 'payroll', 'gst', 'related_party')
     AND i.kind NOT IN ('matched', 'unmapped', 'not_reconciled')
 ORDER BY r.name, r.period, i.item_no
 """
