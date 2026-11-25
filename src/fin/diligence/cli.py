@@ -1,10 +1,11 @@
-"""`fin engagement open|status|close|bridge`,
+"""`fin engagement open|status|close|bridge|passthrough`,
 `fin query list|raise|edit|approve|sent|answer|close|withdraw` and
 `fin adjust propose|list|accept|reject`. The logic is in `engagement.py`, `queries.py`,
-`adjustments.py` and `bridge.py`. fin never sends a query: `fin query sent` records that the user
-sent it."""
+`adjustments.py`, `bridge.py` and `passthrough.py`. fin never sends a query: `fin query sent`
+records that the user sent it."""
 
 import json
+import re
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -12,7 +13,7 @@ import typer
 
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
-from fin.diligence import adjustments, bridge, engagement, gates, queries
+from fin.diligence import adjustments, bridge, engagement, gates, passthrough, queries
 from fin.diligence.stub import STUB
 from fin.paths import COMPANY_NAME
 from fin.reconcile import items as recon_items
@@ -76,6 +77,12 @@ def _text(value: str | None) -> str | None:
     if value is not None and not value.strip():
         raise typer.BadParameter("must not be empty")
     return None if value is None else value.strip()
+
+
+def _tokens(values: list[str] | None) -> list[str] | None:
+    if values is not None and not all(re.fullmatch(r"CUST-\d+", v.strip()) for v in values):
+        raise typer.BadParameter("a customer is a token such as CUST-0001")
+    return None if values is None else [v.strip() for v in values]
 
 
 def _choice(choices: tuple[str, ...]) -> Any:
@@ -196,6 +203,54 @@ def engagement_bridge(
 
     args = {"company": company, "period": period, "scope": scope, "json": json_output}
     execute("engagement bridge", args, body)
+
+
+@engagement_app.command("passthrough")
+def engagement_passthrough(
+    company: CompanyArg,
+    customer: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--customer",
+            callback=_tokens,
+            help="A pass-through customer token (CUST-0001); repeat for each. Replaces the list.",
+        ),
+    ] = None,
+    source: Annotated[
+        str | None,
+        typer.Option(
+            "--source", callback=_text, help="Where the list came from (with --customer)."
+        ),
+    ] = None,
+    clear: Annotated[bool, typer.Option("--clear", help="Empty the list.")] = False,
+    json_output: JsonOption = False,
+) -> None:
+    """The user's pass-through customers (SI/reseller deals at about zero margin) and the revenue
+    split they cause. With --customer, set the list (the user's list; --source says where from);
+    without, show it."""
+    if customer and clear:
+        raise typer.BadParameter("give --customer or --clear, not both")
+    if customer and source is None:
+        raise typer.BadParameter("--customer needs --source: where the user's list came from")
+
+    def body(run: Run) -> None:
+        if customer or clear:
+            result = passthrough.set_customers(run, company, customer or [], source)
+        else:
+            result = passthrough.show(run, company)
+        if json_output:
+            typer.echo(json.dumps(result, indent=2, default=str))
+        else:
+            typer.echo(passthrough.format_show(result))
+
+    args = {
+        "company": company,
+        "customer": customer,
+        "source": source,
+        "clear": clear,
+        "json": json_output,
+    }
+    execute("engagement passthrough", args, body)
 
 
 # fin query
@@ -424,20 +479,56 @@ def adjust_propose(
     category: Annotated[
         str, typer.Option("--category", help="One of adjustment_categories in config.toml.")
     ],
+    description: Annotated[
+        str, typer.Option("--description", callback=_text, help="What it is and why.")
+    ],
     amount: Annotated[
-        Decimal,
+        Decimal | None,
         typer.Option(
             "--amount",
             parser=_rupees,
             metavar="RUPEES",
-            help="Signed effect on EBITDA in rupees (+ raises it).",
+            help="Signed effect on EBITDA (+ raises it). Alone, it is a cost effect of minus this.",
         ),
-    ],
-    description: Annotated[
-        str, typer.Option("--description", callback=_text, help="What it is and why.")
-    ],
+    ] = None,
+    revenue_effect: Annotated[
+        Decimal | None,
+        typer.Option(
+            "--revenue-effect",
+            parser=_rupees,
+            metavar="RUPEES",
+            help="Signed effect on revenue. The EBITDA effect is revenue effect - cost effect.",
+        ),
+    ] = None,
+    cost_effect: Annotated[
+        Decimal | None,
+        typer.Option(
+            "--cost-effect",
+            parser=_rupees,
+            metavar="RUPEES",
+            help="Signed effect on costs (+ raises them); stripping costs is negative.",
+        ),
+    ] = None,
     account: Annotated[
-        str | None, typer.Option("--account", help="The dictionary account it relates to.")
+        str | None,
+        typer.Option(
+            "--account", help="The dictionary account it relates to (the cost moves to it)."
+        ),
+    ] = None,
+    from_account: Annotated[
+        str | None,
+        typer.Option(
+            "--from-account", help="Reclassification between cost accounts: the account it leaves."
+        ),
+    ] = None,
+    moved_amount: Annotated[
+        Decimal | None,
+        typer.Option(
+            "--moved-amount",
+            parser=_rupees,
+            metavar="RUPEES",
+            help="With --from-account: the positive amount moved. Its effects are all 0.",
+        ),
     ] = None,
     query: Annotated[int | None, typer.Option("--query", help="Evidence: a query id.")] = None,
     finding: Annotated[
@@ -450,7 +541,8 @@ def adjust_propose(
         ),
     ] = None,
 ) -> None:
-    """Propose an adjustment to EBITDA. It needs evidence: --query, --finding or --source."""
+    """Propose an adjustment to EBITDA, revenue and costs (the EBITDA effect is revenue effect minus
+    cost effect). It needs evidence: --query, --finding or --source."""
 
     def body(run: Run) -> None:
         row = adjustments.propose(
@@ -460,8 +552,12 @@ def adjust_propose(
             scope=scope,
             category=category,
             amount=amount,
+            revenue_effect=revenue_effect,
+            cost_effect=cost_effect,
             description=description,
             account=account,
+            from_account=from_account,
+            moved_amount=moved_amount,
             query_id=query,
             finding_id=finding,
             source_ref=source,
@@ -474,8 +570,12 @@ def adjust_propose(
         "scope": scope,
         "category": category,
         "amount": amount,
+        "revenue_effect": revenue_effect,
+        "cost_effect": cost_effect,
         "description": description,
         "account": account,
+        "from_account": from_account,
+        "moved_amount": moved_amount,
         "query": query,
         "finding": finding,
         "source": source,

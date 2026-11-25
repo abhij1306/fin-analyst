@@ -145,15 +145,26 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   sources; the finding is not changed) or `--amount N --period P --source "file sheet!cell" --question "..."`.
   A query starts as a draft (`fin query edit` changes its wording), then `fin query approve`, `sent` (when you have
   sent it), `answer --text`, `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
-- Adjustments: `fin adjust propose <company> --period --scope --category --amount --description` with evidence
-  (`--query`, `--finding` or `--source`) and optionally `--account`. The amount is the signed effect on EBITDA. Then
+- Adjustments: `fin adjust propose <company> --period --scope --category --description` with evidence
+  (`--query`, `--finding` or `--source`), the effects (`--revenue-effect` and `--cost-effect`, signed rupees; the
+  EBITDA effect, `--amount`, is always revenue effect minus cost effect, and `--amount` alone is a cost effect of
+  minus that) and optionally `--account`. A reclassification between two cost accounts names both
+  (`--account` the cost moves to, `--from-account`, `--moved-amount`) and has no net effect. Then
   `fin adjust accept <ids>` or `reject <ids> --reason`; `list [--status]`. Categories are `adjustment_categories`
   in `config.toml`.
+- Pass-through: `fin engagement passthrough <company> [--customer CUST-0001 ... --source "..."] [--clear]` records your
+  list of pass-through customers (SI/reseller deals at about zero margin, as tokens from the sales register; E845 for a
+  token not on a loaded sales register), replacing the earlier list; without options it shows the list and the
+  revenue split. The views `revenue_split` (per period: sales revenue as core and pass-through, the pass-through
+  lines with and without a Purchase Id, the linked OEM purchase cost, core revenue growth) and `passthrough_lines`
+  (each pass-through line with its OEM purchase) read it. Growth is on core revenue only. Claude proposes the
+  `normalisation` adjustment that strips pass-through revenue and its cost; you accept it. `fin` values nothing.
 - `fin engagement bridge <company> [--period FY25] [--scope standalone] [--json]`: per period and scope of the
   latest engagement, the EBITDA bridge (reported EBITDA, each accepted adjustment, adjusted EBITDA; proposed ones are
   listed as not applied) and the EBITDA-to-cash walk down to CFO and free cash flow, with cash conversion. Money in
   the documents' unit, as `fin statements`; `--json` in rupees. A line whose input is missing shows `-` and names it.
-  The same figures are the views `adjusted_ebitda`, `ebitda_bridge` and `ebitda_to_cash`, queryable with `fin sql`.
+  The same figures are the views `adjusted_ebitda` (also adjusted revenue and the margin on it), `ebitda_bridge` and
+  `ebitda_to_cash`, queryable with `fin sql`.
 - Gates: checkpoints you approve, in order. fin checks each one's checklist; Claude prepares a gate and shows you
   `fin gate status <company>` (each gate's state, its checklist lines and what it unlocks), and only you approve it
   (`fin gate approve <company> <gate>`). A Claude Code hook asks you before any command Claude runs that looks like
@@ -330,9 +341,9 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E801 | A diligence gate this command needs is not approved: never approved (open), or its data changed since it was approved (reopened) | Nothing changed. See what the gate needs with `uv run fin gate status <company>`; once its checklist passes, you approve it with `uv run fin gate approve <company> <gate>` |
 | E802 | A gate cannot be approved: its checklist fails, or an earlier gate is not approved | Nothing approved. Fix the failing checklist lines shown (or approve the earlier gate first), then approve again |
 | E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
-| E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, or an unknown account | Nothing changed. Add the evidence or correct the value and run again |
+| E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, an unknown account, effects that do not add up (EBITDA effect not revenue effect minus cost effect), or a reclassification that is not valid | Nothing changed. Add the evidence or correct the value and run again |
 | E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |
-| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `recon_runs`, `recon_items`, `query_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
+| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `recon_runs`, `recon_items`, `passthrough_customers`, `query_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
 | E807 | `fin ingest --kind`: the column profile named is unknown or invalid, or no profile matches the file's headers | Nothing loaded. The message lists the header lines found: write a profile in `templates/profiles/` (docs/CUSTOMISING.md) and ingest with `--profile` |
 | E808 | `fin ingest --kind`: the export's header gives no period, or a period that is not a year of the open engagement nor exactly its stub; or `fin engagement open --stub` names a stub that is not the year to date of the fiscal year after the last period | Nothing loaded or opened. Check the export's period, or the engagement's periods and stub (`uv run fin engagement status <company>`) |
 | E809 | A trial balance with group rows only (Tally's Condensed export) | Nothing loaded. Export the trial balance again in Detailed mode, with ledgers, and ingest that |
@@ -352,5 +363,6 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E831 | The golden set cannot be read: a missing column, an unknown kind, scope, account or unit, a figure that is not a number, a checked line with no value or source, or the same check twice | Nothing scored or changed. Fix the lines the message lists in `evals/<company>/golden.csv` |
 | E832 | `fin eval bundle`: no company database to evaluate, or none for the company named | Nothing written. Load the company's documents first |
 | E833 | `fin eval bundle`: the results would contain a real name (a masked party, a company or a file name) | Nothing written; the name is not printed. Report the run id: a bundle must never carry names |
+| E845 | `fin engagement passthrough`: a customer token that is not on a loaded sales register, or no sales register is loaded | Nothing changed. Load the registers (`fin ingest <company> <file> --kind registers`) and use a token from `SELECT DISTINCT customer FROM register_lines WHERE kind = 'sales'` |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

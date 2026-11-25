@@ -47,15 +47,20 @@ SELECT p.engagement_id, p.status AS engagement_status, p.period, s.scope
 FROM periods p, scopes s;
 
 -- Adjusted EBITDA, one row per period and scope of the latest engagement:
---   adjusted_ebitda = reported_ebitda + accepted_adjustments.
--- accepted_adjustments and proposed_adjustments are 0 when there are none (a true zero: no adjustment); the
--- counts are per status. Margins are on revenue; NULL when revenue or EBITDA is missing.
+--   adjusted_ebitda = reported_ebitda + accepted_adjustments;
+--   adjusted_revenue = revenue + accepted_revenue_effect (accepted_cost_effect is shown beside it; the EBITDA effect
+--   is always revenue effect - cost effect, so accepted_adjustments = accepted_revenue_effect - accepted_cost_effect).
+-- The accepted and proposed sums are 0 when there are none (a true zero: no adjustment); the counts are per status.
+-- reported_ebitda_margin is on revenue, adjusted_ebitda_margin on adjusted_revenue (so a reclassification with no
+-- EBITDA effect can still move it); NULL when revenue or EBITDA is missing.
 CREATE VIEW adjusted_ebitda AS
 WITH adj AS (
     SELECT
         a.period,
         a.scope,
         sum(a.amount) FILTER (WHERE a.status = 'accepted') AS accepted,
+        sum(a.revenue_effect) FILTER (WHERE a.status = 'accepted') AS accepted_revenue,
+        sum(a.cost_effect) FILTER (WHERE a.status = 'accepted') AS accepted_cost,
         sum(a.amount) FILTER (WHERE a.status = 'proposed') AS proposed,
         count(*) FILTER (WHERE a.status = 'accepted') AS accepted_count,
         count(*) FILTER (WHERE a.status = 'proposed') AS proposed_count,
@@ -73,6 +78,8 @@ figures AS (
         CAST(m.revenue AS DECIMAL(38, 2)) AS revenue,
         CAST(m.ebitda AS DECIMAL(38, 2)) AS reported_ebitda,
         CAST(coalesce(adj.accepted, 0) AS DECIMAL(38, 2)) AS accepted_adjustments,
+        CAST(coalesce(adj.accepted_revenue, 0) AS DECIMAL(38, 2)) AS accepted_revenue_effect,
+        CAST(coalesce(adj.accepted_cost, 0) AS DECIMAL(38, 2)) AS accepted_cost_effect,
         CAST(coalesce(adj.proposed, 0) AS DECIMAL(38, 2)) AS proposed_adjustments,
         coalesce(adj.accepted_count, 0) AS accepted_count,
         coalesce(adj.proposed_count, 0) AS proposed_count,
@@ -89,9 +96,13 @@ SELECT
     revenue,
     reported_ebitda,
     accepted_adjustments,
+    accepted_revenue_effect,
+    accepted_cost_effect,
     CAST(reported_ebitda + accepted_adjustments AS DECIMAL(38, 2)) AS adjusted_ebitda,
+    CAST(revenue + accepted_revenue_effect AS DECIMAL(38, 2)) AS adjusted_revenue,
     div6(to_paise(reported_ebitda), to_paise(revenue)) AS reported_ebitda_margin,
-    div6(to_paise(reported_ebitda + accepted_adjustments), to_paise(revenue)) AS adjusted_ebitda_margin,
+    div6(to_paise(reported_ebitda + accepted_adjustments), to_paise(revenue + accepted_revenue_effect))
+        AS adjusted_ebitda_margin,
     proposed_adjustments,
     accepted_count,
     proposed_count,
@@ -103,24 +114,30 @@ FROM figures;
 --   steps 1..n            'adjustment'  each accepted adjustment, by adj_id (adj_id, category, account, its
 --                                       description, amount);
 --   step n + 1            'adjusted'    Adjusted EBITDA.
+-- An adjustment step also carries its revenue_effect, cost_effect (amount = revenue_effect - cost_effect) and, for a
+-- reclassification between cost accounts, from_account and moved_amount (its amount is 0); other steps have NULL there.
 -- Proposed and rejected adjustments are not steps (adjusted_ebitda shows the proposed sum).
 CREATE VIEW ebitda_bridge AS
 SELECT
     engagement_id, period, scope, 0 AS step, 'reported' AS kind, NULL::INTEGER AS adj_id, NULL::VARCHAR AS category,
-    NULL::VARCHAR AS account, 'Reported EBITDA' AS description, reported_ebitda AS amount
+    NULL::VARCHAR AS account, 'Reported EBITDA' AS description, reported_ebitda AS amount,
+    NULL::DECIMAL(38, 2) AS revenue_effect, NULL::DECIMAL(38, 2) AS cost_effect, NULL::VARCHAR AS from_account,
+    NULL::DECIMAL(38, 2) AS moved_amount
 FROM adjusted_ebitda
 UNION ALL
 SELECT
     a.engagement_id, a.period, a.scope,
     CAST(row_number() OVER (PARTITION BY a.period, a.scope ORDER BY a.adj_id) AS INTEGER),
-    'adjustment', a.adj_id, a.category, a.account, a.description, CAST(a.amount AS DECIMAL(38, 2))
+    'adjustment', a.adj_id, a.category, a.account, a.description, CAST(a.amount AS DECIMAL(38, 2)),
+    CAST(a.revenue_effect AS DECIMAL(38, 2)), CAST(a.cost_effect AS DECIMAL(38, 2)), a.from_account,
+    CAST(a.moved_amount AS DECIMAL(38, 2))
 FROM adjustments a
 JOIN engagement_periods e ON e.engagement_id = a.engagement_id AND e.period = a.period AND e.scope = a.scope
 WHERE a.status = 'accepted'
 UNION ALL
 SELECT
     engagement_id, period, scope, CAST(accepted_count + 1 AS INTEGER), 'adjusted', NULL, NULL, NULL,
-    'Adjusted EBITDA', adjusted_ebitda
+    'Adjusted EBITDA', adjusted_ebitda, NULL, NULL, NULL, NULL
 FROM adjusted_ebitda;
 
 -- The EBITDA-to-cash walk, one row per period and scope of the latest engagement. From the cash flow statement's

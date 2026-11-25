@@ -49,7 +49,7 @@ COLUMNS = (
     "bill_id, purchase_id, customer_id, customer, vendor_id, vendor, location, invoice_no, "
     "contract_start, contract_end, invoice_date, order_type, product, service_start, service_end, "
     "quantity, rate, amount, currency, currency_rate, amount_inr, service_type, handler, "
-    "submitted_by"
+    "submitted_by, period"
 )
 
 
@@ -216,6 +216,7 @@ def load(
                 v[field] = masker.text(v[field])
         parties.append(v.get("customer") or v.get("vendor") or "")
         v["invoice_date"], v["amount_inr"] = line.invoice_date, line.amount_inr
+        v["period"] = period_label(line.invoice_date, engagement, start_month)
         rows.append(
             [file["file_id"], line.sheet, line.row, line.kind]
             + [v.get(field) for field in COLUMNS.split(", ")]

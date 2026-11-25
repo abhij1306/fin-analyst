@@ -1,8 +1,8 @@
 """Creating the databases from their schema files (PLAN.md §10).
 
-Each database kind has one schema file (five for `company`: tables, metric views, diligence
-tables, diligence views, diligence source files) in `schema/`, holding its final tables and
-views: `audit` for
+Each database kind has one schema file (six for `company`: tables, metric views, diligence
+tables, diligence views, diligence source files, views on the registers) in `schema/`, holding
+its final tables and views: `audit` for
 `shared/audit.duckdb`, `dictionary` for `shared/dictionary.duckdb`, `analytics` for
 `shared/analytics.duckdb`, `company` for each `companies/<company>.duckdb`. A
 database is created from its file once, when it does not exist yet. There are no migrations: to
@@ -31,6 +31,7 @@ SCHEMA_FILES = {
         "diligence.sql",
         "diligence_views.sql",
         "sources.sql",
+        "diligence_split_views.sql",
     ],
 }
 

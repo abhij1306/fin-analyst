@@ -28,6 +28,7 @@ from fin.query.write import check_write_sql, write_sql
         ("UPDATE bank_statements SET ties = true", "bank_statements"),
         ("DELETE FROM source_files", "source_files"),
         ("UPDATE register_lines SET amount_inr = 0", "register_lines"),
+        ("DELETE FROM passthrough_customers", "passthrough_customers"),
     ],
 )
 def test_writes_naming_a_diligence_table_are_refused(tmp_path: Path, sql: str, found: str) -> None:

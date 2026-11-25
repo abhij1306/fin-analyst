@@ -185,9 +185,11 @@ layer, which is unchanged. New tables in each company database (`db/schema/dilig
 `company_views.sql`; greenfield, no migrations): `engagement` (annual periods in scope, query threshold, open or
 closed; at most one open), `accountant_queries` (draft → approved → sent → answered → closed, or withdrawn before
 closed; raised from a finding, copying its period, scope, difference and sources without changing it, or by hand)
-and `adjustments` (signed effect on EBITDA in rupees for a period of the engagement, a scope and a category from
-`config.toml [diligence] adjustment_categories`, an optional dictionary account, and evidence: a query, a finding or
-a source reference; proposed → accepted or rejected). Every row added and every status change is appended to the
+and `adjustments` (signed effects in rupees for a period of the engagement, a scope and a category from
+`config.toml [diligence] adjustment_categories`: a revenue effect, a cost effect and the EBITDA effect `amount`, which
+must equal revenue effect minus cost effect; an optional dictionary account, `from_account` and `moved_amount` for a
+reclassification between cost accounts; and evidence: a query, a finding or a source reference; proposed → accepted or
+rejected). Every row added and every status change is appended to the
 audit table `diligence_events`. `config.toml` gets a required `[diligence]` table (`query_threshold`, default
 100000.00 rupees; `adjustment_categories`). Commands: `fin engagement open|status|close`, `fin query
 list|raise|edit|approve|sent|answer|close|withdraw`, `fin adjust propose|list|accept|reject`; every one but
@@ -195,8 +197,9 @@ list|raise|edit|approve|sent|answer|close|withdraw`, `fin adjust propose|list|ac
 not allowed is E805. fin never sends a query: `fin query sent` records that the user sent it. Rules in `CLAUDE.md`
 ("Diligence") and `/diligence`. Views (`db/schema/diligence_views.sql`, run after `diligence.sql`; also in `fin sql`),
 on the latest engagement (open or closed) and its annual periods: `adjusted_ebitda` (reported EBITDA, exactly the
-`ebitda` metric, plus accepted adjustments; proposed ones summed beside it, not applied; margins), `ebitda_bridge`
-(reported EBITDA, one step per accepted adjustment by id, adjusted EBITDA) and `ebitda_to_cash` (EBITDA, non-cash and
+`ebitda` metric, plus accepted adjustments; proposed ones summed beside it, not applied; adjusted revenue, the
+accepted revenue and cost effects, and margins: the adjusted margin is on adjusted revenue), `ebitda_bridge`
+(reported EBITDA, one step per accepted adjustment by id with its revenue and cost effects, adjusted EBITDA) and `ebitda_to_cash` (EBITDA, non-cash and
 other, working capital change, taxes paid, other operating, CFO, capex, free cash flow, cash conversion on reported
 and adjusted EBITDA; the lines add up to CFO exactly; a missing input makes the lines using it NULL, and a taxes-paid
 line not mapped is 0 only when CFO equals cash generated from operations). `fin engagement bridge <co> [--period]
@@ -260,6 +263,21 @@ is in the stub, lines outside the engagement are loaded and counted, and a later
 whatever its period. The same invoice number twice (sales: by number; purchases: by vendor and number) is a finding
 (`check_name` `register_duplicate_invoice`, the later row against the first, the repeated line's Amount in Rs as the
 difference), both rows kept; `fin query raise --finding` then drafts the query. A row that is not an invoice line is E813.
+
+Pass-through (D4, decisions in `docs/decisions/d4-passthrough.md`): `fin engagement passthrough <co> [--customer CUST-0001
+... --source "..."] [--clear]` records the user's list of pass-through customers (table `passthrough_customers`: engagement,
+customer token, source, run; setting replaces the list, each setting is an `engagement` row in `diligence_events`; E845 for a
+token not on a loaded sales register; `fin sql --write` refuses the table, E806); without options it shows the list and the
+split. Views in `db/schema/diligence_split_views.sql` (run after `sources.sql`; the registers have no scope, so they are
+company-level), on the latest engagement's loaded register files and `register_lines.period` (the engagement period of the invoice
+date, NULL outside it): `revenue_split` (per annual period and the stub: sales revenue, core and pass-through revenue, the
+pass-through lines with a Purchase Id (software or licence) and without (services), `linked_purchase_cost` (the purchase
+register lines of those Purchase Ids, each counted once), `core_revenue_growth` on core revenue only against the previous annual
+period in scope, NULL for the stub and the first period) and `passthrough_lines` (each pass-through sales line with the OEM purchase
+its Purchase Id points to, with file and sheet!row of both). Claude proposes the `normalisation` adjustment with
+`--revenue-effect` minus the pass-through revenue and `--cost-effect` minus the linked purchase cost; the user accepts it. A
+reclassification with revenue and cost effects of the same size has no EBITDA effect and changes the margin on adjusted revenue;
+one between two cost accounts (`--account`, `--from-account`, `--moved-amount`) has no effect on any total.
 
 Ledger mapping, `tb_vs_statements`, the stub and G1's trial balance checks (D2, second half). `ledger_accounts`
 (`fin/diligence/ledgers.py`): a trial balance load adds its new ledgers as pending; `fin map ledgers <co>` lists
@@ -457,7 +475,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `notes` — doc_id, section, markdown_path
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
-- Diligence: `engagement`, `accountant_queries`, `adjustments` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash` (views on the latest engagement)
+- Diligence: `engagement`, `accountant_queries`, `adjustments`, `passthrough_customers` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`, `revenue_split`, `passthrough_lines` (views on the latest engagement)
 - Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
 
 **Shared**
@@ -602,6 +620,7 @@ claude
 | `fin engagement bridge <co> [--period] [--scope] [--json]` (views `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`) | `/diligence` | Either |
 | `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
 | `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
+| `fin engagement passthrough <co> [--customer ... --source] [--clear]` | `/diligence` | The user's list; Claude records it when given |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
 | `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
 | `fin gate status <co> [--json]` | `/diligence` | Either |

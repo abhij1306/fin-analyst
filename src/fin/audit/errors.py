@@ -26,6 +26,8 @@ a command returns when the error ends it:
   or no audited statement figures for the period) stops the command: exit 2.
 - E840-E842 (diligence reconciliations: one cannot run for lack of loaded inputs; a recon line id is
   unknown or stale; a line cannot be raised as a query) stop the command: exit 2.
+- E845 (`fin engagement passthrough`: a customer token that is not on a loaded sales register)
+  stops the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
 - E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
@@ -277,8 +279,8 @@ class DiligenceTableWrite(FinError):
     """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
-    recon_items): those change only through `fin engagement`, `fin query`, `fin adjust`,
-    `fin gate`, `fin ingest --kind`,
+    recon_items, passthrough_customers): those change only through `fin engagement`,
+    `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
     `fin map ledgers` with `fin review --ledgers`, and `fin reconcile`. Nothing was run."""
 
     code = "E806"
@@ -435,3 +437,10 @@ class BundleNotAnonymous(FinError):
     or a file name). The name is not printed. Nothing written."""
 
     code = "E833"
+
+
+class PassthroughInvalid(FinError):
+    """E845. `fin engagement passthrough`: a customer token that no loaded sales register line has
+    (or no sales register is loaded, so there is nothing to check it against). Nothing changed."""
+
+    code = "E845"
