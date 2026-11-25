@@ -23,6 +23,63 @@ from fin.db.schema import ensure_database, remove_database
 from fin.paths import analytics_db_path, audit_db_path, companies_dir
 from fin.statements import PER_SHARE, in_unit, statement_rows, unit_title
 
+# The diligence analytics tables: (table, company view, columns); empty for a
+# company with no engagement.
+ANALYTICS_VIEWS = [
+    (
+        "customer_concentration",
+        "customer_concentration",
+        [
+            "period",
+            "basis",
+            "segment",
+            "customers",
+            "revenue",
+            "top1_share",
+            "top5_share",
+            "top10_share",
+        ],
+    ),
+    (
+        "customer_retention",
+        "customer_retention",
+        [
+            "period",
+            "prior_period",
+            "prior_customers",
+            "retained_customers",
+            "lost_customers",
+            "new_customers",
+            "prior_revenue",
+            "retained_revenue",
+            "lost_revenue",
+            "new_revenue",
+            "net_retention",
+            "gross_retention",
+            "logo_retention",
+        ],
+    ),
+    (
+        "sector_mix",
+        "sector_mix",
+        ["period", "basis", "segment", "sector", "customers", "revenue", "share"],
+    ),
+    (
+        "price_volume_mix",
+        "product_pvm_summary",
+        [
+            "period",
+            "prior_period",
+            "price_effect",
+            "volume_effect",
+            "mix_effect",
+            "new_revenue",
+            "discontinued_revenue",
+            "change",
+        ],
+    ),
+]
+
 # Table -> its columns in insert order. Each is emptied and refilled on every refresh.
 TABLES: dict[str, list[str]] = {
     "metrics": [
@@ -48,6 +105,7 @@ TABLES: dict[str, list[str]] = {
         "company", "scope", "statement", "figures", "mapped", "mapped_share",
     ],
     "unread_pages": ["company", "file_name", "page", "statement", "code", "reason"],
+    **{table: ["company", *columns] for table, _, columns in ANALYTICS_VIEWS},
 }  # fmt: skip
 
 
@@ -95,6 +153,10 @@ _QUERIES = {
         SELECT file_name, unread_pages FROM documents
         WHERE status IN ('loaded', 'held') AND unread_pages IS NOT NULL ORDER BY doc_id
     """,
+    **{
+        table: f"SELECT {', '.join(columns)} FROM {view} ORDER BY 1, 2"
+        for table, view, columns in ANALYTICS_VIEWS
+    },
 }
 
 
@@ -163,7 +225,7 @@ def refresh_analytics(run: Run) -> Refresh:
         )
         for row in fetched["metric_definitions"]:
             definitions.setdefault(row[0], list(row))
-        for table in ("findings", "coverage"):
+        for table in ("findings", "coverage", *(v[0] for v in ANALYTICS_VIEWS)):
             rows[table].extend([company, *row] for row in fetched[table])
         for file_name, unread in fetched["unread_pages"]:
             rows["unread_pages"].extend(

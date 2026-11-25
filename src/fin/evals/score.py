@@ -106,6 +106,41 @@ _FIN_VALUE = {
         f"AND engagement_id = {LATEST_ENGAGEMENT})",
         ("period",),
     ),
+    "customer_revenue": (
+        "SELECT sum(revenue) FROM customer_revenue WHERE period = ? AND customer = ? "
+        "HAVING count(*) > 0",
+        ("period", "ledger"),
+    ),
+    "sector_revenue": (
+        "SELECT revenue FROM sector_mix WHERE period = ? AND sector = ? AND segment = 'core'",
+        ("period", "ledger"),
+    ),
+    "product_revenue": (
+        "SELECT revenue FROM product_revenue WHERE period = ? AND product = ? AND segment = 'core'",
+        ("period", "ledger"),
+    ),
+    "top_customers_revenue": (
+        "SELECT CASE ? WHEN '1' THEN top1_revenue WHEN '5' THEN top5_revenue "
+        "WHEN '10' THEN top10_revenue END FROM customer_concentration "
+        "WHERE segment = 'core' AND period = ?",
+        ("ledger", "period"),
+    ),
+    "retained_revenue": (
+        "SELECT retained_revenue FROM customer_retention WHERE period = ?",
+        ("period",),
+    ),
+    "pvm_price_effect": (
+        "SELECT price_effect FROM product_pvm_summary WHERE period = ?",
+        ("period",),
+    ),
+    "pvm_volume_effect": (
+        "SELECT volume_effect FROM product_pvm_summary WHERE period = ?",
+        ("period",),
+    ),
+    "pvm_mix_effect": (
+        "SELECT mix_effect FROM product_pvm_summary WHERE period = ?",
+        ("period",),
+    ),
     "stub": (
         "SELECT value FROM stub_figures WHERE period = ? AND account = ? "
         f"AND engagement_id = {LATEST_ENGAGEMENT}",

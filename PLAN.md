@@ -279,6 +279,25 @@ its Purchase Id points to, with file and sheet!row of both). Claude proposes the
 reclassification with revenue and cost effects of the same size has no EBITDA effect and changes the margin on adjusted revenue;
 one between two cost accounts (`--account`, `--from-account`, `--moved-amount`) has no effect on any total.
 
+Customer, product, sector, pricing and retention analytics (D9, decisions in `docs/decisions/d9-analytics.md`): views in
+`db/schema/diligence_analytics.sql` (run after `diligence_split_views.sql`) on the latest engagement's loaded sales register lines by
+`register_lines.period`; money exact DECIMAL(38,2), shares div6 fractions; core and pass-through (`passthrough_customers`) are
+separate `segment`s, and retention, cohorts and price/volume/mix are core only and annual only (the stub is never in them).
+`customer_revenue` (per period, segment, customer token: revenue, share, rank), `customer_concentration` (top 1, 5, 10 revenue
+and share), `customer_retention` (net, gross and logo retention against the previous annual period, expansion, contraction, lost
+and new), `customer_cohorts` (cohort = first annual period with positive core revenue; `opening` for the first period),
+`sector_mix` (confirmed sector, else `unmapped`), `product_revenue`, `product_pvm` and `product_pvm_summary` (price, volume and
+mix of products with a quantity and a rate; continuing, new, discontinued). The `customers` table (token, status
+pending/proposed/confirmed/rejected, sector, confidence, reason; `fin sql --write` refuses it, E806) is filled like
+`ledger_accounts`: a registers load adds the customers as pending, `fin map customers <co> [file.json]` lists them and stores
+Claude's proposals, `fin review list|confirm|reject <co> ... --customers [--sector]` is the user's decision (E868), each step in
+`mapping_decisions` (scope `customer`). `fin analytics <co> [--json]` (`fin/diligence/analytics.py`, `fin/cli/analytics.py`; E869)
+prints the views. Export: tables `customer_concentration`, `customer_retention`, `sector_mix`, `price_volume_mix` in
+`shared/analytics.duckdb` and the dashboard page `dashboards/pages/customers.md`; the health report's `{{section:customers}}`
+(`fin/report/customers.py`, data read in `collect`) is a describe-only section, with no narrative, that D7 includes as it is.
+Eval kinds: `customer_revenue`, `sector_revenue`, `product_revenue`, `top_customers_revenue`, `retained_revenue`,
+`pvm_price_effect`, `pvm_volume_effect`, `pvm_mix_effect`.
+
 Ledger mapping, `tb_vs_statements`, the stub and G1's trial balance checks (D2, second half). `ledger_accounts`
 (`fin/diligence/ledgers.py`): a trial balance load adds its new ledgers as pending; `fin map ledgers <co>` lists
 them and `fin map ledgers <co> <file.json>` stores Claude's proposals (`{ledger, account, confidence, reason}`; a
@@ -508,7 +527,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `notes` — doc_id, section, markdown_path
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
-- Diligence: `engagement`, `accountant_queries`, `adjustments`, `passthrough_customers` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`, `revenue_split`, `passthrough_lines` (views on the latest engagement)
+- Diligence: `engagement`, `accountant_queries`, `adjustments`, `passthrough_customers` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`, `revenue_split`, `passthrough_lines`, `customer_revenue`, `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`, `product_revenue`, `product_pvm`, `product_pvm_summary` (views on the latest engagement; `customers` is a table)
 - Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
 
 **Shared**
@@ -654,6 +673,8 @@ claude
 | `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
 | `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
 | `fin engagement passthrough <co> [--customer ... --source] [--clear]` | `/diligence` | The user's list; Claude records it when given |
+| `fin map customers <co> [file]`, `fin review list\|confirm\|reject <co> --customers` | `/diligence` | Claude proposes sectors; the user decides |
+| `fin analytics <co> [--json]` | `/diligence` | Either |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
 | `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
 | `fin gate status <co> [--json]` | `/diligence` | Either |

@@ -16,6 +16,8 @@
   report shows, with their scope and missing inputs (`_wanted`: every metric of the years shown,
   the quarter table's of the quarters shown, the other scope's summary table, and the narrative's
   metric references);
+- customers (a diligence engagement with a sales register): concentration, retention, sector mix and
+  price/volume/mix (`fin.report.customers`);
 - peers (optional): the key metrics of other companies for the latest fiscal year all have.
 
 `data_hash` is the SHA-256 of all of it as sorted JSON, so the same data always gives the same hash.
@@ -27,6 +29,8 @@ import json
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+
+import duckdb
 
 from fin.audit.errors import ReportRenderFailed
 from fin.db.conn import connect
@@ -331,6 +335,23 @@ def _peers(
     }
 
 
+_CUSTOMER_VIEWS = {
+    "concentration": "SELECT * FROM customer_concentration ORDER BY period, segment",
+    "retention": "SELECT * FROM customer_retention ORDER BY period",
+    "sectors": "SELECT * FROM sector_mix ORDER BY period, segment, revenue DESC, sector",
+    "pvm": "SELECT * FROM product_pvm_summary ORDER BY period",
+}
+
+
+def customer_analytics(con: duckdb.DuckDBPyConnection) -> dict[str, list[dict[str, Any]]] | None:
+    """The customer, retention, sector and price/volume/mix rows of the latest engagement's sales
+    register (views of diligence_analytics.sql), or None when it has no lines."""
+    found = con.execute("SELECT count(*) FROM analytics_sales").fetchone()
+    if not found or not found[0]:
+        return None
+    return {name: fetch_dicts(con, sql) for name, sql in _CUSTOMER_VIEWS.items()}
+
+
 def collect(
     root: Path,
     company: str,
@@ -370,6 +391,7 @@ def collect(
         missing = fetch_dicts(con, _MISSING_SQL, [_wanted(scope, main, shown, references), scope])
         findings = fetch_dicts(con, _FINDINGS_SQL, [scope])
         coverage = fetch_dicts(con, _COVERAGE_SQL, [scope, list(STATEMENTS)])
+        customers = customer_analytics(con)
         unread = [
             {"file_name": file_name, **page}
             for file_name, pages in con.execute(_UNREAD_SQL).fetchall()
@@ -404,6 +426,7 @@ def collect(
         "coverage": coverage,
         "unread": unread,
         "peers": _peers(root, company, scope, peers, main, units) if peers else None,
+        "customers": customers,
     }
 
 

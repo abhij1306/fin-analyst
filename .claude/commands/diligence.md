@@ -132,6 +132,15 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      evidence `--source "revenue_split <period>"` (or a query). Say if a pass-through line has no purchase behind it
      (`passthrough_lines` shows NULL purchase columns): its cost is not in `linked_purchase_cost`. Do not value
      the pass-through revenue or say what multiple it deserves: that is the user's judgement.
+   - **Customer analytics.** `uv run fin analytics <company>` shows customer concentration (top 1, 5, 10 share),
+     retention of core customers (net, gross, logo; cohorts), sector mix and price/volume/mix of core products, from the
+     sales register, with customers as tokens and core and pass-through revenue separate. Sectors come from the user:
+     `uv run fin map customers <company>` lists the customers waiting (with what each bought; never guess from a
+     name, you only see tokens); propose from the products with `uv run fin map customers <company> <file.json>`
+     (`[{"customer": "CUST-0001", "sector": "Banking", "confidence": 0.7, "reason": "..."}]`), show
+     `uv run fin review list <company> --customers`, and confirm or reject only what the user says
+     (`uv run fin review confirm <company> <ids> --customers [--sector "..."]`, `reject ... --customers`). Customers
+     without a confirmed sector show as `unmapped`: say so. Describe the figures; do not judge the company.
    - **Reclassification.** Revenue and cost of the same size moved out of both (for example a recharge shown gross):
      `--category reclassification --revenue-effect -X --cost-effect -X` (EBITDA effect 0; the margin on adjusted
      revenue changes). A cost moved between two cost accounts: `--category reclassification --account <to>

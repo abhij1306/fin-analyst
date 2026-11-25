@@ -15,6 +15,8 @@
   reconciliation lines (the issues an export marks up);
 - `passthrough`: customers on the latest engagement's pass-through list, and its adjustments by
   status;
+- `customers`: customers (tokens of the sales registers) by sector status: pending, proposed,
+  confirmed or rejected (only confirmed sectors count in the sector mix);
 - `recon_lines`: the latest D4 reconciliation runs' detail lines by reconciliation and kind, and
   how many need a query but are in none.
 - `registers`: lines of the loaded registers file by kind (sales, purchase);
@@ -30,7 +32,7 @@ from typing import Any
 import duckdb
 
 from fin.db.conn import connect
-from fin.evals.golden import LATEST_ENGAGEMENT, RECON_KINDS, Check
+from fin.evals.golden import ANALYTICS_KINDS, LATEST_ENGAGEMENT, RECON_KINDS, Check
 from fin.map.review import open_items, read_pending
 from fin.paths import audit_db_path
 
@@ -185,6 +187,9 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
         "mappings_waiting": len(open_items(read_pending(root, company))),
         "ledgers": ledgers,
         "bank_matches": _bank_matches(con),
+        "customers": dict(
+            con.execute("SELECT status, count(*) FROM customers GROUP BY 1 ORDER BY 1").fetchall()
+        ),
         "bank_statements": {
             f"{reader}, {'ties' if ties else 'does not tie'}": n
             for reader, ties, n in con.execute(_BANK).fetchall()
@@ -207,29 +212,35 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
     }
 
 
+def _statement_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
+    """Codes of the findings on a statement figure's period and scope, and `held`."""
+    codes: set[str] = {
+        c
+        for (c,) in con.execute(
+            "SELECT DISTINCT coalesce(code, check_name) FROM findings WHERE status IN "
+            "('open', 'accepted') AND period = ? AND scope = ?",
+            [check.period, check.scope],
+        ).fetchall()
+    }
+    held = con.execute(
+        "SELECT count(*) FROM document_facts x JOIN documents d USING (doc_id) WHERE "
+        "d.status = 'held' AND x.period = ? AND x.scope = ? AND x.account = ?",
+        [check.period, check.scope, check.account],
+    ).fetchone()
+    if held and held[0]:
+        codes.add("held")
+    return sorted(codes)
+
+
 def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
     """What may explain a check that is not passing: the codes of open and accepted findings on the
     same period (and scope), and markers: `held` (a held document has the figure), `not_reconciled`
     (no `tb_vs_statements` run for the period), `unmapped_ledgers` (its latest run had some),
-    `no_passthrough_list` (a revenue split check with no pass-through customers recorded)."""
+    `no_passthrough_list` (a revenue split or analytics check with no pass-through customers
+    recorded), `unconfirmed_sectors` (a sector check while customers have no confirmed sector)."""
     codes: set[str] = set()
     if check.kind == "statement":
-        codes |= {
-            c
-            for (c,) in con.execute(
-                "SELECT DISTINCT coalesce(code, check_name) FROM findings WHERE status IN "
-                "('open', 'accepted') AND period = ? AND scope = ?",
-                [check.period, check.scope],
-            ).fetchall()
-        }
-        held = con.execute(
-            "SELECT count(*) FROM document_facts x JOIN documents d USING (doc_id) WHERE "
-            "d.status = 'held' AND x.period = ? AND x.scope = ? AND x.account = ?",
-            [check.period, check.scope, check.account],
-        ).fetchone()
-        if held and held[0]:
-            codes.add("held")
-        return sorted(codes)
+        return _statement_codes(con, check)
     if check.kind in (*MATCH_KINDS, "bank_vs_tb"):
         name = "bank_vs_tb" if check.kind == "bank_vs_tb" else "bank_vs_invoices"
         ran = con.execute(
@@ -263,7 +274,13 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
             [check.period],
         ).fetchall()
     }
-    if check.kind in ("core_revenue", "passthrough_revenue"):
+    if check.kind == "sector_revenue":
+        waiting = con.execute(
+            "SELECT count(*) FROM customers WHERE status <> 'confirmed'"
+        ).fetchone()
+        if waiting and waiting[0]:
+            codes.add("unconfirmed_sectors")
+    if check.kind in ("core_revenue", "passthrough_revenue", *ANALYTICS_KINDS):
         listed = con.execute(
             f"SELECT count(*) FROM passthrough_customers WHERE engagement_id = {LATEST_ENGAGEMENT}"
         ).fetchone()

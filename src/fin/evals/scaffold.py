@@ -128,6 +128,22 @@ WHERE r.name = ? AND r.engagement_id = {LATEST}
     AND r.recon_id IN (SELECT max(recon_id) FROM recon_runs WHERE name = ? GROUP BY period)
 ORDER BY r.period
 """
+_ANALYTICS = """
+SELECT 'customer_revenue', period, customer FROM customer_revenue
+UNION ALL
+SELECT 'sector_revenue', period, sector FROM sector_mix WHERE segment = 'core'
+UNION ALL
+SELECT 'product_revenue', period, product FROM product_revenue WHERE segment = 'core'
+UNION ALL
+SELECT 'top_customers_revenue', period, n::VARCHAR
+FROM customer_concentration, (VALUES (1), (5), (10)) AS t(n) WHERE segment = 'core'
+UNION ALL
+SELECT 'retained_revenue', period, '' FROM customer_retention
+UNION ALL
+SELECT k, period, '' FROM product_pvm_summary,
+    (VALUES ('pvm_price_effect'), ('pvm_volume_effect'), ('pvm_mix_effect')) AS t(k)
+ORDER BY 1, 2, 3
+"""
 _STUB = f"""
 SELECT x.period, x.account, s.file_name
 FROM stub_figures x JOIN source_files s USING (file_id)
@@ -304,6 +320,22 @@ def candidates(
             )
         )
     rows += _matches(con)
+    files = con.execute(
+        "SELECT string_agg(DISTINCT file_name, '; ') FROM source_files WHERE kind = 'registers' "
+        f"AND status = 'loaded' AND engagement_id = {LATEST}"
+    ).fetchone()
+    for kind, period, key in con.execute(_ANALYTICS).fetchall():
+        rows.append(
+            _row(
+                kind,
+                period,
+                (files[0] if files else "") or "",
+                ledger=key,
+                unit="rupees",
+                note="sales register (Amount in Rs, before GST); core is customers not on the "
+                "pass-through list",
+            )
+        )
     for period, account, file_name in con.execute(_STUB).fetchall():
         rows.append(
             _row(

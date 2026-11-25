@@ -23,7 +23,7 @@ One line per check, the value a person read in the company's document and checke
 - `core_revenue`, `passthrough_revenue`: the period's sales register revenue (Amount in Rs, before
   GST) of customers not on, and on, the engagement's pass-through list (`revenue_split`);
 - `adjusted_revenue`, `adjusted_ebitda`: the period's figure after accepted adjustments
-  (`adjusted_ebitda` view), by scope.
+  (`adjusted_ebitda` view), by scope;
 - `register_total`: the sum of Amount in Rs (before GST) over every row of the sales or the purchase
   register in the loaded registers file: period is the file's period (as `fin status` shows it, e.g.
   `FY25` or `FY24-FY25`), ledger `sales` or `purchase`;
@@ -37,7 +37,15 @@ One line per check, the value a person read in the company's document and checke
 - `fx_line`: a customer's FX gain (positive) or loss in that run, rupees (ledger the customer
   token; 0 when there is none);
 - `bank_vs_tb`: the difference in the period's latest `bank_vs_tb` run (bank statements' closing
-  balances less the trial balance's cash and bank ledgers).
+  balances less the trial balance's cash and bank ledgers);
+- the D9 analytics on the sales register (Amount in Rs, before GST), all in rupees:
+  `customer_revenue` (a customer token's revenue in the period, `ledger` the token),
+  `sector_revenue` (core revenue of customers whose confirmed sector is `ledger`),
+  `product_revenue` (core revenue of the product `ledger`), `top_customers_revenue` (core revenue
+  of the largest 1, 5 or 10 customers: `ledger` is 1, 5 or 10), `retained_revenue` (this period's
+  core revenue from customers active the year before), `pvm_price_effect`, `pvm_volume_effect`,
+  `pvm_mix_effect` (the period's price, volume and mix effects on core products, against the
+  previous year).
 
 `expected` is the figure as printed (brackets or a minus for negative) in `unit`; `source` is where
 it is printed (file + sheet!cell, sheet!row or page). Only a line whose `checked` is `yes` is
@@ -63,6 +71,16 @@ RECON_KINDS = ("sales_register_vs_gl", "purchase_register_vs_gl", "gl_vs_tb", "p
 QUERY_KINDS = ("query_issue", "query_difference")
 PASSTHROUGH_KINDS = ("core_revenue", "passthrough_revenue", "adjusted_revenue", "adjusted_ebitda")
 BANK_KINDS = ("bank_unmatched", "invoice_unmatched", "fx_line", "bank_vs_tb")
+ANALYTICS_KINDS = (
+    "customer_revenue",
+    "sector_revenue",
+    "product_revenue",
+    "top_customers_revenue",
+    "retained_revenue",
+    "pvm_price_effect",
+    "pvm_volume_effect",
+    "pvm_mix_effect",
+)
 KINDS = (
     "statement",
     "tb_ledger",
@@ -75,6 +93,7 @@ KINDS = (
     "register_total",
     "payroll_total",
     *BANK_KINDS,
+    *ANALYTICS_KINDS,
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -93,6 +112,8 @@ NEEDS = {
     "invoice_unmatched": ("period", "ledger"),
     "fx_line": ("period", "ledger"),
     "bank_vs_tb": ("period",),
+    **{kind: ("period", "ledger") for kind in ANALYTICS_KINDS[:4]},
+    **{kind: ("period",) for kind in ANALYTICS_KINDS[4:]},
 }
 LEDGERS = {"register_total": ("sales", "purchase"), "payroll_total": ("gross_salary", "ctc")}
 YES, NO = "yes", ("", "no")
