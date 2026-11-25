@@ -14,7 +14,8 @@ with the audited standalone statement figures (`current_facts`), one line per ac
 
 A line whose difference (trial balance - statements) is at or above the engagement threshold gets
 a DRAFT accountant query (origin 'recon'): fin never approves or sends one. A line that had one in
-an earlier run of the same period, with the same account and difference, keeps it. A line below the
+an earlier run of the same period, with the same account and amounts (and the query not
+withdrawn), keeps it. A line below the
 threshold is listed only. While any ledger is unmapped no query is drafted: the difference may be
 fin's own mapping gap. Differences are queried, never fixed: nothing here changes company data.
 
@@ -77,11 +78,12 @@ def _ledgers(con: duckdb.DuckDBPyConnection, file_id: int) -> list[Ledger]:
 def _figures(con: duckdb.DuckDBPyConnection, period: str) -> list[tuple[str, Decimal, str]]:
     """(account, value, source) of the period's standalone statement figures."""
     return con.execute(
-        "SELECT c.account, c.value, d.file_name || ' ' || coalesce(r.sheet || '!' || r.cell, "
-        "'page ' || CAST(r.page AS VARCHAR), '') FROM current_facts c "
-        "JOIN facts f ON f.fact_id = c.fact_id LEFT JOIN raw_values r ON r.raw_id = f.raw_id "
+        "SELECT c.account, c.value, string_agg(d.file_name || ' ' || coalesce(r.sheet || '!' || "
+        "r.cell, 'page ' || CAST(r.page AS VARCHAR), ''), '; ' ORDER BY f.fact_id) "
+        "FROM current_facts c JOIN facts f ON list_contains(c.fact_ids, f.fact_id) "
+        "LEFT JOIN raw_values r ON r.raw_id = f.raw_id "
         "JOIN documents d ON d.doc_id = c.doc_id WHERE c.period = ? AND c.scope = ? "
-        "ORDER BY c.account",
+        "GROUP BY c.account, c.value ORDER BY c.account",
         [period, SCOPE],
     ).fetchall()
 
@@ -128,7 +130,33 @@ def build_lines(
         if a in accounts and accounts[a].statement in STATEMENTS and accounts[a].unit == "rupees"
     }
     detail = {a for a in shown if not any(a in lineage(accounts, b)[1:] for b in shown)}
-    totals: dict[str, list[Any]] = {}  # account -> [amount, [(sheet, row)], profit ledgers]
+    totals, unmapped = _roll_up(accounts, detail, ledgers)
+    order = {name: i for i, name in enumerate(accounts)}
+    lines = [
+        _line(file_name, account, totals.get(account), shown.get(account))
+        for account in sorted(set(totals) | detail, key=lambda a: order.get(a, len(order)))
+    ]
+    for ledger in unmapped:
+        lines.append(
+            {
+                "kind": "unmapped",
+                "account": None,
+                "ledger": ledger.ledger,
+                "left_amount": ledger.net,
+                "right_amount": None,
+                "difference": ledger.net,
+                "left_source": f"{file_name} {ledger.sheet}!{ledger.row}",
+                "right_source": None,
+            }
+        )
+    return lines
+
+
+def _roll_up(
+    accounts: dict[str, Account], detail: set[str], ledgers: list[Ledger]
+) -> tuple[dict[str, list[Any]], list[Ledger]]:
+    """({account: [amount, [(sheet, row)], profit ledgers]}, the unmapped ledgers)."""
+    totals: dict[str, list[Any]] = {}
 
     def add(account: str, ledger: Ledger, direct: bool) -> None:
         target = next((a for a in lineage(accounts, account) if a in detail), account)
@@ -147,45 +175,32 @@ def build_lines(
         add(ledger.account, ledger, True)
         if accounts[ledger.account].statement == "profit_and_loss" and RETAINED in accounts:
             add(RETAINED, ledger, False)
-    order = {name: i for i, name in enumerate(accounts)}
-    lines = []
-    for account in sorted(set(totals) | detail, key=lambda a: order.get(a, len(order))):
-        left = totals[account][0] if account in totals else None
-        right = shown[account][0] if account in shown else None
-        difference = (left or Decimal("0.00")) - (right or Decimal("0.00"))
-        if difference == 0:
-            kind = "matched"
-        else:
-            kind = {(True, True): "difference", (True, False): "left_only"}.get(
-                (left is not None, right is not None), "right_only"
-            )
-        source = _rows_text(file_name, totals[account][1], totals[account][2]) if left else None
-        lines.append(
-            {
-                "kind": kind,
-                "account": account,
-                "ledger": None,
-                "left_amount": left,
-                "right_amount": right,
-                "difference": difference,
-                "left_source": source or None,
-                "right_source": shown[account][1] if account in shown else None,
-            }
+    return totals, unmapped
+
+
+def _line(
+    file_name: str, account: str, total: list[Any] | None, shown: tuple[Decimal, str] | None
+) -> dict[str, Any]:
+    left = total[0] if total else None
+    right = shown[0] if shown else None
+    difference = (left or Decimal("0.00")) - (right or Decimal("0.00"))
+    if difference == 0:
+        kind = "matched"
+    else:
+        kind = {(True, True): "difference", (True, False): "left_only"}.get(
+            (left is not None, right is not None), "right_only"
         )
-    for ledger in unmapped:
-        lines.append(
-            {
-                "kind": "unmapped",
-                "account": None,
-                "ledger": ledger.ledger,
-                "left_amount": ledger.net,
-                "right_amount": None,
-                "difference": ledger.net,
-                "left_source": f"{file_name} {ledger.sheet}!{ledger.row}",
-                "right_source": None,
-            }
-        )
-    return lines
+    source = _rows_text(file_name, total[1], total[2]) if total else None
+    return {
+        "kind": kind,
+        "account": account,
+        "ledger": None,
+        "left_amount": left,
+        "right_amount": right,
+        "difference": difference,
+        "left_source": source or None,
+        "right_source": shown[1] if shown else None,
+    }
 
 
 def _question(period: str, line: dict[str, Any]) -> str:
@@ -208,9 +223,11 @@ def _earlier_query(
 ) -> int | None:
     row = con.execute(
         "SELECT i.query_id FROM recon_items i JOIN recon_runs r USING (recon_id) "
+        "JOIN accountant_queries q ON q.query_id = i.query_id AND q.status <> 'withdrawn' "
         "WHERE r.engagement_id = ? AND r.name = ? AND r.period = ? AND i.account = ? "
-        "AND i.difference = ? AND i.query_id IS NOT NULL ORDER BY r.recon_id DESC LIMIT 1",
-        [engagement_id, NAME, period, line["account"], line["difference"]],
+        "AND i.left_amount IS NOT DISTINCT FROM ? AND i.right_amount IS NOT DISTINCT FROM ? "
+        "AND i.query_id IS NOT NULL ORDER BY r.recon_id DESC LIMIT 1",
+        [engagement_id, NAME, period, line["account"], line["left_amount"], line["right_amount"]],
     ).fetchone()
     return row[0] if row else None
 
@@ -361,13 +378,12 @@ def format_result(result: dict[str, Any]) -> str:
     for line in accounts:
         if line["kind"] == "matched":
             continue
-        mark = (
-            f"query #{line['query_id']}"
-            if line["query_id"]
-            else "below the threshold"
-            if abs(line["difference"]) < threshold
-            else "no query yet"
-        )
+        if line["query_id"]:
+            mark = f"query #{line['query_id']}"
+        elif abs(line["difference"]) < threshold:
+            mark = "below the threshold"
+        else:
+            mark = "no query yet"
         out.append(
             f"  {line['kind']} {line['account']}: trial balance {rupees(line['left_amount'])}, "
             f"statements {rupees(line['right_amount'])}, difference {rupees(line['difference'])}"

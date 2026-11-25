@@ -150,11 +150,14 @@ def open_engagement(
     """Open an engagement for the periods (and the stub, e.g. 'FY27-YTD-SEP'), with the threshold
     given or config.toml's. E803 when one is already open; E808 for a stub `parse_stub`
     refuses."""
-    config = load_config(run.root)
     if threshold is None:
-        threshold = config.query_threshold
+        threshold = load_config(run.root).query_threshold
     try:
-        ytd = parse_stub(stub, periods, config.fiscal_year_start_month) if stub else None
+        ytd = (
+            parse_stub(stub, periods, load_config(run.root).fiscal_year_start_month)
+            if stub
+            else None
+        )
     except ValueError as exc:
         raise SourcePeriodInvalid(f"{company}: {exc}; nothing opened") from exc
     with company_database(run, company, write=True) as con, transaction(con):

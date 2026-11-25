@@ -271,6 +271,11 @@ def test_tb_vs_statements_queries_a_difference_at_the_threshold_and_lists_one_be
     assert (again["drafted"], again["kept"]) == ([], [lines["revenue"]["query_id"]])
     assert rows(root, "SELECT count(*) FROM accountant_queries") == [(1,)]
 
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE accountant_queries SET status = 'withdrawn'")
+    [after] = recon.tb_vs_statements(run(root), "acme")
+    assert after["kept"] == [] and len(after["drafted"]) == 1
+
 
 def test_g1_checks_the_trial_balance_and_reopens_when_it_changes(
     root: Path, tmp_path: Path
