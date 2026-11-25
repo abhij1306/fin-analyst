@@ -33,6 +33,8 @@ a command returns when the error ends it:
 - E863-E865 (service-period recast: it cannot run for lack of a loaded sales register or a period of
   the engagement; a contract reading that cannot be used; a contract naming a customer or invoice
   no loaded sales register has) stop the command: exit 2.
+- E950-E951 (FDD F6 GST and income tax: a GST return row that cannot be loaded; a tax ledger
+  class proposal or review that is not valid) stop the command: exit 2.
 - E873-E874 (the diligence report, fin.report.dd_render: the company has no engagement; a narrative
   reference to a figure or period the report does not have) stop the command: exit 2.
 - E960-E961 (FDD orderbook: an orderbook row that cannot be read; `fin visibility` with no backlog
@@ -682,3 +684,20 @@ class VisibilityUnavailable(FinError):
     is loaded for the latest engagement. Nothing shown."""
 
     code = "E961"
+# E950-E959: GST and income tax (fin.fdd, docs/fdd.md F6). Stop the command.
+
+
+class GstReturnInvalid(FinError):
+    """E950. `fin ingest --kind gst`: a GST return row whose month cannot be read, a month outside
+    the file's period, the same month twice, or no month rows. Nothing loaded."""
+
+    code = "E950"
+
+
+class TaxLedgerInvalid(FinError):
+    """E951. `fin map tax` or `fin review ... --tax`: a proposal that is not an object with
+    ledger, class, confidence and reason, a ledger in no loaded trial balance, an unknown class, a
+    confirmed ledger proposed again, a confirmation with no class, or an unknown id. Nothing
+    changed."""
+
+    code = "E951"

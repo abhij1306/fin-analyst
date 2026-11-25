@@ -16,6 +16,7 @@ from fin.db.conn import no_company_message
 from fin.diligence import bank_proposals, customers, ledgers
 from fin.diligence.customers import list_customers
 from fin.diligence.ledgers import list_ledgers
+from fin.fdd import tax_ledgers
 from fin.findings import recheck_held
 from fin.map import review
 from fin.map.dictionary import STATEMENTS, added_rows
@@ -49,6 +50,12 @@ MatchesOption = Annotated[
 CustomersOption = Annotated[
     bool,
     typer.Option("--customers", help="Customer sectors (`fin map customers`) instead of labels."),
+]
+TaxOption = Annotated[
+    bool, typer.Option("--tax", help="Tax ledger classes (`fin map tax`) instead of labels.")
+]
+TaxClassOption = Annotated[
+    str | None, typer.Option(help="--tax: the class to use instead of the proposed one.")
 ]
 OptionalCompany = Annotated[
     str | None, typer.Argument(callback=_company, help="Only this company.")
@@ -240,11 +247,12 @@ def review_list(
     ledger_items: LedgersOption = False,
     match_items: MatchesOption = False,
     customer_items: CustomersOption = False,
+    tax_items: TaxOption = False,
 ) -> None:
     """List the items waiting for review (from review/<company>/pending.json), or with --ledgers
     the Tally ledgers waiting for an account (--all: every ledger), or with --customers the
     customers waiting for a sector, or with --matches the bank match proposals waiting for the
-    user."""
+    user, or with --tax the tax ledger classes waiting (--all: every one)."""
 
     def body(run: Run) -> None:
         if match_items:
@@ -254,6 +262,8 @@ def review_list(
         elif customer_items:
             rows = _rows_by_company(run, company, all_items, list_customers)
             _echo_customers(rows, json_output)
+        elif tax_items:
+            _echo_tax(_rows_by_company(run, company, all_items, tax_ledgers.list_rows), json_output)
         elif ledger_items:
             rows = _rows_by_company(run, company, all_items, list_ledgers)
             _echo_ledgers(rows, json_output)
@@ -266,6 +276,7 @@ def review_list(
         "ledgers": ledger_items,
         "matches": match_items,
         "customers": customer_items,
+        "tax": tax_items,
     }
     execute("review list", args, body)
 
@@ -283,6 +294,13 @@ def _confirm_customers(
     for crow in customers.confirm(run, company, ids, sector):
         typer.echo(
             f"customer #{crow['customer_id']} {crow['customer']} confirmed as {crow['sector']}"
+        )
+
+
+def _confirm_tax(run: Run, company: str, ids: list[int], tax_class: str | None) -> None:
+    for row in tax_ledgers.confirm(run, company, ids, tax_class):
+        typer.echo(
+            f"tax ledger #{row['tax_ledger_id']} {row['ledger']!r} confirmed as {row['tax_class']}"
         )
 
 
@@ -339,6 +357,8 @@ def review_confirm(
     sector: Annotated[
         str | None, typer.Option(help="--customers: the sector to use instead of the proposed one.")
     ] = None,
+    tax_items: TaxOption = False,
+    tax_class: TaxClassOption = None,
 ) -> None:
     """Confirm items, all or nothing: the label joins the dictionary and the company's matching
     facts are confirmed. The item must have a proposed account, or pass --account. A proposed new
@@ -347,12 +367,20 @@ def review_confirm(
     checked again (a fix that clears a held document's findings loads it; a loaded document that
     now fails a check is held). With --ledgers the ids are ledger ids: their proposed accounts
     (or --account) are confirmed; only the user does this. With --customers the ids are customer
-    ids: their proposed sectors (or --sector) are confirmed; only the user does this."""
+    ids: their proposed sectors (or --sector) are confirmed; only the user does this. With --tax the
+    ids are tax ledger ids: their proposed classes (or --tax-class) are confirmed."""
 
     def body(run: Run) -> None:
         if match_items:
             _confirm_matches(run, company, ids)
             return
+        if tax_items:
+            if ledger_items or customer_items or account or sector or name or parent:
+                raise typer.BadParameter("with --tax use only --tax-class")
+            _confirm_tax(run, company, ids, tax_class)
+            return
+        if tax_class is not None:
+            raise typer.BadParameter("--tax-class applies to --tax")
         if customer_items:
             others = bool(ledger_items or account or scope != "company" or name or parent)
             _confirm_customers(run, company, ids, sector, others)
@@ -378,6 +406,8 @@ def review_confirm(
             "matches": match_items,
             "customers": customer_items,
             "sector": sector,
+            "tax": tax_items,
+            "tax_class": tax_class,
         },
         body,
     )
@@ -411,16 +441,21 @@ def review_reject(
     ledger_items: LedgersOption = False,
     match_items: MatchesOption = False,
     customer_items: CustomersOption = False,
+    tax_items: TaxOption = False,
 ) -> None:
     """Reject items, all or nothing: their facts stay unconfirmed. With --ledgers the ids are
     ledger ids: the ledgers stay unmapped. With --customers the ids are customer ids: the
-    customers stay unmapped. With --matches they are match proposal ids."""
+    customers stay unmapped. With --matches they are match proposal ids. With --tax they are tax
+    ledger ids: the ledgers have no tax class."""
 
     def body(run: Run) -> None:
         if match_items:
             _reject_matches(run, company, ids)
         elif customer_items:
             _reject_customers(run, company, ids)
+        elif tax_items:
+            for row in tax_ledgers.reject(run, company, ids):
+                typer.echo(f"tax ledger #{row['tax_ledger_id']} {row['ledger']!r} rejected")
         elif ledger_items:
             _reject_ledgers(run, company, ids)
         else:
@@ -432,6 +467,7 @@ def review_reject(
         "ledgers": ledger_items,
         "matches": match_items,
         "customers": customer_items,
+        "tax": tax_items,
     }
     execute("review reject", args, body)
 
@@ -504,6 +540,13 @@ def _echo_customers(rows: list[dict[str, Any]], json_output: bool) -> None:
     else:
         text = "\n".join(map(customers.format_customer, rows))
         typer.echo(text if rows else "no customers waiting")
+
+
+def _echo_tax(rows: list[dict[str, Any]], json_output: bool) -> None:
+    if json_output:
+        typer.echo(json.dumps(rows, indent=2, default=str))
+    else:
+        typer.echo("\n".join(map(tax_ledgers.format_row, rows)) or "no tax ledgers waiting")
 
 
 def _ledger_companies(run: Run) -> list[str]:

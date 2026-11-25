@@ -13,7 +13,7 @@ import duckdb
 from fin.audit.logger import Run
 from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
-from fin.evals import fdd_contracts, fdd_orderbook, provisions, qoe
+from fin.evals import fdd_contracts, fdd_orderbook, gst, provisions, qoe
 from fin.evals.golden import (
     COLUMNS,
     EXPORTED,
@@ -69,7 +69,7 @@ WHERE r.recon_id IN (
     SELECT max(recon_id) FROM recon_runs WHERE engagement_id = {LATEST} GROUP BY name, period
 )
     AND r.name IN ({", ".join(f"'{k}'" for k in RECON_KINDS)})
-    AND i.level IN ('invoice', 'ledger', 'payroll')
+    AND i.level IN ('invoice', 'ledger', 'payroll', 'gst')
     AND i.kind NOT IN ('matched', 'unmapped', 'not_reconciled')
 ORDER BY r.name, r.period, i.item_no
 """
@@ -432,6 +432,7 @@ def candidates(
     rows += fdd_contracts.candidates(con, _row)
     rows += fdd_orderbook.candidates(con, _row)
     rows += provisions.candidates(con, _row)
+    rows += gst.candidates(con, _row)
     rows += _recast_rows(con)
     rows += _total_rows(con)
     rows += _matches(con)
