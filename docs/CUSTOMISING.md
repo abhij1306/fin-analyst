@@ -21,8 +21,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `extract/`: `excel.py`, `pdf.py`, `text.py` (notes as Markdown), `units.py` (crores, lakhs, ...),
   `periods.py` (period names: `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, and how a column's length is read),
   `reading.py` (reading files: figures Claude read from pages fin could not read, for `fin ingest --reading`).
-  `profiles.py` and `ledger.py`: column profiles (`templates/profiles/*.toml`) and the tabular reader for
-  diligence source files (header, period line, rows with sheet and row).
+  `profiles.py`, `ledger.py` and `registers.py`: column profiles (`templates/profiles/*.toml`) and the tabular
+  readers for diligence source files (header, period line, rows with sheet and row; `registers.py` finds the sales
+  and purchase sheets of a billing-system workbook).
   The optional PDF add-on (one of three uv extras, `[pdf] parser` in `config.toml`): `fallback.py` is ingest's PDF
   reading (pdfplumber, then the chosen engine on the statement pages `pdf.py` skipped, and on short scanned PDFs
   when fin uses the engine's OCR, `OCR = True`: not LiteParse);
@@ -75,6 +76,12 @@ for the header line naming the period; a payroll profile has one group, `date`),
 Ledger Vouchers `block` and `block_prefix`) and `[mask]` (`groups`: the party groups whose ledgers are masked, and
 `fields`). Then ingest with `--profile <name>`. Add a test with a synthetic file in that layout
 (`tests/tally_fixtures.py` shows how). Keep it to what the profile can state: no layout special cases in code.
+
+A `registers` profile (`billing_registers.toml`) has no `[columns]` and no `period`: it has `[sales.columns]` and
+`[purchase.columns]` (header text to field; the fields are `REGISTER_FIELDS` in `extract/profiles.py` and
+`REGISTER_REQUIRED` must be mapped), `date_format`, `unit` and `[rows] skip` (total rows). List only the headers
+the sheet has. Which fields are masked (customer, vendor, handler, submitted by) is fixed in
+`diligence/registers.py` (`MASKED`), not in the profile (`docs/decisions/d3-registers.md`).
 
 ## Add an account or a label to the dictionary seed
 

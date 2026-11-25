@@ -8,8 +8,10 @@
 CREATE SEQUENCE source_files_seq START 1;
 
 -- One row per source file loaded with `fin ingest <co> <file> --kind <kind>`.
--- kind: 'trial_balance', 'ledger_vouchers' or 'payroll' (D3 adds registers, bank). period: the period of the engagement
--- the export covers, read from its header lines (period_start, period_end): an annual period, or the stub. basis:
+-- kind: 'trial_balance', 'ledger_vouchers' or 'registers' or 'payroll' (D3 adds bank). period: the period of the engagement
+-- the export covers, read from its header lines (period_start, period_end): an annual period, or the stub. A registers
+-- file has no period header: period_start and period_end are its first and last invoice date, period names the fiscal
+-- years they fall in ('FY25', or 'FY24-FY25'), and basis is 'unaudited' when any invoice date is in the stub. basis:
 -- 'audited' for an annual period, 'unaudited' for the stub (unaudited management accounts). profile: the column profile used
 -- (templates/profiles/<profile>.toml).
 --   loaded      its rows are current;
@@ -17,7 +19,7 @@ CREATE SEQUENCE source_files_seq START 1;
 CREATE TABLE source_files (
     file_id INTEGER PRIMARY KEY DEFAULT nextval('source_files_seq'),
     engagement_id INTEGER NOT NULL,
-    kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers', 'payroll')),
+    kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers', 'registers', 'payroll')),
     file_name VARCHAR NOT NULL,
     sha256 VARCHAR NOT NULL,
     archive_path VARCHAR NOT NULL,  -- archive/<company>/<sha256>.<ext>, relative to the data folder
@@ -112,6 +114,45 @@ CREATE TABLE payroll_lines (
     resign_date DATE,
     gross_salary DECIMAL(20, 2),
     ctc DECIMAL(20, 2),
+    run_id VARCHAR NOT NULL,
+    PRIMARY KEY (file_id, sheet, "row")
+);
+
+-- Sales and purchase register lines (a billing-system workbook, fin.diligence.registers): one row per invoice line,
+-- with sheet + row lineage. kind: 'sales' or 'purchase'. Amount in Rs (amount_inr) is before GST: the register has no
+-- GST or tax columns. For a foreign-currency line, amount is in currency and amount_inr is what the register gives (not
+-- recomputed). customer (sales), vendor (purchase), handler and submitted_by are tokens (CUST-, VEND-, USER-); the ids,
+-- invoice_no and purchase_id (a sale's link to the OEM purchase) are as filed. The same invoice number twice is a
+-- finding (check_name 'register_duplicate_invoice'); both rows stay.
+CREATE TABLE register_lines (
+    file_id INTEGER NOT NULL,
+    sheet VARCHAR NOT NULL,
+    "row" INTEGER NOT NULL,
+    kind VARCHAR NOT NULL CHECK (kind IN ('sales', 'purchase')),
+    bill_id VARCHAR,
+    purchase_id VARCHAR,
+    customer_id VARCHAR,
+    customer VARCHAR,
+    vendor_id VARCHAR,
+    vendor VARCHAR,
+    location VARCHAR,
+    invoice_no VARCHAR NOT NULL,
+    contract_start DATE,
+    contract_end DATE,
+    invoice_date DATE NOT NULL,
+    order_type VARCHAR,
+    product VARCHAR,
+    service_start DATE,
+    service_end DATE,
+    quantity DECIMAL(24, 6),
+    rate DECIMAL(24, 6),
+    amount DECIMAL(24, 4),
+    currency VARCHAR,
+    currency_rate DECIMAL(24, 6),
+    amount_inr DECIMAL(20, 2) NOT NULL,
+    service_type VARCHAR,
+    handler VARCHAR,
+    submitted_by VARCHAR,
     run_id VARCHAR NOT NULL,
     PRIMARY KEY (file_id, sheet, "row")
 );

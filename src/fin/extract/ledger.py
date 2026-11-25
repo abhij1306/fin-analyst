@@ -63,6 +63,8 @@ def _merged(sheet: Worksheet) -> dict[tuple[int, int], Any]:
 
 def _header(sheet: Worksheet, profile: Profile) -> tuple[int, dict[int, str]] | None:
     """(first data row, column -> field) where the profile's header is found, else None."""
+    if not profile.columns:  # a registers profile: see fin.extract.registers
+        return None
     merged = _merged(sheet)
     width = min(sheet.max_column, 60)
     for top in range(1, min(sheet.max_row, HEADER_SEARCH_ROWS) + 1):
@@ -105,6 +107,8 @@ def amount(value: Any, profile: Profile, where: str) -> Decimal:
 
 def _period(sheet: Worksheet, first_data_row: int, profile: Profile) -> tuple[date, date] | None:
     """The period a header line above the column header names ("1-Apr-2024 to 31-Mar-2025")."""
+    if profile.period is None:
+        return None
     for row in sheet.iter_rows(max_row=max(first_data_row - profile.header_rows - 1, 0)):
         for cell in row:
             match = profile.period.search(str(cell.value)) if cell.value is not None else None
@@ -209,7 +213,8 @@ def _table(
         if period is None:
             raise SourcePeriodInvalid(
                 f"{path.name} sheet {sheet.title!r}: no header line above the column header gives "
-                f"the period covered (profile {profile.name}, pattern {profile.period.pattern!r})"
+                f"the period covered (profile {profile.name}, pattern "
+                f"{profile.period and profile.period.pattern!r})"
             )
         periods.add(period)
         rows.extend(_rows(sheet, first, columns))

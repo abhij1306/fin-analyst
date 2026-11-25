@@ -84,7 +84,8 @@ def ingest(
     ] = None,
 ) -> None:
     """Load Excel and PDF documents for one company. Files already loaded are skipped (E105).
-    With --kind, load one diligence source file (trial balance, Ledger Vouchers) instead."""
+    With --kind, load one diligence source file (trial balance, Ledger Vouchers or registers)
+    instead."""
 
     # Usage errors, before the run starts (like the option callbacks).
     if reading is not None and (path is None or not path.is_file()):

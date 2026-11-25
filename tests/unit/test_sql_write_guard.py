@@ -25,6 +25,7 @@ from fin.query.write import check_write_sql, write_sql
         ("DELETE FROM trial_balance", "trial_balance"),
         ("UPDATE ledger_entries SET debit = 0", "ledger_entries"),
         ("DELETE FROM source_files", "source_files"),
+        ("UPDATE register_lines SET amount_inr = 0", "register_lines"),
     ],
 )
 def test_writes_naming_a_diligence_table_are_refused(tmp_path: Path, sql: str, found: str) -> None:
