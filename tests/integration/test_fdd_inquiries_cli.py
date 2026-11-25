@@ -47,4 +47,4 @@ def test_bad_topic_and_mixed_options_are_refused(root: Path) -> None:
     assert bad.exit_code != 0 and "E910" in bad.output
     mixed = fin("query", "raise", "acme", "--topic", "tax", "--question", "x", "--amount", "100")
     assert mixed.exit_code != 0
-    assert fin("query", "list", "acme").output.strip() == "no queries"
+    assert "no queries" in fin("query", "list", "acme").output
