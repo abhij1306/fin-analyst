@@ -287,7 +287,7 @@ verify and update.
 ## 12. Testing and CI
 
 - **Synthetic fixtures** (`tests/fixtures/sample-financials/`): three fake companies (Kestrel Forgings: Excel with formulas; Bluepeak Polymers: Excel per year, crores, older wording, standalone + consolidated; Tarang Industrial Services: text PDF with notes), known values in `answer_key.json`, plus deliberately broken files. The set is committed, so CI needs no LibreOffice.
-- **Golden evaluation** (`fin.evals`, runbook `docs/EVAL.md`): per company, `evals/<company>/golden.csv` in the data folder (never committed) holds values a person checked in the real documents, with their source. `fin eval init <co>` lists what to check (statement figures in current figures, trial balance ledgers, `tb_vs_statements` lines, stub figures, bank closing balances, register totals per sheet and payroll totals) with source and unit and leaves the value and `checked` empty; only lines marked `checked` are scored. `fin eval run <co>` compares each exactly in rupees after unit conversion (pass, fail, missing in fin, unchecked) and writes a report to `evals/<co>/`, with counts: error codes in the company's runs, findings by code, unread pages, Claude-read figures by document status and latest verify outcome, unmapped labels, mapping items waiting, ledgers by status, bank statements by reader and tie, register lines by kind and payroll files by confirmed unit. `fin eval bundle [co] [--with-figures]` writes a shareable Markdown and JSON file (fin version and commit, doctor summary, scores, lines not passing with their source kind and related codes, counts): companies as `company-N`, ledgers only as mask tokens, no file names, labels or sources, no absolute figures without `--with-figures`; E833 refuses one that would contain a masked, company or file name. Errors E830-E833. Decisions: `docs/decisions/eval-kit.md`.
+- **Golden evaluation** (`fin.evals`, runbook `docs/EVAL.md`): per company, `evals/<company>/golden.csv` in the data folder (never committed) holds values a person checked in the real documents, with their source. `fin eval init <co>` lists what to check (statement figures in current figures, trial balance ledgers, `tb_vs_statements` lines, stub figures, bank closing balances, register totals per sheet and payroll totals) with source and unit and leaves the value and `checked` empty; only lines marked `checked` are scored. `fin eval run <co>` compares each exactly in rupees after unit conversion (pass, fail, missing in fin, unchecked; the relative difference to six significant digits, so a misread digit in a large figure never shows as 0) and writes a report to `evals/<co>/`, with counts: error codes in the company's runs, findings by code, unread pages, Claude-read figures by document status and latest verify outcome, unmapped labels, mapping items waiting, ledgers by status, bank statements by reader and tie, register lines by kind and payroll files by confirmed unit. `fin eval bundle [co] [--with-figures]` writes a shareable Markdown and JSON file (fin version and commit, doctor summary, scores, lines not passing with their source kind and related codes, counts): companies as `company-N`, ledgers only as mask tokens, no file names, labels or sources, no absolute figures without `--with-figures`; E833 refuses one that would contain a masked, company or file name. Errors E830-E833. Decisions: `docs/decisions/eval-kit.md`.
 - **CI** (`.github/workflows/ci.yml`, Linux, every PR and main push): ruff, pytest, `shellcheck install.sh`; one job ingests the synthetic companies once, renders a report (Quarto) and builds the Evidence dashboard (node 24). A `pdf-addon` job per engine syncs its extra: Docling and LiteParse restore their model caches and
 run the tests marked `docling` / `liteparse` (the real engine on synthetic PDFs); LlamaParse checks its fixture's
 shape against the SDK and never calls the API (its live test skips without `LLAMA_CLOUD_API_KEY`); the other jobs run
@@ -604,8 +604,8 @@ appendix (statement cells, register sheets and lines, pass-through lines, trial 
 `nwc_monthly` (`fin/evals/qoe.py`).
 
 Service-period recast (D6, decisions in `docs/decisions/d6-recast.md`): `fin recast run <co> [--period FY25]` spreads each sales
-register line's Amount in Rs (before GST) over its service start and end dates by month (by service day, the last month takes the
-rounding remainder) and compares each annual period's recast with the register's amount by invoice date. It is a reconciliation
+register line's Amount in Rs (before GST) over its service start and end dates by month (by service day, each month's share rounded once on the
+running total so the months add to the amount) and compares each annual period's recast with the register's amount by invoice date. It is a reconciliation
 named `service_recast` in `recon_runs`/`recon_items` (`fin/reconcile/recast.py`; levels `period` (left = recast, right = booked,
 difference = the revenue effect), `month`, `schedule` (per invoice whose recast and booked amounts differ) and `invoice` with kind
 `undated`: a sales invoice with no usable service dates, recognised on its invoice date, listed; at or above the threshold it is for
@@ -631,7 +631,8 @@ roll up to the nearest of their account and its subtotals that is a detail line 
 (with the hash of what it compared) and `recon_items` per account (`matched`, `difference`, `left_only`,
 `right_only`) and per unmapped ledger (`unmapped`). A line at or above the engagement threshold gets a draft query
 (origin `recon`; one from an earlier run with the same account and difference is kept), unless a ledger is unmapped;
-lines below are listed. E812: a period not annual, no trial balance or no statement figures. The stub
+lines below are listed. A draft from an earlier run whose line is not in the new run (a mapping or figure changed) is
+listed as stale; fin never withdraws it. E812: a period not annual, no trial balance or no statement figures. The stub
 (`fin engagement open ... --stub FY27-YTD-SEP`, `fin/diligence/stub.py`): the year to date of the fiscal year after
 the last period, columns `stub`, `stub_start`, `stub_end` on `engagement` (a bad stub is E808); its exports load
 with basis `unaudited` and the view `stub_figures` rolls its trial balance up by confirmed mapping, labelled
@@ -683,7 +684,7 @@ receipts' period; `as_of` is the period end, `due_days` the engagement's) with `
 `currency`, `amount_inr`, `note`) and `recon_match_lines` (the bank lines and invoices behind each item). Lines at or
 above the threshold in rupees (`difference`, `left_only`, `right_only`; a foreign line with no rupee value too) are
 `needs_query` (grouped with `fin query raise --items`, levels `match`, `receipt`, `invoice`); an `fx` line (the receipt's booked rupees in Ledger Vouchers, found on the customer's ledger within
-`fx_window_days` of the bank date, against the invoice's Amount in Rs) is listed, never queried; an unmatched invoice not
+`fx_window_days` of the bank date at a rate within 10% of the invoice's, else the note `no booked value` naming the vouchers set aside, against the invoice's Amount in Rs) is listed, never queried; an unmatched invoice not
 past `invoice_due_days` at the period end is `not_yet_due`, listed. The view `customer_collections` gives, per period and
 customer, invoiced, received and open rupees, collection days and the overdue ageing of open invoices.
 `fin reconcile <co> bank_vs_tb` (`bank.py`) compares the INR statements ending on a period's last day with the trial

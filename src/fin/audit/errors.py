@@ -483,11 +483,18 @@ class ReplyFileError(FinError):
 
 
 class UnknownToken(FinError):
-    """E861. `fin query export`: a query's wording or a line names a token (CUST-0001, ...) that
-    has no real value in the company's masked names, so it cannot be written as a name. The token
-    is named; nothing written. Edit the draft (or re-raise it) with the right token."""
+    """E861. A query's wording or a line names a token (CUST-0001, ...) that has no real value in
+    the company's masked names: refused when the query is raised or edited (nothing raised), and by
+    `fin query export` (nothing written). The token is named."""
 
     code = "E861"
+
+
+class QueryPeriodInvalid(FinError):
+    """E881. `fin query raise --period`: a period that is not a year of the open engagement nor
+    its stub. Nothing raised."""
+
+    code = "E881"
 
 
 # E854-E855: bank matching (fin.diligence.bank_proposals). Stop the command.

@@ -284,6 +284,25 @@ def test_tb_vs_statements_queries_a_difference_at_the_threshold_and_lists_one_be
     assert len(after["drafted"]) == 1
 
 
+def test_a_draft_whose_difference_is_gone_is_listed_stale_and_never_withdrawn(
+    root: Path, tmp_path: Path
+) -> None:
+    # Test run 2026-11-25: a ledger mapped to the wrong account drafted queries; once the mapping
+    # was fixed the run no longer had their lines, and nothing said so.
+    load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
+    map_all(root)
+    [first] = recon.tb_vs_statements(run(root), "acme")
+    [query_id] = first["drafted"]
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE facts SET value = 900000 WHERE account = 'revenue'")
+
+    [again] = recon.tb_vs_statements(run(root), "acme")
+
+    assert (again["drafted"], again["kept"], again["stale"]) == ([], [], [query_id])
+    assert f"stale draft queries: #{query_id}" in recon.format_result(again)
+    assert rows(root, "SELECT status FROM accountant_queries") == [("draft",)]
+
+
 def test_g1_checks_the_trial_balance_and_reopens_when_it_changes(
     root: Path, tmp_path: Path
 ) -> None:

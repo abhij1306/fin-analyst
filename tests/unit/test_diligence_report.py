@@ -91,6 +91,29 @@ def test_the_first_run_writes_a_stub_that_names_the_sections(root: Path) -> None
     assert load_config(root).display_unit
 
 
+@pytest.mark.quarto
+@pytest.mark.skipif(shutil.which("quarto") is None, reason="needs Quarto (CI `outputs` job)")
+def test_quarto_renders_the_diligence_report_in_all_three_formats(
+    root: Path, tmp_path: Path
+) -> None:
+    # The real render was not run anywhere before the test run of 2026-11-25 (#84).
+    copy = Path(shutil.copytree(root, tmp_path / "data"))
+    run_recast(run(copy), "acme", "FY25")
+    first = dd_render.make_diligence_report(run(copy), "acme", "standalone", False)
+    narrative = Path(first["narrative_path"])
+    narrative.write_text(NARRATIVE, encoding="utf-8")
+
+    result = dd_render.make_diligence_report(run(copy), "acme", "standalone", False)
+
+    assert result["status"] == "rendered", result
+    folder = narrative.parent
+    for name in ("diligence.html", "diligence.docx", "diligence.pdf"):
+        assert (folder / name).stat().st_size > 0
+    html = (folder / "diligence.html").read_text(encoding="utf-8")
+    assert "unaudited management accounts" in html and "Recast by period" in html
+    assert (folder / "diligence.pdf").read_bytes().startswith(b"%PDF")
+
+
 def test_the_recast_is_in_the_report_once_it_has_run(root: Path, tmp_path: Path) -> None:
     assert "Recast by period" not in built(root).qmd
     copy = Path(shutil.copytree(root, tmp_path / "data"))

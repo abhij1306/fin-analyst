@@ -100,6 +100,16 @@ def test_spread_is_straight_line_by_service_days_and_adds_up() -> None:
     assert shares["2024-05"] == (Decimal(120000) * 31 / 365).quantize(Decimal("0.01"))
 
 
+def test_a_years_share_is_rounded_once_not_per_month() -> None:
+    # 1 June 2023 to 31 May 2024 (366 days): FY24 has 305 of them. Rounding each month on its own
+    # gave 41,66,666.69; a person spreading by day gets 41,66,666.67 (test run 2026-11-25).
+    shares = spread(Decimal("5000000.00"), date(2023, 6, 1), date(2024, 5, 31))
+    fy24 = sum(v for k, v in shares.items() if k <= "2024-03")
+    assert fy24 == (Decimal(5000000) * 305 / 366).quantize(Decimal("0.01"))
+    assert fy24 == Decimal("4166666.67")
+    assert sum(shares.values()) == Decimal("5000000.00")
+
+
 def test_months_of_an_annual_period() -> None:
     assert months_of("FY25", 4)[0] == "2024-04"
     assert months_of("FY25", 4)[-1] == "2025-03"

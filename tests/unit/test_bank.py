@@ -25,7 +25,7 @@ from fin.audit.logger import Run
 from fin.config import Config, load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
-from fin.diligence import bank_checks, bank_pdf
+from fin.diligence import bank_checks, bank_pdf, queries
 from fin.diligence.bank import ingest_bank
 from fin.extract import fallback, llamaparse_run
 from fin.extract.addon import PageRead
@@ -196,6 +196,17 @@ def test_a_balance_gap_between_statements_is_a_finding(root: Path, tmp_path: Pat
         ("bank_balance_gap", "open", 2, "ICICI 123456789012 INR", Decimal("7000.00"))
     ]
     assert "opens at" in lines[-1]
+    # each source names its file once (a query raised from it copies them; test run 2026-11-25)
+    assert rows(root, "SELECT fin_source, other_file, other_source FROM findings") == [
+        ("opening balance", "apr.xlsx", "closing balance")
+    ]
+    # a query raised from it takes the engagement period, not the statement's dates
+    [(finding_id,)] = rows(root, "SELECT finding_id FROM findings")
+    query = queries.raise_from_finding(Run("q", {}, root), "acme", finding_id, "Missing?")
+    assert (query["period"], query["sources"]) == (
+        "FY25",
+        "may.xlsx opening balance; apr.xlsx closing balance",
+    )
 
 
 def test_a_continuous_pair_has_no_finding_and_a_missing_month_resolves_a_gap(
@@ -336,6 +347,17 @@ def test_a_pdf_statement_loads_from_its_saved_parse_with_page_lineage(
     pages = rows(root, 'SELECT page, "row" FROM bank_lines ORDER BY page, "row"')
     assert pages == [(1, 2), (1, 3), (2, 1), (2, 2)]
     assert findings(root) == []
+
+
+def test_a_saved_parse_with_no_table_says_how_to_parse_again(root: Path, tmp_path: Path) -> None:
+    pdf = write_bank_pdf(tmp_path / "s.pdf", "no table")
+    saved = bank_pdf.saved_parse(root, sha256_of(pdf))
+    saved.parent.mkdir(parents=True, exist_ok=True)
+    empty = {"1": {"tables": [], "texts": ["Axis Bank"]}}
+    saved.write_text(json.dumps({"engine": "liteparse", "sha256": "x", "pages": empty}))
+
+    with pytest.raises(BankPdfUnreadable, match="delete the saved parse first"):
+        load(root, pdf, parser="liteparse")
 
 
 def test_a_pdf_parse_that_does_not_tie_is_a_finding(root: Path, tmp_path: Path) -> None:

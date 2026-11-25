@@ -474,8 +474,10 @@ this file.
   wherever it shows and is never annualised.
   `fin engagement status <company>` counts queries and adjustments by status; `fin engagement close <company>`
   (needs gate G4, unless the engagement has no queries and no adjustments).
-- Queries: `fin query raise <company> --finding <id> --question "..."` (the finding's period, difference and
-  sources; the finding is not changed) or `--amount N --period P --source "file sheet!cell" --question "..."`.
+- Queries: `fin query raise <company> --finding <id> --question "..."` (the finding's period, or for a bank
+  finding the period its statement was loaded into, its difference and sources; the finding is not changed) or
+  `--amount N --period P --source "file sheet!cell" --question "..."` (P a year of the engagement or its stub, else E881).
+  A token in the wording that is not one of the company's masked names is refused at raise and edit (E861).
   A query starts as a draft (`fin query edit` changes its wording), then `fin query approve`, `sent` (when you have
   sent it), `answer --text` (or `--file reply`: archived like a source; a .txt, .eml or .md reply is read with known names masked, any other file needs `--text`), `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
   `fin query export <company> [--brief]` writes the approved queries for the accountant to `exports/<company>/<run_id>/`

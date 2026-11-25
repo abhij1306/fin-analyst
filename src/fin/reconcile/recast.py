@@ -2,7 +2,7 @@
 
 Each sales line's Amount in Rs (before GST) with a usable service period (start and end dates, end
 not before start) is spread straight-line over it: each month gets the share of the service days
-that fall in it (the last month takes the rounding remainder, so the shares add up to the amount).
+that fall in it (rounded on the running total, so any run of months, and the whole, add up exactly).
 A line with no usable service dates is recognised on its invoice date and listed. The recast of a
 period is compared with what was booked in it: the register's amount by invoice date. Left is the
 recast, right is booked; difference = recast - booked is the period's revenue effect, proposed as
@@ -69,8 +69,10 @@ def months_of(period: str, start_month: int) -> list[str]:
 
 
 def spread(amount: Decimal, start: date, end: date) -> dict[str, Decimal]:
-    """The amount over the service days, by month: each month the share of days in it (rounded to
-    paise); the last month takes what is left."""
+    """The amount over the service days, by month: each month the share of days up to its end,
+    rounded to paise once, less the months before. Any run of months then adds up to its own
+    days' share rounded once (a year's recast is not off by a paisa per month), and the months add
+    up to the amount."""
     days: dict[str, int] = {}
     day = start
     while day <= end:
@@ -78,11 +80,12 @@ def spread(amount: Decimal, start: date, end: date) -> dict[str, Decimal]:
         day += timedelta(days=1)
     total = (end - start).days + 1
     shares: dict[str, Decimal] = {}
-    left = amount
-    for key in list(days)[:-1]:
-        shares[key] = (amount * days[key] / total).quantize(CENT, ROUND_HALF_EVEN)
-        left -= shares[key]
-    shares[list(days)[-1]] = left
+    done, before = 0, ZERO  # days and amount (rounded once) up to the month before
+    for key, count in days.items():
+        done += count
+        upto = (amount * done / total).quantize(CENT, ROUND_HALF_EVEN)
+        shares[key] = upto - before
+        before = upto
     return shares
 
 

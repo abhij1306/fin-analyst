@@ -14,7 +14,7 @@ from docx import Document
 from openpyxl import load_workbook
 from typer.testing import CliRunner
 
-from fin.audit.errors import NothingToExport, ReplyFileError, UnknownToken
+from fin.audit.errors import NothingToExport, QueryPeriodInvalid, ReplyFileError, UnknownToken
 from fin.audit.logger import Run
 from fin.cli import app
 from fin.config import load_config, write_default_config
@@ -228,16 +228,34 @@ def test_nothing_approved_and_unknown_tokens_are_refused(root: Path) -> None:
     with pytest.raises(NothingToExport):
         export_queries(context, "acme")
 
-    queries.raise_manual(
-        run(root),
-        "acme",
-        amount=1,
-        period="FY25",
-        scope=None,
-        sources="x",
-        question="About CUST-0099?",  # type: ignore[arg-type]
+    # a token no masked name has is refused when the query is drafted (test run 2026-11-25: it
+    # surfaced only at export, after the user had approved it)
+    with pytest.raises(UnknownToken, match="CUST-0099"):
+        queries.raise_manual(
+            run(root),
+            "acme",
+            amount=D(1),
+            period="FY25",
+            scope=None,
+            sources="x",
+            question="About CUST-0099?",
+        )
+    with pytest.raises(QueryPeriodInvalid, match="FY99"):
+        queries.raise_manual(
+            run(root), "acme", amount=D(1), period="FY99", scope=None, sources="x", question="?"
+        )
+    query = queries.raise_manual(
+        run(root), "acme", amount=D(1), period="FY25", scope=None, sources="x", question="About?"
     )
-    queries.set_status(run(root), "acme", [2], "approved")
+    with pytest.raises(UnknownToken, match="CUST-0099"):
+        queries.edit(run(root), "acme", query["query_id"], "About CUST-0099?")
+    # one that reaches the export anyway (written outside fin) is still refused there
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "UPDATE accountant_queries SET question = 'About CUST-0099?', status = 'approved' "
+            "WHERE query_id = ?",
+            [query["query_id"]],
+        )
     with pytest.raises(UnknownToken, match="CUST-0099"):
         export_queries(context, "acme")
     assert not (root / "exports" / "acme").exists() or not any(

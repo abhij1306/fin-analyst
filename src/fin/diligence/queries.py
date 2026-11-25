@@ -12,16 +12,20 @@ is not changed. Every query raised, edited or changed is appended to the audit t
 `diligence_events`.
 """
 
+import re
 from decimal import Decimal
 from typing import Any
 
 import duckdb
 
-from fin.audit.errors import DiligenceChangeRefused
+from fin.audit.errors import DiligenceChangeRefused, QueryPeriodInvalid, UnknownToken
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, record_event, require_open, rupees
+from fin.diligence.mask import PREFIX
+
+TOKEN = re.compile(r"(?<![\w-])(?:" + "|".join(PREFIX.values()) + r")-\d{4,}(?![\w-])")
 
 # target status -> the statuses a query may move to it from
 TRANSITIONS = {
@@ -65,6 +69,27 @@ def _get(
     return rows[0]
 
 
+def check_tokens(con: duckdb.DuckDBPyConnection, text: str) -> None:
+    """E861 when the wording names a token (CUST-0001, ...) the company's masked names do not have:
+    the export could not write it as a name, so it is refused while the query is a draft."""
+    known = {t for (t,) in con.execute("SELECT token FROM mask_values").fetchall()}
+    unknown = sorted({t for t in TOKEN.findall(text) if t not in known})
+    if unknown:
+        raise UnknownToken(
+            f"{', '.join(unknown)} is not a token of this company's masked names; nothing raised "
+            "or changed. Use the tokens fin prints (`fin sql` on register_lines, ledger_entries "
+            "or bank_lines)"
+        )
+
+
+def periods_of(engagement: dict[str, Any]) -> list[str]:
+    """The engagement's annual periods and its stub."""
+    return [
+        *engagement["periods"].split(","),
+        *([engagement["stub"]] if engagement["stub"] else []),
+    ]
+
+
 def _insert(
     run: Run,
     company: str,
@@ -72,6 +97,7 @@ def _insert(
     engagement: dict[str, Any],
     values: dict[str, Any],
 ) -> dict[str, Any]:
+    check_tokens(con, values["question"])
     now = utcnow()
     row = {
         "engagement_id": engagement["engagement_id"],
@@ -117,10 +143,18 @@ def raise_from_finding(run: Run, company: str, finding_id: int, question: str) -
                 f"open or accepted findings: `fin findings list {company}`"
             )
         finding = rows[0]
+        period = finding["period"]
+        if period not in periods_of(engagement) and finding["file_id"] is not None:
+            # a bank finding's period is its statement's dates: the query takes the engagement
+            # period the statement was loaded into
+            row = con.execute(
+                "SELECT period FROM source_files WHERE file_id = ?", [finding["file_id"]]
+            ).fetchone()
+            period = row[0] if row else period
         values = {
             "origin": "finding",
             "finding_id": finding_id,
-            "period": finding["period"],
+            "period": period,
             "scope": finding["scope"],
             "question": question,
             "amount": finding["difference"],
@@ -139,9 +173,15 @@ def raise_manual(
     sources: str,
     question: str,
 ) -> dict[str, Any]:
-    """A draft query with the amount, period, scope and sources given."""
+    """A draft query with the amount, period, scope and sources given. E881 for a period that is
+    not a year of the engagement nor its stub."""
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
+        if period not in periods_of(engagement):
+            raise QueryPeriodInvalid(
+                f"{period} is not a period of {company}'s open engagement "
+                f"({', '.join(periods_of(engagement))}); nothing raised"
+            )
         values = {
             "origin": "manual",
             "finding_id": None,
@@ -164,6 +204,7 @@ def edit(run: Run, company: str, query_id: int, question: str) -> dict[str, Any]
                 f"query {query_id} of {company} is {row['status']}; only a draft can be edited. "
                 "Nothing changed"
             )
+        check_tokens(con, question)
         con.execute(
             "UPDATE accountant_queries SET question = ? WHERE query_id = ?", [question, query_id]
         )
