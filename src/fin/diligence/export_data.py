@@ -62,7 +62,8 @@ class Issue:
 
     @property
     def title(self) -> str:
-        return " ".join(x for x in (self.query["period"], self.query["scope"]) if x) or "-"
+        parts = (self.query["period"], self.query["scope"], self.query.get("topic"))
+        return " ".join(x for x in parts if x) or "-"
 
     def difference_text(self) -> str:
         """'3 only in register ₹4,00,000.00; 1 different amounts ₹50,000.00'."""
@@ -102,8 +103,8 @@ def approved_issues(
     lines' differences without their signs) of each kind. E858 when there are none."""
     queries = fetch_dicts(
         con,
-        "SELECT * FROM accountant_queries WHERE engagement_id = ? AND status = 'approved' "
-        "ORDER BY query_id",
+        "SELECT q.*, i.topic FROM accountant_queries q LEFT JOIN inquiries i USING (query_id) "
+        "WHERE q.engagement_id = ? AND q.status = 'approved' ORDER BY q.query_id",
         [engagement["engagement_id"]],
     )
     if not queries:

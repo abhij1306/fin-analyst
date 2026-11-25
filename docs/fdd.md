@@ -63,7 +63,11 @@ contracts with terms), `fin contracts coverage`, `fin sample draw|show`, `fin wa
   posting is found (D2). Table `walkthroughs`; view `walkthrough_summary` (per sample: lines, checks passed,
   exceptions). An exception at or above the threshold is a recon item for a query.
 
-### F2: Management inquiries (gap 3)
+### F2: Management inquiries (gap 3) — built
+
+Decisions: [decisions/fdd-f2.md](decisions/fdd-f2.md). Schema: `db/schema/fdd_inquiries.sql` (table `inquiries`). Error E910.
+Commands: `fin query raise --topic`, `fin query checklist <co> [--json]`. Data function for F8:
+`fin.diligence.inquiries.collect(con, engagement_id, topics)` (per topic: its queries, status, answers).
 
 - A query can be an inquiry: `fin query raise <co> --topic <topic> --question "..."` with no amount or source. Topics
   from `[fdd] inquiry_topics`: revenue_recognition, cut_off, mis_kpi, accounting_policies, capitalisation,

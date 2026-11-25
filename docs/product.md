@@ -279,6 +279,7 @@ claude
 | `fin analytics <co> [--json]` | `/diligence` | Either |
 | `fin recast run <co> [--period]`, `fin recast contracts <co> [<file> --reading <csv>]` | `/diligence` | Claude runs it; the user accepts or rejects the proposed adjustments |
 | `fin contracts coverage <co> [--json]`, `fin sample draw <co> --kind sales\|purchase --period P [--n] [--seed]`, `fin sample show <co> [id]`, `fin walkthrough record <co> <sample-id> <file.json>`, `fin walkthrough summary <co>` | `/diligence` | Claude runs them; a walkthrough exception at or above the threshold is grouped into a query the user approves |
+| `fin query raise <co> --topic T --question "..."`, `fin query checklist <co>` (FDD F2) | `/diligence` | Claude drafts inquiries; the user approves |
 | `fin provisions show\|ledgers\|propose <co>` (FDD F3) | `/diligence` | Claude proposes provision ledgers |
 | `fin provisions confirm\|reject <co> <ids>` | `/diligence` | Either (when the user says) |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
@@ -787,3 +788,15 @@ lines in the window with no service start, and registers that end before the win
 reconciled. E922 when the period is not an annual period or no register line is in the window. Golden kinds:
 `receivable_ageing`, `doubtful_debt_provision`, `gratuity_provision`, `sales_cutoff`, `purchase_cutoff`. The
 FDD report (F8) reads F3 through `fin.diligence.provisions.collect(con, fdd)`.
+
+FDD management inquiries (F2, `docs/fdd.md`; decisions in `docs/decisions/fdd-f2.md`): an inquiry is a query for management on a
+topic, with no amount and no source document. `fin query raise <co> --topic <topic> --question "..."` drafts it (`--period` and
+`--scope` optional; `--amount`, `--source`, `--finding` and `--items` are refused). The topic is one of `config.toml [fdd]
+inquiry_topics` (revenue_recognition, cut_off, mis_kpi, accounting_policies, capitalisation, provisions, related_parties, tax,
+contingencies, other; E910 otherwise). It is a row of `accountant_queries` (origin `manual`, amount empty) plus a row of
+`inquiries` (`db/schema/fdd_inquiries.sql`, refused by `fin sql --write`, E806), so approve, sent, answer, close and withdraw,
+the draft check of gate G2 and `fin query export` (email, workbook, brief: the topic in the title, no amount line) work as for
+every query; `fin query list` shows `inquiry: <topic>`. `templates/fdd/inquiries.toml` is the standard checklist per topic;
+`fin query checklist <co> [--json]` prints each topic with its inquiries, their status and answers, and for a topic with no
+active inquiry (none, or only withdrawn) the standard questions, which Claude adapts and drafts; fin raises nothing itself. The FDD
+report (F8) reads this through `fin.diligence.inquiries.collect(con, engagement_id, topics)`.

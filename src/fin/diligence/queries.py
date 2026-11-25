@@ -27,6 +27,9 @@ from fin.diligence.mask import PREFIX
 
 TOKEN = re.compile(r"(?<![\w-])(?:" + "|".join(PREFIX.values()) + r")-\d{4,}(?![\w-])")
 
+# a query with its inquiry topic (F2), None for the others
+SELECT = "SELECT q.*, i.topic FROM accountant_queries q LEFT JOIN inquiries i USING (query_id)"
+
 # target status -> the statuses a query may move to it from
 TRANSITIONS = {
     "approved": ("draft",),
@@ -58,7 +61,7 @@ def _get(
 ) -> dict[str, Any]:
     rows = fetch_dicts(
         con,
-        "SELECT * FROM accountant_queries WHERE query_id = ? AND engagement_id = ?",
+        f"{SELECT} WHERE q.query_id = ? AND q.engagement_id = ?",
         [query_id, engagement["engagement_id"]],
     )
     if not rows:
@@ -249,16 +252,18 @@ def list_queries(run: Run, company: str, status: str | None = None) -> list[dict
     """The open engagement's queries (only those in `status` when given), by id."""
     with company_database(run, company) as con:
         engagement = require_open(con, company)
-        only = "" if status is None else " AND status = ?"
+        only = "" if status is None else " AND q.status = ?"
         return fetch_dicts(
             con,
-            f"SELECT * FROM accountant_queries WHERE engagement_id = ?{only} ORDER BY query_id",
+            f"{SELECT} WHERE q.engagement_id = ?{only} ORDER BY q.query_id",
             [engagement["engagement_id"], *([] if status is None else [status])],
         )
 
 
 def format_query(row: dict[str, Any]) -> str:
     origin = f"finding {row['finding_id']}" if row["origin"] == "finding" else row["origin"]
+    if row.get("topic"):
+        origin = f"inquiry: {row['topic']}"
     where = " ".join(x for x in (row["period"], row["scope"]) if x) or "-"
     lines = [
         f"#{row['query_id']} {row['status']} {where} {rupees(row['amount'])} ({origin}): "

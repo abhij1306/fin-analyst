@@ -1,0 +1,63 @@
+# Standard FDD inquiry checklist (docs/fdd.md F2): per topic, the questions an FDD usually puts to management.
+# Claude adapts them to the company and drafts them as inquiries (`fin query raise <co> --topic <topic> --question ...`);
+# the user approves each, as for every query. A topic must be one of config.toml [fdd] inquiry_topics.
+
+[revenue_recognition]
+questions = [
+    "How is revenue recognised for each stream (point in time or over time), and has the policy changed in the periods under review?",
+    "Are there bill-and-hold, multiple-element, rebate or return arrangements, and how are they accounted for?",
+    "Which customers are on extended credit terms or have disputed invoices?",
+]
+
+[cut_off]
+questions = [
+    "What is the process that decides the period a sale or a purchase is booked in, and who reviews it at the year end?",
+    "Were there credit notes, reversals or late invoices raised after a year end that relate to the year before?",
+]
+
+[mis_kpi]
+questions = [
+    "Please share the management MIS and KPI definitions, and explain any difference between the MIS and the books for the periods under review.",
+    "How are the headline KPIs (such as customers, orders, utilisation or churn) computed, and by whom?",
+]
+
+[accounting_policies]
+questions = [
+    "Please list the significant accounting policies and any change in policy or estimate during the periods under review.",
+    "Are the policies on the books the same as those used for tax and for lenders' reporting?",
+]
+
+[capitalisation]
+questions = [
+    "What is the policy for capitalising costs (software, development, projects), and what was capitalised in each period?",
+    "Were any repairs, maintenance or employee costs capitalised, and who approved them?",
+]
+
+[provisions]
+questions = [
+    "How are the provisions for doubtful debts, gratuity, leave encashment and warranties estimated, and what was the basis in each period?",
+    "Which provisions were reversed or written back in the periods under review?",
+]
+
+[related_parties]
+questions = [
+    "Please list all related parties and the transactions and balances with each in the periods under review.",
+    "Are the terms of related-party transactions the same as with third parties, and are any loans interest-free?",
+]
+
+[tax]
+questions = [
+    "Are there open assessments, notices or disputes for income tax, GST or other taxes, and what is the status of each?",
+    "Are all statutory returns and payments (GST, TDS, provident fund, ESI) up to date?",
+]
+
+[contingencies]
+questions = [
+    "Are there litigation, claims, guarantees, commitments or other contingent liabilities not recorded in the books?",
+    "Have any events after the balance sheet date affected the periods under review?",
+]
+
+[other]
+questions = [
+    "Is there any other matter management considers relevant to the financial position that has not been shared?",
+]

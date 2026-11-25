@@ -35,6 +35,18 @@ FDD_DEFAULTS: dict[str, Any] = {
     "basic_share": Decimal("0.5"),
     "cutoff_days": 15,
     "unrecorded_days": 60,
+    "inquiry_topics": (
+        "revenue_recognition",
+        "cut_off",
+        "mis_kpi",
+        "accounting_policies",
+        "capitalisation",
+        "provisions",
+        "related_parties",
+        "tax",
+        "contingencies",
+        "other",
+    ),
 }
 
 DEFAULT_CONFIG_TOML = """\
@@ -90,6 +102,11 @@ basic_share = 0.5
 # side; purchases invoiced within unrecorded_days after a year end whose service started before it.
 cutoff_days = 15
 unrecorded_days = 60
+# Topics of management inquiries (F2): `fin query raise --topic` takes one of these.
+inquiry_topics = [
+    "revenue_recognition", "cut_off", "mis_kpi", "accounting_policies", "capitalisation",
+    "provisions", "related_parties", "tax", "contingencies", "other",
+]
 
 [pdf]
 # The optional PDF add-on that reads the statement pages pdfplumber cannot (and scanned results
@@ -312,6 +329,20 @@ def _fdd(table: dict[str, Any], path: Path) -> dict[str, Any]:
     if number is None or not number.is_finite() or not 0 < number <= 1:
         raise _invalid(path, f"fdd.basic_share = {share!r}; expected a number above 0, up to 1")
     out["basic_share"] = number
+    topics = out["inquiry_topics"]
+    ok = (
+        isinstance(topics, list | tuple)
+        and topics
+        and all(isinstance(t, str) and _CATEGORY.match(t) for t in topics)
+        and len(set(topics)) == len(topics)
+    )
+    if not ok:
+        raise _invalid(
+            path,
+            f"fdd.inquiry_topics = {topics!r}; expected a list of different lower-case names "
+            "such as revenue_recognition",
+        )
+    out["inquiry_topics"] = tuple(topics)
     return out
 
 
