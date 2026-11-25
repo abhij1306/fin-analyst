@@ -180,6 +180,30 @@ _FIN_VALUE.update(
 )
 
 
+_RECAST_RUN = (
+    "recon_id = (SELECT max(recon_id) FROM recon_runs WHERE name = 'service_recast' "
+    f"AND period = ? AND engagement_id = {LATEST_ENGAGEMENT})"
+)
+_FIN_VALUE.update(
+    {
+        "recast_revenue": (
+            f"SELECT left_amount FROM recon_items WHERE level = 'period' AND {_RECAST_RUN}",
+            ("period",),
+        ),
+        "recast_difference": (
+            f"SELECT difference FROM recon_items WHERE level = 'period' AND {_RECAST_RUN}",
+            ("period",),
+        ),
+        "recast_undated": (
+            f"SELECT coalesce(sum(difference), 0) FROM recon_items WHERE kind = 'undated' "
+            f"AND {_RECAST_RUN} HAVING (SELECT count(*) FROM recon_items WHERE level = 'period' "
+            f"AND {_RECAST_RUN}) > 0",
+            ("period", "period"),
+        ),
+    }
+)
+
+
 def fin_value(con: duckdb.DuckDBPyConnection, check: Check) -> Decimal | None:
     sql, fields = _FIN_VALUE[check.kind]
     row = con.execute(sql, [getattr(check, f) for f in fields]).fetchone()

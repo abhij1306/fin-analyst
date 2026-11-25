@@ -258,7 +258,7 @@ CREATE TABLE recon_runs (
     recon_id INTEGER PRIMARY KEY DEFAULT nextval('recon_runs_seq'),
     engagement_id INTEGER NOT NULL,
     name VARCHAR NOT NULL CHECK (name IN ('tb_vs_statements', 'sales_register_vs_gl',
-        'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl', 'bank_vs_invoices', 'bank_vs_tb')),
+        'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl', 'bank_vs_invoices', 'bank_vs_tb', 'service_recast')),
     period VARCHAR NOT NULL,
     scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
     left_file_id INTEGER NOT NULL,
@@ -284,7 +284,11 @@ CREATE TABLE recon_runs (
 --   fx          (bank_vs_invoices) a matched foreign-currency receipt whose booked rupee value (Ledger Vouchers) differs from its
 --               invoice's Amount in Rs: left_amount the receipt's booked rupees, right_amount the invoice's, difference
 --               the FX gain (positive) or loss; listed, never queried, never plugged.
---   not_reconciled  (gl_vs_tb) a balance sheet ledger with no prior trial balance to start from: listed.
+--   not_reconciled  (gl_vs_tb) a balance sheet ledger with no prior trial balance to start from: listed;
+--   undated     (service_recast) a sales invoice with no usable service dates, recognised on its invoice date: left_amount
+--               is its amount; at or above the threshold it needs a query. service_recast lines: level 'period' (recognised
+--               by the recast vs booked by invoice date: the period's revenue effect), 'month' and 'schedule' (per invoice,
+--               its recognised and booked amounts in the period) are roll-ups, listed; level 'invoice' kind undated is queried.
 -- difference = left_amount - right_amount (a missing side counts as 0). tb_vs_statements: a line at or above the
 -- threshold gets a draft accountant query (query_id) once every ledger is mapped; one below it is listed only. The D4
 -- reconciliations draft nothing: needs_query marks the lines Claude groups into issues (`fin query raise --items`:
@@ -308,7 +312,7 @@ CREATE TABLE recon_items (
     item_id INTEGER NOT NULL UNIQUE DEFAULT nextval('recon_items_seq'),
     kind VARCHAR NOT NULL
         CHECK (kind IN ('matched', 'difference', 'left_only', 'right_only', 'unmapped', 'fx',
-            'not_reconciled')),
+            'not_reconciled', 'undated')),
     level VARCHAR,
     key VARCHAR,
     needs_query BOOLEAN NOT NULL DEFAULT FALSE,

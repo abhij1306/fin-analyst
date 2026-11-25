@@ -124,7 +124,7 @@ CREATE TABLE passthrough_customers (
 -- Gate approvals (fin.diligence.gates), append-only: one row each time the user approves a gate
 -- (`fin gate approve`); rows are never changed. A gate is approved while the hash of its inputs now equals input_hash
 -- of its latest approval; when the data under it changes, it reopens on its own.
--- gate: 'G1', 'G2', 'G4' (G3 comes later). input_hash: sha256 of the gate's inputs at approval; input_hashes:
+-- gate: 'G1', 'G2', 'G3', 'G4'. input_hash: sha256 of the gate's inputs at approval; input_hashes:
 -- JSON {input name: sha256} of each input (to say which changed). checklist: JSON [{"ok": true, "text": ...}], the
 -- checklist as it was at approval (every line passed).
 CREATE SEQUENCE gate_approvals_seq START 1;
@@ -137,4 +137,26 @@ CREATE TABLE gate_approvals (
     checklist VARCHAR NOT NULL,
     approved_run_id VARCHAR NOT NULL,
     approved_at TIMESTAMP NOT NULL
+);
+
+-- Contracts Claude read from a contract document (`fin recast contracts`, a reading CSV with file + page): optional
+-- evidence for the service-period recast, never the source of its schedule. customer is a token (CUST-0001); invoice_no
+-- links the contract to a sales invoice when the reading names one. value: the contract value as read, in rupees (NULL
+-- when not read); billing_terms: as read. file_name, sha256 and page say where it was read; read_by is 'claude'.
+CREATE SEQUENCE contracts_seq START 1;
+CREATE TABLE contracts (
+    contract_id INTEGER PRIMARY KEY DEFAULT nextval('contracts_seq'),
+    engagement_id INTEGER NOT NULL,
+    customer VARCHAR NOT NULL,
+    invoice_no VARCHAR,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    value DECIMAL(20, 2),
+    billing_terms VARCHAR,
+    file_name VARCHAR NOT NULL,
+    sha256 VARCHAR NOT NULL,
+    page INTEGER NOT NULL,
+    read_by VARCHAR NOT NULL,
+    run_id VARCHAR NOT NULL,
+    created_at TIMESTAMP NOT NULL
 );

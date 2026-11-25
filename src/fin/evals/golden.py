@@ -22,6 +22,10 @@ One line per check, the value a person read in the company's document and checke
   ledger its account number;
 - `core_revenue`, `passthrough_revenue`: the period's sales register revenue (Amount in Rs, before
   GST) of customers not on, and on, the engagement's pass-through list (`revenue_split`);
+- `recast_revenue`, `recast_difference`, `recast_undated`: the period's latest service-period
+  recast (`service_recast`): the sales register's revenue recognised over service periods, the
+  difference from revenue booked by invoice date (the revenue effect), and the value of sales
+  invoices without service dates;
 - `adjusted_revenue`, `adjusted_ebitda`: the period's figure after accepted adjustments
   (`adjusted_ebitda` view), by scope;
 - `register_total`: the sum of Amount in Rs (before GST) over every row of the sales or the purchase
@@ -69,6 +73,7 @@ COLUMNS = ("kind", "period", "scope", "account", "ledger", "expected", "unit", "
 OPTIONAL = ("note",)
 RECON_KINDS = ("sales_register_vs_gl", "purchase_register_vs_gl", "gl_vs_tb", "payroll_vs_gl")
 QUERY_KINDS = ("query_issue", "query_difference")
+RECAST_KINDS = ("recast_revenue", "recast_difference", "recast_undated")
 PASSTHROUGH_KINDS = ("core_revenue", "passthrough_revenue", "adjusted_revenue", "adjusted_ebitda")
 BANK_KINDS = ("bank_unmatched", "invoice_unmatched", "fx_line", "bank_vs_tb")
 ANALYTICS_KINDS = (
@@ -94,6 +99,7 @@ KINDS = (
     "payroll_total",
     *BANK_KINDS,
     *ANALYTICS_KINDS,
+    *RECAST_KINDS,
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -102,6 +108,7 @@ NEEDS = {
     "stub": ("period", "account"),
     "bank_closing": ("period", "ledger"),
     **{kind: ("period", "ledger") for kind in (*RECON_KINDS, *QUERY_KINDS)},
+    **{kind: ("period",) for kind in RECAST_KINDS},
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),
     "adjusted_revenue": ("period", "scope"),

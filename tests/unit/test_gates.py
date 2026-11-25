@@ -71,7 +71,7 @@ def states(context: Context) -> list[tuple[str, str, str | None]]:
 def test_g1_checklist_names_what_is_missing(con: duckdb.DuckDBPyConnection) -> None:
     pending = [{"id": 3, "status": "pending", "statement": "x", "section": "", "label": "Misc"}]
 
-    [g1, g2, g4] = evaluate(ctx(con, pending))
+    [g1, g2, g3, g4] = evaluate(ctx(con, pending))
 
     assert [(line["ok"], line["text"]) for line in g1["checklist"]] == [
         (True, "FY24: a loaded document has mapped figures for it"),
@@ -83,11 +83,19 @@ def test_g1_checklist_names_what_is_missing(con: duckdb.DuckDBPyConnection) -> N
     assert [(line["ok"], line["text"]) for line in g2["checklist"]] == [
         (True, "no queries in draft")
     ]
+    assert [(line["ok"], line["text"]) for line in g3["checklist"]] == [
+        (True, "no sales register loaded: nothing to recast")
+    ]
     assert [(line["ok"], line["text"]) for line in g4["checklist"]] == [
         (True, "no proposed adjustments"),
         (True, "every accepted adjustment has evidence"),
     ]
-    assert states(ctx(con)) == [("G1", "open", None), ("G2", "open", None), ("G4", "open", None)]
+    assert states(ctx(con)) == [
+        ("G1", "open", None),
+        ("G2", "open", None),
+        ("G3", "open", None),
+        ("G4", "open", None),
+    ]
 
 
 def test_gates_are_approved_in_order_and_only_when_the_checklist_passes(
@@ -121,6 +129,7 @@ def test_gates_are_approved_in_order_and_only_when_the_checklist_passes(
     assert states(ctx(con)) == [
         ("G1", "approved", None),
         ("G2", "approved", None),
+        ("G3", "open", None),
         ("G4", "open", None),
     ]
     assert con.execute("SELECT engagement_id, gate FROM gate_approvals").fetchall() == [
@@ -134,7 +143,7 @@ def test_a_gate_reopens_when_its_data_changes(
 ) -> None:
     run = Run("gate approve", {}, tmp_path)
     con.execute("UPDATE documents SET status = 'loaded' WHERE doc_id = 2")
-    for name in ("G1", "G2", "G4"):
+    for name in ("G1", "G2", "G3", "G4"):
         approve_in(run, ctx(con), name)
     require(ctx(con), "G4", "fin engagement close")  # approved: no error
 
@@ -143,6 +152,7 @@ def test_a_gate_reopens_when_its_data_changes(
     assert states(ctx(con)) == [
         ("G1", "approved", None),
         ("G2", "reopened", "changed since it was approved: queries"),
+        ("G3", "reopened", "G2 is not approved"),
         ("G4", "reopened", "G2 is not approved"),
     ]
     gate_ctx = ctx(con)
@@ -202,6 +212,7 @@ def test_g1_reopens_when_a_figure_changes(con: duckdb.DuckDBPyConnection, tmp_pa
     assert states(ctx(con)) == [
         ("G1", "reopened", "changed since it was approved: figures"),
         ("G2", "reopened", "G1 is not approved"),
+        ("G3", "open", None),
         ("G4", "open", None),
     ]
 

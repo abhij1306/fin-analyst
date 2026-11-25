@@ -6,6 +6,7 @@ from fin.cli.core import app
 
 # isort: off
 from fin.cli import init, ingest, findings, statements, reconcile, payroll, data, evals, analytics  # noqa: F401, E402
+from fin.cli import recast  # noqa: F401, E402
 # isort: on
 
 __all__ = ["app"]

@@ -14,7 +14,7 @@ the audit table `diligence_events`. A gate is then
 So a gate reopens on its own when the data under it changes. Commands a gate unlocks refuse with
 E801 until it is approved (`require`), checked in the same transaction as their change.
 
-Gates in this build (docs/DILIGENCE_BUILD.md); G3 (recast) comes later:
+Gates in this build (docs/DILIGENCE_BUILD.md):
     G1 Ingestion    every annual period in scope has figures in current_facts (a loaded document,
                     mapped and confirmed: what the metrics use), no held documents, no mapping
                     items waiting for review; and the trial balance checks
@@ -30,6 +30,12 @@ Gates in this build (docs/DILIGENCE_BUILD.md); G3 (recast) comes later:
                     query's id, wording and whether it is a draft, so a new or edited query
                     reopens it; sending, answering, closing or withdrawing an approved one does
                     not. Unlocks `fin adjust accept|reject`;
+    G3 Recast       once a sales register is loaded, for every annual period: the recast ran on the
+                    current data, every sales invoice at or above the threshold without service
+                    dates is in a query, and the period's recast difference has a proposed or
+                    decided `recast` adjustment (`fin.reconcile.recast_checks`). Its inputs are each
+                    period's run, the undated lines and their queries and the recast adjustments.
+                    Unlocks approving G4;
     G4 Adjustments  no proposed adjustment, and every accepted one has evidence. Unlocks
                     `fin engagement close`.
 """
@@ -51,6 +57,7 @@ from fin.diligence import bank_checks, payroll, tb_checks
 from fin.diligence.engagement import company_database, require_open
 from fin.map.review import open_items, read_pending
 from fin.reconcile import checks as reconcile_checks
+from fin.reconcile import recast_checks
 
 Line = tuple[bool, str]  # (passes, what it says)
 
@@ -193,6 +200,17 @@ def _reconciliation_inputs(ctx: Context) -> dict[str, Any]:
     return {**_queries_inputs(ctx), **reconcile_checks.inputs(ctx)}
 
 
+# G3 Recast
+
+
+def _recast_checklist(ctx: Context) -> list[Line]:
+    return recast_checks.checklist(ctx)
+
+
+def _recast_inputs(ctx: Context) -> dict[str, Any]:
+    return recast_checks.inputs(ctx)
+
+
 # G4 Adjustments
 
 
@@ -245,6 +263,7 @@ GATES = (
         _reconciliation_checklist,
         _reconciliation_inputs,
     ),
+    Gate("G3", "Recast", "approving G4", _recast_checklist, _recast_inputs),
     Gate(
         "G4",
         "Adjustments",

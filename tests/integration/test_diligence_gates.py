@@ -111,11 +111,11 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
         "periods": "FY24,FY25",
         "queries": {"draft": 1},
         "proposed_adjustments": 1,
-        "gates": {"G1": "approved", "G2": "reopened", "G4": "open"},
+        "gates": {"G1": "approved", "G2": "reopened", "G3": "open", "G4": "open"},
     }
     assert fin("status", "bluepeak").stdout.endswith(
         "  engagement #1 (FY24,FY25): queries draft 1; proposed adjustments 1\n"
-        "  gates: G1 approved, G2 reopened, G4 open\n"
+        "  gates: G1 approved, G2 reopened, G3 open, G4 open\n"
     )
     gate_status = fin("gate", "status", "bluepeak")
     assert gate_status.exit_code == 0, gate_status.output
@@ -124,6 +124,9 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
         "    FAIL: queries in draft: #1 (approve or withdraw them: "
         "`fin query list bluepeak --status draft`)\n"
         "    unlocks: `fin adjust accept|reject`\n"
+        "G3 Recast: open\n"
+        "    pass: no sales register loaded: nothing to recast\n"
+        "    unlocks: approving G4\n"
         "G4 Adjustments: open\n"
         "    FAIL: proposed adjustments: #2 (accept or reject them: "
         "`fin adjust list bluepeak --status proposed`)\n"
@@ -131,10 +134,11 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
         "    unlocks: `fin engagement close`\n"
     ) in gate_status.stdout
 
-    # The user withdraws the query, approves G2 again, rejects #2, approves G4: close works.
+    # The user withdraws the query, approves G2 again, rejects #2, approves G3 and G4: close works.
     assert fin("query", "withdraw", "bluepeak", "1", "--reason", "raised twice").exit_code == 0
     assert fin("gate", "approve", "bluepeak", "G2").exit_code == 0
     assert fin("adjust", "reject", "bluepeak", "2", "--reason", "recurring").exit_code == 0
+    assert fin("gate", "approve", "bluepeak", "G3").exit_code == 0
     assert fin("gate", "approve", "bluepeak", "G4").exit_code == 0
     closed = fin("engagement", "close", "bluepeak")
     assert closed.exit_code == 0, closed.output
@@ -147,6 +151,7 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
         (1, "G1", "approved", "G1"),
         (1, "G2", "approved", "G2"),
         (1, "G2", "approved", "G2"),
+        (1, "G3", "approved", "G3"),
         (1, "G4", "approved", "G4"),
     ]
 
@@ -168,6 +173,7 @@ def test_a_changed_figure_reopens_g1(root: Path) -> None:
     assert [(g["gate"], g["state"], g["reason"]) for g in status["gates"]] == [
         ("G1", "reopened", "changed since it was approved: figures"),
         ("G2", "reopened", "G1 is not approved"),
+        ("G3", "open", None),
         ("G4", "open", None),
     ]
     refused = fin("adjust", "accept", "bluepeak", "1")
@@ -234,10 +240,10 @@ def test_sql_write_refuses_the_diligence_tables(
 
 
 def test_unknown_gate_is_a_usage_error(root: Path) -> None:
-    result = fin("gate", "approve", "bluepeak", "G3")
+    result = fin("gate", "approve", "bluepeak", "G9")
 
     assert result.exit_code == 2
-    assert "use one of: G1, G2, G4" in result.output
+    assert "use one of: G1, G2, G3, G4" in result.output
 
 
 def test_sending_an_approved_query_keeps_g2_approved(root: Path) -> None:
@@ -257,5 +263,6 @@ def test_sending_an_approved_query_keeps_g2_approved(root: Path) -> None:
     assert [(g["gate"], g["state"]) for g in status["gates"]] == [
         ("G1", "approved"),
         ("G2", "approved"),
+        ("G3", "open"),
         ("G4", "open"),
     ]

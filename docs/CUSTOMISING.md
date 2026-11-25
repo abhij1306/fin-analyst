@@ -60,7 +60,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `recon_items`, keeping a query on an unchanged line), `items.py` (`fin query raise --items`), `checks.py` (gate
   G2's lines), `format.py`. To add one: a `compute(con, company, engagement, period) -> Computed` and an
   `applies`, registered in `reconcile/__init__.py` `RECONCILIATIONS`, its name in the `recon_runs` CHECK, and its
-  golden eval kind (`evals/golden.py` `RECON_KINDS`).
+  golden eval kind (`evals/golden.py` `RECON_KINDS`). The service-period recast is a reconciliation too but is not in
+  `RECONCILIATIONS` (gate G3 reads it, not G2): `recast.py` (compute), `recast_run.py` (`fin recast run`, proposes the
+  adjustment), `recast_checks.py` (G3's lines), `contracts.py` (`fin recast contracts`).
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
