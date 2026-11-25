@@ -72,6 +72,10 @@ def _text(value: Any) -> str | None:
 
 
 def _is_skipped(r: SheetRow, profile: Profile) -> bool:
+    """A total row: no invoice date, and a cell named in the profile's `skip`. A dated row is
+    always an invoice line, even when a product or party is called "Total"."""
+    if _text(r.cells.get("invoice_date")) is not None:
+        return False
     return any(norm(v) in profile.skip for v in r.cells.values() if v is not None)
 
 
@@ -169,7 +173,8 @@ def duplicate_findings(
                 "finding": "duplicate_invoice_no",
                 "statement": f"{line.kind}_register",
                 "period": period_label(line.invoice_date, engagement, month),
-                "label": f"{party} {invoice_no}" if line.kind == "purchase" else invoice_no,
+                "label": (f"{party} {invoice_no}" if line.kind == "purchase" else invoice_no)
+                + f" ({line.sheet}!{line.row})",  # the row, so each repeat is its own finding
                 "fin_value": line.amount_inr,
                 "difference": line.amount_inr,
                 "fin_source": f"{line.sheet}!{line.row}",

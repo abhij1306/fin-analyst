@@ -111,9 +111,10 @@ def test_a_planted_duplicate_invoice_is_a_finding_and_both_rows_stay(
     )
     assert [(f[0], f[1], f[2], f[3], f[4], f[7], f[8], f[9], f[10]) for f in found] == [
         ("register_duplicate_invoice", "duplicate_invoice_no", "sales_register", "FY25",
-         "INV-1002", "Sales Register!5", "Sales Register!3", "open", 1),
+         "INV-1002 (Sales Register!5)", "Sales Register!5", "Sales Register!3", "open", 1),
         ("register_duplicate_invoice", "duplicate_invoice_no", "purchase_register", "FY25",
-         "VEND-0001 PINV-71", "Purchase Register!4", "Purchase Register!2", "open", 1),
+         "VEND-0001 PINV-71 (Purchase Register!4)", "Purchase Register!4",
+         "Purchase Register!2", "open", 1),
     ]  # fmt: skip
     assert [(float(f[5]), float(f[6])) for f in found] == [(80000.0, 80000.0), (90000.0, 90000.0)]
     assert rows(root, "SELECT count(*) FROM register_lines") == [(7,)]
@@ -197,3 +198,22 @@ def test_a_number_that_is_not_a_number_is_e204(root: Path, tmp_path: Path) -> No
     bad = sales_line(5, CUSTOMERS[0], 1000, Quantity="two")
     with pytest.raises(ParseError, match="'two' is not a number"):
         load(root, write_registers(tmp_path / "reg.xlsx", sales_extra=[bad]))
+
+
+def test_every_repeat_of_an_invoice_is_its_own_finding(root: Path, tmp_path: Path) -> None:
+    again = [sales_line(2, CUSTOMERS[1], 80000), sales_line(2, CUSTOMERS[1], 80000)]
+    lines = load(root, write_registers(tmp_path / "reg.xlsx", sales_extra=again))
+
+    assert "2 findings" in lines[1]
+    assert rows(root, "SELECT fin_source FROM findings ORDER BY finding_id") == [
+        ("Sales Register!5",), ("Sales Register!6",)
+    ]  # fmt: skip
+
+
+def test_a_dated_invoice_named_total_is_a_line_and_an_undated_total_row_is_not(
+    root: Path, tmp_path: Path
+) -> None:
+    named = sales_line(7, CUSTOMERS[0], 500, Product="Total", **{"Customer Name": "Total"})
+    lines = load(root, write_registers(tmp_path / "reg.xlsx", sales_extra=[named]))
+
+    assert "4 sales lines, 2 purchase lines" in lines[1]
