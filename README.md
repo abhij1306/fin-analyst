@@ -190,7 +190,7 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
 
   A command that needs a gate that is not approved refuses with E801; a gate that cannot be approved yet, E802.
   `fin status` shows an open engagement's queries, proposed adjustments and gates.
-- Source files: `fin ingest <company> <file> --kind trial_balance|ledger_vouchers|registers|payroll [--profile <name>]` loads a Tally
+- Source files: `fin ingest <company> <file> --kind trial_balance|ledger_vouchers|registers|bank|payroll [--profile <name>]` loads a Tally
   Trial Balance (Detailed mode) or Ledger Vouchers export into `trial_balance` or `ledger_entries` (and `ledger_blocks`, every ledger block the export has, even one with no voucher lines), or a billing-system
   registers workbook (a sales sheet and a purchase sheet) into `register_lines`, each row with
   its file (`source_files`: sha256, archive copy, profile) and sheet!row. The period comes from the export's header

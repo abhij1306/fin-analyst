@@ -20,6 +20,7 @@ from fin.audit.logger import Run, git_commit
 from fin.diligence.engagement import company_database
 from fin.doctor import run_checks
 from fin.evals.counts import counts
+from fin.evals.golden import LEDGERS
 from fin.evals.score import evaluate
 from fin.paths import companies_dir, evals_dir
 
@@ -53,7 +54,7 @@ def _failures(checks: list[dict[str, Any]], with_figures: bool) -> list[dict[str
         if check["outcome"] not in ("fail", "missing"):
             continue
         ledger = check["ledger"]
-        if ledger and not TOKEN.match(ledger):
+        if ledger and not TOKEN.match(ledger) and ledger not in LEDGERS.get(check["kind"], ()):
             ledger = aliases.setdefault(ledger, f"ledger-{len(aliases) + 1}")
         item = {
             "kind": check["kind"],

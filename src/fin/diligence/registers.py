@@ -26,6 +26,8 @@ import duckdb
 
 from fin.audit.errors import RegisterLineInvalid
 from fin.audit.logger import Run
+from fin.diligence.loading import clean_text as _text
+from fin.diligence.loading import insert_rows
 from fin.diligence.mask import Masker
 from fin.extract.excel import parse_number
 from fin.extract.ledger import SheetRow, amount, parse_date
@@ -61,14 +63,6 @@ class Line:
     invoice_date: date
     amount_inr: Decimal
     values: dict[str, Any]  # the other fields, as filed (names not yet masked)
-
-
-def _text(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    return " ".join(str(value).split()) or None
 
 
 def _is_skipped(r: SheetRow, profile: Profile) -> bool:
@@ -202,8 +196,6 @@ def load(
 ) -> list[str]:
     """Insert the lines (names masked) and record the duplicate-invoice findings; the lines to
     show."""
-    from fin.diligence.sources import insert_rows  # sources calls this module
-
     values = [dict(line.values) for line in lines]
     for v in values:  # every name is tokenised before any free text is searched for names
         for field, kind in MASKED.items():

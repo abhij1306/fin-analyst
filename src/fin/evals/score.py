@@ -59,6 +59,19 @@ _FIN_VALUE = {
         "SELECT adjusted_ebitda FROM adjusted_ebitda WHERE period = ? AND scope = ?",
         ("period", "scope"),
     ),
+    "register_total": (
+        "SELECT sum(r.amount_inr) FROM register_lines r JOIN source_files s USING (file_id) "
+        f"WHERE s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT} AND s.period = ? "
+        "AND r.kind = ? HAVING count(*) > 0",
+        ("period", "ledger"),
+    ),
+    "payroll_total": (
+        "SELECT CASE WHEN ? = 'gross_salary' THEN sum(p.gross_salary) ELSE sum(p.ctc) END "
+        "FROM payroll_lines p JOIN source_files s USING (file_id) "
+        f"WHERE s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT} AND s.period = ? "
+        "HAVING count(*) > 0",
+        ("ledger", "period"),
+    ),
     "stub": (
         "SELECT value FROM stub_figures WHERE period = ? AND account = ? "
         f"AND engagement_id = {LATEST_ENGAGEMENT}",

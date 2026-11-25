@@ -76,12 +76,3 @@ own agent installs fin, builds a golden set from real documents, runs the eval a
 - **Why:** The bundle leaves the client's Mac. Ledger names that are not tokens can still name people ("Loan from
   ..."); file names often name the company.
 - **How to change it:** `src/fin/evals/bundle.py: _failures, _names, make_bundle`.
-
-## `pytest --golden` is replaced by `fin eval`
-
-- **Decision:** The private golden set is the per-company `golden.csv` scored by `fin eval run`, not a pytest option
-  (which was planned but never built). The extraction backlog's open questions moved to `docs/EVAL.md` section 8 as
-  what the eval should reveal; `fin eval init` notes each account where fin adds several printed lines, so the
-  "which line is the total" question gets checked.
-- **Why:** The client's agent runs fin, not the test suite, on real documents.
-- **How to change it:** `docs/EVAL.md`; `src/fin/evals/scaffold.py: candidates` (the note).

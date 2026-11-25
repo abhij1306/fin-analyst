@@ -22,25 +22,26 @@ missing from it (ask the user for the export with all ledgers) and its ledgers n
 balance (masked: fin cannot tell whether they are parties).
 """
 
-import shutil
-from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
 import duckdb
 
-from fin.audit.errors import (
-    DataFolderNotWritable,
-    DuplicateFile,
-    SourcePeriodInvalid,
-    TrialBalanceNeeded,
-)
+from fin.audit.errors import SourcePeriodInvalid, TrialBalanceNeeded
 from fin.audit.logger import Run
 from fin.config import Config
-from fin.db.conn import connect, transaction, utcnow
+from fin.db.conn import connect, transaction
 from fin.diligence import ledgers, payroll, registers, tally
 from fin.diligence.engagement import require_open
+from fin.diligence.loading import (
+    Loaded,
+    add_file,
+    archive_copy,
+    insert_rows,
+    log_load,
+    refuse_duplicate,
+)
 from fin.diligence.mask import Masker
 from fin.diligence.stub import UNAUDITED
 from fin.extract.ledger import Table, read_table
@@ -48,28 +49,7 @@ from fin.extract.periods import fiscal_year_of
 from fin.extract.registers import read_registers
 from fin.findings import record, set_status
 from fin.ingest import sha256_of
-from fin.paths import archive_dir, company_db_path
-
-CHUNK = 500  # rows per INSERT
-
-
-@dataclass(frozen=True)
-class Loaded:
-    file_id: int
-    period: str
-    lines: list[str]  # what to show, first line the summary
-
-
-def insert_rows(
-    con: duckdb.DuckDBPyConnection, table: str, columns: str, rows: list[list[Any]]
-) -> None:
-    """Insert rows with multi-row INSERTs of CHUNK rows."""
-    for start in range(0, len(rows), CHUNK):
-        chunk = rows[start : start + CHUNK]
-        marks = ", ".join("(" + ", ".join("?" for _ in chunk[0]) + ")" for _ in chunk)
-        con.execute(
-            f"INSERT INTO {table} ({columns}) VALUES {marks}", [v for row in chunk for v in row]
-        )
+from fin.paths import company_db_path
 
 
 def period_of_file(
@@ -102,37 +82,6 @@ def period_of_file(
         f"{name}: its header gives {start.isoformat()} to {end.isoformat()} ({what}), which is "
         f"not a period of the open engagement ({scope}). Nothing loaded"
     )
-
-
-def archive_copy(run: Run, company: str, path: Path, sha256: str) -> str:
-    target = archive_dir(run.root, company) / f"{sha256}{path.suffix.lower()}"
-    try:
-        if not target.exists():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, target)
-    except OSError as exc:
-        raise DataFolderNotWritable(f"cannot copy {path} to {target}: {exc}") from exc
-    return target.relative_to(run.root).as_posix()
-
-
-def refuse_duplicate(con: duckdb.DuckDBPyConnection, name: str, sha256: str) -> None:
-    """E105 when a file with this sha256 is already a source file (even a superseded one)."""
-    earlier = con.execute(
-        "SELECT file_id FROM source_files WHERE sha256 = ? ORDER BY file_id DESC", [sha256]
-    ).fetchone()
-    if earlier is not None:
-        raise DuplicateFile(f"{name}: already loaded as source file_id {earlier[0]} (same sha256)")
-
-
-def add_file(con: duckdb.DuckDBPyConnection, file: dict[str, Any]) -> int:
-    """Insert the `source_files` row (the columns given by `file`); its file_id."""
-    row = con.execute(
-        f"INSERT INTO source_files ({', '.join(file)}) VALUES ({', '.join('?' for _ in file)}) "
-        "RETURNING file_id",
-        list(file.values()),
-    ).fetchone()
-    assert row is not None
-    return int(row[0])
 
 
 def _tb_ledgers(con: duckdb.DuckDBPyConnection, engagement_id: int, period: str) -> list[str]:
@@ -342,22 +291,21 @@ def ingest_source(
                 "masked. Nothing loaded"
             )
         archive = archive_copy(run, company, path, sha256)
-        file = {
-            "engagement_id": engagement["engagement_id"],
-            "kind": kind,
-            "file_name": name,
-            "sha256": sha256,
-            "archive_path": archive,
-            "period": period,
-            "period_start": start,
-            "period_end": end,
-            "basis": basis,
-            "profile": profile_name,
-            "status": "loaded",
-            "run_id": run.run_id,
-            "ingested_at": utcnow(),
-        }
-        file["file_id"] = masker.file_id = add_file(con, file)
+        file = add_file(
+            run,
+            con,
+            engagement,
+            kind=kind,
+            name=name,
+            sha256=sha256,
+            archive=archive,
+            period=period,
+            start=start,
+            end=end,
+            basis=basis,
+            profile=profile_name,
+        )
+        masker.file_id = file["file_id"]
         if kind == "trial_balance":
             lines = _load_tb(run, company, con, table, file, masker)
             added = ledgers.sync(con, run.run_id)
@@ -377,11 +325,4 @@ def ingest_source(
         head += f"; {period} is the stub: {UNAUDITED}"
     if replaced:
         head += f"; supersedes file_id {', '.join(map(str, replaced))}"
-    run.loaded += 1
-    run.event(
-        "ingest",
-        "; ".join([head, *lines]),
-        file=f"{company}/{name}",
-        context={"file_id": file["file_id"], "kind": kind, "period": period, "archive": archive},
-    )
-    return Loaded(file["file_id"], period, [head, *lines])
+    return log_load(run, company, file, [head, *lines], archive)

@@ -15,6 +15,8 @@
   status;
 - `recon_lines`: the latest D4 reconciliation runs' detail lines by reconciliation and kind, and
   how many need a query but are in none.
+- `registers`: lines of the loaded registers file by kind (sales, purchase);
+- `payroll`: loaded payroll files by the unit the user confirmed (or "not confirmed").
 """
 
 import json
@@ -64,6 +66,18 @@ WHERE (f.account IS NULL OR NOT f.confirmed) AND d.status IN {LIVE}
 _BANK = f"""
 SELECT b.reader, b.ties, count(*) FROM bank_statements b JOIN source_files s USING (file_id)
 WHERE s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT} GROUP BY ALL ORDER BY ALL
+"""
+
+
+_REGISTERS = f"""
+SELECT r.kind, count(*) FROM register_lines r JOIN source_files s USING (file_id)
+WHERE s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT} GROUP BY ALL ORDER BY ALL
+"""
+_PAYROLL = f"""
+SELECT coalesce(u.unit, 'not confirmed'), count(*) FROM source_files s
+LEFT JOIN payroll_units u USING (file_id)
+WHERE s.kind = 'payroll' AND s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT}
+GROUP BY ALL ORDER BY ALL
 """
 
 
@@ -146,6 +160,8 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
                 ).fetchall()
             ),
         },
+        "registers": dict(con.execute(_REGISTERS).fetchall()),
+        "payroll": dict(con.execute(_PAYROLL).fetchall()),
     }
 
 
