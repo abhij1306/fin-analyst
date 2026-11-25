@@ -229,7 +229,7 @@ trial_balance|ledger_vouchers [--profile <name>]` loads one Tally export (one fi
 the open engagement (E803 without one). Tables in `db/schema/sources.sql` (run after `diligence_views.sql`):
 `source_files` (kind, file name, sha256, archive path, period from the export's header lines, basis `audited`,
 profile, loaded or superseded), `trial_balance` (group and ledger rows with group, parent group, closing debit and
-credit), `ledger_entries` (one per voucher line, the ledger from its block header) and `mask_values`; every row
+credit), `ledger_entries` (one per voucher line, the ledger from its block header), `ledger_blocks` (one per ledger block the export has, even with no voucher lines) and `mask_values`; every row
 keeps file_id and sheet + row. Reading is `fin/extract/ledger.py` with a column profile (`fin/extract/profiles.py`,
 `templates/profiles/*.toml`: header text to field over `header_rows` rows, date format, period pattern, unit, which
 rows to skip, group rows (bold) and nesting (indent), the Ledger Vouchers block field, party groups and masked
@@ -245,7 +245,7 @@ Creditors: vendor) are stored as tokens (`CUST-0001`, `VEND-0001`; the same valu
 file, whatever kind it is found as later); known names in other ledger names and in masked fields (Ledger Vouchers
 particulars) are replaced as whole words; a Ledger Vouchers ledger not in its trial balance is masked as
 `LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql --write` refuses to
-write `source_files`, `trial_balance` and `ledger_entries` (E806). One transaction per file; a later file of the
+write `source_files`, `trial_balance`, `ledger_entries` and `ledger_blocks` (E806). One transaction per file; a later file of the
 same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
 period or refusal error stops the command and loads nothing.
 
@@ -269,7 +269,7 @@ the last period, columns `stub`, `stub_start`, `stub_end` on `engagement` (a bad
 with basis `unaudited` and the view `stub_figures` rolls its trial balance up by confirmed mapping, labelled
 "unaudited management accounts", never annualised. G1 (`fin/diligence/tb_checks.py`), once the engagement has a
 source file or a stub: a trial balance and Ledger Vouchers per period and the stub, every trial balance ledger in its
-Ledger Vouchers, every ledger mapped, each annual period's latest `tb_vs_statements` on the current data with every
+Ledger Vouchers (a ledger block, even one with no voucher lines in the year), every ledger mapped, each annual period's latest `tb_vs_statements` on the current data with every
 line at or above the threshold in a query, the stub marked unaudited; its inputs add the source files, the ledger
 mappings and the latest reconciliations. `fin sql --write` refuses `ledger_accounts`, `recon_runs`, `recon_items`
 (E806).
@@ -399,7 +399,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - Diligence: `engagement`, `accountant_queries`, `adjustments` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash` (views on the latest engagement)
-- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, the view `stub_figures`
+- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, the view `stub_figures`
 
 **Shared**
 

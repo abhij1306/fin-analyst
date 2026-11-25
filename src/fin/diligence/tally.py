@@ -195,13 +195,22 @@ def _undated_line(r: SheetRow, profile: Profile) -> bool:
     return has_amount and not skipped
 
 
-def ledger_entries(table: Table, file_name: str) -> list[Entry]:
-    """The voucher lines, each with the ledger of the block it is in. E204 on a bad amount, a
-    voucher line before any ledger name, a row with amounts but no date that is not a `skip` row
-    (a date in another format would otherwise drop the line), or no voucher line at all."""
+@dataclass(frozen=True)
+class Block:
+    sheet: str
+    row: int
+    ledger: str  # as filed
+
+
+def ledger_entries(table: Table, file_name: str) -> tuple[list[Entry], list[Block]]:
+    """The voucher lines, each with the ledger of the block it is in, and every ledger block the
+    export has, with or without voucher lines (a ledger with only an opening balance). E204 on a
+    bad amount, a voucher line before any ledger name, a row with amounts but no date that is not
+    a `skip` row (a date in another format would otherwise drop the line), or no voucher line."""
     profile = table.profile
     ledger: str | None = None
     out = []
+    blocks: list[Block] = []
     for r in table.rows:
         when = parse_date(r.cells.get("date"), profile)
         where = f"{file_name} {r.sheet}!{r.row}"
@@ -212,7 +221,10 @@ def ledger_entries(table: Table, file_name: str) -> list[Entry]:
                     f"({profile.date_format}, profile {profile.name}). If it is not a voucher "
                     "line, add its name to [rows] skip in the profile"
                 )
-            ledger = _block_name(r, table) or ledger
+            name = _block_name(r, table)
+            if name:
+                blocks.append(Block(r.sheet, r.row, name))
+            ledger = name or ledger
             continue
         if ledger is None:
             raise ParseError(f"{where}: a voucher line before any ledger name")
@@ -231,4 +243,4 @@ def ledger_entries(table: Table, file_name: str) -> list[Entry]:
         )
     if not out:
         raise ParseError(f"{file_name}: no voucher line (a dated row) below the column header")
-    return out
+    return out, blocks

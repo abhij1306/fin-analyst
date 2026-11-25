@@ -186,11 +186,11 @@ def _load_lv(
     """Insert the Ledger Vouchers lines; the lines to show, with the trial balance's ledgers
     (`tb`, as stored) missing from it and its ledgers not in the trial balance."""
     file_id, name, period = file["file_id"], file["file_name"], file["period"]
-    entries = tally.ledger_entries(table, name)
+    entries, blocks = tally.ledger_entries(table, name)
     in_tb = set(tb)
     stored_as: dict[str, str] = {}
     outside: list[str] = []
-    for entry in entries:
+    for entry in [*blocks, *entries]:
         if entry.ledger in stored_as:
             continue
         # A known name is its token; another ledger is stored as the trial balance stores it
@@ -219,7 +219,13 @@ def _load_lv(
             for e in entries
         ],
     )
-    present = set(stored_as.values())
+    insert_rows(
+        con,
+        "ledger_blocks",
+        'file_id, sheet, "row", ledger',
+        [[file_id, b.sheet, b.row, stored_as[b.ledger]] for b in blocks],
+    )
+    present = {stored_as[b.ledger] for b in blocks}
     missing = [ledger for ledger in tb if ledger not in present]
     lines = [
         f"ledger vouchers {period}: {len(entries)} lines in {len(present)} ledgers, "

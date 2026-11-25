@@ -267,9 +267,9 @@ class DiligenceChangeRefused(FinError):
 class DiligenceTableWrite(FinError):
     """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
-    ledger_accounts, recon_runs, recon_items): those change only through `fin engagement`,
-    `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`, `fin map ledgers` with
-    `fin review --ledgers`, and `fin reconcile`. Nothing was run."""
+    ledger_blocks, ledger_accounts, recon_runs, recon_items): those change only through
+    `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
+    `fin map ledgers` with `fin review --ledgers`, and `fin reconcile`. Nothing was run."""
 
     code = "E806"
 
