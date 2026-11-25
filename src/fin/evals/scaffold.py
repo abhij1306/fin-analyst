@@ -1,10 +1,10 @@
 """`fin eval init <company>`: list what a person can check, with where it is printed.
 
 Each line names one output of fin (a statement figure in current figures, a trial balance ledger, a
-`tb_vs_statements` line, a stub figure, a bank closing balance, the pass-through revenue split,
-adjusted revenue and EBITDA) and its source, and leaves `expected` and `checked` empty: the
-value comes from the document, never from fin. Run again after loading more, it adds the lines
-the golden set does not have yet and never changes or removes one."""
+`tb_vs_statements` line, a stub figure, a bank closing balance, a register or payroll total, the
+pass-through revenue split, adjusted revenue and EBITDA) and its source, and leaves `expected` and
+`checked` empty: the value comes from the document, never from fin. Run again after loading
+more, it adds the lines the golden set does not have yet and never changes or removes one."""
 
 from typing import Any
 
@@ -78,6 +78,18 @@ FROM revenue_split r WHERE r.sales_revenue IS NOT NULL AND r.basis = 'audited' O
 _ADJUSTED = """
 SELECT period, scope, adjusted_revenue, adjusted_ebitda FROM adjusted_ebitda
 WHERE adjusted_ebitda IS NOT NULL OR adjusted_revenue IS NOT NULL ORDER BY period, scope
+"""
+_REGISTERS = f"""
+SELECT s.period, r.kind, s.file_name, r.sheet, s.file_id
+FROM register_lines r JOIN source_files s USING (file_id)
+WHERE s.status = 'loaded' AND s.engagement_id = {LATEST}
+GROUP BY ALL ORDER BY s.file_id, r.kind DESC
+"""
+_PAYROLL = f"""
+SELECT DISTINCT s.period, s.file_name, p.sheet, s.file_id
+FROM payroll_lines p JOIN source_files s USING (file_id)
+WHERE s.status = 'loaded' AND s.engagement_id = {LATEST}
+ORDER BY s.file_id
 """
 _STUB = f"""
 SELECT x.period, x.account, s.file_name
@@ -180,6 +192,29 @@ def candidates(
                         note="reported plus accepted adjustments (statements)",
                     )
                 )
+    for period, kind, file_name, sheet, _ in con.execute(_REGISTERS).fetchall():
+        rows.append(
+            _row(
+                "register_total",
+                period,
+                f"{file_name} {sheet}, Amount in Rs column",
+                ledger=kind,
+                unit="rupees",
+                note="sum of Amount in Rs (before GST) over every row, total row left out",
+            )
+        )
+    for period, file_name, sheet, _ in con.execute(_PAYROLL).fetchall():
+        for field, label in (("gross_salary", "gross salary"), ("ctc", "CTC")):
+            rows.append(
+                _row(
+                    "payroll_total",
+                    period,
+                    f"{file_name} {sheet}, {label} column",
+                    ledger=field,
+                    unit="rupees",
+                    note=f"sum of {label} (annual rupees) over the employees, total row left out",
+                )
+            )
     for period, account, file_name in con.execute(_STUB).fetchall():
         rows.append(
             _row(

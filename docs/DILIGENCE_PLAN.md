@@ -2,15 +2,14 @@
 
 Status, 2026-11-24: **phase D1 is built** (#43, #44, #45; build log: [DILIGENCE_BUILD.md](DILIGENCE_BUILD.md)). It
 covers the engagement, accountant queries, EBITDA adjustments, the EBITDA bridge and EBITDA-to-cash walk on the
-audited statements, and gates G1, G2 and G4. **D3's payroll part is built** (the Sparsh snapshot,
-`fin payroll confirm-unit`, G1's unit line); registers and bank are separate workstreams. **D4's pass-through and adjustment-effect part is built** (`fin engagement passthrough`, `revenue_split`,
+audited statements, and gates G1, G2 and G4. **D2 is built** (source files with column profiles, masking, ledger
+mapping, `tb_vs_statements`, the stub, G1's trial balance checks) and **D3 is built and reviewed as a whole**
+(registers, bank statements, payroll; `decisions/d3-review.md`). **D4's pass-through and adjustment-effect part is built** (`fin engagement passthrough`, `revenue_split`,
 `passthrough_lines`, revenue and cost effects on adjustments, adjusted revenue; `docs/decisions/d4-passthrough.md`).
-**D2's first half is built**: source files (trial balance, Ledger
-Vouchers) with column profiles, and masking. The rest of D2 (ledger mapping, `tb_vs_statements`, the stub, G1's
-trial balance checks) and D3–D9 are planned, revised to the diligence user's answers in §9.
+The rest of D4 and D5–D9 are planned, revised to the diligence user's answers in §9.
 No questions are open. Each phase moves into `PLAN.md` as it is built. The golden evaluation (`docs/EVAL.md`, `fin eval`)
-scores D2's outputs (trial balance ledgers, `tb_vs_statements` differences, stub figures) against values a person
-checked; each later phase adds its own check kinds (`docs/CUSTOMISING.md`, "Eval checks").
+scores the outputs of D2 and D3 (trial balance ledgers, `tb_vs_statements` differences, stub figures, bank closing
+balances, register and payroll totals) against values a person checked; each later phase adds its own check kinds (`docs/CUSTOMISING.md`, "Eval checks").
 
 Purpose: a way to manage and analyse a company's financial documents efficiently, from the audited statements down
 to the transactions behind them. The requirements started from a review of fin-analyst against a quality-of-earnings
@@ -29,7 +28,7 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Accountant queries (Rs 1 lakh per line, drafted for approval) | **Built**, except grouping lines into issues and the export | D1; D4, D8 |
 | Gates that stop the build for review | **Built**: G1, G2, G4; G3 planned | D1; D2, D4, D6 |
 | Adjusted EBITDA, EBITDA bridge, EBITDA-to-cash walk | **Built** on the audited statements | D1 |
-| Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: trial balance, Ledger Vouchers and registers; bank statements (Excel and PDF) and payroll planned | D2, D3 |
+| Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: all five (D2: trial balance, Ledger Vouchers; D3: registers, bank Excel and PDF, payroll) | D2, D3 |
 | Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers; the export planned | D2 on; D8 |
 | Current-year stub from unaudited management data | Planned | D2 on |
 | Pass-through revenue split out of core revenue and growth | **Built** | D4 |
@@ -213,7 +212,7 @@ that writes to a diligence table.
 | CLI | Phase |
 |---|---|
 | `fin engagement open <co> --periods ... [--stub FY27-YTD-SEP]` | D2 (**built**) |
-| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 (**built**: `registers`, `payroll`) |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 (**built**: `registers`, `bank`, `payroll`) |
 | `fin map ledgers <co> [file.json]` (Tally ledger → account; the user confirms with `fin review confirm <co> <ids> --ledgers`) | D2 (**built**) |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 (**built**) |
 | `fin engagement passthrough <co> --customers <file>` (the user's SI/reseller list; fin prints the tokens it matched) | D4 |
@@ -284,9 +283,12 @@ is refused; a planted account difference at or above the threshold becomes a dra
 a synthetic stub loads and is labelled unaudited.
 
 ### D3: Registers, bank, payroll
-Status: **registers built** (`--kind registers`, `fin/extract/registers.py`, `fin/diligence/registers.py`,
-`templates/profiles/billing_registers.toml`, duplicate-invoice finding; `PLAN.md` "Registers"; every design choice and how
-to change it: `docs/decisions/d3-registers.md`); bank statements are built too (Excel and PDF; decisions in [decisions/d3-bank.md](decisions/d3-bank.md)); payroll by its own workstream.
+Status: **built and reviewed as a whole** (#72–#76 and the review that followed): registers (`--kind registers`,
+`fin/extract/registers.py`, `fin/diligence/registers.py`, `templates/profiles/billing_registers.toml`,
+duplicate-invoice finding), bank statements (Excel and PDF), payroll. Product-level decisions: [decisions/d3-registers.md](decisions/d3-registers.md),
+[decisions/d3-bank.md](decisions/d3-bank.md), [decisions/d3-payroll.md](decisions/d3-payroll.md),
+[decisions/d3-review.md](decisions/d3-review.md). The golden evaluation has a check kind for each output
+(`bank_closing`, `register_total`, `payroll_total`).
 - **Registers**: one workbook from the billing system, a sales sheet and a purchase sheet, headers as in §9
   (`register_lines`, §4). Amount in Rs is before GST; there are no GST or tax columns. Customer, vendor, handler and
   submitted-by are masked. Built: the headers of `billing_registers.toml` are synthetic (the real export's headers were

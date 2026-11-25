@@ -53,7 +53,11 @@ Skip this step for a company with statements only.
 1. `/diligence <company>`, or `uv run fin engagement open <company> --periods FY24,FY25 [--stub FY26-YTD-SEP]`
    (ask the person which years, and whether there is a current-year stub).
 2. For each period, the Tally trial balance (Detailed mode) first, then its Ledger Vouchers:
-   `uv run fin ingest <company> <file> --kind trial_balance`, then `--kind ledger_vouchers`.
+   `uv run fin ingest <company> <file> --kind trial_balance`, then `--kind ledger_vouchers`. Then the other
+   sources the client has, each with `--kind`: `registers` (the billing workbook), `bank` (each statement, Excel or
+   PDF; a PDF needs the client's PDF add-on) and `payroll` (the snapshot; ask the person whether its amounts are
+   annual or monthly, then `uv run fin payroll confirm-unit <company> <file> --annual|--monthly`). A repeated
+   invoice number, a statement that does not tie, an overlap or a balance gap is a finding: show it, never fix it.
    Party names are stored as tokens (`CUST-0001`, `VEND-0001`, `LEDG-0001`). Use the tokens; never try to read
    the real names (`fin sql` refuses, E810). E807 means no column profile reads the layout: write one
    (`docs/CUSTOMISING.md`, "Add a column profile") and note it for the decisions review (step 6).
@@ -72,10 +76,10 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
 
    | Column | Meaning |
    |---|---|
-   | `kind` | `statement` (a statement figure), `tb_ledger` (a trial balance ledger's closing balance), `tb_vs_statements` (the difference on an account in the period's latest reconciliation), `stub` (a stub figure, unaudited), `core_revenue` and `passthrough_revenue` (the period's sales register revenue of customers not on / on the pass-through list), `adjusted_revenue` and `adjusted_ebitda` (after accepted adjustments, by scope), `bank_closing` (a bank statement's closing balance), `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl` (one detail line of that reconciliation: its `ledger` is the invoice number, the ledger as stored, or the period for payroll) |
+   | `kind` | `statement` (a statement figure), `tb_ledger` (a trial balance ledger's closing balance), `tb_vs_statements` (the difference on an account in the period's latest reconciliation), `stub` (a stub figure, unaudited), `core_revenue` and `passthrough_revenue` (the period's sales register revenue of customers not on / on the pass-through list), `adjusted_revenue` and `adjusted_ebitda` (after accepted adjustments, by scope), `bank_closing` (a bank statement's closing balance), `register_total` (the Amount in Rs total of a register sheet), `payroll_total` (the gross salary or CTC total of a payroll file), `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl` (one detail line of that reconciliation: its `ledger` is the invoice number, the ledger as stored, or the period for payroll) |
    | `period`, `scope` | `FY25`, `FY26-Q1`, `FY26-H1`, `FY26-9M`, or the stub (`FY26-YTD-SEP`); scope `standalone` or `consolidated` (statements only) |
    | `account` | the dictionary account (`uv run fin map accounts`) |
-   | `ledger` | the ledger as stored: the token for a party ledger; for `bank_closing` the account number, with `period` the statement's end date (`2025-04-30`) |
+   | `ledger` | the ledger as stored: the token for a party ledger; for `bank_closing` the account number, with `period` the statement's end date (`2025-04-30`); for `register_total` `sales` or `purchase`; for `payroll_total` `gross_salary` or `ctc` (with `period` the file's period as `fin status` shows it, e.g. `FY25` or `FY24-FY25`) |
    | `expected` | the figure as printed in the document: `1,234.56`, `(56.67)` or `-56.67` for a negative, `-` for nil |
    | `unit` | the unit it is printed in: `rupees`, `thousand`, `lakh`, `million`, `crore` (plurals are fine) |
    | `source` | where it is printed: `file sheet!cell`, `file sheet!row` or `file page N` |
@@ -97,6 +101,10 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
      the period, for customers not on, and on, the user's pass-through list. The person adds them from the register.
    - `adjusted_revenue`, `adjusted_ebitda`: the statement's revenue (or EBITDA) plus the revenue effects (or the EBITDA
      effects) of the adjustments the user accepted; the person works it out from the statements and the accepted adjustments.
+   - `register_total`: the sum of the Amount in Rs column (before GST) over every invoice row of the sales or the
+     purchase sheet, the total row left out, in rupees. Duplicate invoice rows count: fin keeps both.
+   - `payroll_total`: the sum of the gross salary or of the CTC column over the employees of the snapshot, the total
+     row left out, annual rupees as in the file (a blank cell adds nothing).
    - `stub`: the stub trial balance ledgers mapped to the account, as the statements show it (income and
      liabilities positive).
 3. Choose what to check. About 30 `statement` lines per company is a good start, spread over:
@@ -106,7 +114,8 @@ The golden set is `~/FinAnalysis/evals/<company>/golden.csv`. It is never commit
    - every line whose note says fin adds several printed lines into the account (see section 8, "Which line is the
      total");
    - with diligence sources: some `tb_ledger` lines (party tokens and others), the `tb_vs_statements` lines that show
-     a difference, the stub lines and the `bank_closing` line of each bank statement.
+     a difference, the stub lines, the `bank_closing` line of each bank statement, the `register_total` lines of each registers
+     file and the `payroll_total` lines of each payroll file.
    You may delete lines nobody will check, or leave them: an unchecked line is not scored.
 4. **Draft the expected values from the documents, never from fin.** Open the file at `source` (Read tool: Excel
    cells, or the PDF page as an image) and copy the figure exactly as printed, with its unit. Do not run `fin sql`,
@@ -235,6 +244,6 @@ whole-file failure shows in the error-code counts.
 
 ## 9. Later phases
 
-Diligence phases still to come (registers, bank, payroll, reconciliations, adjusted EBITDA; `docs/DILIGENCE_PLAN.md`)
+Diligence phases still to come (reconciliations of registers, bank and ledgers, adjusted EBITDA; `docs/DILIGENCE_PLAN.md`)
 add their own golden check kinds as they are built (`docs/CUSTOMISING.md`, "Eval checks"). Run `fin eval init`
 again after updating fin: it adds lines for the new kinds and keeps the checked ones.

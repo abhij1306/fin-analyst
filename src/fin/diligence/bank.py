@@ -32,12 +32,19 @@ from typing import Any
 from fin.audit.errors import BankHeaderMissing, ParseError, SourcePeriodInvalid
 from fin.audit.logger import Run
 from fin.config import Config
-from fin.db.conn import connect, transaction, utcnow
+from fin.db.conn import connect, transaction
 from fin.diligence import bank_checks, bank_pdf
 from fin.diligence.bank_raw import Raw, RawRow
 from fin.diligence.engagement import require_open
+from fin.diligence.loading import (
+    Loaded,
+    add_file,
+    archive_copy,
+    insert_rows,
+    log_load,
+    refuse_duplicate,
+)
 from fin.diligence.mask import Masker
-from fin.diligence.sources import Loaded, add_file, archive_copy, insert_rows, refuse_duplicate
 from fin.diligence.stub import UNAUDITED
 from fin.extract.ledger import amount, cell_text, parse_date, read_table
 from fin.extract.periods import fiscal_year_of
@@ -280,24 +287,14 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
         period, basis = bank_period(st, engagement, config.fiscal_year_start_month, name)
         masker = Masker(con, run.run_id)
         archive = archive_copy(run, company, path, sha256)
-        file_id = masker.file_id = add_file(
+        file = add_file(
+            run,
             con,
-            {
-                "engagement_id": engagement["engagement_id"],
-                "kind": KIND,
-                "file_name": name,
-                "sha256": sha256,
-                "archive_path": archive,
-                "period": period,
-                "period_start": st.start,
-                "period_end": st.end,
-                "basis": basis,
-                "profile": st.profile.name,
-                "status": "loaded",
-                "run_id": run.run_id,
-                "ingested_at": utcnow(),
-            },
+            engagement,
+            (KIND, name, sha256, archive),
+            (period, basis, st.start, st.end, st.profile.name),
         )
+        file_id = masker.file_id = file["file_id"]
         _insert(run, con, st, file_id, masker, raw)
         found = tie_findings(st, name)
         record(
@@ -324,11 +321,4 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
         f"{f['message']} (a finding: `fin findings list {company}`)"
         for f in checked.get(file_id, [])
     ]
-    run.loaded += 1
-    run.event(
-        "ingest",
-        "; ".join(lines),
-        file=f"{company}/{name}",
-        context={"file_id": file_id, "kind": KIND, "period": period, "archive": archive},
-    )
-    return Loaded(file_id, period, lines)
+    return log_load(run, company, file, lines, archive)

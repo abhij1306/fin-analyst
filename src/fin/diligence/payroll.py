@@ -27,6 +27,7 @@ from fin.audit.errors import PayrollFileNotFound, PayrollRowInvalid, SourcePerio
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.diligence.engagement import company_database, require_open
+from fin.diligence.loading import clean_text as _text
 from fin.diligence.mask import Masker
 from fin.extract.excel import parse_number
 from fin.extract.ledger import Table, parse_date
@@ -62,14 +63,6 @@ def snapshot_period(
         f"{name}: its snapshot date {day.isoformat()} is in {period}, which is not a period of the "
         f"open engagement ({scope}). Nothing loaded"
     )
-
-
-def _text(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    return " ".join(str(value).split()) or None
 
 
 def _day(value: Any, profile: Profile, where: str) -> date | None:

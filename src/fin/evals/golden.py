@@ -19,6 +19,11 @@ One line per check, the value a person read in the company's document and checke
   GST) of customers not on, and on, the engagement's pass-through list (`revenue_split`);
 - `adjusted_revenue`, `adjusted_ebitda`: the period's figure after accepted adjustments
   (`adjusted_ebitda` view), by scope.
+- `register_total`: the sum of Amount in Rs (before GST) over every row of the sales or the purchase
+  register in the loaded registers file: period is the file's period (as `fin status` shows it, e.g.
+  `FY25` or `FY24-FY25`), ledger `sales` or `purchase`;
+- `payroll_total`: the sum of gross salary or of CTC (annual rupees) over the employees of the
+  loaded payroll file: period is the file's period, ledger `gross_salary` or `ctc`.
 
 `expected` is the figure as printed (brackets or a minus for negative) in `unit`; `source` is where
 it is printed (file + sheet!cell, sheet!row or page). Only a line whose `checked` is `yes` is
@@ -50,6 +55,8 @@ KINDS = (
     "bank_closing",
     *RECON_KINDS,
     *PASSTHROUGH_KINDS,
+    "register_total",
+    "payroll_total",
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -62,7 +69,10 @@ NEEDS = {
     "passthrough_revenue": ("period",),
     "adjusted_revenue": ("period", "scope"),
     "adjusted_ebitda": ("period", "scope"),
+    "register_total": ("period", "ledger"),
+    "payroll_total": ("period", "ledger"),
 }
+LEDGERS = {"register_total": ("sales", "purchase"), "payroll_total": ("gross_salary", "ctc")}
 YES, NO = "yes", ("", "no")
 # Diligence checks read the latest engagement's files and runs: a closed engagement's trial balance
 # for the same period is not added to the current one.
@@ -109,8 +119,21 @@ def unit_name(text: str) -> str:
     return word
 
 
+def _unit_problems(check: Check, accounts: Mapping[str, Account]) -> list[str]:
+    try:
+        unit = unit_name(check.unit)
+    except KeyError:
+        return [f"unit {check.unit!r} is not one of {', '.join(RUPEES_PER_UNIT)}"]
+    account = accounts.get(check.account)
+    if account is not None and account.unit != "rupees" and unit != "rupees":
+        return [f"{check.account} is stored as printed ({account.unit}): use unit rupees"]
+    return []
+
+
 def _problems(check: Check, accounts: Mapping[str, Account]) -> list[str]:
     out = [f"{name} is empty" for name in NEEDS[check.kind] if not getattr(check, name)]
+    if check.ledger and check.kind in LEDGERS and check.ledger not in LEDGERS[check.kind]:
+        out.append(f"ledger {check.ledger!r} is not one of {', '.join(LEDGERS[check.kind])}")
     if check.scope and check.scope not in SCOPES:
         out.append(f"scope {check.scope!r} is not one of {', '.join(SCOPES)}")
     if check.account and check.account not in accounts:
@@ -118,16 +141,7 @@ def _problems(check: Check, accounts: Mapping[str, Account]) -> list[str]:
     if check.expected.strip() and parse_figure(check.expected) is None:
         out.append(f"expected {check.expected!r} is not a figure")
     if check.unit.strip():
-        try:
-            unit = unit_name(check.unit)
-        except KeyError:
-            out.append(f"unit {check.unit!r} is not one of {', '.join(RUPEES_PER_UNIT)}")
-        else:
-            account = accounts.get(check.account)
-            if account is not None and account.unit != "rupees" and unit != "rupees":
-                out.append(
-                    f"{check.account} is stored as printed ({account.unit}): use unit rupees"
-                )
+        out += _unit_problems(check, accounts)
     if check.checked:
         out += [
             f"checked, but {n} is empty"
