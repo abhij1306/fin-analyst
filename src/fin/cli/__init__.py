@@ -8,6 +8,7 @@ from fin.cli.core import app
 from fin.cli import init, ingest, findings, statements, reconcile, payroll, data, evals, analytics  # noqa: F401, E402
 from fin.cli import recast  # noqa: F401, E402
 from fin.cli import fdd_contracts  # noqa: F401, E402
+from fin.cli import provisions  # noqa: F401, E402
 # isort: on
 
 __all__ = ["app"]

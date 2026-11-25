@@ -1,9 +1,10 @@
 """The D4 reconciliations (docs/diligence.md D4): one function per reconciliation.
 
-sales_register_vs_gl and purchase_register_vs_gl (`registers.py`), gl_vs_tb (`gl_vs_tb.py`) and
-payroll_vs_gl (`payroll_vs_gl.py`) compute lines from the loaded source rows; `store.py` records a
-run; `items.py` raises one accountant query from many lines (`fin query raise --items`);
-`checks.py` is gate G2's reconciliation checks. tb_vs_statements stays in `fin.diligence.recon`.
+sales_register_vs_gl and purchase_register_vs_gl (`registers.py`), gl_vs_tb (`gl_vs_tb.py`),
+payroll_vs_gl (`payroll_vs_gl.py`), and F3's sales_cutoff and purchase_cutoff (`cutoff.py`,
+docs/fdd.md) compute lines from the loaded source rows; `store.py` records a run; `items.py`
+raises one accountant query from many lines (`fin query raise --items`); `checks.py` is gate
+G2's reconciliation checks. tb_vs_statements stays in `fin.diligence.recon`.
 Each is deterministic SQL and grouping; none changes company data to make a line tie.
 """
 
@@ -17,7 +18,7 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction
 from fin.diligence import recon
 from fin.diligence.engagement import company_database, require_open
-from fin.reconcile import bank, recast, registers, store
+from fin.reconcile import bank, cutoff, recast, registers, store
 from fin.reconcile import gl_vs_tb as gl_module
 from fin.reconcile import payroll_vs_gl as payroll_module
 from fin.reconcile import walkthrough as walkthrough_module
@@ -42,6 +43,8 @@ RECONCILIATIONS: dict[str, tuple[Compute, Applies]] = {
     bank.INVOICES: (bank.bank_vs_invoices, bank.applies_invoices),
     bank.TB: (bank.bank_vs_tb, bank.applies_tb),
     walkthrough_module.NAME: (walkthrough_module.compute, walkthrough_module.applies),
+    cutoff.SALES: (cutoff.sales_cutoff, cutoff.applies_sales),
+    cutoff.PURCHASE: (cutoff.purchase_cutoff, cutoff.applies_purchase),
 }
 NAMES = (recon.NAME, *RECONCILIATIONS)
 

@@ -73,6 +73,7 @@ step builds on the earlier ones.
 | 7 | `recast_revenue`, `recast_difference`, `recast_undated`, `core_revenue`, `passthrough_revenue`, `adjusted_revenue` | per period | service dates written in words or in a remarks column (every line undated); months that do not add to the line; pass-through list |
 | 8 | `query_issue`, `query_difference` | each approved query | a query that misses its period or amount, or absent from the lists and gates |
 | 9 | `customer_revenue`, `sector_revenue`, `product_revenue`, `top_customers_revenue`, `retained_revenue`, `pvm_*`, `nwc_year_end`, `nwc_monthly` | a few per period | analytics and working capital on real data |
+| 10 | `receivable_ageing`, `doubtful_debt_provision`, `gratuity_provision`, `sales_cutoff`, `purchase_cutoff` | per year end; each flagged cut-off invoice | an invoice aged in the wrong bucket or counted open when it was paid; the wrong provision ledgers confirmed; a cut-off line on an invoice whose service dates are read wrongly |
 
 What each kind's value is (the person works out the derived ones from the documents; rupees unless said):
 
@@ -93,6 +94,9 @@ What each kind's value is (the person works out the derived ones from the docume
 | `query_issue`, `query_difference` | an issue's amount at issue, differences added without signs (`ledger` is the query id; for a difference, the id, a space, and `left_only`, `right_only` or `difference`) |
 | the analytics kinds | on the sales register, core customers: revenue of a customer token / of a confirmed sector / of a product; the top 1, 5 or 10; revenue retained from last year's customers; price, volume and mix effects of the change in a product's revenue |
 | `nwc_year_end`, `nwc_monthly` | working capital from the trial balance; the month's, from Ledger Vouchers, for ledgers that tie |
+| `receivable_ageing` | sales invoices open at the year end (unpaid, or paid only after it; the unpaid part of a partly paid one), Amount in Rs, in the bucket of days from invoice date to the year end (`ledger`: `0-90`, `91-180`, `181-365`, `over 365` or `total`) |
+| `doubtful_debt_provision`, `gratuity_provision` | the closing credit less debit of the ledgers the user confirmed as that provision, in the period's trial balance |
+| `sales_cutoff`, `purchase_cutoff` | the Amount in Rs of one invoice the cut-off test flagged at the period's year end (`ledger` is the invoice number) |
 
 ## 4. Run the eval
 

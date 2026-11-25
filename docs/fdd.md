@@ -74,20 +74,37 @@ contracts with terms), `fin contracts coverage`, `fin sample draw|show`, `fin wa
 - Inquiries follow the query life cycle (approve, sent, answer, close) and appear in `fin query export` (email and
   brief) and in G4 like any query. An answer file is archived as now.
 
-### F3: Provisions, payroll liabilities and cut-off (gaps 4, 7)
+### F3: Provisions, payroll liabilities and cut-off (gaps 4, 7) — built
 
-- `receivable_provision`: at each year end, receivables ageing (0–90, 91–180, 181–365, over 365 days from invoice date;
-  from the sales register and matched receipts, D5) against the provision for doubtful debts in the trial balance
-  (ledgers mapped to it); coverage per bucket and overall.
-- `gratuity_indicative`: from the payroll snapshot, per employee with at least `[fdd] gratuity_min_years` (5) of
-  service: 15/26 × monthly wages × completed years, capped at `[fdd] gratuity_cap` (Rs 20 lakh). Wages = gross
-  salary × `[fdd] basic_share` (assumption, default 0.5), and a second figure under the wage-code definition (wages at
-  least 50% of CTC). Total against the gratuity provision in the trial balance. Labelled "indicative, undiscounted,
-  not an actuarial valuation". Leave encashment: not built (no leave balance data).
-- Cut-off as reconciliations: `fin reconcile <co> sales_cutoff`: sales lines invoiced within `[fdd] cutoff_days`
-  (15) of a year end whose service starts on the other side; `purchase_cutoff`: purchase lines invoiced within
-  `[fdd] unrecorded_days` (60) after a year end whose service started before it (unrecorded liabilities). Lines at or
-  above the threshold are for queries.
+Decisions: [decisions/fdd-f3.md](decisions/fdd-f3.md). Schema: `db/schema/fdd_bsheet.sql`. Errors E920–E923.
+
+- Provision ledgers: the dictionary has no account for the provision for doubtful debts or the gratuity provision,
+  so Claude proposes the trial balance ledgers that hold them (`fin provisions propose <co> <file.json>`:
+  `[{ledger, kind: doubtful_debts|gratuity, reason}]`) and the user confirms or rejects them
+  (`fin provisions confirm|reject <co> <ids>`; `fin provisions ledgers <co>` lists them). Table
+  `provision_ledgers`; `fin sql --write` refuses it (E806). View `provision_balances`: per period with a loaded
+  trial balance and kind, the confirmed ledgers' credit less debit.
+- `receivable_provision` (view): at each year end of the latest engagement with a `bank_vs_invoices` run, the sales
+  invoices open at that date (from the latest run per period: unmatched, or the part of a match group's invoices
+  not covered by its receipts dated by the year end, so instalments count) aged 0–90, 91–180, 181–365 and over 365 days from invoice date, with each
+  bucket's share, the doubtful debts provision, its coverage of the bucket and every older one, and the invoices in no
+  run (not aged). The lines are the view `receivable_open_lines`.
+- `gratuity_indicative(basic_share, min_years, cap)` (table macro; per employee `gratuity_lines`): per payroll
+  snapshot whose unit the user confirmed annual, employees with at least `[fdd] gratuity_min_years` completed years:
+  15/26 × monthly wages × years, capped at `[fdd] gratuity_cap`; wages = gross salary × `[fdd] basic_share`, and a
+  wage-code figure with wages at least 50% of CTC; against the gratuity provision, with the shortfall. Labelled
+  "indicative, undiscounted, not an actuarial valuation" with the assumption. Leave encashment: not built.
+- `fin provisions show <co> [--period P] [--json]` prints both; `fin.diligence.provisions.collect(con, fdd)` is the
+  data function the FDD report (F8) calls.
+- Cut-off as reconciliations (`fin/reconcile/cutoff.py`, in `RECONCILIATIONS`, so `fin reconcile <co>` and gate G2
+  include them): `fin reconcile <co> sales_cutoff`: sales invoices within `[fdd] cutoff_days` (15) of a year end
+  whose service starts on the other side; `purchase_cutoff`: purchase invoices within `[fdd] unrecorded_days` (60)
+  after a year end whose service started on or before it (both windows copied onto the engagement when it opens).
+  One line per invoice (left_only, level invoice); at or
+  above the threshold it needs a query (`fin query raise --items`). Lines with no service start, and registers that
+  end before the window, are listed as not reconciled.
+- Golden kinds: `receivable_ageing`, `doubtful_debt_provision`, `gratuity_provision` (`evals/provisions.py`),
+  `sales_cutoff`, `purchase_cutoff` (recon kinds).
 
 ### F4: Net debt and debt-like items (gap 7)
 

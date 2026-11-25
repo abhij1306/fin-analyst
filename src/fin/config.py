@@ -3,13 +3,14 @@
 `fin init` writes `DEFAULT_CONFIG_TOML` once and never overwrites it. After that the file is the
 only source of these values: `load_config` reads it strictly and raises a coded error when it is
 missing (E001) or invalid (E002). There are no fallback values, except that a file without the
-`[pdf]` table (written before the PDF add-on) has chosen none. The one line fin changes is
-`[pdf] parser`, through `fin parser use <name>` (`set_parser`).
+`[pdf]` table (written before the PDF add-on) has chosen none, and a file without the `[fdd]`
+table (or one of its keys) has the plan's stated FDD assumptions (`FDD_DEFAULTS`, docs/fdd.md).
+The one line fin changes is `[pdf] parser`, through `fin parser use <name>` (`set_parser`).
 """
 
 import re
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,15 @@ DISPLAY_UNITS = ("rupees", "thousands", "lakhs", "crores")
 SCOPES = ("standalone", "consolidated")
 TOLERANCE_CHECKS = ("balance_sheet", "subtotal", "cash_flow", "cross_document")
 PARSERS = ("none", "docling", "liteparse", "llamaparse")  # [pdf] parser: the PDF add-on
+# [fdd]: each key's value when config.toml has none (the plan's stated assumptions, docs/fdd.md)
+FDD_DEFAULTS: dict[str, Any] = {
+    "coverage_top_n": 10,
+    "gratuity_min_years": 5,
+    "gratuity_cap": Decimal("2000000.00"),
+    "basic_share": Decimal("0.5"),
+    "cutoff_days": 15,
+    "unrecorded_days": 60,
+}
 
 DEFAULT_CONFIG_TOML = """\
 # fin-analyst configuration. `fin init` writes this file once and never overwrites it. Every value
@@ -70,6 +80,16 @@ invoice_due_days = 30
 # FDD extension (docs/fdd.md). coverage_top_n: how many of the top customers (core revenue) and
 # the top vendors (purchases) `fin contracts coverage` checks for a contract on file.
 coverage_top_n = 10
+# FDD (docs/fdd.md). Indicative gratuity (F3): employees with at least gratuity_min_years of
+# service; 15/26 x monthly wages x completed years, capped at gratuity_cap rupees; wages = gross
+# salary x basic_share (an assumption: the payroll has no basic pay column). Labelled indicative.
+gratuity_min_years = 5
+gratuity_cap = 2000000.00
+basic_share = 0.5
+# Cut-off (F3): sales invoiced within cutoff_days of a year end whose service starts on the other
+# side; purchases invoiced within unrecorded_days after a year end whose service started before it.
+cutoff_days = 15
+unrecorded_days = 60
 
 [pdf]
 # The optional PDF add-on that reads the statement pages pdfplumber cannot (and scanned results
@@ -92,6 +112,7 @@ class Config:
     fx_window_days: int = 7  # [diligence]: window for a receipt's booked rupee value
     invoice_due_days: int = 30  # [diligence]: an unmatched invoice is overdue after this
     coverage_top_n: int = 10  # [fdd]: the top customers and vendors checked for a contract
+    fdd: dict[str, Any] = field(default_factory=lambda: dict(FDD_DEFAULTS))  # [fdd], FDD_DEFAULTS
 
 
 # The value only, so indentation, a quoted key and a trailing comment are kept.
@@ -203,7 +224,6 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
     optional = tuple(name for name in ("pdf", "fdd") if name in data)
     _keys(data, (*tables, *optional), "the file", path)
     pdf = _table(data, "pdf", path) if "pdf" in data else {"parser": "none"}
-    fdd = _table(data, "fdd", path) if "fdd" in data else {"coverage_top_n": 10}
     version = data["config_version"]
     if version != CONFIG_VERSION or isinstance(version, bool):
         raise _invalid(
@@ -250,13 +270,10 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
             "names in lower-case letters, digits and '_'",
         )
 
-    _keys(fdd, ("coverage_top_n",), "[fdd]", path)
-    top_n = fdd["coverage_top_n"]
-    if isinstance(top_n, bool) or not isinstance(top_n, int) or not 1 <= top_n <= 1000:
-        raise _invalid(path, f"fdd.coverage_top_n = {top_n!r}; expected a whole number, 1 to 1000")
-
     _keys(pdf, ("parser",), "[pdf]", path)
     parser = _choice(pdf, "parser", PARSERS, "pdf", path)
+
+    fdd = _fdd(_table(data, "fdd", path) if "fdd" in data else {}, path)
 
     return Config(
         display_unit=unit,
@@ -269,8 +286,33 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         match_window_days=diligence["match_window_days"],
         fx_window_days=diligence["fx_window_days"],
         invoice_due_days=diligence["invoice_due_days"],
-        coverage_top_n=top_n,
+        coverage_top_n=fdd["coverage_top_n"],
+        fdd=fdd,
     )
+
+
+def _fdd(table: dict[str, Any], path: Path) -> dict[str, Any]:
+    """[fdd] with FDD_DEFAULTS for the keys it does not have. E002 for an unknown key or a value
+    out of range."""
+    unknown = sorted(set(table) - set(FDD_DEFAULTS))
+    if unknown:
+        raise _invalid(path, f"[fdd] has unknown key(s) {', '.join(unknown)}")
+    out = {**FDD_DEFAULTS, **table}
+    top_n = out["coverage_top_n"]
+    if isinstance(top_n, bool) or not isinstance(top_n, int) or not 1 <= top_n <= 1000:
+        raise _invalid(path, f"fdd.coverage_top_n = {top_n!r}; expected a whole number, 1 to 1000")
+    for key, top in (("gratuity_min_years", 50), ("cutoff_days", 3650), ("unrecorded_days", 3650)):
+        value = out[key]
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= top:
+            raise _invalid(path, f"fdd.{key} = {value!r}; expected a whole number, 0 to {top}")
+    out["gratuity_cap"] = _rupees(out["gratuity_cap"], "fdd.gratuity_cap", path)
+    share = out["basic_share"]
+    is_number = isinstance(share, int | Decimal) and not isinstance(share, bool)
+    number = Decimal(share) if is_number else None
+    if number is None or not number.is_finite() or not 0 < number <= 1:
+        raise _invalid(path, f"fdd.basic_share = {share!r}; expected a number above 0, up to 1")
+    out["basic_share"] = number
+    return out
 
 
 _CATEGORY = re.compile(r"^[a-z][a-z0-9_]*$")

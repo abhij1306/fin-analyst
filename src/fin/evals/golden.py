@@ -11,7 +11,9 @@ One line per check, the value a person read in the company's document and checke
 - `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`: the difference on
   one detail line of the period's latest run of that reconciliation, register (or Ledger Vouchers,
   or payroll) less books (or trial balance); `ledger` is the invoice number, the ledger as
-  stored, or the period for payroll.
+  stored, or the period for payroll. `sales_cutoff`, `purchase_cutoff` (F3): the Amount in Rs of
+  one invoice flagged by the cut-off test at the period's year end; `ledger` its invoice number.
+- `receivable_ageing`, `doubtful_debt_provision`, `gratuity_provision` (F3): fin.evals.provisions.
 - `query_issue`: an exported issue's amount at issue (the lines' differences added without their
   signs) for a query that is approved or later; `ledger` is the query id.
 - `query_difference`: the value of one kind of difference in an issue, as the export shows it
@@ -80,14 +82,21 @@ from pathlib import Path
 
 from fin.audit.errors import GoldenSetInvalid, GoldenSetMissing
 from fin.config import SCOPES
-from fin.evals import fdd_contracts, qoe
+from fin.evals import fdd_contracts, provisions, qoe
 from fin.extract.units import RUPEES_PER_UNIT, parse_figure, to_rupees
 from fin.map.dictionary import Account
 from fin.paths import evals_dir
 
 COLUMNS = ("kind", "period", "scope", "account", "ledger", "expected", "unit", "source", "checked")
 OPTIONAL = ("note",)
-RECON_KINDS = ("sales_register_vs_gl", "purchase_register_vs_gl", "gl_vs_tb", "payroll_vs_gl")
+RECON_KINDS = (
+    "sales_register_vs_gl",
+    "purchase_register_vs_gl",
+    "gl_vs_tb",
+    "payroll_vs_gl",
+    "sales_cutoff",
+    "purchase_cutoff",
+)
 QUERY_KINDS = ("query_issue", "query_difference")
 RECAST_KINDS = ("recast_revenue", "recast_difference", "recast_undated")
 PASSTHROUGH_KINDS = (
@@ -131,6 +140,7 @@ KINDS = (
     *RECAST_KINDS,
     *qoe.KINDS,
     *fdd_contracts.KINDS,
+    *provisions.KINDS,
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -142,6 +152,7 @@ NEEDS = {
     **{kind: ("period",) for kind in RECAST_KINDS},
     **{kind: ("period", "ledger") for kind in qoe.KINDS},
     **fdd_contracts.NEEDS,
+    **provisions.NEEDS,
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),
     "linked_purchase_cost": ("period",),
@@ -162,6 +173,7 @@ LEDGERS = {
     "register_total": ("sales", "purchase"),
     "payroll_total": ("gross_salary", "ctc"),
     **{kind: qoe.COMPONENTS for kind in qoe.KINDS},
+    **provisions.LEDGERS,
 }
 YES, NO = "yes", ("", "no")
 # Diligence checks read the latest engagement's files and runs: a closed engagement's trial balance

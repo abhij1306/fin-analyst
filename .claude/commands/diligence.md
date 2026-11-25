@@ -168,6 +168,14 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    is optional evidence only: read it, write a reading CSV (customer token or name, optional invoice_no, start, end, value,
    billing_terms, page) and load it with `uv run fin recast contracts <company> <file> --reading <csv>`; it is shown beside the
    undated line and never changes the schedule. The user accepts or rejects the proposed recast adjustments (step 7).
+7b. **Provisions and cut-off (FDD F3).** Propose the trial balance ledgers holding the provision for doubtful debts and the
+   gratuity provision: a JSON list `[{"ledger": ..., "kind": "doubtful_debts"|"gratuity", "reason": ...}]` loaded with
+   `uv run fin provisions propose <company> <file>`; the user confirms or rejects them (`fin provisions confirm|reject <company>
+   <ids>`, only on their word). `uv run fin provisions show <company>` shows the receivables ageing against the doubtful debts
+   provision (needs `bank_vs_invoices`) and the indicative gratuity against the gratuity provision; always say "indicative,
+   undiscounted, not an actuarial valuation" and the basic share assumption. A shortfall is for a query or a net debt item,
+   never a fix. `uv run fin reconcile <company> sales_cutoff` and `purchase_cutoff` list invoices across a year end; group
+   those at or above the threshold into queries (`fin query raise --items`).
 8. **Bridge and walk.** `uv run fin engagement bridge <company> [--period FY25] [--scope standalone|consolidated]`
    (`--json` for rupees) shows, per period and scope of the latest engagement, the EBITDA bridge (reported EBITDA,
    each accepted adjustment, adjusted EBITDA) and the EBITDA-to-cash walk (non-cash and other, working capital

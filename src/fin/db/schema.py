@@ -39,6 +39,7 @@ SCHEMA_FILES = {
         "diligence_analytics.sql",
         "diligence_nwc.sql",
         "fdd_contracts.sql",
+        "fdd_bsheet.sql",
     ],
 }
 

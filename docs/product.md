@@ -279,6 +279,8 @@ claude
 | `fin analytics <co> [--json]` | `/diligence` | Either |
 | `fin recast run <co> [--period]`, `fin recast contracts <co> [<file> --reading <csv>]` | `/diligence` | Claude runs it; the user accepts or rejects the proposed adjustments |
 | `fin contracts coverage <co> [--json]`, `fin sample draw <co> --kind sales\|purchase --period P [--n] [--seed]`, `fin sample show <co> [id]`, `fin walkthrough record <co> <sample-id> <file.json>`, `fin walkthrough summary <co>` | `/diligence` | Claude runs them; a walkthrough exception at or above the threshold is grouped into a query the user approves |
+| `fin provisions show\|ledgers\|propose <co>` (FDD F3) | `/diligence` | Claude proposes provision ledgers |
+| `fin provisions confirm\|reject <co> <ids>` | `/diligence` | Either (when the user says) |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
 | `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
 | `fin gate status <co> [--json]` | `/diligence` | Either |
@@ -749,3 +751,39 @@ currency. The period of `source_files` is the engagement period (or the stub) ho
 records `bank_overlap` and `bank_balance_gap` findings across the statements of one account after every load. G1 adds
 "every bank parse ties" (a `bank_tie` finding accepted by the user counts); overlaps and gaps are listed, not
 blocking. E816-E818; LlamaParse's key and failures are `llamaparse_run`'s (E206).
+
+FDD provisions, payroll liabilities and cut-off (F3, `docs/fdd.md`; decisions in `docs/decisions/fdd-f3.md`): the
+dictionary has no account for the provision for doubtful debts or the gratuity provision, so Claude proposes the trial
+balance ledgers that hold them (`fin provisions propose <co> <file.json>`, a JSON list of `{ledger, kind, reason}`
+with kind `doubtful_debts` or `gratuity`; E920) and the user confirms or rejects them (`fin provisions confirm|reject
+<co> <ids>`, E921; `fin provisions ledgers <co>` lists them; each change is a run event). Table `provision_ledgers`
+(`db/schema/fdd_bsheet.sql`), refused by `fin sql --write` (E806). `fin provisions show <co> [--period P] [--json]`
+(E923 without an engagement) prints, for the latest engagement:
+
+- receivables ageing (view `receivable_provision`, lines `receivable_open_lines`): at each year end whose period has a
+  `bank_vs_invoices` run, the sales invoices open at that date from the latest run per period (unmatched, or the part of a
+  match group's invoices not covered by its receipts dated by the year end, shared over its invoices by amount), in buckets of
+  0-90, 91-180, 181-365 and over 365 days from invoice date, each with its share of the total; against the confirmed
+  doubtful debts ledgers' credit less debit in that year's trial balance (`provision_balances`), with coverage = the
+  provision over the bucket and every older one (over the total for `total`). Sales invoices dated by the year end
+  that are in no run (no bank statement for their period) are shown as not aged.
+- indicative gratuity (table macros `gratuity_lines` and `gratuity_indicative(basic_share, min_years, cap)`, called
+  with `config.toml [fdd]`): per payroll snapshot whose unit the user confirmed annual, each employee not resigned by
+  the snapshot date with at least `gratuity_min_years` (5) completed years: 15/26 x monthly wages x years, capped at
+  `gratuity_cap` (Rs 20 lakh), with monthly wages = gross salary / 12 x `basic_share` (0.5, an assumption), and a
+  second figure under the wage-code definition (wages at least half the CTC); employees with no joining date or gross
+  salary are counted as incomplete. Totals against the confirmed gratuity ledgers, with the shortfall. Always labelled
+  "indicative, undiscounted, not an actuarial valuation" with the assumption. Leave encashment is not computed.
+
+`[fdd]` in `config.toml` is optional: a file without it, or without one of its keys, uses the plan's values
+(`FDD_DEFAULTS` in `fin/config.py`); an unknown key or a value out of range is E002. `cutoff_days` and
+`unrecorded_days` are copied onto the engagement when it opens (columns of `engagement`, like the bank matching
+settings). Cut-off is two more reconciliations (`fin/reconcile/cutoff.py`), run by `fin reconcile <co>` and required by gate G2 where the registers
+reach the window: `sales_cutoff` lists sales invoices within `cutoff_days` (15) of a year end whose service starts
+on the other side (billed ahead, or billed late); `purchase_cutoff` lists purchase invoices within `unrecorded_days`
+(60) after a year end whose service started on or before it (possible unrecorded liabilities). One line per invoice
+number (left_only, Amount in Rs); at or above the threshold it needs a query (`fin query raise --items`). Register
+lines in the window with no service start, and registers that end before the window does, are listed as not
+reconciled. E922 when the period is not an annual period or no register line is in the window. Golden kinds:
+`receivable_ageing`, `doubtful_debt_provision`, `gratuity_provision`, `sales_cutoff`, `purchase_cutoff`. The
+FDD report (F8) reads F3 through `fin.diligence.provisions.collect(con, fdd)`.
