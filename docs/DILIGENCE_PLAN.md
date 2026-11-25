@@ -26,7 +26,7 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Audited statements, checks, metrics | **Built**: the statement layer | — |
 | Proposed adjustments kept separate from reported numbers | **Built**, with revenue and cost effects | D1; D4 |
 | Accountant queries (Rs 1 lakh per line, drafted for approval) | **Built**, with issues and the export | D1; D4, D8 |
-| Gates that stop the build for review | **Built**: G1, G2, G4; G3 planned | D1; D2, D4, D6 |
+| Gates that stop the build for review | **Built**: G1, G2, G3, G4 | D1; D2, D4, D6 |
 | Adjusted EBITDA, EBITDA bridge, EBITDA-to-cash walk | **Built** on the audited statements | D1 |
 | Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: all five (D2: trial balance, Ledger Vouchers; D3: registers, bank Excel and PDF, payroll) | D2, D3 |
 | Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers and the other sources; the export is built | D2 on; D8 |
@@ -153,7 +153,7 @@ and every gate approval.
 | `adjustments` (changed, **built**) | adds revenue effect and cost effect; the EBITDA effect (`amount`) must equal revenue effect minus cost effect; a reclassification between cost accounts names both (`account`, `from_account`) and the amount moved (`moved_amount`) | D4 |
 | `passthrough_customers` (**built**) | engagement_id, customer token, source of the list, run | D4 |
 | `register_lines.period` (**built**) | the engagement period of the invoice date (annual period or stub; NULL outside), set at load | D4 |
-| `contracts` | contract_id, customer (token), start, end, value, billing terms, source (file + page), read_by; optional evidence for the recast | D6 |
+| `contracts` (**built**) | contract_id, customer (token), start, end, value, billing terms, source (file + page), read_by; optional evidence for the recast | D6 |
 
 Planned views:
 
@@ -179,7 +179,7 @@ The gates follow that.
 |---|---|---|---|
 | G1 Ingestion | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it. D2 adds: a trial balance and Ledger Vouchers per period (and for the stub); every ledger mapped; every TB ledger present in Ledger Vouchers; each audited year's TB ties to its statements (each account difference at or above the threshold is in a query). The stub has no audited statement: its TB is checked against Ledger Vouchers only, and it is marked unaudited. D3 adds: payroll unit confirmed (**built**, only when a payroll file is loaded, `fin/diligence/payroll.py`); every bank parse ties (**built**, only when a bank statement is loaded, `fin/diligence/bank_checks.py`: an accepted `bank_tie` finding counts; overlaps and balance gaps are listed, not blocking) | approving G2 | **Built** as "Ingestion": statement checks, and D2's trial balance checks once the engagement has a source file or a stub (`fin/diligence/tb_checks.py`) |
 | G2 Reconciliation | No query in draft. A new or reworded query reopens it; sending, answering, closing or withdrawing one does not. D4–D5 add: every required reconciliation ran; every line at or above the threshold is in a query (`fx` lines are listed, not queried). **D5 built**: with a bank statement loaded, `bank_vs_invoices` and `bank_vs_tb` ran on current data and their lines are queried (`bank_checks_g2.py`) | `fin adjust accept\|reject` | **Built** as "Reconciliation" |
-| G3 Recast | Every sales line at or above the threshold has service start and end dates, or is in a query; the recast ran for every period; each period's recast difference has a proposed or decided `recast` adjustment. Contracts are optional evidence | approving G4 | Planned (D6) |
+| G3 Recast | Every sales line at or above the threshold has service start and end dates, or is in a query; the recast ran for every period; each period's recast difference has a proposed or decided `recast` adjustment. Contracts are optional evidence | approving G4 | **Built** (`fin/reconcile/recast_checks.py`; [decisions/d6-recast.md](decisions/d6-recast.md)) |
 | G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |
 
 There is no report gate: the planned G5 is dropped. The diligence report (D7) shows the gate states it was rendered
@@ -220,6 +220,7 @@ that writes to a diligence table.
 | `fin reconcile <co> [name] [--period]` (**built** in D2 for `tb_vs_statements`, in D5 for `bank_vs_invoices` and `bank_vs_tb`), more reconciliations; `fin reconcile <co> match [--propose <file.json>]` and `fin review list|confirm|reject <co> --matches` (**built**, D5) | D2, D4, D5 |
 | `fin query raise <co> --items <recon item ids>` (one issue, many lines) | D4 |
 | `fin adjust propose ... --revenue N --cost N` | D4 |
+| `fin recast run <co> [--period]`, `fin recast contracts <co> [<file> --reading <csv>]` | D6 (**built**) |
 | `fin report <co> --diligence` | D7 |
 | `fin query export <co> [--brief]` | D8 |
 
@@ -353,6 +354,7 @@ Status, 2026-11-25: built (`docs/decisions/d5-bank-match.md`; `fin/diligence/ban
 **Done when:** the synthetic matching answer key, including a USD receipt with an FX difference, is reproduced exactly.
 
 ### D6: Service-period recast
+Status: **built** (`fin recast run|contracts`, `fin/reconcile/recast*.py`, `fin/reconcile/contracts.py`, gate G3, E863-E865, golden eval kinds `recast_revenue`, `recast_difference`, `recast_undated`; `PLAN.md` "Service-period recast"; every design choice and how to change it: [decisions/d6-recast.md](decisions/d6-recast.md)).
 - The sales register's service start and end dates drive the recast: each line's amount in Rs is spread
   straight-line over its service period, by month, and compared with revenue booked by period. The difference by
   period is a proposed `recast` adjustment (revenue effect and EBITDA effect).

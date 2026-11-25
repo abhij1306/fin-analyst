@@ -153,6 +153,14 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    proposed`) and accept or reject only the ones the user names: `uv run fin adjust accept <company> <ids...>`,
    `uv run fin adjust reject <company> <ids...> --reason "..."`. Accepting or rejecting needs gate G2 approved
    (step 9).
+7a. **Recast.** With a sales register loaded, run `uv run fin recast run <company> [--period FY25]`: each line's Amount in Rs is
+   spread over its service dates by month and compared with revenue booked by invoice date; the difference by period is proposed
+   as a `recast` adjustment (revenue effect = EBITDA effect). Show the output as it is. Sales invoices with no service dates are
+   listed as `undated` (recognised on the invoice date): group those at or above the threshold into a draft query with
+   `uv run fin query raise <company> --items <ids> --question "..."`; the user approves it. Never fill in service dates. A contract
+   is optional evidence only: read it, write a reading CSV (customer token or name, optional invoice_no, start, end, value,
+   billing_terms, page) and load it with `uv run fin recast contracts <company> <file> --reading <csv>`; it is shown beside the
+   undated line and never changes the schedule. The user accepts or rejects the proposed recast adjustments (step 7).
 8. **Bridge and walk.** `uv run fin engagement bridge <company> [--period FY25] [--scope standalone|consolidated]`
    (`--json` for rupees) shows, per period and scope of the latest engagement, the EBITDA bridge (reported EBITDA,
    each accepted adjustment, adjusted EBITDA) and the EBITDA-to-cash walk (non-cash and other, working capital
@@ -171,7 +179,9 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    mapped, every bank parse tying (once a bank statement is loaded), and each year's `fin reconcile` on the current data with every difference at or above the threshold in
    a query; once a payroll file is loaded, its unit confirmed by the user), G2 Reconciliation (no query in draft;
    every D4 reconciliation whose inputs are loaded ran on the current data and every line at or above the threshold
-   is in a query, fx lines excepted; unlocks `fin adjust accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence;
+   is in a query, fx lines excepted; unlocks `fin adjust accept|reject`), G3 Recast (once a sales register is loaded, for every annual period: `fin recast run` ran on the current
+   data, every undated sales invoice at or above the threshold is in a query, the period's recast difference has a proposed or decided
+   `recast` adjustment; unlocks approving G4), G4 Adjustments (no proposed adjustment, every accepted one has evidence;
    unlocks `fin engagement close`; an engagement with no queries and no adjustments closes without its gates). A
    gate reopens on its own when the data under it changes (G1 also when a figure changes) or its checklist fails.
    - Run `uv run fin gate status <company>` and show each gate's state, its checklist lines and what it unlocks.

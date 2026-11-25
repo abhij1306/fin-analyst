@@ -30,6 +30,9 @@ a command returns when the error ends it:
   stops the command: exit 2.
 - E868-E869 (D9 analytics: a customer sector proposal or review that is not valid; `fin analytics`
   with no engagement or no loaded sales register) stop the command: exit 2.
+- E863-E865 (service-period recast: it cannot run for lack of a loaded sales register or a period of
+  the engagement; a contract reading that cannot be used; a contract naming a customer or invoice
+  no loaded sales register has) stop the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
 - E858-E861 (the query export, fin.diligence.export: no approved query, a file that cannot be read
@@ -286,10 +289,10 @@ class DiligenceTableWrite(FinError):
     """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
-    recon_items, passthrough_customers, recon_match_lines, match_proposals): those change only
-    through `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
-    `fin map ledgers` with `fin review --ledgers`, and `fin reconcile` (with
-    `fin review --matches`). Nothing was run."""
+    recon_items, passthrough_customers, recon_match_lines, match_proposals, contracts): those change
+    only through `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
+    `fin map ledgers` with `fin review --ledgers`, `fin reconcile` (with `fin review --matches`) and
+    `fin recast`. Nothing was run."""
 
     code = "E806"
 
@@ -517,3 +520,28 @@ class AnalyticsUnavailable(FinError):
     there is nothing to analyse. Nothing changed."""
 
     code = "E869"
+
+
+# E863-E865: the service-period recast (fin.reconcile.recast, `fin recast`). Stop the command.
+
+
+class RecastCannotRun(FinError):
+    """E863. `fin recast run`: a period that is not an annual period of the open engagement, or no
+    loaded sales register line to recast. Nothing recorded."""
+
+    code = "E863"
+
+
+class ContractReadingInvalid(FinError):
+    """E864. `fin recast contracts`: the reading CSV cannot be used (missing column, bad date,
+    amount or page, end before start, no rows). The message names each CSV line at fault. Nothing
+    recorded."""
+
+    code = "E864"
+
+
+class ContractNotOnRegister(FinError):
+    """E865. `fin recast contracts`: a contract names a customer or an invoice number that no
+    loaded sales register has (the name is not printed). Nothing recorded."""
+
+    code = "E865"

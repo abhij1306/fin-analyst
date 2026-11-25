@@ -63,7 +63,7 @@ def test_engagement_opens_once_and_closes(root: Path, audit_query: Any) -> None:
         "E803: bluepeak already has an open engagement (#1, periods FY24,FY25); nothing changed."
     )
 
-    approve_gates("G1", "G2", "G4")
+    approve_gates("G1", "G2", "G3", "G4")
     closed = fin("engagement", "close", "bluepeak")
     assert closed.exit_code == 0, closed.output
     reopened = fin("engagement", "open", "bluepeak", "--periods", "FY25", "--threshold", "5000")

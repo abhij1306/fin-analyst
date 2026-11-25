@@ -19,7 +19,7 @@ import duckdb
 from fin.audit.errors import ReconCannotRun
 
 ZERO = Decimal("0.00")
-QUERIED_KINDS = ("difference", "left_only", "right_only")
+QUERIED_KINDS = ("difference", "left_only", "right_only", "undated")
 DETAIL_LEVELS = (
     "invoice",
     "ledger",

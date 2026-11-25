@@ -77,6 +77,15 @@ SELECT r.period,
         WHERE f.kind = 'registers' AND f.status = 'loaded' AND f.engagement_id = r.engagement_id)
 FROM revenue_split r WHERE r.sales_revenue IS NOT NULL AND r.basis = 'audited' ORDER BY r.period
 """
+_RECAST = f"""
+SELECT r.period,
+       (SELECT string_agg(DISTINCT f.file_name, '; ') FROM source_files f
+        WHERE f.kind = 'registers' AND f.status = 'loaded' AND f.engagement_id = r.engagement_id)
+FROM recon_runs r WHERE r.name = 'service_recast' AND r.recon_id IN (
+    SELECT max(recon_id) FROM recon_runs WHERE name = 'service_recast'
+        AND engagement_id = {LATEST} GROUP BY period
+) ORDER BY r.period
+"""
 _ADJUSTED = """
 SELECT period, scope, adjusted_revenue, adjusted_ebitda FROM adjusted_ebitda
 WHERE adjusted_ebitda IS NOT NULL OR adjusted_revenue IS NOT NULL ORDER BY period, scope
@@ -259,6 +268,13 @@ def candidates(
         for kind, note in (
             ("core_revenue", "sales register, customers not on the pass-through list"),
             ("passthrough_revenue", "sales register, customers on the pass-through list"),
+        ):
+            rows.append(_row(kind, period, files or "", unit="rupees", note=note))
+    for period, files in con.execute(_RECAST).fetchall():
+        for kind, note in (
+            ("recast_revenue", "revenue recognised over the service periods (sales register)"),
+            ("recast_difference", "recast less revenue booked by invoice date"),
+            ("recast_undated", "sales invoices without service dates, recognised on invoice date"),
         ):
             rows.append(_row(kind, period, files or "", unit="rupees", note=note))
     for period, scope, revenue, ebitda in con.execute(_ADJUSTED).fetchall():

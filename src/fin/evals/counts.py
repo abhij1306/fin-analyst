@@ -32,7 +32,13 @@ from typing import Any
 import duckdb
 
 from fin.db.conn import connect
-from fin.evals.golden import ANALYTICS_KINDS, LATEST_ENGAGEMENT, RECON_KINDS, Check
+from fin.evals.golden import (
+    ANALYTICS_KINDS,
+    LATEST_ENGAGEMENT,
+    RECAST_KINDS,
+    RECON_KINDS,
+    Check,
+)
 from fin.map.review import open_items, read_pending
 from fin.paths import audit_db_path
 
@@ -194,6 +200,21 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
             f"{reader}, {'ties' if ties else 'does not tie'}": n
             for reader, ties, n in con.execute(_BANK).fetchall()
         },
+        "recast": {
+            "undated_lines": _one(
+                con,
+                "SELECT count(*) FROM recon_items i JOIN recon_runs r USING (recon_id) "
+                "WHERE i.kind = 'undated' AND r.recon_id IN (SELECT max(recon_id) FROM recon_runs "
+                f"WHERE name = 'service_recast' AND engagement_id = {LATEST_ENGAGEMENT} "
+                "GROUP BY period)",
+            ),
+            "adjustments": dict(
+                con.execute(
+                    "SELECT status, count(*) FROM adjustments WHERE category = 'recast' "
+                    f"AND engagement_id = {LATEST_ENGAGEMENT} GROUP BY 1 ORDER BY 1"
+                ).fetchall()
+            ),
+        },
         "passthrough": {
             "customers": _one(
                 con,
@@ -237,7 +258,8 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
     same period (and scope), and markers: `held` (a held document has the figure), `not_reconciled`
     (no `tb_vs_statements` run for the period), `unmapped_ledgers` (its latest run had some),
     `no_passthrough_list` (a revenue split or analytics check with no pass-through customers
-    recorded), `unconfirmed_sectors` (a sector check while customers have no confirmed sector)."""
+    recorded), `unconfirmed_sectors` (a sector check while customers have no confirmed sector),
+    `recast_not_run` (a recast check for a period with no `fin recast run`)."""
     codes: set[str] = set()
     if check.kind == "statement":
         return _statement_codes(con, check)
@@ -286,6 +308,14 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
         ).fetchone()
         if listed and not listed[0]:
             codes.add("no_passthrough_list")
+    if check.kind in RECAST_KINDS:
+        ran = con.execute(
+            "SELECT count(*) FROM recon_runs WHERE period = ? AND name = 'service_recast' "
+            f"AND engagement_id = {LATEST_ENGAGEMENT}",
+            [check.period],
+        ).fetchone()
+        if ran is not None and not ran[0]:
+            codes.add("recast_not_run")
     if check.kind == "tb_vs_statements" or check.kind in RECON_KINDS:
         run = con.execute(
             "SELECT unmapped FROM recon_runs WHERE period = ? AND name = ? "

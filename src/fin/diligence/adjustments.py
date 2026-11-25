@@ -172,59 +172,96 @@ def propose(
     effects = resolve_effects(amount, revenue_effect, cost_effect)
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
-        if query_id is None and finding_id is None and not source_ref:
-            raise AdjustmentInvalid(
-                "an adjustment needs evidence: --query, --finding or --source; nothing proposed"
-            )
-        categories = load_config(run.root).adjustment_categories
-        if category not in categories:
-            raise AdjustmentInvalid(
-                f"category {category!r} is not in config.toml [diligence] adjustment_categories "
-                f"({', '.join(categories)}); nothing proposed"
-            )
-        periods = engagement["periods"].split(",")
-        if period not in periods:
-            raise AdjustmentInvalid(
-                f"period {period} is not in the engagement ({engagement['periods']}); nothing "
-                "proposed"
-            )
-        if account is not None and account not in load_accounts(run.root):
-            raise AdjustmentInvalid(
-                f"account {account!r} is not in the dictionary (`fin map accounts`); nothing "
-                "proposed"
-            )
-        _check_reclassification(run, category, account, from_account, moved_amount, effects)
-        _check_links(con, engagement, company, query_id, finding_id)
-        now = utcnow()
-        row = {
-            "engagement_id": engagement["engagement_id"],
-            "period": period,
-            "scope": scope,
-            "category": category,
-            "account": account,
-            "amount": effects[0],
-            "revenue_effect": effects[1],
-            "cost_effect": effects[2],
-            "from_account": from_account,
-            "moved_amount": moved_amount,
-            "description": description,
-            "query_id": query_id,
-            "finding_id": finding_id,
-            "source_ref": source_ref or None,
-            "status": "proposed",
-            "created_run_id": run.run_id,
-            "created_at": now,
-            "status_run_id": run.run_id,
-            "status_at": now,
-        }
-        new = con.execute(
-            f"INSERT INTO adjustments ({', '.join(row)}) "
-            f"VALUES ({', '.join('?' for _ in row)}) RETURNING adj_id",
-            list(row.values()),
-        ).fetchone()
-        assert new is not None
-        record_event(run, company, con, "adjustment", new[0])
-        return _get(con, engagement, company, new[0])
+        return propose_in(
+            run,
+            con,
+            company,
+            engagement,
+            effects,
+            period=period,
+            scope=scope,
+            category=category,
+            description=description,
+            account=account,
+            from_account=from_account,
+            moved_amount=moved_amount,
+            query_id=query_id,
+            finding_id=finding_id,
+            source_ref=source_ref,
+        )
+
+
+def propose_in(
+    run: Run,
+    con: duckdb.DuckDBPyConnection,
+    company: str,
+    engagement: dict[str, Any],
+    effects: tuple[Decimal, Decimal, Decimal],
+    *,
+    period: str,
+    scope: str,
+    category: str,
+    description: str,
+    account: str | None = None,
+    from_account: str | None = None,
+    moved_amount: Decimal | None = None,
+    query_id: int | None = None,
+    finding_id: int | None = None,
+    source_ref: str | None = None,
+) -> dict[str, Any]:
+    """`propose` in the caller's transaction: the checks and the insert (`effects` as
+    `resolve_effects` gives them)."""
+    if query_id is None and finding_id is None and not source_ref:
+        raise AdjustmentInvalid(
+            "an adjustment needs evidence: --query, --finding or --source; nothing proposed"
+        )
+    categories = load_config(run.root).adjustment_categories
+    if category not in categories:
+        raise AdjustmentInvalid(
+            f"category {category!r} is not in config.toml [diligence] adjustment_categories "
+            f"({', '.join(categories)}); nothing proposed"
+        )
+    periods = engagement["periods"].split(",")
+    if period not in periods:
+        raise AdjustmentInvalid(
+            f"period {period} is not in the engagement ({engagement['periods']}); nothing proposed"
+        )
+    if account is not None and account not in load_accounts(run.root):
+        raise AdjustmentInvalid(
+            f"account {account!r} is not in the dictionary (`fin map accounts`); nothing proposed"
+        )
+    _check_reclassification(run, category, account, from_account, moved_amount, effects)
+    _check_links(con, engagement, company, query_id, finding_id)
+    now = utcnow()
+    row = {
+        "engagement_id": engagement["engagement_id"],
+        "period": period,
+        "scope": scope,
+        "category": category,
+        "account": account,
+        "amount": effects[0],
+        "revenue_effect": effects[1],
+        "cost_effect": effects[2],
+        "from_account": from_account,
+        "moved_amount": moved_amount,
+        "description": description,
+        "query_id": query_id,
+        "finding_id": finding_id,
+        "source_ref": source_ref or None,
+        "status": "proposed",
+        "created_run_id": run.run_id,
+        "created_at": now,
+        "status_run_id": run.run_id,
+        "status_at": now,
+    }
+    new = con.execute(
+        f"INSERT INTO adjustments ({', '.join(row)}) "
+        f"VALUES ({', '.join('?' for _ in row)}) RETURNING adj_id",
+        list(row.values()),
+    ).fetchone()
+    assert new is not None
+    record_event(run, company, con, "adjustment", new[0])
+    return _get(con, engagement, company, new[0])
 
 
 def decide(

@@ -211,7 +211,9 @@ NULLs. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): 
 mapping items waiting for review; its inputs include the figures, every `current_facts` value by account, period and
 scope, so a changed figure reopens it), G2 Reconciliation (no query in draft, and once a bank statement is loaded `bank_vs_invoices` and `bank_vs_tb` have run on current data with every line at or above the threshold in a query; its inputs are each query's id, wording and whether it is a draft and the latest bank reconciliation runs, so a new or
 edited query reopens it and sending, answering or closing one does not; unlocks `fin adjust accept|reject`), G4 Adjustments (no
-proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 comes later.
+proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 Recast sits between them (once a sales register is loaded,
+for every annual period: the recast ran on the current data, every undated sales invoice at or above the threshold is in a query, the
+period's recast difference has a proposed or decided `recast` adjustment; unlocks approving G4; `fin/reconcile/recast_checks.py`).
 `fin gate approve <co> <gate>` appends a row to `gate_approvals` (company database) with the sha256 of the gate's
 inputs, and a `gate` row to `diligence_events`; it refuses (E802, exit 3) while the checklist fails or an earlier gate
 is not approved. A gate is approved while its inputs still hash to the latest approval's, its checklist passes and
@@ -297,6 +299,20 @@ prints the views. Export: tables `customer_concentration`, `customer_retention`,
 (`fin/report/customers.py`, data read in `collect`) is a describe-only section, with no narrative, that D7 includes as it is.
 Eval kinds: `customer_revenue`, `sector_revenue`, `product_revenue`, `top_customers_revenue`, `retained_revenue`,
 `pvm_price_effect`, `pvm_volume_effect`, `pvm_mix_effect`.
+
+Service-period recast (D6, decisions in `docs/decisions/d6-recast.md`): `fin recast run <co> [--period FY25]` spreads each sales
+register line's Amount in Rs (before GST) over its service start and end dates by month (by service day, the last month takes the
+rounding remainder) and compares each annual period's recast with the register's amount by invoice date. It is a reconciliation
+named `service_recast` in `recon_runs`/`recon_items` (`fin/reconcile/recast.py`; levels `period` (left = recast, right = booked,
+difference = the revenue effect), `month`, `schedule` (per invoice whose recast and booked amounts differ) and `invoice` with kind
+`undated`: a sales invoice with no usable service dates, recognised on its invoice date, listed; at or above the threshold it is for
+`fin query raise --items`). The command proposes one `recast` adjustment per period for the difference (revenue effect = EBITDA
+effect, account `revenue`, evidence `service_recast FY25 (recon #n)`); running again replaces a stale proposal of its own (rejected,
+"superseded by recast run #n") and never overrides an accepted or user-rejected one (`fin/reconcile/recast_run.py`). The stub is not
+recast. `fin recast contracts <co> [<file> --reading <csv>]` loads Claude's reading of a contract document (table `contracts`: customer
+token, invoice number, start, end, value, billing terms, file + page, read_by; E864, E865) as evidence named beside an undated line; it
+never drives the schedule. `engagement.fiscal_start_month` (config at open) says which months a period holds. E863: the recast cannot run.
+Golden eval kinds `recast_revenue`, `recast_difference`, `recast_undated` (period).
 
 Ledger mapping, `tb_vs_statements`, the stub and G1's trial balance checks (D2, second half). `ledger_accounts`
 (`fin/diligence/ledgers.py`): a trial balance load adds its new ledgers as pending; `fin map ledgers <co>` lists
@@ -675,6 +691,7 @@ claude
 | `fin engagement passthrough <co> [--customer ... --source] [--clear]` | `/diligence` | The user's list; Claude records it when given |
 | `fin map customers <co> [file]`, `fin review list\|confirm\|reject <co> --customers` | `/diligence` | Claude proposes sectors; the user decides |
 | `fin analytics <co> [--json]` | `/diligence` | Either |
+| `fin recast run <co> [--period]`, `fin recast contracts <co> [<file> --reading <csv>]` | `/diligence` | Claude runs it; the user accepts or rejects the proposed adjustments |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
 | `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
 | `fin gate status <co> [--json]` | `/diligence` | Either |

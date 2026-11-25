@@ -17,7 +17,7 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction
 from fin.diligence import recon
 from fin.diligence.engagement import company_database, require_open
-from fin.reconcile import bank, registers, store
+from fin.reconcile import bank, recast, registers, store
 from fin.reconcile import gl_vs_tb as gl_module
 from fin.reconcile import payroll_vs_gl as payroll_module
 from fin.reconcile.base import Computed, input_hash
@@ -50,6 +50,8 @@ def current_hash(
     """The hash of what the reconciliation compares now (None when it cannot run now)."""
     if name == recon.NAME:
         return recon.input_hash(con, engagement, period)
+    if name == recast.NAME:
+        return recast.current_hash(con, company, engagement, period)
     try:
         computed = RECONCILIATIONS[name][0](con, company, engagement, period)
     except ReconCannotRun:

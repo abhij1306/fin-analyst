@@ -169,6 +169,13 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   the documents' unit, as `fin statements`; `--json` in rupees. A line whose input is missing shows `-` and names it.
   The same figures are the views `adjusted_ebitda` (also adjusted revenue and the margin on it), `ebitda_bridge` and
   `ebitda_to_cash`, queryable with `fin sql`.
+- Service-period recast: `fin recast run <company> [--period FY25]` spreads each sales register line's Amount in Rs over its
+  service start and end dates (by service day) and compares each year's recast with the revenue booked by invoice date.
+  The difference is proposed as a `recast` adjustment (revenue effect = EBITDA effect); running it again replaces a stale
+  proposal of its own and never overrides one you accepted or rejected. A sales invoice with no service dates is recognised on
+  its invoice date and listed (at or above the threshold it goes into a query, `fin query raise --items`). The unaudited stub is
+  not recast. `fin recast contracts <company> <file> --reading <csv>` loads Claude's reading of a contract (file + page) as
+  evidence shown beside an undated invoice; it never drives the schedule. Decisions: `docs/decisions/d6-recast.md`.
 - Gates: checkpoints you approve, in order. fin checks each one's checklist; Claude prepares a gate and shows you
   `fin gate status <company>` (each gate's state, its checklist lines and what it unlocks), and only you approve it
   (`fin gate approve <company> <gate>`). A Claude Code hook asks you before any command Claude runs that looks like
@@ -189,6 +196,9 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
     queries, listed in G1 but not blocking it.
   - **G2 Reconciliation:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
     approved query does not. Needed by `fin adjust accept|reject`.
+  - **G3 Recast:** once a sales register is loaded, for every year: `fin recast run` ran on the current data, every sales
+    invoice at or above the threshold with no service dates is in a query, and the year's recast difference has a
+    proposed or decided `recast` adjustment. Needed to approve G4.
   - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
     `fin engagement close`.
 
@@ -402,5 +412,8 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E855 | `fin review confirm|reject --matches`: no match proposal with that id, or it is no longer waiting | Nothing changed. List them with `fin review list <co> --matches --all` |
 | E868 | `fin map customers` or `fin review ... --customers`: a proposal that is not an object with customer, sector, confidence and reason, a customer that is on no loaded sales register, an empty sector or the sector `unmapped`, a confirmation with no sector, a confirmed customer proposed again, or an unknown customer id | Nothing changed. List the customers with `fin map customers <company>` and fix the proposal |
 | E869 | `fin analytics`: the company has no engagement, or no sales register line in an engagement period | Nothing shown. Open an engagement and load the registers (`fin ingest <company> <file> --kind registers`) |
+| E863 | `fin recast run`: a period that is not an annual period of the open engagement, or no loaded sales register line to recast | Nothing recorded. Load the sales register (`fin ingest <company> <file> --kind registers`) and use a period of the engagement |
+| E864 | `fin recast contracts`: the contract reading cannot be used (a missing column, a bad date, amount or page, an end before its start, no rows) | Nothing recorded. Fix the CSV lines the message names |
+| E865 | `fin recast contracts`: a contract names a customer or invoice number that no loaded sales register has | Nothing recorded. Use the customer's token (`SELECT DISTINCT customer FROM register_lines WHERE kind = 'sales'`) or the invoice number as in the register |
 
 The code that raises each error is in `src/fin/audit/errors.py`.
