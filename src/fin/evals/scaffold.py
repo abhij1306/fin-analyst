@@ -1,10 +1,10 @@
 """`fin eval init <company>`: list what a person can check, with where it is printed.
 
 Each line names one output of fin (a statement figure in current figures, a trial balance ledger, a
-`tb_vs_statements` line, a stub figure, a bank closing balance) and its source, and leaves
-`expected` and `checked` empty: the value comes from the document, never from fin. Run again after
-loading more, it adds the lines the golden set does not have yet and never changes or removes
-one."""
+`tb_vs_statements` line, a stub figure, a bank closing balance, the pass-through revenue split,
+adjusted revenue and EBITDA) and its source, and leaves `expected` and `checked` empty: the
+value comes from the document, never from fin. Run again after loading more, it adds the lines
+the golden set does not have yet and never changes or removes one."""
 
 from typing import Any
 
@@ -68,6 +68,16 @@ WHERE r.recon_id IN (
     AND i.level IN ('invoice', 'ledger', 'payroll')
     AND i.kind NOT IN ('matched', 'unmapped', 'not_reconciled')
 ORDER BY r.name, r.period, i.item_no
+"""
+_SPLIT = """
+SELECT r.period,
+       (SELECT string_agg(DISTINCT f.file_name, '; ') FROM source_files f
+        WHERE f.kind = 'registers' AND f.status = 'loaded' AND f.engagement_id = r.engagement_id)
+FROM revenue_split r WHERE r.sales_revenue IS NOT NULL AND r.basis = 'audited' ORDER BY r.period
+"""
+_ADJUSTED = """
+SELECT period, scope, adjusted_revenue, adjusted_ebitda FROM adjusted_ebitda
+WHERE adjusted_ebitda IS NOT NULL OR adjusted_revenue IS NOT NULL ORDER BY period, scope
 """
 _STUB = f"""
 SELECT x.period, x.account, s.file_name
@@ -151,6 +161,25 @@ def candidates(
                 "lines that show a difference",
             )
         )
+    for period, files in con.execute(_SPLIT).fetchall():
+        for kind, note in (
+            ("core_revenue", "sales register, customers not on the pass-through list"),
+            ("passthrough_revenue", "sales register, customers on the pass-through list"),
+        ):
+            rows.append(_row(kind, period, files or "", unit="rupees", note=note))
+    for period, scope, revenue, ebitda in con.execute(_ADJUSTED).fetchall():
+        for kind, value in (("adjusted_revenue", revenue), ("adjusted_ebitda", ebitda)):
+            if value is not None:
+                rows.append(
+                    _row(
+                        kind,
+                        period,
+                        "statements and accepted adjustments",
+                        scope=scope,
+                        unit="rupees",
+                        note="reported plus accepted adjustments (statements)",
+                    )
+                )
     for period, account, file_name in con.execute(_STUB).fetchall():
         rows.append(
             _row(

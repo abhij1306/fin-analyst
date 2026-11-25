@@ -46,6 +46,19 @@ _FIN_VALUE = {
         "AND b.period_end::VARCHAR = ? AND b.account = ? ORDER BY file_id LIMIT 1",
         ("period", "ledger"),
     ),
+    "core_revenue": ("SELECT core_revenue FROM revenue_split WHERE period = ?", ("period",)),
+    "passthrough_revenue": (
+        "SELECT passthrough_revenue FROM revenue_split WHERE period = ?",
+        ("period",),
+    ),
+    "adjusted_revenue": (
+        "SELECT adjusted_revenue FROM adjusted_ebitda WHERE period = ? AND scope = ?",
+        ("period", "scope"),
+    ),
+    "adjusted_ebitda": (
+        "SELECT adjusted_ebitda FROM adjusted_ebitda WHERE period = ? AND scope = ?",
+        ("period", "scope"),
+    ),
     "stub": (
         "SELECT value FROM stub_figures WHERE period = ? AND account = ? "
         f"AND engagement_id = {LATEST_ENGAGEMENT}",

@@ -37,7 +37,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `diligence/`: a diligence engagement on one company (`docs/DILIGENCE_PLAN.md`). `engagement.py` (`fin engagement
   open|status|close`, the open-engagement check (E803), and `record_event`, which appends every change to the audit
   table `diligence_events`), `queries.py` (accountant queries and their status flow, `TRANSITIONS`),
-  `adjustments.py` (adjustments to EBITDA with evidence, E804), `bridge.py` (`fin engagement bridge`: reads and
+  `adjustments.py` (adjustments to EBITDA, revenue and costs with evidence, E804; `resolve_effects` makes the EBITDA effect revenue minus cost), `passthrough.py` (`fin engagement passthrough`: the user's pass-through customers, E845; the views are `db/schema/diligence_split_views.sql`), `bridge.py` (`fin engagement bridge`: reads and
   formats the EBITDA bridge and EBITDA-to-cash walk views), `gates.py` (`fin gate status|approve`: the `GATES`
   registry with each gate's checklist and inputs, the approved/reopened/open states, `require` (E801) and
   approval (E802)), `cli.py` (the `fin engagement`, `fin query`, `fin adjust` and `fin gate` Typer groups). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.

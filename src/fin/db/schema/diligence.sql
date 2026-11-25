@@ -63,14 +63,19 @@ CREATE TABLE accountant_queries (
     note VARCHAR
 );
 
--- Proposed adjustments to EBITDA. Reported facts are never changed; adjusted figures are reported + accepted
--- adjustments.
+-- Proposed adjustments to EBITDA, revenue and costs. Reported facts are never changed; adjusted figures are reported +
+-- accepted adjustments.
 --   proposed  `fin adjust propose`, by Claude or the user;
 --   accepted  the user accepted it (`fin adjust accept`);
 --   rejected  the user rejected it (`fin adjust reject`), with the reason.
 -- period: an annual period of the engagement. category: one of config.toml [diligence] adjustment_categories.
--- account: the dictionary account it relates to (optional). amount: the signed effect on EBITDA in rupees (positive
--- raises EBITDA). Evidence: query_id, finding_id or source_ref (file + sheet!cell or page); at least one is set.
+-- account: the dictionary account it relates to (optional). Effects, signed rupees: revenue_effect (positive raises
+-- revenue), cost_effect (positive raises costs) and amount, the effect on EBITDA, which is always
+-- revenue_effect - cost_effect (checked). A pass-through normalisation strips revenue and its cost: both negative.
+-- A reclassification between two cost accounts has no net effect (all three 0): it names the account the cost moves
+-- to (account) and the one it leaves (from_account), and moved_amount, the positive amount moved; from_account and
+-- moved_amount are set together or not at all.
+-- Evidence: query_id, finding_id or source_ref (file + sheet!cell or page); at least one is set.
 CREATE TABLE adjustments (
     adj_id INTEGER PRIMARY KEY DEFAULT nextval('adjustments_seq'),
     engagement_id INTEGER NOT NULL,
@@ -79,6 +84,10 @@ CREATE TABLE adjustments (
     category VARCHAR NOT NULL,
     account VARCHAR,
     amount DECIMAL(20, 2) NOT NULL,
+    revenue_effect DECIMAL(20, 2) NOT NULL,
+    cost_effect DECIMAL(20, 2) NOT NULL,
+    from_account VARCHAR,
+    moved_amount DECIMAL(20, 2),
     description VARCHAR NOT NULL,
     query_id INTEGER,
     finding_id BIGINT,
@@ -89,7 +98,22 @@ CREATE TABLE adjustments (
     created_at TIMESTAMP NOT NULL,
     status_run_id VARCHAR NOT NULL,
     status_at TIMESTAMP NOT NULL,
-    CHECK (query_id IS NOT NULL OR finding_id IS NOT NULL OR source_ref IS NOT NULL)
+    CHECK (query_id IS NOT NULL OR finding_id IS NOT NULL OR source_ref IS NOT NULL),
+    CHECK (amount = revenue_effect - cost_effect),
+    CHECK ((from_account IS NULL) = (moved_amount IS NULL))
+);
+
+-- The pass-through customers of an engagement (`fin engagement passthrough`): the SI/reseller customers, as tokens,
+-- whose deals pass through at roughly zero margin. The list is the user's; source says where it came from. Setting
+-- the list again replaces it (each setting is in diligence_events). The views revenue_split and passthrough_lines
+-- (diligence_split_views.sql) use the latest engagement's list.
+CREATE TABLE passthrough_customers (
+    engagement_id INTEGER NOT NULL,
+    customer VARCHAR NOT NULL,
+    source VARCHAR NOT NULL,
+    run_id VARCHAR NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (engagement_id, customer)
 );
 
 -- Gate approvals (fin.diligence.gates), append-only: one row each time the user approves a gate

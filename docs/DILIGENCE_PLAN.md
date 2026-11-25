@@ -3,7 +3,9 @@
 Status, 2026-11-24: **phase D1 is built** (#43, #44, #45; build log: [DILIGENCE_BUILD.md](DILIGENCE_BUILD.md)). It
 covers the engagement, accountant queries, EBITDA adjustments, the EBITDA bridge and EBITDA-to-cash walk on the
 audited statements, and gates G1, G2 and G4. **D3's payroll part is built** (the Sparsh snapshot,
-`fin payroll confirm-unit`, G1's unit line); registers and bank are separate workstreams. **D2's first half is built**: source files (trial balance, Ledger
+`fin payroll confirm-unit`, G1's unit line); registers and bank are separate workstreams. **D4's pass-through and adjustment-effect part is built** (`fin engagement passthrough`, `revenue_split`,
+`passthrough_lines`, revenue and cost effects on adjustments, adjusted revenue; `docs/decisions/d4-passthrough.md`).
+**D2's first half is built**: source files (trial balance, Ledger
 Vouchers) with column profiles, and masking. The rest of D2 (ledger mapping, `tb_vs_statements`, the stub, G1's
 trial balance checks) and D3–D9 are planned, revised to the diligence user's answers in §9.
 No questions are open. Each phase moves into `PLAN.md` as it is built. The golden evaluation (`docs/EVAL.md`, `fin eval`)
@@ -23,14 +25,15 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Need | Status | Phase |
 |---|---|---|
 | Audited statements, checks, metrics | **Built**: the statement layer | — |
-| Proposed adjustments kept separate from reported numbers | **Built** (EBITDA effect); revenue and cost effects planned | D1; D4 |
+| Proposed adjustments kept separate from reported numbers | **Built**, with revenue and cost effects | D1; D4 |
 | Accountant queries (Rs 1 lakh per line, drafted for approval) | **Built**, except grouping lines into issues and the export | D1; D4, D8 |
 | Gates that stop the build for review | **Built**: G1, G2, G4; G3 planned | D1; D2, D4, D6 |
 | Adjusted EBITDA, EBITDA bridge, EBITDA-to-cash walk | **Built** on the audited statements | D1 |
 | Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: trial balance, Ledger Vouchers and registers; bank statements (Excel and PDF) and payroll planned | D2, D3 |
 | Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers; the export planned | D2 on; D8 |
 | Current-year stub from unaudited management data | Planned | D2 on |
-| Reconciliation: register ↔ ledger ↔ accounts; pass-through revenue | Planned | D4 |
+| Pass-through revenue split out of core revenue and growth | **Built** | D4 |
+| Reconciliation: register ↔ ledger ↔ accounts | Planned | D4 |
 | Reconciliation: bank ↔ receipts ↔ invoices, with FX lines for USD | Planned | D5 |
 | Service-period revenue recast from the sales register | Planned | D6 |
 | Normalised working capital, diligence report and dashboard | Planned | D7 |
@@ -84,12 +87,12 @@ They are in `CLAUDE.md`, "Diligence".
   - Categories (planned default): `normalisation` (e.g. pass-through stripped, one-off items), `reclassification`
     (capitalisation, inventory movement, direct vs other expenses), `recast` (service-period mapping), `error`
     (true duplicates), `management` (e.g. director pay add-back). `run_rate` and `pro_forma` leave the default.
-  - Planned (D4): an adjustment carries its effect on revenue and on costs as well as on EBITDA, because
+  - **Built** (D4): an adjustment carries its effect on revenue and on costs as well as on EBITDA, because
     pass-through and reclassification change revenue and margins with little or no EBITDA effect.
 - **Adjusted base EBITDA**: reported EBITDA (other income excluded, shown separately below EBITDA, as fin's EBITDA
   already does) plus accepted adjustments, which take out pass-through revenue and cost and exceptional or one-off
   items.
-- **Pass-through** (planned, D4): per engagement, the user supplies a list of SI/reseller customers whose deals pass
+- **Pass-through** (**built**, D4): per engagement, the user supplies a list of SI/reseller customers whose deals pass
   through at roughly zero margin. Their sales are pass-through. A sale's Purchase Id links it to the OEM purchase
   (populated: software or licence; blank: services); fin shows the link as information. Pass-through revenue is
   shown separately as project revenue and left out of growth figures. Valuing it at a lower multiple is the user's
@@ -147,16 +150,18 @@ and every gate approval.
 | `payroll_lines` (**built**) | file_id, sheet, row, snapshot date, employee name and code (tokens), designation, department, vertical, sub-vertical, joining date, resign date, gross salary and CTC (annual, unit confirmed by the user). No month column | D3 |
 | `recon_runs`, `recon_items` (**built** for `tb_vs_statements`) | each reconciliation run (name, period, scope, left file, threshold, hash of its inputs, unmapped count) and its lines (`matched`, `difference`, `left_only`, `right_only`, `unmapped`; D5 adds `fx`), each with both sources, both amounts, the difference and its query | D2, D4, D5 |
 | `query_items` | query_id, recon item id: the lines an issue groups; count and value per kind of difference come from it | D4 |
-| `adjustments` (changed) | adds revenue effect and cost effect; the EBITDA effect (`amount`) must equal revenue effect minus cost effect; a reclassification between cost accounts names both (`account`, `from_account`) | D4 |
-| `passthrough_customers` | engagement_id, customer token, source of the list, run | D4 |
+| `adjustments` (changed, **built**) | adds revenue effect and cost effect; the EBITDA effect (`amount`) must equal revenue effect minus cost effect; a reclassification between cost accounts names both (`account`, `from_account`) and the amount moved (`moved_amount`) | D4 |
+| `passthrough_customers` (**built**) | engagement_id, customer token, source of the list, run | D4 |
+| `register_lines.period` (**built**) | the engagement period of the invoice date (annual period or stub; NULL outside), set at load | D4 |
 | `contracts` | contract_id, customer (token), start, end, value, billing terms, source (file + page), read_by; optional evidence for the recast | D6 |
 
 Planned views:
 
 - `stub_figures` (D2, **built**): the stub's trial balance rolled up through `ledger_accounts` to Schedule III accounts,
   labelled unaudited management accounts. The audited years keep their statement figures.
-- `revenue_split` (D4): revenue per period as core and pass-through (project revenue); growth on core revenue only.
-- `adjusted_ebitda` (changed, D4): adds adjusted revenue, and margins on adjusted revenue.
+- `revenue_split` (D4, **built**, `diligence_split_views.sql`): revenue per period as core and pass-through (project revenue), with the
+  Purchase Id link to the OEM purchase (`passthrough_lines` has each link); growth on core revenue only.
+- `adjusted_ebitda` (changed, D4, **built**): adds adjusted revenue, and margins on adjusted revenue.
 - `nwc_year_end` (D7): working capital at each year-end (and the stub end) from TB closing balances mapped to
   working capital accounts.
 - `nwc_monthly` (D7): monthly balances from Ledger Vouchers: the prior year-end TB closing as the opening, plus
@@ -312,6 +317,7 @@ parse that does not tie are found; a payroll file whose amounts look monthly is 
 
 ### D4: Register ↔ ledger ↔ accounts reconciliation; pass-through; adjustment effects
 Status: **reconciliations built** (`fin/reconcile/`: `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`, `query_items`, `fin query raise --items`, G2's reconciliation checks, E840–E842; choices: `docs/decisions/d4-recon.md`); pass-through, `revenue_split` and adjustment effects are built by their own workstream.
+The pass-through and adjustment-effect part is **built** (`docs/decisions/d4-passthrough.md`).
 - `sales_register_vs_gl`, `purchase_register_vs_gl` (monthly, then by party, then by invoice), `gl_vs_tb` (Ledger
   Vouchers movements vs the change in TB closing from the prior year-end; a balance-sheet ledger with no prior TB is
   listed as not reconciled), `payroll_vs_gl` (annual). Deterministic SQL, one function per reconciliation

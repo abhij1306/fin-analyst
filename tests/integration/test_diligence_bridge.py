@@ -68,11 +68,11 @@ def add_adjustment(
 ) -> None:
     execute(
         root,
-        "INSERT INTO adjustments (engagement_id, period, scope, category, amount, description, "
-        "source_ref, status, created_run_id, created_at, status_run_id, status_at) "
-        "VALUES (?, ?, 'standalone', 'normalisation', ?, ?, 'Notes p. 12', ?, 'r', now(), 'r', "
-        "now())",
-        [engagement_id, period, D(amount), description, status],
+        "INSERT INTO adjustments (engagement_id, period, scope, category, amount, "
+        "revenue_effect, cost_effect, description, source_ref, status, created_run_id, "
+        "created_at, status_run_id, status_at) VALUES (?, ?, 'standalone', 'normalisation', "
+        "?, 0, ?, ?, 'Notes p. 12', ?, 'r', now(), 'r', now())",
+        [engagement_id, period, D(amount), -D(amount), description, status],
     )
 
 
@@ -133,7 +133,10 @@ def test_bridge_applies_only_accepted_adjustments(engaged: Path) -> None:
         "revenue": "1340929000.00",
         "reported_ebitda": "241367000.00",
         "accepted_adjustments": "3749999.50",
+        "accepted_revenue_effect": "0.00",
+        "accepted_cost_effect": "-3749999.50",
         "adjusted_ebitda": "245116999.50",
+        "adjusted_revenue": "1340929000.00",
         "reported_ebitda_margin": "0.180000",
         "adjusted_ebitda_margin": "0.182796",
         "proposed_adjustments": "700000.00",

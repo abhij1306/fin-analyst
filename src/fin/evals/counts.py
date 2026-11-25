@@ -11,6 +11,8 @@
 - `ledgers`: trial balance ledgers by mapping status (only confirmed ones count in reconciliations);
 - `bank_statements`: loaded bank statements by reader (excel or the PDF add-on), and whether they
   tie;
+- `passthrough`: customers on the latest engagement's pass-through list, and its adjustments by
+  status;
 - `recon_lines`: the latest D4 reconciliation runs' detail lines by reconciliation and kind, and
   how many need a query but are in none.
 """
@@ -131,13 +133,27 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
             f"{reader}, {'ties' if ties else 'does not tie'}": n
             for reader, ties, n in con.execute(_BANK).fetchall()
         },
+        "passthrough": {
+            "customers": _one(
+                con,
+                "SELECT count(*) FROM passthrough_customers WHERE engagement_id = "
+                f"{LATEST_ENGAGEMENT}",
+            ),
+            "adjustments": dict(
+                con.execute(
+                    "SELECT status, count(*) FROM adjustments WHERE engagement_id = "
+                    f"{LATEST_ENGAGEMENT} GROUP BY 1 ORDER BY 1"
+                ).fetchall()
+            ),
+        },
     }
 
 
 def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
     """What may explain a check that is not passing: the codes of open and accepted findings on the
     same period (and scope), and markers: `held` (a held document has the figure), `not_reconciled`
-    (no `tb_vs_statements` run for the period), `unmapped_ledgers` (its latest run had some)."""
+    (no `tb_vs_statements` run for the period), `unmapped_ledgers` (its latest run had some),
+    `no_passthrough_list` (a revenue split check with no pass-through customers recorded)."""
     codes: set[str] = set()
     if check.kind == "statement":
         codes |= {
@@ -175,6 +191,12 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
             [check.period],
         ).fetchall()
     }
+    if check.kind in ("core_revenue", "passthrough_revenue"):
+        listed = con.execute(
+            f"SELECT count(*) FROM passthrough_customers WHERE engagement_id = {LATEST_ENGAGEMENT}"
+        ).fetchone()
+        if listed and not listed[0]:
+            codes.add("no_passthrough_list")
     if check.kind == "tb_vs_statements" or check.kind in RECON_KINDS:
         run = con.execute(
             "SELECT unmapped FROM recon_runs WHERE period = ? AND name = ? "

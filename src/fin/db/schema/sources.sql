@@ -124,7 +124,8 @@ CREATE TABLE payroll_lines (
 -- GST or tax columns. For a foreign-currency line, amount is in currency and amount_inr is what the register gives (not
 -- recomputed). customer (sales), vendor (purchase), handler and submitted_by are tokens (CUST-, VEND-, USER-); the ids,
 -- invoice_no and purchase_id (a sale's link to the OEM purchase) are as filed. The same invoice number twice is a
--- finding (check_name 'register_duplicate_invoice'); both rows stay.
+-- finding (check_name 'register_duplicate_invoice'); both rows stay. period: the engagement period the invoice date is
+-- in (an annual period or the stub), NULL for a date outside the engagement.
 CREATE TABLE register_lines (
     file_id INTEGER NOT NULL,
     sheet VARCHAR NOT NULL,
@@ -154,6 +155,7 @@ CREATE TABLE register_lines (
     service_type VARCHAR,
     handler VARCHAR,
     submitted_by VARCHAR,
+    period VARCHAR,
     run_id VARCHAR NOT NULL,
     PRIMARY KEY (file_id, sheet, "row")
 );

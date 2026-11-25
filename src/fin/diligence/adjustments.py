@@ -1,10 +1,13 @@
-"""Adjustments (`fin adjust ...`): proposed effects on EBITDA, kept beside the reported figures.
+"""Adjustments (`fin adjust ...`): proposed effects on EBITDA, revenue and costs, kept beside the
+reported figures.
 
 Reported facts are never changed. An adjustment has a period of the engagement, a scope, a category
-(config.toml [diligence] adjustment_categories), optionally the dictionary account it relates to, a
-signed amount in rupees (its effect on EBITDA: positive raises it), a description, and evidence: a
-query, a finding or a source reference (at least one). Claude proposes; the user accepts or rejects
-(table `adjustments`, db/schema/diligence.sql):
+(config.toml [diligence] adjustment_categories), optionally the dictionary account it relates to,
+signed effects in rupees (revenue effect, cost effect, and the EBITDA effect, which is always
+revenue effect minus cost effect), a description, and evidence: a query, a finding or a source
+reference (at least one). A reclassification between two cost accounts names both (`account`,
+`from_account`) and the amount moved; its effects are 0. Claude proposes; the user accepts or
+rejects (table `adjustments`, db/schema/diligence.sql):
 
     proposed -> accepted, or proposed -> rejected (with the reason).
 
@@ -74,6 +77,76 @@ def _check_links(
             )
 
 
+ZERO = Decimal("0.00")
+# Expense accounts EBITDA adds back: a cost moved across them would change EBITDA.
+BELOW_EBITDA = ("finance_cost", "depreciation", "interest_expended", "provisions_and_contingencies")
+
+
+def resolve_effects(
+    amount: Decimal | None, revenue_effect: Decimal | None, cost_effect: Decimal | None
+) -> tuple[Decimal, Decimal, Decimal]:
+    """(EBITDA effect, revenue effect, cost effect). Given an amount alone, it is a cost effect of
+    minus the amount (an add-back lowers costs). Given a revenue or cost effect, the EBITDA effect
+    is revenue minus cost, and an amount given too must equal it. E804 otherwise."""
+    if revenue_effect is None and cost_effect is None:
+        if amount is None:
+            raise AdjustmentInvalid(
+                "give --amount (the effect on EBITDA), or --revenue-effect and --cost-effect; "
+                "nothing proposed"
+            )
+        return amount, ZERO, -amount
+    revenue, cost = revenue_effect or ZERO, cost_effect or ZERO
+    if amount is not None and amount != revenue - cost:
+        raise AdjustmentInvalid(
+            f"the EBITDA effect {amount} is not the revenue effect {revenue} minus the cost "
+            f"effect {cost} ({revenue - cost}); nothing proposed"
+        )
+    return revenue - cost, revenue, cost
+
+
+def _check_reclassification(
+    run: Run,
+    category: str,
+    account: str | None,
+    from_account: str | None,
+    moved_amount: Decimal | None,
+    effects: tuple[Decimal, Decimal, Decimal],
+) -> None:
+    """E804 unless a cost-to-cost reclassification names two different cost accounts of the
+    dictionary and a positive amount moved, and has no net effect."""
+    if (from_account is None) != (moved_amount is None):
+        raise AdjustmentInvalid("--from-account and --moved-amount go together; nothing proposed")
+    if from_account is None:
+        return
+    if category != "reclassification":
+        raise AdjustmentInvalid(
+            f"--from-account is for the 'reclassification' category, not {category!r}; nothing "
+            "proposed"
+        )
+    accounts = load_accounts(run.root)
+    for name, value in (("--account", account), ("--from-account", from_account)):
+        found = accounts.get(value) if value else None
+        if (
+            found is None
+            or (found.statement, found.parent) != ("profit_and_loss", "total_expenses")
+            or value in BELOW_EBITDA
+        ):
+            raise AdjustmentInvalid(
+                f"{name} {value!r} must be a cost account within EBITDA (an expense of the profit "
+                "and loss other than finance cost and depreciation, see `fin map accounts`); "
+                "nothing proposed"
+            )
+    if account == from_account:
+        raise AdjustmentInvalid("a reclassification needs two different accounts; nothing proposed")
+    if moved_amount is not None and moved_amount <= 0:
+        raise AdjustmentInvalid("--moved-amount must be positive; nothing proposed")
+    if any(effects):
+        raise AdjustmentInvalid(
+            "a reclassification between cost accounts has no revenue, cost or EBITDA effect "
+            "(it only moves cost); nothing proposed"
+        )
+
+
 def propose(
     run: Run,
     company: str,
@@ -81,16 +154,22 @@ def propose(
     period: str,
     scope: str,
     category: str,
-    amount: Decimal,
     description: str,
+    amount: Decimal | None = None,
+    revenue_effect: Decimal | None = None,
+    cost_effect: Decimal | None = None,
     account: str | None = None,
+    from_account: str | None = None,
+    moved_amount: Decimal | None = None,
     query_id: int | None = None,
     finding_id: int | None = None,
     source_ref: str | None = None,
 ) -> dict[str, Any]:
     """Propose an adjustment. E804 without evidence, for a category not in config.toml, a period
-    not in the engagement or an account not in the dictionary; E805 for an unknown query or
-    finding."""
+    not in the engagement, an account not in the dictionary, effects that do not add up
+    (`resolve_effects`) or a reclassification that is not valid (`_check_reclassification`);
+    E805 for an unknown query or finding."""
+    effects = resolve_effects(amount, revenue_effect, cost_effect)
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
         if query_id is None and finding_id is None and not source_ref:
@@ -114,6 +193,7 @@ def propose(
                 f"account {account!r} is not in the dictionary (`fin map accounts`); nothing "
                 "proposed"
             )
+        _check_reclassification(run, category, account, from_account, moved_amount, effects)
         _check_links(con, engagement, company, query_id, finding_id)
         now = utcnow()
         row = {
@@ -122,7 +202,11 @@ def propose(
             "scope": scope,
             "category": category,
             "account": account,
-            "amount": amount,
+            "amount": effects[0],
+            "revenue_effect": effects[1],
+            "cost_effect": effects[2],
+            "from_account": from_account,
+            "moved_amount": moved_amount,
             "description": description,
             "query_id": query_id,
             "finding_id": finding_id,
@@ -183,6 +267,8 @@ def list_adjustments(run: Run, company: str, status: str | None = None) -> list[
 
 def format_adjustment(row: dict[str, Any]) -> str:
     account = f" {row['account']}" if row["account"] else ""
+    if row["from_account"]:
+        account = f" {row['from_account']} -> {row['account']} {rupees(row['moved_amount'])} moved,"
     evidence = "; ".join(
         f"{name} {value}"
         for name, value in (
@@ -197,6 +283,11 @@ def format_adjustment(row: dict[str, Any]) -> str:
         f"{account} {rupees(row['amount'])}: {row['description']}",
         f"    evidence: {evidence}",
     ]
+    if row["revenue_effect"] != 0 or (row["cost_effect"] + row["amount"]) != 0:
+        lines.append(
+            f"    effects: revenue {rupees(row['revenue_effect'])}, "
+            f"costs {rupees(row['cost_effect'])}, EBITDA {rupees(row['amount'])}"
+        )
     if row["reason"] is not None:
         lines.append(f"    reason: {row['reason']}")
     return "\n".join(lines)

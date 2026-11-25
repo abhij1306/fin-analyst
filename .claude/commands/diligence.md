@@ -93,9 +93,29 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    closed, when the user says: `uv run fin query withdraw <company> <ids...> --reason "..."`.
 6. **Adjustments.** Propose an adjustment only with evidence: an answered query, a finding, or a source reference.
    `uv run fin adjust propose <company> --period <FY25> --scope standalone|consolidated --category <category>
-   --amount <rupees> --description "..." [--account <account>] [--query <id>] [--finding <id>] [--source "..."]`.
-   - The amount is the signed effect on EBITDA in rupees (positive raises it), and must come from `fin` output or
-     the source; never do arithmetic in prose.
+   (--amount <rupees> | --revenue-effect <rupees> --cost-effect <rupees>) --description "..." [--account <account>]
+   [--query <id>] [--finding <id>] [--source "..."]`.
+   - The effects are signed rupees and must come from `fin` output or the source; never do arithmetic in prose.
+     `--revenue-effect` raises revenue when positive, `--cost-effect` raises costs when positive, and the EBITDA
+     effect is always revenue effect minus cost effect (fin refuses, E804, an `--amount` that is not). `--amount`
+     alone is the effect on EBITDA, recorded as a cost effect of minus that amount (an add-back, a one-off item).
+   - **Pass-through.** The user gives the list of pass-through customers (SI/reseller deals at about zero margin,
+     as `CUST-` tokens): record it only as given, with where it came from:
+     `uv run fin engagement passthrough <company> --customer CUST-0001 --customer CUST-0002 --source "<where the
+     list came from>"` (E845: a token that is not on a loaded sales register; without options it shows the list).
+     Then show `fin sql` on `revenue_split` (per period: core revenue, pass-through revenue, its licence part (a
+     Purchase Id: software or licence) and services part (none), `linked_purchase_cost` and core revenue growth)
+     and `passthrough_lines` (each line with its OEM purchase). Growth is on core revenue only. Propose the
+     `normalisation` adjustment that strips pass-through per period and scope with the figures from those views:
+     `--category normalisation --revenue-effect -<passthrough_revenue> --cost-effect -<linked_purchase_cost>`,
+     evidence `--source "revenue_split <period>"` (or a query). Say if a pass-through line has no purchase behind it
+     (`passthrough_lines` shows NULL purchase columns): its cost is not in `linked_purchase_cost`. Do not value
+     the pass-through revenue or say what multiple it deserves: that is the user's judgement.
+   - **Reclassification.** Revenue and cost of the same size moved out of both (for example a recharge shown gross):
+     `--category reclassification --revenue-effect -X --cost-effect -X` (EBITDA effect 0; the margin on adjusted
+     revenue changes). A cost moved between two cost accounts: `--category reclassification --account <to>
+     --from-account <from> --moved-amount <rupees> --amount 0` (both in `fin map accounts`, expenses of the profit
+     and loss; no effect on any total).
    - Categories are `adjustment_categories` in `config.toml`; the period must be one of the engagement's; an
      account must be in `uv run fin map accounts`.
    - Describe what the item is and the evidence; do not judge the company.
@@ -108,6 +128,8 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    each accepted adjustment, adjusted EBITDA) and the EBITDA-to-cash walk (non-cash and other, working capital
    change, taxes paid, other operating, CFO, capex, free cash flow, cash conversion). Report the figures from that
    output (or `fin sql` on the views `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`), and flag:
+   - the margin on adjusted revenue (`adjusted_ebitda_margin`, with `adjusted_revenue`) differs from the reported
+     margin when accepted adjustments have a revenue effect: show both, labelled;
    - proposed adjustments: shown as "not applied" with their sum; they are not in adjusted EBITDA until the user
      accepts them;
    - a line shown as `-`: its input is missing (named in "missing: ..."); say which, never treat it as zero or fill
@@ -137,4 +159,4 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    misread figure) is still done through `/ingest` and `/review`. If a command fails (E801 a gate not approved, E802
    a gate not ready, E803 no open engagement, E804 an adjustment that is not valid, E805 an unknown id or a status
    change not allowed, E806 `fin sql --write` on a diligence table, E807-E811 a source file that cannot load or
-   `mask_values` read, E812 a reconciliation that cannot run, E820-E821 payroll: no loaded payroll file named, or an unreadable row), report the error code and run_id and stop.
+   `mask_values` read, E812 a reconciliation that cannot run, E845 a pass-through customer that is not on a loaded sales register, E820-E821 payroll: no loaded payroll file named, or an unreadable row), report the error code and run_id and stop.
