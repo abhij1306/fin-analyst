@@ -296,7 +296,7 @@ def _check_raise_options(
 ) -> list[int]:
     """The item ids of `query raise --items` ([] otherwise); BadParameter for a bad mix of the
     options. `manual` is (amount, period, scope, source)."""
-    amount, period, scope, source = manual
+    amount, period, _, source = manual
     if items is not None:
         if finding is not None or any(value is not None for value in manual):
             raise typer.BadParameter(

@@ -13,6 +13,7 @@ found on more than one sheet, or one sheet fits both kinds.
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from openpyxl import Workbook
 
@@ -58,11 +59,15 @@ def read_registers(
     )
 
 
+def _with_columns(profile: Profile, columns: Any) -> Profile:
+    return replace(profile, columns=columns)
+
+
 def _find_parts(book: Workbook, profile: Profile, problems: list[str]) -> dict[str, tuple]:
     """For each sheet kind of the profile, the one sheet and header that fit it."""
     found = {}
     for part, columns in profile.parts.items():
-        sub: Profile = replace(profile, columns=columns)
+        sub = _with_columns(profile, columns)
         hits = [(s, h) for s in book.worksheets if (h := _header(s, sub)) is not None]
         if len(hits) > 1:
             names = ", ".join(repr(s.title) for s, _ in hits)
