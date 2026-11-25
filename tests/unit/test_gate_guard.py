@@ -78,6 +78,8 @@ def test_commands_that_look_like_a_gate_approval_ask(command: str) -> None:
         "uv run fin fdd FINDING \\\n  final bluepeak 3",
         'uv run python -c "from fin.fdd.findings import set_status"',
         'uv run python -c "from fin.fdd import findings; findings.set_status(r, c, [1])"',
+        'uv run python -c "import fin.fdd.findings as f; f.set_status(r, c, [1])"',
+        'uv run python -c "from fin.fdd import findings as f; f.set_status(r, c, [1])"',
     ],
 )
 def test_marking_an_fdd_finding_final_asks_the_user(command: str) -> None:

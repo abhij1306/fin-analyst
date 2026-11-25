@@ -38,7 +38,8 @@ CREATE TABLE fdd_findings (
 );
 
 -- Each finding with its amount and where the amount comes from: an adjustment's amount, a net debt item's amount, a
--- reconciliation run's lines at or above the threshold (sum of the absolute differences), else the linked query's
+-- reconciliation run's lines at or above the threshold (sum of the absolute differences in rupees: amount_inr, or the
+-- difference of a rupee line; a foreign-currency line with no rupee value is left out), else the linked query's
 -- amount; NULL when nothing is linked. The management response is the linked query's answer.
 CREATE VIEW fdd_finding_rows AS
 SELECT f.*,
@@ -46,8 +47,9 @@ SELECT f.*,
         WHEN f.adj_id IS NOT NULL THEN a.amount
         WHEN f.netdebt_item_id IS NOT NULL THEN n.amount
         WHEN f.recon_id IS NOT NULL THEN (
-            SELECT coalesce(sum(abs(i.difference)), 0) FROM recon_items i
-            WHERE i.recon_id = f.recon_id AND i.needs_query)
+            SELECT coalesce(sum(abs(coalesce(i.amount_inr,
+                CASE WHEN coalesce(i.currency, 'INR') = 'INR' THEN i.difference END))), 0)
+            FROM recon_items i WHERE i.recon_id = f.recon_id AND i.needs_query)
         ELSE q.amount
     END AS amount,
     CASE

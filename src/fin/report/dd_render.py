@@ -32,7 +32,7 @@ from fin.config import load_config
 from fin.report import dd_tables as t
 from fin.report.data import data_hash, to_json
 from fin.report.dd_data import FIGURES, collect
-from fin.report.lint import FIGURE, lint, split_sections, strip_comments
+from fin.report.lint import FIGURE, FIGURE_EXAMPLE, lint, split_sections, strip_comments
 from fin.report.render import (
     PLACEHOLDER,
     REPO,
@@ -316,5 +316,5 @@ DILIGENCE = Kind(
     rules=RULES,
     collect=collect,
     parts=diligence_parts,
-    lint=lambda text, name: lint(text, name, FIGURE),
+    lint=lambda text, name: lint(text, name, FIGURE, FIGURE_EXAMPLE),
 )

@@ -22,7 +22,7 @@ from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
 from fin.diligence.mask import Masker
-from fin.report.lint import JUDGING, typed_number_lines
+from fin.report.lint import FDD_ALLOWED, JUDGING, typed_number_lines
 
 AREAS = ("qoe", "working_capital", "net_debt", "revenue", "walkthroughs", "provisions", "tax",
          "contingencies", "related_parties", "inquiries", "other")  # fmt: skip
@@ -54,7 +54,7 @@ def _check(con: duckdb.DuckDBPyConnection, engagement_id: int, fields: dict[str,
             problems.append(f"give the {name}")
     for name in TEXTS:
         text = fields.get(name) or ""
-        if typed_number_lines(text):
+        if typed_number_lines(text, FDD_ALLOWED):
             problems.append(f"the {name} has a typed number (amounts come from the evidence)")
         if JUDGING.search(text):
             problems.append(f"the {name} has valuation, rating or buy/don't-buy language")

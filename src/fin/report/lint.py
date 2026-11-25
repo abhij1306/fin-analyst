@@ -26,6 +26,11 @@ STUB = r"FY\d{2}-YTD-[A-Z]{3}"
 FIGURE = re.compile(r"\{\{(figure):([a-z][a-z0-9_]*):(" + PERIOD + "|" + STUB + r")\}\}")
 FISCAL_YEAR = re.compile(r"\b" + PERIOD + r"\b")
 DIGIT = re.compile(r"\d")  # any Unicode digit
+# A masked name (fin.diligence.mask.PREFIX: CUST-0001, LEDG-0012, ...): an identity, not a number.
+# The FDD report and its findings allow them (fin.report.lint.lint_fdd, fin.fdd.findings).
+TOKEN = r"\b(?:CUST|VEND|USER|EMP|ECODE|LEDG|PRTY)-\d+\b"
+FDD_ALLOWED = re.compile(FIGURE.pattern + "|" + TOKEN)
+FIGURE_EXAMPLE = "{{figure:adjusted_ebitda:FY25}}"
 HEADING = re.compile(r"^## (.+)$")
 
 
@@ -59,14 +64,20 @@ def typed_number_lines(text: str, pattern: re.Pattern[str] = REFERENCE) -> list[
     return found
 
 
-def lint(text: str, name: str, pattern: re.Pattern[str] = REFERENCE) -> None:
-    """Raise E602 listing every line of the narrative `name` with a hand-typed number."""
+def lint(
+    text: str,
+    name: str,
+    pattern: re.Pattern[str] = REFERENCE,
+    example: str = "{{metric:ebitda_margin:FY25}} or {{fact:revenue:FY25}}",
+) -> None:
+    """Raise E602 listing every line of the narrative `name` with a hand-typed number; `example`
+    is the reference the message suggests."""
     lines = typed_number_lines(text, pattern)
     if lines:
         listing = "\n".join(f"  line {number}: {line}" for number, line in lines)
         raise NarrativeHasTypedNumbers(
             f"{name} has hand-typed numbers on {len(lines)} line(s); write each number as a "
-            "reference such as {{metric:ebitda_margin:FY25}} or {{fact:revenue:FY25}}:\n" + listing
+            f"reference such as {example}:\n" + listing
         )
 
 
@@ -83,7 +94,8 @@ JUDGING = re.compile(
     r"|\b(?:good|bad|attractive|unattractive|sound|poor|strong|weak|compelling) investment\b"
     r"|\bworth (?:buying|acquiring|investing|paying)\b"
     r"|\b(?:should|shouldn't|should not|do not|don't|must not) (?:buy|acquire|invest)\b"
-    r"|\bproceed with the (?:deal|transaction|acquisition|investment)\b|\bbuy\b(?!-back)",
+    r"|\bproceed with the (?:deal|transaction|acquisition|investment)\b|\bbuy\b(?!-back)"
+    r"|\b(?:recommend|suggest|advise|favour|favor) (?:buying|acquiring|investing|purchasing)\b",
     re.IGNORECASE,
 )
 
@@ -99,9 +111,10 @@ def judging_lines(text: str) -> list[tuple[int, str]]:
 
 
 def lint_fdd(text: str, name: str) -> None:
-    """The FDD report's narrative: E602 for a hand-typed number (references are {{figure:...}}),
-    E972 for valuation, investment-rating or buy/don't-buy language."""
-    lint(text, name, FIGURE)
+    """The FDD report's narrative: E602 for a hand-typed number (references are {{figure:...}};
+    tokens such as CUST-0001 are names, not numbers), E972 for valuation, investment-rating or
+    buy/don't-buy language."""
+    lint(text, name, FDD_ALLOWED, FIGURE_EXAMPLE)
     lines = judging_lines(text)
     if lines:
         listing = "\n".join(f"  line {number}: {line}" for number, line in lines)

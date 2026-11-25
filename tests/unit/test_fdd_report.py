@@ -16,12 +16,14 @@ from fin.audit.errors import (
     NarrativeJudges,
 )
 from fin.db.conn import connect
+from fin.diligence.mask import FREE_TEXT_COLUMNS, PREFIX
 from fin.fdd import findings
 from fin.paths import company_db_path
 from fin.report import dd_render
 from fin.report.fdd_data import collect
 from fin.report.fdd_render import FDD, SECTIONS, make_fdd_report
-from fin.report.lint import judging_lines, lint_fdd
+from fin.report.fdd_tables import key_findings
+from fin.report.lint import TOKEN, judging_lines, lint_fdd
 from tests.qoe_fixtures import build_root, run
 
 FINDING = {
@@ -179,11 +181,27 @@ def test_the_fdd_stub_names_its_sections_and_figures(report_data: dict[str, Any]
         "The buyer should not acquire the company.",
         "On balance we would buy.",
         "The business looks overvalued.",
+        "We recommend buying the company.",
     ],
 )
 def test_valuation_rating_and_buy_language_is_e972(line: str) -> None:
     with pytest.raises(NarrativeJudges, match="line 3"):
         lint_fdd(f"## Key findings\n\n{line}\n", "n")
+
+
+def test_stored_text_is_escaped_in_the_report() -> None:
+    row = {**FINDING, "finding_id": 7, "status": "final", "amount": None, "query_id": None,
+           "observation": "<script>alert(1)</script> found"}  # fmt: skip
+    text = key_findings({"fdd_findings": [row], "drafts": False}, "rupees")
+    assert "<script>" not in text and "&lt;script&gt;" in text
+
+
+def test_tokens_are_names_not_typed_numbers(root: Path) -> None:
+    row = propose(root, observation="CUST-0001 and LEDG-0012 have no contract on file.")
+    assert row["observation"].startswith("CUST-0001")
+    lint_fdd("## Revenue, contracts and visibility\n\nVEND-0002 has no contract.\n", "n")
+    assert ("fdd_findings", "observation") in FREE_TEXT_COLUMNS
+    assert set(PREFIX.values()) <= set(TOKEN[TOKEN.index("(?:") + 3 : TOKEN.index(")")].split("|"))
 
 
 def test_fdd_words_that_are_not_judging_pass() -> None:

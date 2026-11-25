@@ -5,6 +5,7 @@ value was computed in SQL. A section whose data is not loaded says so. Names are
 readings are labelled as such, not verified.
 """
 
+import html
 from typing import Any
 
 from fin.report.dd_tables import _label, _m, _ratio
@@ -21,6 +22,17 @@ LABELS = {
     "related_parties": "related parties",
 }
 NOT_VERIFIED = "Read by Claude from the documents (file + page); not verified by fin."
+
+
+def _t(text: str | None) -> str:
+    """Stored free text (Claude's findings and readings, accountants' answers) for Markdown: HTML
+    markup is escaped, so it shows as text and never runs in fdd.html."""
+    return html.escape(text or "", quote=False)
+
+
+def _known(value: bool | None) -> str:
+    """A term Claude read, or did not: yes, no, or "not read" (never shown as absent)."""
+    return "not read" if value is None else ("yes" if value else "no")
 
 
 def _word(value: str) -> str:
@@ -56,22 +68,23 @@ def _finding(r: dict[str, Any], unit: str, drafts: bool) -> str:
         f"{_m(r['amount'], unit)} ({r['amount_source']})" if r["amount"] is not None else "none"
     )
     lines = [
-        f"#### {r['title']} (finding #{r['finding_id']})" + (f" [{r['status']}]" if drafts else ""),
+        f"#### {_t(r['title'])} (finding #{r['finding_id']})"
+        + (f" [{r['status']}]" if drafts else ""),
         "",
-        r["observation"],
+        _t(r["observation"]),
         "",
         f"- Area: {_word(r['area'])}; impact: {_word(r['impact_type'])}; amount: {amount}",
     ]
     if r["implication"]:
-        lines.append(f"- Implication: {r['implication']}")
+        lines.append(f"- Implication: {_t(r['implication'])}")
     lines.append(f"- Deal consideration: {_word(r['deal_consideration'])}")
     if r["query_id"] is not None:
-        response = r["management_response"] or f"no answer yet (query {r['query_status']})"
-        source = f"; {r['response_source']}" if r["response_source"] else ""
+        response = _t(r["management_response"]) or f"no answer yet (query {r['query_status']})"
+        source = f"; {_t(r['response_source'])}" if r["response_source"] else ""
         lines.append(f"- Management response (query #{r['query_id']}{source}): {response}")
     else:
         lines.append("- Management response: no query raised")
-    lines.append(f"- Evidence: {r['evidence']}")
+    lines.append(f"- Evidence: {_t(r['evidence'])}")
     return "\n".join(lines)
 
 
@@ -99,8 +112,8 @@ def coverage_table(data: dict[str, Any], unit: str) -> str:
         [
             r["party_kind"], str(r["rank"]), r["counterparty"], _m(r["amount_inr"], unit),
             "yes" if r["contract_on_file"] else "no",
-            "yes" if r["expires_within_12m"] else "no",
-            "yes" if r["change_of_control"] else "no",
+            _known(r["expires_within_12m"]),
+            _known(r["change_of_control"]),
             f"{r['file_name']} p. {r['page']}" if r["file_name"] else "",
         ]
         for r in data["coverage"]
@@ -122,18 +135,21 @@ def visibility_table(data: dict[str, Any], unit: str) -> str:
         )
     rows = [
         [
-            r["source"], str(r["items"]), _m(r["remaining_amount"], unit),
+            r["source"], str(r["items"]), str(r["unusable_items"]), _m(r["remaining_amount"], unit),
             _m(r["covered_next_year"], unit), _m(r["core_revenue"], unit),
             f"{r['covered_pct']}%" if r["covered_pct"] is not None else "n/a",
         ]
         for r in found["sources"]
     ]  # fmt: skip
+    notes = "".join(
+        f"\n\n- {n['source']}: {n['note']} ({n['items']} items)" for n in found["notes"]
+    )
     return table(
-        ["Source (never added together)", "Items", "Remaining", "In the next year",
-         "Last year's core revenue", "Covered"],
+        ["Source (never added together)", "Items", "Not usable (left out)", "Remaining",
+         "In the next year", "Last year's core revenue", "Covered"],
         rows,
         "",
-    )  # fmt: skip
+    ) + notes  # fmt: skip
 
 
 def walkthroughs_table(data: dict[str, Any], unit: str) -> str:
@@ -158,12 +174,13 @@ def receivables_table(data: dict[str, Any], unit: str) -> str:
         [
             r["period"], r["bucket"], _m(r["open_inr"], unit), str(r["invoices"]),
             _ratio(r["share"]), _m(r["provision_inr"], unit), _ratio(r["coverage"]),
+            _m(r["not_in_bank_run_inr"], unit),
         ]
         for r in data["provisions"]["receivables"]
     ]  # fmt: skip
     return table(
         ["Year end", "Age (days)", "Open", "Invoices", "Share", "Doubtful debts provision",
-         "Coverage of this and older"],
+         "Coverage of this and older", "Invoices in no bank run (not aged)"],
         rows,
         "Not loaded: no bank receipts matched to invoices (`fin reconcile <co> bank_vs_invoices`).",
     )  # fmt: skip
@@ -173,7 +190,7 @@ def gratuity_table(data: dict[str, Any], unit: str) -> str:
     found = data["provisions"]
     rows = [
         [
-            r["period"], str(r["employees"]), str(r["eligible"]),
+            r["period"], str(r["employees"]), str(r["eligible"]), str(r["incomplete"]),
             _m(r["gratuity_basic_share"], unit), _m(r["gratuity_wage_code"], unit),
             _m(r["provision_inr"], unit), _m(r["shortfall_basic_share"], unit),
         ]
@@ -183,11 +200,13 @@ def gratuity_table(data: dict[str, Any], unit: str) -> str:
         return "Not loaded: no payroll snapshot confirmed annual (`fin payroll confirm-unit`)."
     a = found["assumptions"]
     note = (
-        f"Gratuity is {a['label']}: basic pay is the stated share of gross salary "
-        "(config.toml [fdd] basic_share), with the minimum years and the cap of [fdd]."
+        f"Gratuity is {a['label']}. Assumptions (config.toml [fdd]): basic pay is "
+        f"{_ratio(a['basic_share'])} of gross salary, at least {a['gratuity_min_years']} completed "
+        f"years, capped at {_m(a['gratuity_cap'], unit)} per employee."
     )
     return note + "\n\n" + table(
-        ["Period", "Employees", "Eligible", "Gratuity (basic share)", "Gratuity (wage code)",
+        ["Period", "Employees", "Eligible", "Incomplete (not computed)", "Gratuity (basic share)",
+         "Gratuity (wage code)",
          "Provision", "Shortfall (basic share)"],
         rows,
         "",
@@ -230,7 +249,7 @@ def gst_table(data: dict[str, Any], unit: str) -> str:
 def _schedule(rows: list[dict[str, Any]], unit: str, empty: str) -> str:
     out = [
         [
-            _word(r["kind"]), r["period"], r["counterparty"] or "", r["nature"],
+            _word(r["kind"]), r["period"], r["counterparty"] or "", _t(r["nature"]),
             _m(r["amount"], unit) if r["amount"] is not None else "",
             " ".join(x for x in (r["forum"], r["stage"]) if x),
             f"{r['file_name']} p. {r['page']}",
@@ -260,7 +279,7 @@ def related_table(data: dict[str, Any], unit: str) -> str:
     rows = [r for kind in found["related_kinds"] for r in found["schedules"][kind]]
     text = _schedule(rows, unit, "Not loaded: no related party disclosure read.")
     books = [
-        [r["party"], r["period"], r["source"], r["nature"] or "", _m(r["amount"], unit)]
+        [r["party"], r["period"], r["source"], _t(r["nature"]), _m(r["amount"], unit)]
         for r in found["transactions"]
     ]
     if books:
@@ -272,7 +291,7 @@ def related_table(data: dict[str, Any], unit: str) -> str:
 
 def inquiries_table(data: dict[str, Any]) -> str:
     rows = [
-        [_word(t["topic"]), f"#{q['query_id']}", q["status"], q["question"], q["answer"] or ""]
+        [_word(t["topic"]), f"#{q['query_id']}", q["status"], _t(q["question"]), _t(q["answer"])]
         for t in data["inquiries"]
         for q in t["queries"]
     ]

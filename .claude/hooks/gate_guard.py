@@ -8,7 +8,8 @@ words still counts. It looks like a gate approval, and the hook prints a decisio
 Claude Code asks the user first, when it has the word `gate` followed later by `approve`, or names
 `gate_approvals`, `approve_in`, `gates.approve` or `from fin.diligence.gates import`; it marks
 a finding final when it has `finding final` (`fin fdd finding final`, with or without --undo) or
-names `findings.set_status` or `from fin.fdd.findings import`. When in doubt it asks: a commit
+names `findings.set_status`, `fin.fdd.findings` or `from fin.fdd import findings` (an import of
+it, aliased or not). When in doubt it asks: a commit
 message with "gate approve" in it asks too. For anything else, and for input it cannot read, it
 prints nothing and exits 0, so no other command is ever blocked. `fin sql --write` refuses to
 write the gate approvals and FDD findings tables on its own (E806). See docs/product.md §8.
@@ -22,7 +23,7 @@ GATE = re.compile(r"\bgate\b")
 APPROVE = re.compile(r"\bapprove\b")
 NAMES = ("gate_approvals", "approve_in", "gates.approve", "from fin.diligence.gates import")
 FINAL = re.compile(r"\bfinding final\b")
-FINAL_NAMES = ("findings.set_status", "from fin.fdd.findings import")
+FINAL_NAMES = ("findings.set_status", "fin.fdd.findings", "from fin.fdd import findings")
 
 
 def normalise(command: str) -> str:

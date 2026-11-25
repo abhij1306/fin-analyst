@@ -57,7 +57,7 @@ def test_findings_through_the_cli(root: Path, audit_query: Any) -> None:
     assert "[draft] high qoe: Legal fees added back" in proposed.output
     assert "from adjustment #1 (proposed)" in proposed.output
     assert typed.exit_code == 2 and "E970" in typed.output
-    rows = json.loads(listed.output)
+    rows = json.loads(listed.stdout)
     assert [(r["finding_id"], r["status"]) for r in rows] == [(1, "draft")]
     assert final.exit_code == 0 and "[final]" in final.output
     assert again.exit_code == 2 and "E971" in again.output
@@ -73,7 +73,7 @@ def test_the_fdd_report_writes_its_stub_first(root: Path) -> None:
     result = fin("report", "acme", "--fdd")
 
     assert result.exit_code == 0, result.output
-    path = Path(json.loads(result.output)["narrative_path"])
+    path = Path(json.loads(result.stdout)["narrative_path"])
     assert path.name == "fdd_narrative.md"
     assert "## Key findings" in path.read_text(encoding="utf-8")
     both = fin("report", "acme", "--fdd", "--diligence")

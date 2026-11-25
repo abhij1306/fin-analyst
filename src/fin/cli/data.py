@@ -214,10 +214,10 @@ def report_command(
     /report); the next run lints it (E602 on hand-typed numbers) and renders HTML, docx and PDF.
     A failed render (E601) keeps the last good report."""
     peer_list = [check_company(p.strip()) for p in peers.split(",") if p.strip()] if peers else None
+    if diligence and fdd:
+        raise typer.BadParameter("use --diligence or --fdd, not both")
 
     def body(run: Run) -> None:
-        if diligence and fdd:
-            raise typer.BadParameter("use --diligence or --fdd, not both")
         if fdd:
             result = make_fdd_report(run, company, scope, render, drafts)
         elif diligence:

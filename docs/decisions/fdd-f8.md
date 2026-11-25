@@ -6,8 +6,9 @@ Builder's readings of [fdd.md](../fdd.md) F8, not owner decisions. Scope reading
 ## A finding's amount comes only from linked evidence
 
 - **Decision**: a finding has no amount field. Its amount is the linked adjustment's amount, the linked net debt item's
-  amount, or a linked reconciliation run's lines at or above the threshold (the sum of their absolute differences); at
-  most one of these. With none, it is the linked query's amount; with no link, it has no amount. The report shows the
+  amount, or a linked reconciliation run's lines at or above the threshold (the sum of their absolute differences in
+  rupees: the line's rupee difference, so a foreign-currency line with no rupee value is left out); at most one of
+  these. With none, it is the linked query's amount; with no link, it has no amount. The report shows the
   source next to the amount (for example "adjustment #3 (proposed)"), whatever the linked item's status.
 - **Why**: the plan says "amount (only from linked evidence)", and CLAUDE.md forbids typed numbers. For a run, signed
   differences would cancel out, so the absolute sum of the lines that need a query is the size of the issue (as the
@@ -17,8 +18,9 @@ Builder's readings of [fdd.md](../fdd.md) F8, not owner decisions. Scope reading
 
 ## Finding text is held to the report's narrative rules
 
-- **Decision**: a finding's title, observation and implication may not hold a digit (outside `FY25`-style labels) or
-  valuation, investment-rating or buy/don't-buy language (E970); evidence may hold page numbers and file names. Names
+- **Decision**: a finding's title, observation and implication may not hold a digit (outside `FY25`-style labels and
+  name tokens such as `CUST-0001`, which are identities, not numbers) or valuation, investment-rating or buy/don't-buy
+  language (E970); the FDD narrative lint allows tokens the same way; evidence may hold page numbers and file names. Names
   in all of them are replaced by their tokens.
 - **Why**: the findings are printed in the report, so they follow the narrative rule (numbers only as references).
   Findings have no references, so the amount column carries the number. This also refuses standard names with digits
@@ -31,7 +33,7 @@ Builder's readings of [fdd.md](../fdd.md) F8, not owner decisions. Scope reading
   valuation), enterprise, equity, purchase, intrinsic or fair market value, "valued at", over/under/fairly valued,
   EV/EBITDA, P/E, earnings/EBITDA/revenue multiples, investment/buy/sell/hold rating or recommendation, investment
   grade, good/attractive/poor/... investment, "worth buying", should (not)/do not buy, acquire or invest, "proceed with
-  the deal", and the word "buy" (not "buy-back"). "Buyer", "fair value", "price" as a deal consideration, "recommend"
+  the deal", recommend/suggest/advise buying, acquiring or investing, and the word "buy" (not "buy-back"). "Buyer", "fair value", "price" as a deal consideration, "recommend"
   and severity words pass.
 - **Why**: the owner allowed severity, implications and deal considerations (2026-11-25) but not valuation, an
   investment rating or buy/don't-buy language. A word list ("rating", "value", "sell") would refuse normal FDD text
@@ -58,6 +60,16 @@ Builder's readings of [fdd.md](../fdd.md) F8, not owner decisions. Scope reading
 - **Why**: the plan takes the response from the query's answer. One list keeps the findings in one place; the
   sections keep the figures.
 - **How to change it**: `fin/report/fdd_tables.py`: `key_findings`, `_finding`.
+
+## Incomplete inputs are shown, not hidden
+
+- **Decision**: the FDD tables keep what the workstreams flag: a contract term Claude did not read (change of control,
+  an unknown end date) shows "not read", never "no"; the receivables ageing shows the invoices in no bank run (not
+  aged); the gratuity table shows the employees not computed and states the [fdd] assumptions with their values; the
+  visibility table shows the items left out and the notes `fin visibility` prints. Free text from readings, findings
+  and answers is HTML-escaped so it shows as text.
+- **Why**: a total shown without what it leaves out reads as complete, which the evidence does not support.
+- **How to change it**: `fin/report/fdd_tables.py`.
 
 ## Figures the FDD narrative can reference
 
