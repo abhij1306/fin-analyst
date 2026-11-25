@@ -262,7 +262,7 @@ gets a `## <Title>` heading for it, and `{{narrative:<key>}}` in the template pl
 
 Authored source files (code and SQL, not tests, lockfiles, generated code or migrations) stay under 6,000 tokens
 (bytes / 4). `node tools/check_file_size.mjs` checks every tracked file (CI's lint job runs it);
-`.githooks/pre-commit` checks the staged files: install it once per clone with `git config core.hooksPath .githooks`.
+`.githooks/pre-commit` checks the staged files (it passes them to the script): install it once per clone with `git config core.hooksPath .githooks`.
 The fix for an oversized file is to split it along its seams (pure moves), never to compress it or to exclude it.
 
 ## Schema

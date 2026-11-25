@@ -3,5 +3,10 @@
 // Install once per clone: git config core.hooksPath .githooks
 import { spawnSync } from "node:child_process";
 
-const result = spawnSync("node", ["tools/check_file_size.mjs", "--staged"], { stdio: "inherit" });
+const staged = spawnSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
+  encoding: "utf8",
+});
+const files = (staged.stdout ?? "").split("\n").filter(Boolean);
+if (files.length === 0) process.exit(0);
+const result = spawnSync("node", ["tools/check_file_size.mjs", ...files], { stdio: "inherit" });
 process.exit(result.status ?? 1);

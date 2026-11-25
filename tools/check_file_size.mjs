@@ -1,12 +1,10 @@
 // Authored source files stay under 6,000 tokens (tokens = bytes / 4). Run from the repo root:
-//   node tools/check_file_size.mjs            every tracked source file (CI)
-//   node tools/check_file_size.mjs --staged   the staged files (the pre-commit hook)
-//   node tools/check_file_size.mjs a.py b.sql the files named
+//   node tools/check_file_size.mjs            every source file under the current folder (CI)
+//   node tools/check_file_size.mjs a.py b.sql the files named (the pre-commit hook passes the staged ones)
 // Tests, lockfiles, generated code and migrations are not authored source and are skipped. The fix
 // for a file over the limit is to split it along its seams, never to compress it or skip it here.
-import { execFileSync } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
-import { extname } from "node:path";
+import { readdirSync, statSync } from "node:fs";
+import { extname, join } from "node:path";
 
 const MAX_TOKENS = 6000;
 const SOURCE = new Set([".py", ".js", ".mjs", ".cjs", ".ts", ".svelte", ".sql", ".sh"]);
@@ -22,23 +20,25 @@ function tokens(bytes) {
   return bytes / 4;
 }
 
-function git(...args) {
-  return execFileSync("git", args, { encoding: "utf8" }).split("\n").filter(Boolean);
+function walk(folder) {
+  const found = [];
+  for (const entry of readdirSync(folder, { withFileTypes: true })) {
+    if (entry.name === ".git" || entry.name === "node_modules" || entry.name === ".venv") continue;
+    const path = join(folder, entry.name);
+    if (entry.isDirectory()) found.push(...walk(path));
+    else found.push(path);
+  }
+  return found;
 }
 
 function main(argv) {
-  const staged = argv.includes("--staged");
   const named = argv.filter((a) => !a.startsWith("--"));
-  const files = named.length
-    ? named
-    : staged
-      ? git("diff", "--cached", "--name-only", "--diff-filter=ACMR")
-      : git("ls-files");
+  const files = named.length ? named : walk(".");
   const over = [];
   for (const file of files.filter(isAuthoredSource)) {
     let size;
     try {
-      size = named.length ? statSync(file).size : readFileSync(file).length;
+      size = statSync(file).size;
     } catch {
       continue; // deleted or unreadable: nothing to measure
     }
