@@ -137,26 +137,30 @@ def format_bundle(bundle: dict[str, Any]) -> str:
         + "".join(f"; {c['name']} {c['status']}" for c in d["checks"] if c["status"] != "ok"),
     ]
     for c in bundle["companies"]:
-        out += ["", f"## {c['company']}", ""]
-        if not c["golden_set"]:
-            out.append("no golden set")
-        else:
-            s = c["summary"]
-            score = "no checked lines" if s["score_percent"] is None else f"{s['score_percent']}%"
-            out.append(
-                f"score {score}: {s['pass']} pass, {s['fail']} fail, {s['missing']} missing "
-                f"in fin, {s['unchecked']} unchecked"
-            )
-        for f in c["failures"]:
-            figures = f", expected {f['expected']}, fin {f['fin']}" if "expected" in f else ""
-            out.append(
-                f"- {f['outcome']} {f['kind']} {f['period']} {f['scope']} "
-                f"{f['account'] or f['ledger']} ({f['source_kind']}; relative difference "
-                f"{f['relative_difference'] or 'n/a'}{figures}; "
-                f"codes {', '.join(f['codes']) or 'none'})"
-            )
-        out += ["", "```json", json.dumps(c["counts"], indent=2, default=str), "```"]
+        out += _company_lines(c)
     return "\n".join(out) + "\n"
+
+
+def _company_lines(c: dict[str, Any]) -> list[str]:
+    out = ["", f"## {c['company']}", ""]
+    s = c["summary"]
+    if s is None:
+        out.append("no golden set")
+    else:
+        score = "no checked lines" if s["score_percent"] is None else f"{s['score_percent']}%"
+        out.append(
+            f"score {score}: {s['pass']} pass, {s['fail']} fail, {s['missing']} missing "
+            f"in fin, {s['unchecked']} unchecked"
+        )
+    for f in c["failures"]:
+        figures = f", expected {f['expected']}, fin {f['fin']}" if "expected" in f else ""
+        out.append(
+            f"- {f['outcome']} {f['kind']} {f['period']} {f['scope']} "
+            f"{f['account'] or f['ledger']} ({f['source_kind']}; relative difference "
+            f"{f['relative_difference'] or 'n/a'}{figures}; "
+            f"codes {', '.join(f['codes']) or 'none'})"
+        )
+    return out + ["", "```json", json.dumps(c["counts"], indent=2, default=str), "```"]
 
 
 def make_bundle(run: Run, company: str | None, with_figures: bool) -> tuple[Path, Path]:

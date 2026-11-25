@@ -16,7 +16,7 @@ from fin.audit.logger import Run
 from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
 from fin.evals.counts import counts, related_codes
-from fin.evals.golden import Check, read_golden
+from fin.evals.golden import LATEST_ENGAGEMENT, Check, read_golden
 from fin.map.dictionary import load_accounts
 from fin.paths import evals_dir
 
@@ -30,17 +30,19 @@ _FIN_VALUE = {
     "tb_ledger": (
         "SELECT sum(t.closing_debit - t.closing_credit) FROM trial_balance t "
         "JOIN source_files s USING (file_id) WHERE s.status = 'loaded' AND t.row_type = 'ledger' "
-        "AND t.period = ? AND t.ledger = ? HAVING count(*) > 0",
+        f"AND s.engagement_id = {LATEST_ENGAGEMENT} AND t.period = ? AND t.ledger = ? "
+        "HAVING count(*) > 0",
         ("period", "ledger"),
     ),
     "tb_vs_statements": (
         "SELECT difference FROM recon_items WHERE account = ? AND recon_id = "
-        f"(SELECT max(recon_id) FROM recon_runs WHERE name = '{RECON}' AND period = ?)",
+        f"(SELECT max(recon_id) FROM recon_runs WHERE name = '{RECON}' AND period = ? "
+        f"AND engagement_id = {LATEST_ENGAGEMENT})",
         ("account", "period"),
     ),
     "stub": (
-        "SELECT value FROM stub_figures WHERE period = ? AND account = ? AND engagement_id = "
-        "(SELECT max(engagement_id) FROM engagement WHERE stub IS NOT NULL)",
+        "SELECT value FROM stub_figures WHERE period = ? AND account = ? "
+        f"AND engagement_id = {LATEST_ENGAGEMENT}",
         ("period", "account"),
     ),
 }
@@ -60,7 +62,7 @@ def relative(fin: Decimal | None, expected: Decimal | None) -> Decimal | None:
 
 
 def score_check(con: duckdb.DuckDBPyConnection, check: Check) -> dict[str, Any]:
-    expected = check.rupees
+    expected = check.rupees if check.checked else None
     fin = fin_value(con, check)
     if not check.checked or expected is None:
         outcome = "unchecked"
@@ -98,7 +100,7 @@ def summary(checks: list[dict[str, Any]]) -> dict[str, Any]:
 
 def evaluate(run: Run, company: str) -> dict[str, Any]:
     """Score the company's golden set (E830 without one, E831 when it cannot be read) and count."""
-    checks = read_golden(run.root, company, set(load_accounts(run.root)))
+    checks = read_golden(run.root, company, load_accounts(run.root))
     with company_database(run, company) as con:
         scored = [score_check(con, check) for check in checks]
         found = counts(run.root, company, con)

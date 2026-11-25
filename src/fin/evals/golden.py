@@ -16,6 +16,7 @@ check with its source and leaves `expected` and `checked` empty.
 """
 
 import csv
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -23,6 +24,7 @@ from pathlib import Path
 from fin.audit.errors import GoldenSetInvalid, GoldenSetMissing
 from fin.config import SCOPES
 from fin.extract.units import RUPEES_PER_UNIT, parse_figure, to_rupees
+from fin.map.dictionary import Account
 from fin.paths import evals_dir
 
 COLUMNS = ("kind", "period", "scope", "account", "ledger", "expected", "unit", "source", "checked")
@@ -35,6 +37,9 @@ NEEDS = {
     "stub": ("period", "account"),
 }
 YES, NO = "yes", ("", "no")
+# Diligence checks read the latest engagement's files and runs: a closed engagement's trial balance
+# for the same period is not added to the current one.
+LATEST_ENGAGEMENT = "(SELECT max(engagement_id) FROM engagement)"
 
 
 @dataclass(frozen=True)
@@ -58,7 +63,9 @@ class Check:
     @property
     def rupees(self) -> Decimal | None:
         """The expected value in rupees (None when empty)."""
-        figure = parse_figure(self.expected) if self.expected.strip() else None
+        if not self.expected.strip() or not self.unit.strip():
+            return None
+        figure = parse_figure(self.expected)
         return None if figure is None else to_rupees(figure, unit_name(self.unit))
 
 
@@ -75,7 +82,7 @@ def unit_name(text: str) -> str:
     return word
 
 
-def _problems(check: Check, accounts: set[str]) -> list[str]:
+def _problems(check: Check, accounts: Mapping[str, Account]) -> list[str]:
     out = [f"{name} is empty" for name in NEEDS[check.kind] if not getattr(check, name)]
     if check.kind == "statement" and check.scope and check.scope not in SCOPES:
         out.append(f"scope {check.scope!r} is not one of {', '.join(SCOPES)}")
@@ -85,9 +92,15 @@ def _problems(check: Check, accounts: set[str]) -> list[str]:
         out.append(f"expected {check.expected!r} is not a figure")
     if check.unit.strip():
         try:
-            unit_name(check.unit)
+            unit = unit_name(check.unit)
         except KeyError:
             out.append(f"unit {check.unit!r} is not one of {', '.join(RUPEES_PER_UNIT)}")
+        else:
+            account = accounts.get(check.account)
+            if account is not None and account.unit != "rupees" and unit != "rupees":
+                out.append(
+                    f"{check.account} is stored as printed ({account.unit}): use unit rupees"
+                )
     if check.checked:
         out += [
             f"checked, but {n} is empty"
@@ -97,7 +110,7 @@ def _problems(check: Check, accounts: set[str]) -> list[str]:
     return out
 
 
-def read_golden(root: Path, company: str, accounts: set[str]) -> list[Check]:
+def read_golden(root: Path, company: str, accounts: Mapping[str, Account]) -> list[Check]:
     """Every line of the company's golden set. E830 when there is none; E831 listing every line at
     fault when any is."""
     path = golden_path(root, company)

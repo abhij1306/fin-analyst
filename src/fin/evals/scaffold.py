@@ -12,8 +12,17 @@ import duckdb
 from fin.audit.logger import Run
 from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
-from fin.evals.golden import COLUMNS, OPTIONAL, golden_path, read_golden, write_golden
-from fin.map.dictionary import load_accounts
+from fin.evals.golden import (
+    COLUMNS,
+    LATEST_ENGAGEMENT,
+    OPTIONAL,
+    golden_path,
+    read_golden,
+    write_golden,
+)
+from fin.map.dictionary import Account, load_accounts
+
+LATEST = LATEST_ENGAGEMENT
 
 UNITS = {1: "rupees", 1_000: "thousand", 100_000: "lakh", 1_000_000: "million", 10_000_000: "crore"}
 
@@ -26,24 +35,26 @@ JOIN raw_values r ON r.raw_id = f.raw_id
 JOIN documents d ON d.doc_id = c.doc_id
 ORDER BY c.scope, c.period_months DESC, c.period, r.statement, f.raw_id
 """
-_LEDGER = """
+_LEDGER = f"""
 SELECT t.period, t.ledger, s.file_name, t.sheet, t."row"
 FROM trial_balance t JOIN source_files s USING (file_id)
-WHERE s.status = 'loaded' AND t.row_type = 'ledger'
+WHERE s.status = 'loaded' AND t.row_type = 'ledger' AND s.engagement_id = {LATEST}
 ORDER BY t.period, s.file_id, t.sheet, t."row"
 """
-_RECON = """
+_RECON = f"""
 SELECT r.period, i.account, i.left_source, i.right_source
 FROM recon_items i JOIN recon_runs r USING (recon_id)
-WHERE r.recon_id IN (SELECT max(recon_id) FROM recon_runs WHERE name = ? GROUP BY period)
+WHERE r.recon_id IN (
+    SELECT max(recon_id) FROM recon_runs WHERE name = ? AND engagement_id = {LATEST} GROUP BY period
+)
     AND i.account IS NOT NULL
 ORDER BY r.period, i.item_no
 """
-_STUB = """
+_STUB = f"""
 SELECT x.period, x.account, s.file_name
 FROM stub_figures x JOIN source_files s USING (file_id)
 WHERE x.account IS NOT NULL
-    AND x.engagement_id = (SELECT max(engagement_id) FROM engagement WHERE stub IS NOT NULL)
+    AND x.engagement_id = {LATEST}
 ORDER BY x.statement, x.account
 """
 
@@ -54,8 +65,11 @@ def _row(kind: str, period: str, source: str, **values: str) -> dict[str, str]:
     return row
 
 
-def candidates(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
-    """One line per output fin has for the company now, with its source."""
+def candidates(
+    con: duckdb.DuckDBPyConnection, accounts: dict[str, Account]
+) -> list[dict[str, str]]:
+    """One line per output fin has for the company now, with its source. A per-share figure is
+    stored as printed, so its unit is rupees whatever the statement's unit."""
     rows = []
     statement = con.execute(_STATEMENT).fetchall()
     for account, period, scope, file_name, ref, per_unit, lines in statement:
@@ -67,7 +81,9 @@ def candidates(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
                 f"{file_name} {ref}",
                 scope=scope,
                 account=account,
-                unit=UNITS.get(per_unit, "rupees"),
+                unit=UNITS.get(per_unit, "rupees")
+                if accounts[account].unit == "rupees"
+                else "rupees",
                 note=note,
             )
         )
@@ -111,10 +127,10 @@ def init_golden(run: Run, company: str) -> dict[str, Any]:
     """Write or extend the company's golden set. E831 (nothing written) when the one there cannot be
     read, so a person's checks are never overwritten."""
     path = golden_path(run.root, company)
-    accounts = set(load_accounts(run.root))
+    accounts = load_accounts(run.root)
     existing = read_golden(run.root, company, accounts) if path.is_file() else []
     with company_database(run, company) as con:
-        found = candidates(con)
+        found = candidates(con, accounts)
     keys = {check.key for check in existing}
     kept = [
         {

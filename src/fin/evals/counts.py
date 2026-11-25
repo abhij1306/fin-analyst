@@ -18,7 +18,7 @@ from typing import Any
 import duckdb
 
 from fin.db.conn import connect
-from fin.evals.golden import Check
+from fin.evals.golden import LATEST_ENGAGEMENT, Check
 from fin.map.review import open_items, read_pending
 from fin.paths import audit_db_path
 
@@ -129,13 +129,15 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
         c
         for (c,) in con.execute(
             "SELECT DISTINCT coalesce(f.code, f.check_name) FROM findings f JOIN source_files s "
-            "USING (file_id) WHERE f.status IN ('open', 'accepted') AND s.period = ?",
+            "USING (file_id) WHERE f.status IN ('open', 'accepted') AND s.period = ? "
+            f"AND s.engagement_id = {LATEST_ENGAGEMENT}",
             [check.period],
         ).fetchall()
     }
     if check.kind == "tb_vs_statements":
         run = con.execute(
-            "SELECT unmapped FROM recon_runs WHERE period = ? ORDER BY recon_id DESC LIMIT 1",
+            "SELECT unmapped FROM recon_runs WHERE period = ? "
+            f"AND engagement_id = {LATEST_ENGAGEMENT} ORDER BY recon_id DESC LIMIT 1",
             [check.period],
         ).fetchone()
         if run is None:

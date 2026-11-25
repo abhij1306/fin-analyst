@@ -12,10 +12,12 @@ own agent installs fin, builds a golden set from real documents, runs the eval a
   confirm fin's reading instead of the document's.
 - **How to change it:** `src/fin/evals/scaffold.py: candidates` (fill `expected`); `docs/EVAL.md` step 4.
 
-## Exact match in rupees, no tolerance
+## Exact match in rupees, no tolerance; per-share figures in rupees
 
 - **Decision:** The expected value is typed as printed with its unit, converted to rupees (rounded half up to the
   paisa, as ingest does), and must equal fin's value exactly.
+  A per-share account (EPS, face value) is stored as printed, so its golden unit must be `rupees` (E831 otherwise)
+  and `fin eval init` fills `rupees` for it whatever the statement's unit.
 - **Why:** The brief asks for exact match; fin stores the figure as printed, so any difference is a reading or
   mapping difference worth seeing.
 - **How to change it:** `src/fin/evals/score.py: score_check`.
@@ -30,11 +32,13 @@ own agent installs fin, builds a golden set from real documents, runs the eval a
 
 ## What each diligence check compares
 
-- **Decision:** `tb_ledger`: closing debit less closing credit of the ledger in the period's loaded trial balance
+- **Decision:** All three read the latest engagement only (the highest engagement id, open or closed).
+  `tb_ledger`: closing debit less closing credit of the ledger in that engagement's loaded trial balance for the period
   (debit positive). `tb_vs_statements`: the account's difference (trial balance less statements) in the period's
-  latest run. `stub`: the account's `stub_figures` value in the latest engagement with a stub.
+  latest run of that engagement. `stub`: the account's `stub_figures` value in that engagement.
 - **Why:** These are the D2 outputs as fin stores them; debit-positive matches how a person reads a Tally trial
-  balance.
+  balance. A file is superseded only within its engagement, so without the restriction a closed engagement's trial
+  balance for the same period would be added to the current one.
 - **How to change it:** `src/fin/evals/score.py: _FIN_VALUE`.
 
 ## The score counts missing as not passing; unchecked lines are left out

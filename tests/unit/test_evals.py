@@ -33,7 +33,7 @@ STUB_PERIOD = "1-Apr-2025 to 30-Sep-2025"
 GOLDEN = [
     ("statement", "FY25", "standalone", "revenue", "", "10.00", "Lakhs", "fs.xlsx BS!C8", "yes"),
     ("statement", "FY25", "standalone", "cash", "", "2,50,000", "rupees", "fs.xlsx BS!C5", "yes"),
-    ("statement", "FY25", "standalone", "other_expenses", "", "1", "rupees", "", ""),
+    ("statement", "FY25", "standalone", "other_expenses", "", "1", "", "", ""),  # a draft
     ("tb_ledger", "FY25", "", "", "Software Sales", "(9,00,000)", "rupees", "tb.xlsx TB!21", "yes"),
     ("tb_ledger", "FY25", "", "", "CUST-0001", "200000", "rupees", "tb.xlsx TB!12", "yes"),
     ("tb_vs_statements", "FY25", "", "revenue", "", "-1,00,000", "rupees", "tb; fs", "yes"),
@@ -125,7 +125,8 @@ def test_a_golden_set_checked_against_the_source_scores_100_percent(root: Path) 
     assert outcomes(result) == ["pass", "pass", "unchecked", "pass", "pass", "pass", "pass"]
     s = result["summary"]
     assert (str(s["score_percent"]), s["scored"], s["unchecked"]) == ("100.0", 6, 1)
-    assert result["report_md"].is_file() and result["report_json"].is_file()
+    assert result["report_md"].is_file()
+    assert result["report_json"].is_file()
     assert result["counts"]["ledgers"] == {"confirmed": 10}
 
 
@@ -146,24 +147,27 @@ def test_a_planted_wrong_value_fails_and_an_unchecked_one_is_not_scored(root: Pa
 
 
 def test_a_golden_set_fin_cannot_read_is_e831_and_none_is_e830(root: Path) -> None:
+    evaluation = run(root)
     with pytest.raises(GoldenSetMissing, match="fin eval init acme"):
-        run_eval(run(root), "acme")
+        run_eval(evaluation, "acme")
     write_golden(
         root,
         [
             ("statement", "FY25", "group", "revenue", "", "ten", "lakh", "x", "yes"),
             ("statement", "FY25", "standalone", "sales", "", "", "", "", "maybe"),
             ("tb_ledger", "FY25", "", "", "Rent", "1", "rupees", "", "yes"),
+            ("statement", "FY25", "standalone", "eps_basic", "", "2.5", "lakh", "p 3", "yes"),
         ],
     )
     with pytest.raises(GoldenSetInvalid) as error:
-        run_eval(run(root), "acme")
+        run_eval(evaluation, "acme")
     message = str(error.value)
     for problem in (
         "line 2: scope 'group'",
         "line 2: expected 'ten' is not a figure",
         "line 3: checked is 'maybe'",
         "line 4: checked, but source is empty",
+        "line 5: eps_basic is stored as printed (rupees_per_share): use unit rupees",
     ):
         assert problem in message
 
@@ -188,6 +192,24 @@ def test_init_lists_what_to_check_and_never_changes_a_persons_lines(root: Path) 
     kept = list(csv.DictReader(again["path"].open(encoding="utf-8")))
     assert kept == rows
     assert outcomes(run_eval(run(root), "acme")).count("pass") == 1
+
+
+def test_diligence_checks_read_only_the_latest_engagement(root: Path, tmp_path: Path) -> None:
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE engagement SET status = 'closed'")
+        con.execute(
+            "INSERT INTO engagement (periods, query_threshold, status, opened_run_id, opened_at) "
+            "VALUES ('FY25', 100000, 'open', 'r1', ?)",
+            [utcnow()],
+        )
+    revised = write_trial_balance(tmp_path / "tb-revised.xlsx", plant=True)
+    ingest_source(run(root), load_config(root), "acme", revised, "trial_balance", None)
+    write_golden(root, GOLDEN)
+
+    result = run_eval(run(root), "acme")
+
+    assert outcomes(result)[3:] == ["pass", "pass", "missing", "missing"]
+    assert result["checks"][5]["codes"] == ["not_reconciled", "tb_group_sum"]
 
 
 def no_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -236,8 +258,9 @@ def test_a_bundle_that_would_carry_a_name_is_not_written(
     real = bundle.format_bundle
     monkeypatch.setattr(bundle, "format_bundle", lambda b: real(b) + CUSTOMERS[0])
 
+    attempt = run(root)
     with pytest.raises(BundleNotAnonymous):
-        bundle.make_bundle(run(root), None, with_figures=False)
+        bundle.make_bundle(attempt, None, with_figures=False)
     assert not list((root / "evals").glob("bundle-*"))
 
 
