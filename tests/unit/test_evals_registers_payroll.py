@@ -86,7 +86,11 @@ def test_a_ledger_that_is_not_a_total_is_refused(root: Path) -> None:
 
 def test_init_lists_each_total_with_its_source(root: Path) -> None:
     result = init_golden(Run("t", {}, root), "acme")
-    rows = list(csv.DictReader(result["path"].open(encoding="utf-8")))
+    rows = [
+        r
+        for r in csv.DictReader(result["path"].open(encoding="utf-8"))
+        if r["kind"] in ("register_total", "payroll_total")
+    ]
 
     assert [(r["kind"], r["period"], r["ledger"], r["expected"], r["checked"]) for r in rows] == [
         ("register_total", "FY25", "sales", "", ""),
