@@ -292,7 +292,8 @@ def _reconcile(
         )
         line["query_id"] = query["query_id"]
         drafted.append(query["query_id"])
-    stale = _stale_drafts(con, engagement_id, period, drafted + kept)
+    # while a ledger is unmapped no line is checked against earlier queries: nothing is stale
+    stale = [] if unmapped else _stale_drafts(con, engagement_id, period, drafted + kept)
     new = con.execute(
         "INSERT INTO recon_runs (engagement_id, name, period, scope, left_file_id, threshold, "
         "input_hash, unmapped, run_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "

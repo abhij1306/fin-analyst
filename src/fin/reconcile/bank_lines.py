@@ -251,7 +251,7 @@ def _receipt_value(
     who = party or r.party
     hit = booking.find(who, r.day, True, r.amount * rate if rate is not None else None)
     if hit is None:
-        far += [b.key for b in booking.near(who, r.day)]
+        far.extend(b.key for b in booking.near(who, r.day))
         return None
     vouchers.append(hit.key)
     return hit.credit

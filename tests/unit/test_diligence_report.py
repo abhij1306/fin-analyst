@@ -110,7 +110,8 @@ def test_quarto_renders_the_diligence_report_in_all_three_formats(
     for name in ("diligence.html", "diligence.docx", "diligence.pdf"):
         assert (folder / name).stat().st_size > 0
     html = (folder / "diligence.html").read_text(encoding="utf-8")
-    assert "unaudited management accounts" in html and "Recast by period" in html
+    assert "unaudited management accounts" in html
+    assert "Recast by period" in html
     assert (folder / "diligence.pdf").read_bytes().startswith(b"%PDF")
 
 

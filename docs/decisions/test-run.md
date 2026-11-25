@@ -8,7 +8,8 @@ The run itself: `docs/test-run/2026-11-25.md`.
 
 - **Decision:** When `fin reconcile <co> tb_vs_statements` runs again and a draft query of an earlier run has no line
   in the new run (a ledger was remapped, a figure re-read), the command lists it as a stale draft and says how to
-  withdraw it. fin does not withdraw it.
+  withdraw it. fin does not withdraw it. While a ledger is unmapped no line is checked against earlier queries, so
+  nothing is listed as stale.
 - **Why:** Withdrawing a query is the user's call (CLAUDE.md, Diligence). In the run, mapping a cash ledger to `cash`
   rather than the statements' `cash_and_bank_balances` left four large drafts that no later run mentioned; nothing
   told Claude or the user they were orphaned.

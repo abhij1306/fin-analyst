@@ -166,11 +166,13 @@ def test_what_needs_a_query_fx_and_not_yet_due(root: Path) -> None:
     assert not_due["note"] == "not yet due"
     assert not lines[("difference", D(-5000))]["needs_query"]  # below the threshold
     fx = lines[("fx", D(3000))]
-    assert not fx["needs_query"] and "FX gain" in fx["note"]  # listed, never queried
+    assert not fx["needs_query"]  # listed, never queried
+    assert "FX gain" in fx["note"]
     # the booked receipt it used is named, so a person can see it is the right voucher
-    assert fx["left_source"] and "!" in fx["left_source"]
+    assert "!" in (fx["left_source"] or "")
     text = bank.format_result(go(root))
-    assert "invoices None" not in text and "receipts None" not in text
+    assert "invoices None" not in text
+    assert "receipts None" not in text
     assert fx["left_source"] in text
     assert [x["level"] for x in lines.values()].count("receipt") == 1
 
@@ -194,7 +196,8 @@ def test_a_booked_receipt_at_another_receipts_amount_is_not_taken_as_the_rupee_v
     lines = go(root)["lines"]
     assert not [x for x in lines if x["kind"] == "fx"]
     usd = next(x for x in lines if x["currency"] == "USD")
-    assert usd["note"].startswith("no booked value") and "ledger_vouchers4.xlsx L!5" in usd["note"]
+    assert usd["note"].startswith("no booked value")
+    assert "ledger_vouchers4.xlsx L!5" in usd["note"]
     # with the right voucher beside it, the right one is used even when the wrong one is nearer
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute(
@@ -204,7 +207,8 @@ def test_a_booked_receipt_at_another_receipts_amount_is_not_taken_as_the_rupee_v
             [LV],
         )
     fx = by_kind(go(root))[("fx", D(-2000))]
-    assert fx["left_amount"] == D(158000) and "L!6" in fx["left_source"]
+    assert fx["left_amount"] == D(158000)
+    assert "L!6" in fx["left_source"]
 
 
 def test_collections_view(root: Path) -> None:
