@@ -196,8 +196,9 @@ def test_g1_counts_only_mapped_figures_and_an_approved_gate_whose_checklist_fail
     )
 
     assert states(ctx(con))[0] == ("G1", "reopened", "its checklist fails now")
+    the_ctx = ctx(con)
     with pytest.raises(GateNotApproved):
-        require(ctx(con), "G1", "fin gate approve G2")
+        require(the_ctx, "G1", "fin gate approve G2")
 
 
 def test_g1_reopens_when_a_figure_changes(con: duckdb.DuckDBPyConnection, tmp_path: Path) -> None:

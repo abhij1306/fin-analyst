@@ -62,7 +62,8 @@ def test_tables_and_text_are_read_per_original_page() -> None:
         "-",
     ]
     assert [c.text for c in table.grid[2]] == ["ASSETS", "", "", "", ""]
-    assert found[7].tables == [] and found[7].error is not None
+    assert found[7].tables == []
+    assert found[7].error is not None
     assert found[7].error.code == "E206"
     assert found[7].error.message == "page 7: LlamaParse could not parse it: page timed out"
 
@@ -89,8 +90,9 @@ def test_without_the_key_nothing_is_sent_and_the_message_names_the_variable(
     monkeypatch.delenv(llamaparse_run.API_KEY_ENV, raising=False)
     monkeypatch.setattr(llamaparse_run, "_parse", lambda request, key: pytest.fail("API called"))
 
+    req = request(tmp_path)
     with pytest.raises(PdfAddonFailed) as caught:
-        llamaparse_run.convert(request(tmp_path), [])
+        llamaparse_run.convert(req, [])
 
     assert caught.value.code == "E206"
     assert caught.value.message == (
@@ -122,7 +124,8 @@ def test_a_response_is_saved_by_sha256_and_pages_and_reused_without_the_key(
     digest = hashlib.sha256(req.path.read_bytes()).hexdigest()
     assert saved == tmp_path / "cache" / "llamaparse" / f"{digest}-p4-7.json"
     assert json.loads(saved.read_text(encoding="utf-8")) == response()
-    assert KEY not in saved.read_text(encoding="utf-8") and KEY not in " ".join(notices)
+    assert KEY not in saved.read_text(encoding="utf-8")
+    assert KEY not in " ".join(notices)
     assert first[4] == second[4]
     assert str(first[7].error) == str(second[7].error)
     assert notices == [
@@ -165,7 +168,8 @@ def test_the_upload_holds_only_the_pages_under_a_neutral_name(
 
     name, content, kind = sent["upload_file"]
     assert (name, kind, sent["api_key"]) == ("pages.pdf", "application/pdf", KEY)
-    assert content.startswith(b"%PDF") and sent["expand"] == ["items"]
+    assert content.startswith(b"%PDF")
+    assert sent["expand"] == ["items"]
     copy = tmp_path / "sent.pdf"
     copy.write_bytes(content)
     assert page_count(copy) == 2
@@ -184,8 +188,9 @@ def test_a_failed_job_is_e206(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     )
     monkeypatch.setitem(sys.modules, "llama_cloud", fake)
 
+    req = request(tmp_path)
     with pytest.raises(PdfAddonFailed) as caught:
-        llamaparse_run._parse(request(tmp_path), KEY)
+        llamaparse_run._parse(req, KEY)
 
     assert caught.value.message == "acme_h1.pdf: LlamaParse failed on pages [4, 7]: bad pdf"
 

@@ -60,8 +60,10 @@ def test_the_report_is_filled_from_the_database_with_every_section(root: Path) -
     assert "G1 Ingestion | open" in qmd
     assert "Pass-through (project revenue)" in qmd
     assert "## Customers, sectors and pricing" in qmd
-    assert "One-off legal fees" in qmd and "proposed (not applied)" in qmd
-    assert "registers.xlsx" in qmd and "Trial Balance!" in qmd
+    assert "One-off legal fees" in qmd
+    assert "proposed (not applied)" in qmd
+    assert "registers.xlsx" in qmd
+    assert "Trial Balance!" in qmd
 
 
 def test_every_figure_a_narrative_may_use_has_a_value_or_is_n_a(root: Path) -> None:
@@ -84,7 +86,8 @@ def test_the_first_run_writes_a_stub_that_names_the_sections(root: Path) -> None
     result = dd_render.make_diligence_report(run(root), "acme", "standalone", False)
     assert result["status"] == "stub_written"
     text = Path(result["narrative_path"]).read_text(encoding="utf-8")
-    assert "{{figure:adjusted_ebitda:FY25}}" in text and "## Working capital" in text
+    assert "{{figure:adjusted_ebitda:FY25}}" in text
+    assert "## Working capital" in text
     assert load_config(root).display_unit
 
 
@@ -93,6 +96,7 @@ def test_the_recast_is_in_the_report_once_it_has_run(root: Path, tmp_path: Path)
     copy = Path(shutil.copytree(root, tmp_path / "data"))
     run_recast(run(copy), "acme", "FY25")
     qmd = built(copy).qmd
-    assert "### Recast by period" in qmd and "Service-period recast vs booked revenue" in qmd
+    assert "### Recast by period" in qmd
+    assert "Service-period recast vs booked revenue" in qmd
     data = collect(copy, "acme", "standalone")
     assert data["figures"]["recast_revenue_effect"]["FY25"] is not None

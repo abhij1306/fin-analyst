@@ -149,7 +149,8 @@ def test_round_trip_with_real_names_only_in_the_export(
     query_id = raise_issue(root)
     real = CUSTOMERS[0]
     approved = fin("query", "approve", "acme", str(query_id))
-    assert approved.exit_code == 0 and "approved" in approved.output, approved.output
+    assert approved.exit_code == 0, approved.output
+    assert "approved" in approved.output, approved.output
 
     exported = fin("query", "export", "acme")
 
@@ -171,9 +172,8 @@ def test_round_trip_with_real_names_only_in_the_export(
     assert "1 only in the books" in content
     source = next(book[n] for n in book.sheetnames if n.endswith("Sales Register"))
     marked = [r for r in source.iter_rows() if r[0].fill.start_color.rgb == "00FFFF00"]
-    assert len(marked) == 1 and any(
-        f"Q{query_id}" in str(c.value) for c in source[marked[0][0].row]
-    )
+    assert len(marked) == 1
+    assert any(f"Q{query_id}" in str(c.value) for c in source[marked[0][0].row])
     # nothing but the export holds a real name: the database tables other than mask_values,
     # the audit log and the data folder's logs
     with connect(company_db_path(root, "acme")) as con:

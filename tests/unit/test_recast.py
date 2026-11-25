@@ -101,8 +101,10 @@ def test_spread_is_straight_line_by_service_days_and_adds_up() -> None:
 
 
 def test_months_of_an_annual_period() -> None:
-    assert months_of("FY25", 4)[0] == "2024-04" and months_of("FY25", 4)[-1] == "2025-03"
-    assert months_of("FY25", 1)[0] == "2025-01" and months_of("FY25", 1)[-1] == "2025-12"
+    assert months_of("FY25", 4)[0] == "2024-04"
+    assert months_of("FY25", 4)[-1] == "2025-03"
+    assert months_of("FY25", 1)[0] == "2025-01"
+    assert months_of("FY25", 1)[-1] == "2025-12"
 
 
 def test_a_line_billed_up_front_recasts_into_the_right_periods(root: Path) -> None:
@@ -138,7 +140,8 @@ def test_a_line_without_service_dates_is_listed_and_queried_at_the_threshold(roo
     undated = {x["key"]: x for x in fy25["lines"] if x["kind"] == "undated"}
     assert set(undated) == {"INV-1004", "INV-1005"}
     assert undated["INV-1004"]["left_amount"] == Decimal("150000.00")
-    assert undated["INV-1004"]["needs_query"] and not undated["INV-1005"]["needs_query"]
+    assert undated["INV-1004"]["needs_query"]
+    assert not undated["INV-1005"]["needs_query"]
     assert "recognised on the invoice date" in undated["INV-1004"]["note"]
     assert "reg.xlsx" in undated["INV-1004"]["left_source"]
     # the undated invoices are booked and recognised on the same date: no effect of their own
@@ -164,16 +167,19 @@ def test_running_again_keeps_one_proposal_and_replaces_a_stale_one(root: Path) -
         (a["period"], a["status"], a["reason"]) for a in list_adjustments(run(root), "acme")
     ]
     assert by_status[0] == ("FY25", "rejected", "superseded by recast run #5")
-    assert ("FY25", "proposed", None) in by_status and len(by_status) == 3
+    assert ("FY25", "proposed", None) in by_status
+    assert len(by_status) == 3
 
 
 def test_the_period_must_be_annual_and_a_register_loaded(root: Path, tmp_path: Path) -> None:
+    run_root = run(root)
     with pytest.raises(RecastCannotRun, match="annual period"):
-        run_recast(run(root), "acme", "FY24")
+        run_recast(run_root, "acme", "FY24")
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute("UPDATE source_files SET status = 'superseded'")
+    run_root = run(root)
     with pytest.raises(RecastCannotRun, match="no loaded sales register"):
-        run_recast(run(root), "acme", None)
+        run_recast(run_root, "acme", None)
 
 
 def g3(root: Path) -> list[tuple[bool, str]]:
@@ -243,7 +249,8 @@ def test_a_contract_is_evidence_beside_the_line_and_not_the_schedule(
     after = run_recast(run(root), "acme", "FY25")[0]
 
     assert (stored["customer"], stored["page"], stored["read_by"]) == (token, 3, "claude")
-    assert stored["value"] == Decimal("150000.00") and stored["file_name"] == "contract.pdf"
+    assert stored["value"] == Decimal("150000.00")
+    assert stored["file_name"] == "contract.pdf"
     note = next(x["note"] for x in after["lines"] if x["key"] == "INV-1004")
     assert (
         f"contract #{stored['contract_id']} (contract.pdf p.3) says 2024-05-01 to 2025-04-30"
@@ -260,11 +267,13 @@ def test_a_bad_contract_reading_is_refused_naming_the_line(root: Path, tmp_path:
     document = tmp_path / "contract.pdf"
     document.write_bytes(b"x")
     bad = write_reading(tmp_path / "bad.csv", CUSTOMERS[0], end="2024-01-01")
+    run_root = run(root)
     with pytest.raises(ContractReadingInvalid, match="line 2: end is before start"):
-        contracts.load(run(root), "acme", document, bad)
+        contracts.load(run_root, "acme", document, bad)
     unknown = write_reading(tmp_path / "unknown.csv", "Nobody Ltd")
+    run_root = run(root)
     with pytest.raises(ContractNotOnRegister, match="line 2") as error:
-        contracts.load(run(root), "acme", document, unknown)
+        contracts.load(run_root, "acme", document, unknown)
     assert "Nobody" not in str(error.value)
     assert rows(root, "SELECT count(*) FROM contracts") == [(0,)]
 

@@ -44,7 +44,8 @@ def test_payroll_load_warning_confirmation_and_gate(
 
     assert loaded.exit_code == 0, loaded.output
     assert "WARNING: the amounts look monthly" in loaded.stdout
-    assert neither.exit_code == 2 and both.exit_code == 2
+    assert neither.exit_code == 2
+    assert both.exit_code == 2
     assert unknown.exit_code == 2
     assert "E820" in unknown.output
     assert said.exit_code == 0, said.output
