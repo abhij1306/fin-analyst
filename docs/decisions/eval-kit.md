@@ -10,7 +10,7 @@ own agent installs fin, builds a golden set from real documents, runs the eval a
   from the document (never from fin's output); only the person marks them checked.
 - **Why:** Claude does not verify its own reading. A template prefilled with fin's own values would invite a person to
   confirm fin's reading instead of the document's.
-- **How to change it:** `src/fin/evals/scaffold.py: candidates` (fill `expected`); `docs/EVAL.md` step 4.
+- **How to change it:** `src/fin/evals/scaffold.py: candidates` (fill `expected`); `docs/client-handoff.md` step 4.
 
 ## Exact match in rupees, no tolerance; per-share figures in rupees
 

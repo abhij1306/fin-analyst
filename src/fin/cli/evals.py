@@ -1,4 +1,4 @@
-"""`fin eval init|run|bundle`: the golden evaluation (fin.evals, docs/EVAL.md)."""
+"""`fin eval init|run|bundle`: the golden evaluation (fin.evals, docs/client-handoff.md)."""
 
 from typing import Annotated
 
@@ -12,7 +12,7 @@ from fin.evals.score import run_eval
 
 eval_app = typer.Typer(
     no_args_is_help=True,
-    help="Golden evaluation: score fin against values a person checked (docs/EVAL.md).",
+    help="Golden evaluation: score fin against values a person checked (docs/client-handoff.md).",
 )
 app.add_typer(eval_app, name="eval")
 

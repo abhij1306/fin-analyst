@@ -4,7 +4,9 @@ One file per workstream (`d2.md`, `d3-bank.md`, ...), written by the builder. **
 here**: choices that can change the analysis or what the user sees. That means how a figure is computed, rolled up,
 matched, thresholded or labelled; what counts as a finding, a query or a load failure; what a gate requires; what
 gets masked; how ambiguous plan wording was read. File splits, module layout, names, libraries, tests and other
-code choices do not belong here: they are in the code and `docs/CUSTOMISING.md`.
+code choices do not belong here: they are in the code and `docs/development.md`.
+
+A decision the client must confirm is marked NEEDS CLIENT CONFIRMATION (first: [masking.md](masking.md)); the client's agent asks about them ([client-handoff.md](../client-handoff.md), step 5).
 
 Each entry has:
 

@@ -1,6 +1,6 @@
 # Decisions: d9-analytics
 
-Product-level choices for customer, product, sector, pricing and retention analytics (DILIGENCE_PLAN.md §7 D9), written 2026-11-25 by the builder. Each is a builder's reading until the owner confirms or changes it.
+Product-level choices for customer, product, sector, pricing and retention analytics (docs/diligence.md §7 D9), written 2026-11-25 by the builder. Each is a builder's reading until the owner confirms or changes it.
 
 ## 1. Core and pass-through are separate; retention, cohorts and price/volume/mix are core only
 

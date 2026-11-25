@@ -46,7 +46,7 @@ The run itself: `docs/test-run/2026-11-25.md`.
 
 ## Golden `query_issue` is compared without sign; relative difference to six significant digits
 
-- **Decision:** `query_issue` scores the absolute amount of the query (as `docs/EVAL.md` says); the relative
+- **Decision:** `query_issue` scores the absolute amount of the query (as `docs/client-handoff.md` says); the relative
   difference is kept to six significant digits and the bundle shows a tiny one with two significant digits.
 - **Why:** A credit-side query scored as a fail against a person's unsigned figure; a misread digit in a figure of
   crores showed as "-0.00%" in the bundle, which reads as no difference.

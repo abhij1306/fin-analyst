@@ -1,4 +1,4 @@
-"""The golden set: `evals/<company>/golden.csv` in the data folder, never committed (docs/EVAL.md).
+"""The golden set: `evals/<company>/golden.csv` in the data folder, never committed.
 
 One line per check, the value a person read in the company's document and checked:
 
