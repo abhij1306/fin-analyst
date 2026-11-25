@@ -7,11 +7,11 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 
 | Code | Meaning | What to do |
 |---|---|---|
-| E001 | A required program (uv, node, quarto), `config.toml` or the audit database is missing, or a program cannot be started | Run the fix `fin doctor` shows (`./install.sh` or `uv run fin init`) |
+| E001 | A required program (uv, node, quarto), `config.toml` or the audit database is missing, a company has no database ("no database for company <name>": ingest its documents first, `uv run fin ingest <name>`; also for `fin sql`, `statements`, `report` and `review list`), or a program cannot be started | Run the fix `fin doctor` shows (`./install.sh` or `uv run fin init`) |
 | E002 | A program is the wrong version, `config.toml` is invalid, or a database was made by an older fin | Run the fix shown (`brew upgrade`, correct `config.toml`, or move the data folder away and run `uv run fin init`) |
 | E003 | The data folder is missing or not writable | Run `uv run fin init`, or fix the folder permissions |
 | E005 | `fin update` stopped: local changes in this folder, or a git, uv or npm step failed; or the `uv sync` of `fin parser use` failed | Commit or discard local changes, or fix the failing step, and run it again. The backup is in `backups/<run_id>/` |
-| E101 | File is unreadable or corrupt | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
+| E101 | File is unreadable or corrupt, or the path does not exist (the message says where a company's files go: `<data folder>/inbox/<company>/`, lower-case name) | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
 | E102 | File is password protected | Save an unprotected copy and ingest that |
 | E103 | Unsupported file format | Convert it to `.xlsx` or a text PDF |
 | E104 | Scanned PDF (no text layer); fin cannot read it | Get an Excel or text-PDF version, or ask Claude to read the pages |
@@ -63,7 +63,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E842 | `fin query raise --items` names a line that cannot be queried: matched, fx, not reconciled, unmapped, a month or party roll-up, below the threshold, already in a query, or lines of different periods | Nothing raised. Raise lines at or above the threshold, one period at a time |
 | E820 | `fin payroll confirm-unit` names no loaded payroll file of the open engagement (unknown name or id, not a payroll file, or superseded by a later snapshot, or several loaded files with that name) | Nothing recorded. The message lists the loaded payroll files: use one's file name or file_id |
 | E821 | A payroll snapshot row has no employee name or code, or a joining or resign date that is not a date in the profile's format | Nothing loaded. Ask the company for a corrected file, or fix the profile's `date_format`, and ingest again |
-| E830 | `fin eval run`: the company has no golden set | Make one with `uv run fin eval init <company>` ([docs/client-handoff.md](docs/client-handoff.md)) |
+| E830 | `fin eval run`: the company has no golden set | Make one with `uv run fin eval init <company>` ([client-handoff.md](client-handoff.md)) |
 | E831 | The golden set cannot be read: a missing column, an unknown kind, scope, account or unit, a figure that is not a number, a checked line with no value or source, or the same check twice | Nothing scored or changed. Fix the lines the message lists in `evals/<company>/golden.csv` |
 | E832 | `fin eval bundle`: no company database to evaluate, or none for the company named | Nothing written. Load the company's documents first |
 | E833 | `fin eval bundle`: the results would contain a real name (a masked party, a company or a file name) | Nothing written; the name is not printed. Report the run id: a bundle must never carry names |

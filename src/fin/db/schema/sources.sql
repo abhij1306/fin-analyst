@@ -404,7 +404,9 @@ GROUP BY e.engagement_id, e.stub, s.period_start, s.period_end, m.account, m.sta
 
 -- Collections per customer and period, from the latest bank_vs_invoices run of the latest engagement (the invoices in
 -- its lines; customer is the token). invoiced_inr: invoices of the period's lines; received_inr: those matched to a
--- receipt (matched or difference lines); open_inr: those with no receipt. collection_days: the average days from
+-- receipt in full (matched lines); partly_paid_inr: invoices in a group whose receipts differ from them (kind
+-- 'difference': the invoice amount, not what was received); open_inr: those with no receipt.
+-- invoiced_inr = received_inr + partly_paid_inr + open_inr. collection_days: the average days from
 -- invoice to receipt over the matched invoices, weighted by Amount in Rs (a group of several lines uses its latest
 -- dates); NULL with none. Open invoices are aged at as_of (the period's last day): not_due is up to due_days old,
 -- overdue_* the days past due_days. Invoices of a period with no bank statement are not in a run.
@@ -431,10 +433,11 @@ SELECT
     period,
     customer,
     sum(amount_inr) AS invoiced_inr,
-    coalesce(sum(amount_inr) FILTER (WHERE kind IN ('matched', 'difference')), 0) AS received_inr,
+    coalesce(sum(amount_inr) FILTER (WHERE kind = 'matched'), 0) AS received_inr,
     coalesce(sum(amount_inr) FILTER (WHERE kind = 'right_only'), 0) AS open_inr,
-    round(sum(amount_inr * days) FILTER (WHERE kind IN ('matched', 'difference'))
-        / nullif(sum(amount_inr) FILTER (WHERE kind IN ('matched', 'difference')), 0), 1) AS collection_days,
+    round(sum(amount_inr * days) FILTER (WHERE kind = 'matched')
+        / nullif(sum(amount_inr) FILTER (WHERE kind = 'matched'), 0), 1) AS collection_days,
+    coalesce(sum(amount_inr) FILTER (WHERE kind = 'difference'), 0) AS partly_paid_inr,
     coalesce(sum(amount_inr) FILTER (
         WHERE kind = 'right_only' AND date_diff('day', line_date, as_of) <= due_days), 0) AS not_due_inr,
     coalesce(sum(amount_inr) FILTER (

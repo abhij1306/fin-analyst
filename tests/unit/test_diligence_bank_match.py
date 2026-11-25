@@ -247,6 +247,26 @@ def test_a_confirmed_proposal_is_applied_and_a_rejected_one_is_not(root: Path) -
     assert [(x["kind"], x["difference"]) for x in confirmed] == [("difference", D(-50000))]
 
 
+def test_a_partly_paid_invoice_is_not_received(root: Path) -> None:
+    ref = [BANK, "S", 6]
+    ids = bank_proposals.propose(
+        run(root), "acme",
+        [{"bank": [ref], "invoices": [[REG, "Sales", 7]], "confidence": 0.5, "reason": "payer"}],
+    )  # fmt: skip
+    bank_proposals.decide(run(root), "acme", ids, "confirmed")
+    go(root)
+    with connect(company_db_path(root, "acme")) as con:
+        rows = con.execute(
+            "SELECT customer, invoiced_inr, received_inr, partly_paid_inr, open_inr "
+            "FROM customer_collections"
+        ).fetchall()
+    by_customer = {r[0]: r[1:] for r in rows}
+    # the invoice in a group whose receipt differs is partly paid, not received
+    assert by_customer["CUST-0006"] == (D(450000), D(0), D(300000), D(150000))
+    assert by_customer["CUST-0004"] == (D(100000), D(0), D(100000), D(0))
+    assert all(r[1] == r[2] + r[3] + r[4] for r in rows)
+
+
 def test_a_proposal_cannot_repeat_a_line_or_mix_currencies(root: Path) -> None:
     twice = [
         {"bank": [[BANK, "S", 6], [BANK, "S", 6]], "invoices": [[REG, "Sales", 7]], "reason": "x"}
@@ -380,13 +400,14 @@ def test_golden_checks_score_the_match_outputs(root: Path) -> None:
             ("fx_line", "CUST-0001", "0"),
             ("customer_received", "CUST-0001", "120000"),
             ("customer_received", "CUST-0006", "0"),
+            ("customer_partly_paid", "CUST-0001", "0"),
             ("invoice_unmatched", "CUST-0001", "999"),  # planted wrong
             ("bank_vs_tb", "", "1"),  # no bank_vs_tb run: missing
         ],
     )
     result = run_eval(run(root), "acme")
     outcomes = [c["outcome"] for c in result["checks"]]
-    assert outcomes == ["pass"] * 7 + ["fail", "missing"]
+    assert outcomes == ["pass"] * 8 + ["fail", "missing"]
     assert "not_reconciled" in result["checks"][-1]["codes"]
     assert result["counts"]["bank_matches"]["lines"]["matched, reference"] == 1
 

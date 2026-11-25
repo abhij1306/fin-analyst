@@ -46,9 +46,12 @@ One line per check, the value a person read in the company's document and checke
   (ledger the customer token);
 - `fx_line`: a customer's FX gain (positive) or loss in that run, rupees (ledger the customer
   token; 0 when there is none);
-- `customer_received`: a customer's invoices matched to a receipt in that run (matched or
-  difference lines), Amount in Rs summed (`customer_collections.received_inr`; ledger the customer
+- `customer_received`: a customer's invoices matched to a receipt in full in that run
+  (matched lines), Amount in Rs summed (`customer_collections.received_inr`; ledger the customer
   token);
+- `customer_partly_paid`: a customer's invoices in a group whose receipts differ from them
+  (difference lines), the invoice Amount in Rs summed (`customer_collections.partly_paid_inr`;
+  ledger the customer token);
 - `bank_vs_tb`: the difference in the period's latest `bank_vs_tb` run (bank statements' closing
   balances less the trial balance's cash and bank ledgers);
 - the D9 analytics on the sales register (Amount in Rs, before GST), all in rupees:
@@ -91,7 +94,14 @@ PASSTHROUGH_KINDS = (
     "adjusted_revenue",
     "adjusted_ebitda",
 )
-BANK_KINDS = ("bank_unmatched", "invoice_unmatched", "fx_line", "bank_vs_tb", "customer_received")
+BANK_KINDS = (
+    "bank_unmatched",
+    "invoice_unmatched",
+    "fx_line",
+    "bank_vs_tb",
+    "customer_received",
+    "customer_partly_paid",
+)
 ANALYTICS_KINDS = (
     "customer_revenue",
     "sector_revenue",
@@ -138,6 +148,7 @@ NEEDS = {
     "invoice_unmatched": ("period", "ledger"),
     "fx_line": ("period", "ledger"),
     "customer_received": ("period", "ledger"),
+    "customer_partly_paid": ("period", "ledger"),
     "bank_vs_tb": ("period",),
     **{kind: ("period", "ledger") for kind in ANALYTICS_KINDS[:4]},
     **{kind: ("period",) for kind in ANALYTICS_KINDS[4:]},

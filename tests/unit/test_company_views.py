@@ -242,3 +242,24 @@ def test_cost_to_income_has_no_value_without_a_credit_charge(company: Path) -> N
     load(company, *NBFC)
     assert metric(company, "cost_to_income") == "absent"
     assert metric(company, "net_interest_income") == Decimal("120.000000")
+
+
+def test_a_nil_line_beside_two_equal_lines_does_not_make_one_a_total(company: Path) -> None:
+    load(
+        company,
+        ("trade_payables", "Dues of micro and small enterprises", "Trade payables", "500.00"),
+        ("trade_payables", "Dues of others", "Trade payables", "500.00"),
+        ("trade_payables", "Acceptances", "Trade payables", "0.00"),
+    )
+    assert trade_payables(company) == [("1000.00", 3)]
+
+
+def test_a_total_beside_its_lines_and_a_nil_line_is_still_the_total(company: Path) -> None:
+    load(
+        company,
+        ("trade_payables", "Dues of micro and small enterprises", "Trade payables", "300.00"),
+        ("trade_payables", "Dues of others", "Trade payables", "200.00"),
+        ("trade_payables", "Acceptances", "Trade payables", "0.00"),
+        ("trade_payables", "Total trade payables", "Trade payables", "500.00"),
+    )
+    assert trade_payables(company) == [("500.00", 1)]

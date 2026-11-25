@@ -91,7 +91,7 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      E840: a statement, register or trial balance is missing; E854: a bad proposal file; E855: a proposal id that is
      unknown or already decided.
    - **Golden evaluation.** The trial balance ledgers, `tb_vs_statements` differences and stub figures can be scored
-     against values a person checked (`/eval`, `docs/EVAL.md`). Never mark a golden line checked yourself.
+     against values a person checked (`/eval`, `docs/client-handoff.md`). Never mark a golden line checked yourself.
 2. **Queries from findings.** Run `uv run fin findings list <company> --json`. For each open or accepted finding in
    a period of the engagement, with a difference at or above the engagement's query threshold, draft a short,
    neutral question for the company's accountant: what the two figures are, where each is (file + sheet!cell or

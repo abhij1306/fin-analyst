@@ -67,6 +67,10 @@ _FIN_VALUE = {
         "SELECT received_inr FROM customer_collections WHERE period = ? AND customer = ?",
         ("period", "ledger"),
     ),
+    "customer_partly_paid": (
+        "SELECT partly_paid_inr FROM customer_collections WHERE period = ? AND customer = ?",
+        ("period", "ledger"),
+    ),
     "adjusted_revenue": (
         "SELECT adjusted_revenue FROM adjusted_ebitda WHERE period = ? AND scope = ?",
         ("period", "scope"),

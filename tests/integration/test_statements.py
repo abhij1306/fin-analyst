@@ -181,11 +181,11 @@ def test_export_writes_one_sheet_per_statement_and_a_metrics_sheet(root: Path) -
     assert table["roe"][6] == "Return on equity on the closing balance sheet."
 
 
-def test_statements_of_an_unknown_company_is_e601(root: Path) -> None:
+def test_statements_of_an_unknown_company_is_e001(root: Path) -> None:
     result = runner.invoke(app, ["statements", "nobody"])
 
     assert result.exit_code == 2
-    assert "no database for nobody" in result.output
+    assert "no database for company nobody" in result.output
 
 
 def test_metrics_for_per_share_figures_exceptional_items_and_tax(root: Path) -> None:

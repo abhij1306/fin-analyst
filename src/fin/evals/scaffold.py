@@ -139,7 +139,7 @@ FROM recon_match_lines m
 JOIN recon_items i ON i.recon_id = m.recon_id AND i.item_no = m.item_no
 JOIN recon_runs r ON r.recon_id = m.recon_id
 JOIN source_files s ON s.file_id = m.file_id
-WHERE r.name = ? AND i.kind IN ('matched', 'difference') AND m.side = 'invoice'
+WHERE r.name = ? AND i.kind = ? AND m.side = 'invoice'
     AND r.engagement_id = {LATEST}
     AND r.recon_id IN (SELECT max(recon_id) FROM recon_runs WHERE name = ? GROUP BY period)
 GROUP BY r.period, m.party
@@ -204,11 +204,18 @@ def _matches(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
                 _row(kind, period, f"{file_name} (unmatched lines of the run)", ledger=ledger,
                      unit="rupees", note=note)
             )  # fmt: skip
-    for period, party, file_name in con.execute(_RECEIVED, [BANK_RUN, BANK_RUN]).fetchall():
-        rows.append(
-            _row("customer_received", period, f"{file_name} (matched lines of the run)",
-                 ledger=party, unit="rupees", note="invoices matched to a receipt, Amount in Rs")
-        )  # fmt: skip
+    for kind, item, note in (
+        ("customer_received", "matched", "invoices matched to a receipt in full, Amount in Rs"),
+        ("customer_partly_paid", "difference",
+         "invoices whose receipts differ from them, invoice Amount in Rs"),
+    ):  # fmt: skip
+        for period, party, file_name in con.execute(
+            _RECEIVED, [BANK_RUN, item, BANK_RUN]
+        ).fetchall():
+            rows.append(
+                _row(kind, period, f"{file_name} ({item} lines of the run)", ledger=party,
+                     unit="rupees", note=note)
+            )  # fmt: skip
     for period, left, right in con.execute(_BANK_TB, [BANK_TB, BANK_TB]).fetchall():
         rows.append(
             _row("bank_vs_tb", period, "; ".join(s for s in (left, right) if s), unit="rupees",

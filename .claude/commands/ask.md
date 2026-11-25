@@ -11,6 +11,8 @@ Answer this question with `fin`: $ARGUMENTS
    metric, with `unit` and `category`), `metric_definitions` (what each metric means and its formula) and
    `standard_statements` (the P&L, balance sheet and cash flow in standard order, with `explained`, `coverage` and
    an `Unmapped / other` line where a printed subtotal is more than its mapped lines). Rules:
+   - Account names: `uv run fin map accounts` or `SELECT DISTINCT account FROM current_facts`. Zero rows usually
+     means a wrong account name or period, not missing data.
    - For a ratio, margin, return or growth, use the `metrics` view; don't recompute it. Find the metric with
      `SELECT metric, category, definition, formula FROM metric_definitions`. Categories: `profitability` (gross,
      EBITDA, EBIT, PBT, PAT margins), `returns` (ROE, ROCE, ROA on closing balances; `*_avg` on average balances),
