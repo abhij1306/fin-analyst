@@ -31,8 +31,9 @@ from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
 from fin.diligence.mask import Masker
-from fin.reconcile import run_new
+from fin.reconcile import store
 from fin.reconcile import walkthrough as recon_module
+from fin.reconcile.format import format_result
 from fin.sampling.draw import load_sample
 
 CHECKS = ("in_register", "contract_covers", "service_in_contract", "bank_matched", "ledger_posting")
@@ -117,10 +118,19 @@ def record(run: Run, company: str, sample_id: int, path: Path) -> dict[str, Any]
                     run.run_id, now,
                 ],
             )  # fmt: skip
+        engagement = require_open(con, company)
         period = sample["period"]
-    [recon] = run_new(run, company, recon_module.NAME, period)
-    with company_database(run, company) as con:
-        return {"summary": summaries(con, engagement_id, sample_id)[0], "recon": recon}
+        recon = store.save(
+            run, con, engagement, recon_module.NAME, period,
+            recon_module.compute(con, company, engagement, period),
+        )  # fmt: skip
+        summary = summaries(con, engagement_id, sample_id)[0]
+    run.event(
+        "reconcile",
+        format_result(recon).splitlines()[0],
+        context={"company": company, "recon_id": recon["recon_id"]},
+    )
+    return {"summary": summary, "recon": recon}
 
 
 def summaries(

@@ -23,6 +23,7 @@ from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
+from fin.diligence.mask import Masker
 from fin.diligence.sources import ingest_source
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.score import run_eval
@@ -319,7 +320,8 @@ def test_a_walkthrough_is_summarised_and_a_large_exception_becomes_a_line_for_a_
     assert (summary["checks_passed"], summary["exceptions"], summary["not_available"]) == (1, 2, 1)
     assert (summary["exception_lines"], summary["exception_amount"]) == (2, Decimal("240000.00"))
     lines = {x["key"]: x for x in out["recon"]["lines"]}
-    big, small = lines["sample 1 line 1"], lines["sample 1 line 3"]
+    big = lines["sample 1 line 1: contract_covers"]
+    small = lines["sample 1 line 3: ledger_posting"]
     assert big["needs_query"] and big["difference"] == Decimal("160000.00")
     assert "contract_covers: rate 900" in big["note"] and "contract.pdf p.3" in big["right_source"]
     assert not small["needs_query"]  # below the threshold: listed
@@ -400,3 +402,51 @@ def test_golden_checks_score_a_contract_value_and_a_sample_exception_amount(root
     assert score()[:2] == ["pass", "pass"]
     lines[1] = (*lines[1][:5], "1,50,000", *lines[1][6:])
     assert score()[:2] == ["pass", "fail"]
+
+
+def test_a_different_failure_on_the_same_line_does_not_inherit_the_earlier_query(
+    root: Path,
+) -> None:
+    drawn(root, n=3)
+    first = walkthrough.record(
+        run(root), "acme", 1, results(root / "a.json", result(1, "contract_covers", "exception"))
+    )
+    [line] = first["recon"]["lines"]
+    items.raise_from_items(run(root), "acme", [line["item_id"]], "Contract rate?")
+
+    second = walkthrough.record(
+        run(root),
+        "acme",
+        1,
+        results(
+            root / "b.json",
+            result(1, "contract_covers", "pass"),
+            result(1, "bank_matched", "exception"),
+        ),
+    )
+
+    [moved] = second["recon"]["lines"]
+    assert moved["needs_query"] and moved["query_id"] is None  # a new failure needs its own query
+
+
+def test_a_name_learned_later_is_masked_in_the_reconciliation_note_too(root: Path) -> None:
+    drawn(root, n=3)
+    walkthrough.record(
+        run(root),
+        "acme",
+        1,
+        results(
+            root / "w.json", result(1, "ledger_posting", "exception", evidence="Zed Corp short")
+        ),
+    )
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "INSERT INTO mask_values VALUES "
+            "('CUST-0099', 'customer', 'Zed Corp', 'zed corp', 1, 'r0')"
+        )
+        masker = Masker(con, "r1")
+        masker.added = 1
+        masker.remask()
+
+    [(note,)] = rows(root, "SELECT note FROM recon_items WHERE level = 'invoice'")
+    assert "CUST-0099 short" in note and "Zed Corp" not in note

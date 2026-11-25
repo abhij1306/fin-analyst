@@ -49,6 +49,7 @@ FREE_TEXT_COLUMNS = (
     ("contracts", "escalation_terms"),
     ("contracts", "renewal_terms"),
     ("walkthroughs", "evidence"),
+    ("recon_items", "note"),  # the walkthrough reconciliation copies the evidence into its notes
 )
 
 

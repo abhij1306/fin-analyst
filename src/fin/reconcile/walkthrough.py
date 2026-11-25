@@ -63,17 +63,19 @@ def compute(
                 "party": party,
                 "amount": amount,
                 "source": f"{file_name} {sheet}!{source_row}",
+                "checks": [],
                 "notes": [],
                 "evidence": [],
             },
         )
+        line["checks"].append(check)
         line["notes"].append(f"{check}: {row[9]}")
         if row[10]:
             line["evidence"].append(f"{row[10]} p.{row[11]}" if row[11] else row[10])
     lines = [
         make_line(
             "invoice",
-            f"sample {sample} line {number}",
+            f"sample {sample} line {number}: {', '.join(line['checks'])}",
             line["amount"],
             None,
             line["source"],
