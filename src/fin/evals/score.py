@@ -16,7 +16,7 @@ from fin.audit.logger import Run
 from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
 from fin.evals.counts import counts, related_codes
-from fin.evals.golden import LATEST_ENGAGEMENT, Check, read_golden
+from fin.evals.golden import LATEST_ENGAGEMENT, RECON_KINDS, Check, read_golden
 from fin.map.dictionary import load_accounts
 from fin.paths import evals_dir
 
@@ -52,6 +52,19 @@ _FIN_VALUE = {
         ("period", "account"),
     ),
 }
+
+
+_FIN_VALUE.update(
+    {
+        kind: (
+            "SELECT difference FROM recon_items WHERE key = ? AND level IS NOT NULL AND level <> "
+            "'month' AND level <> 'party' AND recon_id = (SELECT max(recon_id) FROM recon_runs "
+            f"WHERE name = '{kind}' AND period = ? AND engagement_id = {LATEST_ENGAGEMENT})",
+            ("ledger", "period"),
+        )
+        for kind in RECON_KINDS
+    }
+)
 
 
 def fin_value(con: duckdb.DuckDBPyConnection, check: Check) -> Decimal | None:

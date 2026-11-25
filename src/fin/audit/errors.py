@@ -24,6 +24,8 @@ a command returns when the error ends it:
   exit 2.
 - E812 (a reconciliation cannot run: a period not annual in the engagement, no loaded trial balance,
   or no audited statement figures for the period) stops the command: exit 2.
+- E840-E842 (diligence reconciliations: one cannot run for lack of loaded inputs; a recon line id is
+  unknown or stale; a line cannot be raised as a query) stop the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
 - E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
@@ -359,6 +361,32 @@ class BankParseUnreadable(FinError):
     loaded; delete the file to parse the PDF again."""
 
     code = "E818"
+
+
+class ReconCannotRun(FinError):
+    """E840. A reconciliation (`fin reconcile`: sales_register_vs_gl, purchase_register_vs_gl,
+    gl_vs_tb, payroll_vs_gl) cannot run: a period not in the engagement, or an input is not loaded
+    (Ledger Vouchers, registers covering the period, a trial balance, a payroll file with its unit
+    confirmed annual) or no ledger is confirmed to the account the books side reads. Nothing
+    recorded."""
+
+    code = "E840"
+
+
+class ReconItemUnknown(FinError):
+    """E841. `fin query raise --items` names a reconciliation line that does not exist, belongs
+    to another engagement, or is not in the latest run of its reconciliation (the data has been
+    reconciled again since). Nothing raised."""
+
+    code = "E841"
+
+
+class ReconItemNotQueryable(FinError):
+    """E842. `fin query raise --items` names a line that is not a difference at or above the
+    threshold (matched, fx, not reconciled, unmapped, a month or party roll-up or below the
+    threshold), a line already in a query, or lines of different periods. Nothing raised."""
+
+    code = "E842"
 
 
 class PayrollFileNotFound(FinError):

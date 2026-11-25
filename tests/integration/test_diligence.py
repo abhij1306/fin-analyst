@@ -169,7 +169,10 @@ def test_manual_query_and_withdrawal(root: Path) -> None:
     ("args", "problem"),
     [
         (("--finding", "2", "--amount", "100"), "--finding takes the amount, period, scope"),
-        (("--amount", "100", "--period", "FY25"), "give --finding, or --amount, --period and"),
+        (
+            ("--amount", "100", "--period", "FY25"),
+            "give --finding, --items, or --amount, --period and",
+        ),
         (
             ("--amount", "1e30", "--period", "FY25", "--source", "x.xlsx S!A1"),
             "'1e30' is too large for an amount in rupees (below 10^18)",
