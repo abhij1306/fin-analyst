@@ -1,4 +1,4 @@
-"""Gate G2 Reconciliation's reconciliation checks (DILIGENCE_PLAN.md §5), for `fin.diligence.gates`.
+"""Gate G2 Reconciliation's reconciliation checks (docs/diligence.md §5), for `fin.diligence.gates`.
 
 A reconciliation is required for a period when its inputs are loaded (sales and purchase register
 vs GL: the period's Ledger Vouchers and registers covering it; gl_vs_tb: its trial balance and

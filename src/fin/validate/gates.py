@@ -1,4 +1,4 @@
-"""Validation gates (PLAN.md Phase 6). `fin.ingest` runs `validate_document` on every staged
+"""Validation gates (docs/product.md). `fin.ingest` runs `validate_document` on every staged
 document, inside its transaction, before COMMIT.
 
 Checks, for each period and scope in the document (tolerances from config.toml). A period is a
@@ -59,7 +59,7 @@ from fin.map.normalize import normalize_label
 if TYPE_CHECKING:
     from fin.audit.logger import Run
 
-# Each check's PLAN.md §9 code, in the order findings are listed.
+# Each check's docs/product.md §9 code, in the order findings are listed.
 CODES = {
     "balance_sheet": "E401",
     "subtotal": "E402",

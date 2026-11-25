@@ -1,4 +1,4 @@
-"""Gate G1 Ingestion's trial balance checks (DILIGENCE_PLAN.md §5), used by `fin.diligence.gates`.
+"""Gate G1 Ingestion's trial balance checks (docs/diligence.md §5), used by `fin.diligence.gates`.
 
 They apply once the engagement has a stub or a loaded diligence source file; an engagement on
 statements only says so in one passing line. Then, for every annual period and the stub:

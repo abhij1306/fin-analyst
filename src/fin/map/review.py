@@ -1,4 +1,4 @@
-"""Mapping review (PLAN.md Phase 5): from an unmapped label to a dictionary entry.
+"""Mapping review (docs/product.md): from an unmapped label to a dictionary entry.
 
 1. `write_pending` (called after ingest) lists the labels the dictionary did not map, with their
    facts, in `review/<company>/pending.json`. Each item has an id, a status and, once proposed, an

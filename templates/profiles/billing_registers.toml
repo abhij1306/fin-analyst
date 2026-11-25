@@ -1,9 +1,9 @@
 # Billing system: one workbook with a sales sheet and a purchase sheet (synthetic headers; replace them with the
-# headers of the real export: docs/CUSTOMISING.md). Each sheet's column header is on one row; the sheet is found by
+# headers of the real export: docs/development.md). Each sheet's column header is on one row; the sheet is found by
 # its headers (the sheet name does not matter). Amount in Rs is before GST: the export has no GST columns.
 # Names (customer, vendor, handler, submitted by) are masked on load; there is no period header: the period is read
 # from the invoice dates.
-# How profiles work: src/fin/extract/profiles.py and docs/CUSTOMISING.md.
+# How profiles work: src/fin/extract/profiles.py and docs/development.md.
 kind = "registers"
 header_rows = 1
 date_format = "%d-%m-%Y"

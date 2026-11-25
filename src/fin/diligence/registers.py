@@ -1,4 +1,4 @@
-"""What the rows of a sales and purchase registers workbook mean (DILIGENCE_PLAN.md D3).
+"""What the rows of a sales and purchase registers workbook mean (docs/diligence.md D3).
 
 The rows come from `fin.extract.registers.read_registers`. Three steps, called by
 `fin.diligence.sources.ingest_source`:

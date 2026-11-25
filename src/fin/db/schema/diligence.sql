@@ -1,4 +1,4 @@
--- Company database, companies/<company>.duckdb: the diligence tables (docs/DILIGENCE_PLAN.md, fin.diligence). Run
+-- Company database, companies/<company>.duckdb: the diligence tables (docs/diligence.md, fin.diligence). Run
 -- after company.sql and company_views.sql. Money is DECIMAL(20,2) rupees. No foreign keys (see company.sql): the id
 -- columns are the links. Reported facts are never changed here; adjustments sit beside them.
 -- Every row added and every status change is also appended to the audit table diligence_events.

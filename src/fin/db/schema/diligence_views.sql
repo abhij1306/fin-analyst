@@ -1,4 +1,4 @@
--- Company database: the diligence views (docs/DILIGENCE_PLAN.md, fin.diligence.bridge). Run after diligence.sql.
+-- Company database: the diligence views (docs/diligence.md, fin.diligence.bridge). Run after diligence.sql.
 -- Plain views over the metrics and the adjustments, so they are always current and never stored twice.
 --
 -- Which figures:

@@ -1,4 +1,4 @@
-"""`fin update` (PLAN.md §10): bring the code up to date without losing data.
+"""`fin update` (docs/product.md §10): bring the code up to date without losing data.
 
 1. Refuse if the repo has local changes.
 2. Back up every database to `backups/<run_id>/`.

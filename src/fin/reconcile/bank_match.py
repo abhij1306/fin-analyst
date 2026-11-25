@@ -1,4 +1,4 @@
-"""Bank receipts against sales invoices: the fixed matching passes (DILIGENCE_PLAN.md D5).
+"""Bank receipts against sales invoices: the fixed matching passes (docs/diligence.md D5).
 
 No fuzzy or ML matching. Receipts (bank credits) and invoices are matched in this order, and each
 group records the pass that made it:

@@ -1,4 +1,4 @@
-"""Error classes with their codes (the table is in README.md, "Error codes"), and exit codes.
+"""Error classes with their codes (the table is in docs/errors.md), and exit codes.
 
 Every failure path raises a subclass of `FinError`. Each class carries its code and the exit code
 a command returns when the error ends it:

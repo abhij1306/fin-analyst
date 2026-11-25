@@ -1,4 +1,4 @@
-"""Load documents into a company database (PLAN.md Phase 3).
+"""Load documents into a company database (docs/product.md).
 
 For each file, `ingest_file`:
 

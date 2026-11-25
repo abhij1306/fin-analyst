@@ -1,4 +1,4 @@
--- Account dictionary, shared/dictionary.duckdb (PLAN.md §7). `fin init` seeds it from
+-- Account dictionary, shared/dictionary.duckdb (docs/product.md §7). `fin init` seeds it from
 -- templates/dictionary/schedule_iii.csv (accounts, with the subtotal tree) and templates/dictionary/labels.csv
 -- (label_map).
 

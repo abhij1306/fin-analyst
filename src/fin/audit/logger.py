@@ -1,4 +1,4 @@
-"""Audit logger (PLAN.md §8). Every `fin` command runs through `execute`.
+"""Audit logger (docs/product.md §8). Every `fin` command runs through `execute`.
 
 A run gets a `run_id` and appends records:
 - `runs`: a 'start' row when it begins and an 'end' row when it finishes (status, exit code, summary

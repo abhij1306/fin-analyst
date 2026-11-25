@@ -21,7 +21,7 @@ Placeholders:
                            collections_customers, stub, findings, mappings, sources
   {{section:customers}}    customers, sectors and pricing (as the health report; empty without a sales register)
   {{section:recast}}       the service-period recast (empty until `fin recast run` has run)
-Every value comes from SQL on the company database (docs/CUSTOMISING.md "Add a report section").
+Every value comes from SQL on the company database (docs/development.md "Add a report section").
 -->
 
 Analysis only: this report describes the figures of a diligence engagement. It makes no

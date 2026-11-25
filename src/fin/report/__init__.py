@@ -1,1 +1,1 @@
-"""Company health reports (PLAN.md Phase 9): `fin report <company>`."""
+"""Company health reports (docs/product.md): `fin report <company>`."""

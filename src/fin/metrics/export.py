@@ -1,5 +1,5 @@
-"""Export every company's metrics, statements and data quality to shared/analytics.duckdb (PLAN.md
-Phase 7), for the dashboards.
+"""Export every company's metrics, statements and data quality to shared/analytics.duckdb
+(docs/product.md), for the dashboards.
 
 The metrics are SQL views in each company database (`db/schema/company_views.sql`).
 `refresh_analytics` reads them from every `companies/<company>.duckdb`, with the standard statements

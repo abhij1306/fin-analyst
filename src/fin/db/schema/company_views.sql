@@ -1,5 +1,5 @@
--- Metrics (PLAN.md Phase 7): macros and plain views over facts, so they are always current and never stored twice.
--- THIS FILE IS WHERE A METRIC IS ADDED OR CHANGED (docs/CUSTOMISING.md "Add a metric"):
+-- Metrics (docs/product.md): macros and plain views over facts, so they are always current and never stored twice.
+-- THIS FILE IS WHERE A METRIC IS ADDED OR CHANGED (docs/development.md "Add a metric"):
 --   1. a row in `metric_definitions` (category, unit, which periods, display label, plain-English definition,
 --      formula);
 --   2. its input accounts in `metric_input_accounts` (for lineage, `metric_inputs`);

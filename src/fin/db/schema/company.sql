@@ -1,4 +1,4 @@
--- Company database, companies/<company>.duckdb (PLAN.md §7): the tables. The metric macros and views follow in
+-- Company database, companies/<company>.duckdb (docs/product.md §7): the tables. The metric macros and views follow in
 -- company_views.sql, which is run right after this file. Money is DECIMAL(20,2) rupees.
 -- No foreign keys: DuckDB cannot update a row that other rows reference (documents.status changes when a
 -- document is superseded). The id columns are still the links: facts.raw_id -> raw_values.raw_id, and

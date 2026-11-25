@@ -1,4 +1,4 @@
-"""What the rows of a Tally Trial Balance or Ledger Vouchers export mean (DILIGENCE_PLAN.md D2).
+"""What the rows of a Tally Trial Balance or Ledger Vouchers export mean (docs/diligence.md D2).
 
 The rows come from `fin.extract.ledger.read_table`, read with a column profile; everything
 layout-specific is in the profile.

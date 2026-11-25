@@ -1,4 +1,4 @@
-"""Payroll snapshot (DILIGENCE_PLAN.md D3): rows, the unit check and G1's payroll line.
+"""Payroll snapshot (docs/diligence.md D3): rows, the unit check and G1's payroll line.
 
 `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot (one row per employee) with a
 column profile (`templates/profiles/sparsh_payroll.toml`, `fin.extract.ledger`). This module says

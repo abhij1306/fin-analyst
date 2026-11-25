@@ -1,6 +1,6 @@
 """PostToolUse hook: append every Claude Code tool call to <data>/logs/claude_actions.jsonl.
 
-Reads the hook payload (JSON) from stdin. See PLAN.md §8.
+Reads the hook payload (JSON) from stdin. See docs/product.md §8.
 """
 
 import json

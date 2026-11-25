@@ -1,4 +1,4 @@
-"""Data folder resolution. The data folder lives outside the repo (PLAN.md §6)."""
+"""Data folder resolution. The data folder lives outside the repo (docs/product.md §6)."""
 
 import os
 import re
@@ -12,7 +12,7 @@ COMPANY_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 DATA_DIR_ENV = "FIN_DATA_DIR"
 DEFAULT_DATA_DIR_NAME = "FinAnalysis"
 
-# Top-level folders of the data folder (PLAN.md §6). Per-company folders are created on ingest.
+# Top-level folders of the data folder (product.md §6). Per-company folders are created on ingest.
 DATA_SUBDIRS = (
     "inbox",
     "archive",

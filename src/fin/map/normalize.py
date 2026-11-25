@@ -1,4 +1,4 @@
-"""Label normalization: the key the dictionary matches on (PLAN.md Phase 2).
+"""Label normalization: the key the dictionary matches on (docs/product.md).
 
 `normalize_label("(b) Financial assets - Trade receivables (Note 10)")` gives
 `"financial assets trade receivables"`. Steps, in order:

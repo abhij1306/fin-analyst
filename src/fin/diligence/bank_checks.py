@@ -1,4 +1,4 @@
-"""Checks across an engagement's bank statements, and G1's bank line (DILIGENCE_PLAN.md D3, §5).
+"""Checks across an engagement's bank statements, and G1's bank line (docs/diligence.md D3, §5).
 
 Statements of one account (bank, account number, currency) are put in date order. A statement that
 starts on or before the end of an earlier one overlaps it (`bank_overlap`: the same days twice, so

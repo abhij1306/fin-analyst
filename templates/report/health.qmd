@@ -25,7 +25,7 @@ Placeholders:
   {{section:customers}}    customers, sectors and pricing from a diligence engagement's registers (empty
                            without one)
 Every value comes from SQL on the company database (metrics, current_facts, standard statements,
-findings, statement_coverage). To add a section, see docs/CUSTOMISING.md "Add a report section".
+findings, statement_coverage). To add a section, see docs/development.md "Add a report section".
 -->
 
 Analysis only: this report describes the financial statements. It makes no recommendation or

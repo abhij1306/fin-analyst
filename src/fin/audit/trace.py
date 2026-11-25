@@ -1,4 +1,4 @@
-"""`fin audit`: trace a figure back to its source, or list a company's history (PLAN.md §8).
+"""`fin audit`: trace a figure back to its source, or list a company's history (docs/product.md §8).
 
 - `fact_trace`: fact -> mapping (dictionary row and review decisions) -> raw value -> file and
   `sheet!cell` or `page N`, plus the ingest run that loaded it.

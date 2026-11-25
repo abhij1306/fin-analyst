@@ -21,7 +21,7 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      equal to its ledgers: show it with `fin findings list` and ask, as for any finding), the trial balance ledgers
      missing from the Ledger Vouchers (ask the user for the export with all ledgers) and the ledgers masked as
      `LEDG-...`. E807 lists the header lines of a layout no profile reads: write a profile in
-     `templates/profiles/` (`docs/CUSTOMISING.md`) and ingest with `--profile <name>`. E808: the period is not a
+     `templates/profiles/` (`docs/development.md`) and ingest with `--profile <name>`. E808: the period is not a
      year of the engagement nor exactly its stub; E809: ask for the Detailed export.
    - **Payroll.** Load the Sparsh snapshot with `uv run fin ingest <company> <file> --kind payroll` (its header gives
      the snapshot date, which must fall in a year of the engagement or the stub). Report the outcome lines as printed,

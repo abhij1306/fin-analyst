@@ -1,4 +1,4 @@
--- Audit log, shared/audit.duckdb (PLAN.md §8). Append-only: fin only ever INSERTs into these tables.
+-- Audit log, shared/audit.duckdb (docs/product.md §8). Append-only: fin only ever INSERTs into these tables.
 -- Timestamps are UTC. JSON values are stored as text.
 
 -- Each run appends a 'start' row when it begins and an 'end' row when it finishes. The end row repeats the start

@@ -1,4 +1,4 @@
-"""`fin delete <company>`: remove a company's data after backing it up (PLAN.md Phase 11).
+"""`fin delete <company>`: remove a company's data after backing it up (docs/product.md).
 
 Removed, relative to the data folder:
 - `companies/<company>.duckdb` (and its `.wal`)

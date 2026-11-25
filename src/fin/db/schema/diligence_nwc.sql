@@ -1,4 +1,4 @@
--- Company database: normalised working capital (docs/DILIGENCE_PLAN.md D7). Run after sources.sql (trial_balance,
+-- Company database: normalised working capital (docs/diligence.md D7). Run after sources.sql (trial_balance,
 -- ledger_entries, ledger_accounts, recon_runs) and diligence.sql (engagement).
 --
 -- Which ledgers: those the user confirmed (ledger_accounts, status 'confirmed') to a working capital account, listed
