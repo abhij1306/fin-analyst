@@ -133,6 +133,34 @@ class RelatedPartyLinkInvalid(FinError):
     code = "E941"
 
 
+# E970-E979: FDD F8, the FDD findings and report (fin.fdd.findings, fin.report.fdd_render).
+
+
+class FddFindingInvalid(FinError):
+    """E970. `fin fdd finding propose|update`: an area, impact type, severity or deal consideration
+    that is not one of the allowed ones, an empty title, observation or evidence, text with a typed
+    number or valuation, investment-rating or buy/don't-buy language, more than one amount link, or
+    a linked adjustment, net debt item, reconciliation run or query not in the open engagement.
+    Nothing stored."""
+
+    code = "E970"
+
+
+class FddFindingUnknown(FinError):
+    """E971. `fin fdd finding update|drop|final`: no finding with that id in the open engagement,
+    or it is not in the state the command needs (update and drop need a draft; final a draft;
+    final --undo a final finding). Nothing changed."""
+
+    code = "E971"
+
+
+class NarrativeJudges(FinError):
+    """E972. `fin report --fdd`: the narrative has valuation, investment-rating or buy/don't-buy
+    language. The message lists each line. Nothing rendered."""
+
+    code = "E972"
+
+
 # E930-E939: FDD F4, net debt and debt-like items (fin.diligence.netdebt, netdebt_items).
 
 

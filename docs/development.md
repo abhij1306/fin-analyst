@@ -80,7 +80,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `fdd/`: the FDD extension (`docs/fdd.md`). F6: `gst.py` (GST return summaries, `--kind gst`, loaded through
   `diligence/sources.py`), `tax_ledgers.py` (tax ledger classes: propose, confirm, reject; CLI `cli/tax.py` and
   `fin review --tax`), `tax_data.py` (what the FDD report's tax section reads). The GST reconciliations are
-  `reconcile/gst.py`; tables and views `db/schema/fdd_gst.sql`; golden checks `evals/gst.py`.
+  `reconcile/gst.py`; tables and views `db/schema/fdd_gst.sql`; golden checks `evals/gst.py`. F8: `findings.py` (FDD
+  findings: Claude proposes, updates and drops drafts, the user marks them final, E970-E971; `collect` for the report;
+  CLI `cli/fdd.py`; schema `db/schema/fdd_findings.sql`).
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` (with `review_accounts.py`: checks of a proposed or new account) and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`), with `proposal_commands.py` (`fin map ledgers|customers`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
@@ -91,7 +93,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806), `evidence.py` (`fin sql --evidence` pages).
 - `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
   Markdown tables), `chart.py` (the SVG line chart),
-  `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).
+  `lint.py` (the no-typed-numbers rule, and the FDD report's no-valuation, rating or buy rule, E972), `render.py`
+  (narrative stub, sections, Quarto). The diligence report: `dd_data.py`, `dd_tables.py`, `dd_render.py`; the FDD
+  report (F8) on the same machinery: `fdd_data.py`, `fdd_tables.py`, `fdd_render.py`.
 - `evals/`: the golden evaluation (`docs/client-handoff.md`): `golden.py` (the golden set format, `evals/<company>/golden.csv`,
   E830/E831), `scaffold.py` (`fin eval init`), `score.py` (`fin eval run` and its report), `provisions.py` (F3's golden kinds), `netdebt.py` (F4's), `counts.py` (error codes,
   findings, unread pages, Claude-read figures, unmapped labels and ledgers), `bundle.py` (`fin eval bundle`: no names,
@@ -237,6 +241,12 @@ narrative section: add it to `SECTIONS` in `dd_render.py` and `{{narrative:<key>
 add it to `FIGURES` (and to `_figures` if it comes from a new view). The working capital accounts are the `nwc_accounts` view in
 `db/schema/diligence_nwc.sql`. Golden checks for the working capital are `fin/evals/qoe.py`.
 
+`fin report <co> --fdd` (docs/fdd.md F8) is a second `dd_render.Kind` on the same machinery (`dd_render.make`): `fdd_data.py`
+reads the diligence data plus each FDD workstream's data function, `fdd_tables.py` formats the FDD tables, `fdd_render.py`
+has its `SECTIONS`, figures (`FDD_FIGURES` in `fdd_data.py`), placeholders (`parts`) and lint (`lint_fdd`); the template is
+`templates/report/fdd.qmd`. A new FDD section: its data in `fdd_data.collect`, a table function in `fdd_tables.py`, a key in
+`parts`, a `SECTIONS` entry and the placeholders in the template.
+
 ## Add a report section
 
 The report is built in `src/fin/report/`: `data.py` reads the data (`collect`), `tables.py` turns it into Markdown tables;
@@ -289,7 +299,7 @@ Each database is created from its schema files in `src/fin/db/schema/`, run in t
 `src/fin/db/schema.py` lists them: `audit.sql`, `dictionary.sql`, `analytics.sql`, and for a company `company.sql`
 (tables), `company_views.sql` and the `company_metric_*.sql` / `company_metrics.sql` files (metric macros and
 views), `diligence.sql` (diligence tables), `diligence_views.sql` (EBITDA bridge and walk views), `sources.sql` and
-`sources_views.sql` (source tables and their views) and the other diligence view files, then the FDD files (`fdd_bsheet.sql`: F3's provision ledgers and views; `fdd_orderbook.sql`: F7's orderbook table and visibility views; `fdd_gst.sql`: F6's GST returns, tax ledgers and tax views; `fdd_netdebt.sql`: F4's net debt classes, items and views). `fin init` creates the
+`sources_views.sql` (source tables and their views) and the other diligence view files, then the FDD files (`fdd_bsheet.sql`: F3's provision ledgers and views; `fdd_orderbook.sql`: F7's orderbook table and visibility views; `fdd_gst.sql`: F6's GST returns, tax ledgers and tax views; `fdd_netdebt.sql`: F4's net debt classes, items and views; `fdd_findings.sql`: F8's FDD findings). `fin init` creates the
 shared databases, and a company database is created the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
 numbers.
 

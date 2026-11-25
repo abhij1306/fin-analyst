@@ -16,7 +16,7 @@ ordered-list markers ("1."), percentages, years such as 2025 and digits inside w
 
 import re
 
-from fin.audit.errors import NarrativeHasTypedNumbers
+from fin.audit.errors import NarrativeHasTypedNumbers, NarrativeJudges
 
 PERIOD = r"FY\d{2}(?:-(?:Q[1-4]|H[12]|9M))?"
 REFERENCE = re.compile(r"\{\{(metric|fact):([a-z][a-z0-9_]*):(" + PERIOD + r")\}\}")
@@ -67,6 +67,48 @@ def lint(text: str, name: str, pattern: re.Pattern[str] = REFERENCE) -> None:
         raise NarrativeHasTypedNumbers(
             f"{name} has hand-typed numbers on {len(lines)} line(s); write each number as a "
             "reference such as {{metric:ebitda_margin:FY25}} or {{fact:revenue:FY25}}:\n" + listing
+        )
+
+
+# The FDD report may judge (severity, implications, deal considerations) but never value the
+# company, rate it as an investment or say whether to buy it (CLAUDE.md, docs/decisions/fdd-f8.md).
+# Phrases only, so ordinary words (buyer, share buy-back, fair value, actuarial valuation) pass.
+JUDGING = re.compile(
+    r"(?<!actuarial )(?<!inventory )(?<!stock )\bvaluations?\b"
+    r"|\b(?:enterprise|equity|purchase|intrinsic|fair market) value\b|\bvalued at\b"
+    r"|\b(?:over|under|fairly )valued\b|\bev\s*/\s*ebitda\b|\bp\s*/\s*e\b"
+    r"|\b(?:ebitda|earnings|revenue|valuation) multiples?\b|\bprice[- ]to[- ]earnings\b"
+    r"|\b(?:investment|stock|equity|buy|sell|hold) (?:rating|recommendation)s?\b"
+    r"|\binvestment grade\b"
+    r"|\b(?:good|bad|attractive|unattractive|sound|poor|strong|weak|compelling) investment\b"
+    r"|\bworth (?:buying|acquiring|investing|paying)\b"
+    r"|\b(?:should|shouldn't|should not|do not|don't|must not) (?:buy|acquire|invest)\b"
+    r"|\bproceed with the (?:deal|transaction|acquisition|investment)\b|\bbuy\b(?!-back)",
+    re.IGNORECASE,
+)
+
+
+def judging_lines(text: str) -> list[tuple[int, str]]:
+    """(line number, line) for every line of `text` (comments removed) with valuation,
+    investment-rating or buy/don't-buy language."""
+    return [
+        (number, line.strip())
+        for number, line in enumerate(strip_comments(text).splitlines(), start=1)
+        if JUDGING.search(line)
+    ]
+
+
+def lint_fdd(text: str, name: str) -> None:
+    """The FDD report's narrative: E602 for a hand-typed number (references are {{figure:...}}),
+    E972 for valuation, investment-rating or buy/don't-buy language."""
+    lint(text, name, FIGURE)
+    lines = judging_lines(text)
+    if lines:
+        listing = "\n".join(f"  line {number}: {line}" for number, line in lines)
+        raise NarrativeJudges(
+            f"{name} has valuation, investment-rating or buy/don't-buy language on {len(lines)} "
+            "line(s); the FDD report states findings, severity, implications and deal "
+            "considerations, never a value, a rating or whether to buy:\n" + listing
         )
 
 
