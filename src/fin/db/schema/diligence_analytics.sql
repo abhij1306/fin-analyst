@@ -148,7 +148,8 @@ FROM figures f
 ORDER BY f.period;
 
 -- Cohorts of core customers: a customer's cohort is the first annual period in which it is active. Each row is a
--- cohort and a period from its start: customers active again (a customer may skip a period and return), their
+-- cohort and an annual period of the engagement from its start (a cohort with nobody left still has its rows, with
+-- zeros): customers active again (a customer may skip a period and return), their
 -- revenue, and retention against the cohort's first period (logo = active / cohort customers, revenue = revenue /
 -- cohort revenue). opening is true for the first period of the engagement: those customers may be older, so it is
 -- the opening book, not a cohort won in that year.
@@ -156,21 +157,28 @@ CREATE VIEW customer_cohorts AS
 WITH first AS (
     SELECT customer, min(period_no) AS cohort_no FROM customer_core_years GROUP BY customer
 ),
-by_cohort AS (
-    SELECT f.cohort_no, y.period, y.period_no, y.engagement_id, y.customer, y.revenue
+periods AS (
+    SELECT DISTINCT engagement_id, period, period_no FROM analytics_sales WHERE basis = 'audited'
+),
+grid AS (
+    SELECT p.engagement_id, c.cohort_no, p.period, p.period_no
+    FROM (SELECT DISTINCT cohort_no FROM first) c JOIN periods p ON p.period_no >= c.cohort_no
+),
+activity AS (
+    SELECT f.cohort_no, y.period_no, count(*) AS active_customers, sum(y.revenue) AS revenue
     FROM customer_core_years y JOIN first f ON f.customer = y.customer AND y.period_no >= f.cohort_no
+    GROUP BY f.cohort_no, y.period_no
 ),
 sized AS (
     SELECT
-        engagement_id, cohort_no, period, period_no,
-        CAST(count(*) AS INTEGER) AS active_customers,
-        CAST(sum(revenue) AS DECIMAL(38, 2)) AS revenue
-    FROM by_cohort
-    GROUP BY engagement_id, cohort_no, period, period_no
+        g.engagement_id, g.cohort_no, g.period, g.period_no,
+        CAST(coalesce(a.active_customers, 0) AS INTEGER) AS active_customers,
+        CAST(coalesce(a.revenue, 0) AS DECIMAL(38, 2)) AS revenue
+    FROM grid g LEFT JOIN activity a ON a.cohort_no = g.cohort_no AND a.period_no = g.period_no
 )
 SELECT
     s.engagement_id,
-    (SELECT c.period FROM sized c WHERE c.period_no = s.cohort_no LIMIT 1) AS cohort,
+    (SELECT p.period FROM periods p WHERE p.period_no = s.cohort_no) AS cohort,
     s.cohort_no = (SELECT min(period_no) FROM customer_core_years) AS opening,
     s.period,
     s.active_customers,

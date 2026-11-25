@@ -212,6 +212,26 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
     }
 
 
+def _statement_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
+    """Codes of the findings on a statement figure's period and scope, and `held`."""
+    codes: set[str] = {
+        c
+        for (c,) in con.execute(
+            "SELECT DISTINCT coalesce(code, check_name) FROM findings WHERE status IN "
+            "('open', 'accepted') AND period = ? AND scope = ?",
+            [check.period, check.scope],
+        ).fetchall()
+    }
+    held = con.execute(
+        "SELECT count(*) FROM document_facts x JOIN documents d USING (doc_id) WHERE "
+        "d.status = 'held' AND x.period = ? AND x.scope = ? AND x.account = ?",
+        [check.period, check.scope, check.account],
+    ).fetchone()
+    if held and held[0]:
+        codes.add("held")
+    return sorted(codes)
+
+
 def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
     """What may explain a check that is not passing: the codes of open and accepted findings on the
     same period (and scope), and markers: `held` (a held document has the figure), `not_reconciled`
@@ -220,22 +240,7 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
     recorded), `unconfirmed_sectors` (a sector check while customers have no confirmed sector)."""
     codes: set[str] = set()
     if check.kind == "statement":
-        codes |= {
-            c
-            for (c,) in con.execute(
-                "SELECT DISTINCT coalesce(code, check_name) FROM findings WHERE status IN "
-                "('open', 'accepted') AND period = ? AND scope = ?",
-                [check.period, check.scope],
-            ).fetchall()
-        }
-        held = con.execute(
-            "SELECT count(*) FROM document_facts x JOIN documents d USING (doc_id) WHERE "
-            "d.status = 'held' AND x.period = ? AND x.scope = ? AND x.account = ?",
-            [check.period, check.scope, check.account],
-        ).fetchone()
-        if held and held[0]:
-            codes.add("held")
-        return sorted(codes)
+        return _statement_codes(con, check)
     if check.kind in (*MATCH_KINDS, "bank_vs_tb"):
         name = "bank_vs_tb" if check.kind == "bank_vs_tb" else "bank_vs_invoices"
         ran = con.execute(

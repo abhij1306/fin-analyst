@@ -269,55 +269,45 @@ def test_sector_mix_counts_unconfirmed_customers_as_unmapped(root: Path) -> None
     )[0]["revenue"] == D("45000.00")
 
 
+def proposal(customer: str, sector: str, confidence: float = 1, reason: str = "") -> dict[str, Any]:
+    return {"customer": customer, "sector": sector, "confidence": confidence, "reason": reason}
+
+
 def test_registers_load_adds_pending_customers_and_review_decides(root: Path) -> None:
     rows = query(root, "SELECT * FROM customers ORDER BY customer_id")
     assert [r["status"] for r in rows] == ["pending"] * 4
     t = tokens(root)
+    r = run(root)
+    unknown, blank, reuse = (
+        proposal("CUST-9999", "x"),
+        proposal(t["C0"], "Unmapped"),
+        proposal(t["C0"], "x"),
+    )
 
     with pytest.raises(CustomerMappingInvalid, match="not a customer"):
-        customers.propose(
-            run(root),
-            "acme",
-            [{"customer": "CUST-9999", "sector": "x", "confidence": 1, "reason": ""}],
-        )
+        customers.propose(r, "acme", [unknown])
     with pytest.raises(CustomerMappingInvalid, match="no proposed sector"):
-        customers.confirm(run(root), "acme", [rows[0]["customer_id"]])
+        customers.confirm(r, "acme", [rows[0]["customer_id"]])
     with pytest.raises(CustomerMappingInvalid, match="unmapped"):
-        customers.propose(
-            run(root),
-            "acme",
-            [{"customer": t["C0"], "sector": "Unmapped", "confidence": 1, "reason": ""}],
-        )
+        customers.propose(r, "acme", [blank])
     with pytest.raises(CustomerMappingInvalid, match="no customer with id 99"):
-        customers.reject(run(root), "acme", [99])
-    assert {r["status"] for r in query(root, "SELECT * FROM customers")} == {"pending"}
+        customers.reject(r, "acme", [99])
+    assert {row["status"] for row in query(root, "SELECT * FROM customers")} == {"pending"}
 
-    customers.propose(
-        run(root),
-        "acme",
-        [{"customer": t["C0"], "sector": " Banking ", "confidence": 0.9, "reason": "r"}],
-    )
+    customers.propose(r, "acme", [proposal(t["C0"], " Banking ", 0.9, "r")])
     first = rows[0]["customer_id"]
-    assert (
-        query(root, "SELECT sector FROM sector_mix WHERE sector = 'Banking'") == []
-    )  # not confirmed
-    [edited] = customers.confirm(run(root), "acme", [first], "Financial services")
+    not_yet = query(root, "SELECT sector FROM sector_mix WHERE sector = 'Banking'")
+    assert not_yet == []  # proposed, not confirmed
+    [edited] = customers.confirm(r, "acme", [first], "Financial services")
     assert (edited["status"], edited["sector"]) == ("confirmed", "Financial services")
     with pytest.raises(CustomerMappingInvalid, match="only the user changes it"):
-        customers.propose(
-            run(root), "acme", [{"customer": t["C0"], "sector": "x", "confidence": 1, "reason": ""}]
-        )
+        customers.propose(r, "acme", [reuse])
     second = rows[1]["customer_id"]
-    customers.propose(
-        run(root),
-        "acme",
-        [{"customer": rows[1]["customer"], "sector": "Retail", "confidence": 0.5, "reason": "r"}],
-    )
-    assert customers.reject(run(root), "acme", [second])[0]["sector"] is None
-    assert [r["status"] for r in customers.list_customers(run(root), "acme", open_only=True)] == [
-        "pending",
-        "pending",
-    ]
+    customers.propose(r, "acme", [proposal(rows[1]["customer"], "Retail", 0.5, "r")])
+    [rejected] = customers.reject(r, "acme", [second])
+    assert rejected["sector"] is None
+    waiting = customers.list_customers(r, "acme", open_only=True)
+    assert [row["status"] for row in waiting] == ["pending", "pending"]
 
 
 def test_the_report_section_and_the_data_have_no_names(root: Path) -> None:
@@ -328,10 +318,31 @@ def test_the_report_section_and_the_data_have_no_names(root: Path) -> None:
     text = customers_section(data, "rupees")
 
     assert "## Customers, sectors and pricing" in text
-    assert "| FY25 | core | 4 | ₹4,40,000.00 | 63.6% | 100.0% | 100.0% |" in text or "63.6%" in text
-    assert "Banking" in text and "unmapped" in text
-    assert "Orchid" not in text and "Lotus" not in text
+    assert "63.6%" in text
+    assert "Banking" in text
+    assert "unmapped" in text
+    assert "Orchid" not in text
+    assert "Lotus" not in text
     assert customers_section({"customers": None}, "rupees") == ""
+
+
+def test_a_cohort_with_nobody_left_keeps_its_rows(root: Path) -> None:
+    """FY24 core customers are Lotus and Cedar once Orchid is pass-through and neither has FY25
+    sales: the FY24 cohort is still listed in FY25, with zeros."""
+    passthrough.set_customers(run(root), "acme", [tokens(root)["C0"]], "email")
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("DELETE FROM register_lines WHERE invoice_no IN ('INV-1002', 'INV-1008')")
+
+    rows = query(root, "SELECT * FROM customer_cohorts ORDER BY cohort, period")
+
+    assert [
+        (r["cohort"], r["period"], r["active_customers"], r["revenue"], r["revenue_retention"])
+        for r in rows
+    ] == [
+        ("FY24", "FY24", 2, D("120000.00"), D("1.000000")),
+        ("FY24", "FY25", 0, D("0.00"), D("0.000000")),
+        ("FY25", "FY25", 1, D("70000.00"), D("1.000000")),
+    ]
 
 
 def test_analytics_needs_a_sales_register(bare: Path) -> None:
