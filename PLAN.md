@@ -323,7 +323,7 @@ fin-analyst/
     commands/            # ingest, ingest-batch, review, ask, statements, report, dashboard, audit, status, verify
     hooks/               # log_action.py, gate_guard.py
   src/fin/
-    cli.py  config.py  paths.py  ingest.py  statements.py  workbook.py
+    cli/  config.py  paths.py  ingest.py  statements.py  workbook.py
     audit/     logger.py  errors.py
     db/        conn.py  schema.py  schema/{audit,dictionary,analytics,company,company_views}.sql
     extract/   excel.py  pdf.py  pdf_tables.py  addon.py  fallback.py  docling_run.py  liteparse_run.py
