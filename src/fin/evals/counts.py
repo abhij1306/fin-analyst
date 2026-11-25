@@ -19,6 +19,8 @@
   how many need a query but are in none.
 - `registers`: lines of the loaded registers file by kind (sales, purchase);
 - `payroll`: loaded payroll files by the unit the user confirmed (or "not confirmed").
+- `bank_matches`: lines of the latest `bank_vs_invoices` runs by kind and match pass, and the match
+  proposals by status.
 """
 
 import json
@@ -81,6 +83,24 @@ LEFT JOIN payroll_units u USING (file_id)
 WHERE s.kind = 'payroll' AND s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT}
 GROUP BY ALL ORDER BY ALL
 """
+_MATCHES = f"""
+SELECT i.kind, coalesce(i.match_pass, '-'), count(*)
+FROM recon_items i JOIN recon_runs r USING (recon_id)
+WHERE r.name = 'bank_vs_invoices' AND r.engagement_id = {LATEST_ENGAGEMENT}
+    AND r.recon_id IN (
+        SELECT max(recon_id) FROM recon_runs WHERE name = 'bank_vs_invoices' GROUP BY period
+    )
+GROUP BY ALL ORDER BY ALL
+"""
+MATCH_KINDS = ("bank_unmatched", "invoice_unmatched", "fx_line")
+
+
+def _bank_matches(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
+    lines = {f"{kind}, {how}": n for kind, how, n in con.execute(_MATCHES).fetchall()}
+    proposals = dict(
+        con.execute("SELECT status, count(*) FROM match_proposals GROUP BY 1 ORDER BY 1").fetchall()
+    )
+    return {"lines": lines, "proposals": proposals}
 
 
 def _audit_codes(root: Path, company: str) -> dict[str, int]:
@@ -164,6 +184,7 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
         "unmapped_labels": _one(con, _UNMAPPED),
         "mappings_waiting": len(open_items(read_pending(root, company))),
         "ledgers": ledgers,
+        "bank_matches": _bank_matches(con),
         "bank_statements": {
             f"{reader}, {'ties' if ties else 'does not tie'}": n
             for reader, ties, n in con.execute(_BANK).fetchall()
@@ -209,6 +230,20 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
         if held and held[0]:
             codes.add("held")
         return sorted(codes)
+    if check.kind in (*MATCH_KINDS, "bank_vs_tb"):
+        name = "bank_vs_tb" if check.kind == "bank_vs_tb" else "bank_vs_invoices"
+        ran = con.execute(
+            "SELECT count(*) FROM recon_runs WHERE name = ? AND period = ? "
+            f"AND engagement_id = {LATEST_ENGAGEMENT}",
+            [name, check.period],
+        ).fetchone()
+        if ran is not None and not ran[0]:
+            codes.add("not_reconciled")
+        waiting = con.execute(
+            "SELECT count(*) FROM match_proposals WHERE status = 'proposed'"
+        ).fetchone()
+        if check.kind in MATCH_KINDS and waiting is not None and waiting[0]:
+            codes.add("match_proposals_waiting")
     if check.kind == "bank_closing":  # the period is a date: findings on that account's statements
         return sorted(
             c

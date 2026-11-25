@@ -22,6 +22,11 @@ CREATE TABLE engagement (
     stub VARCHAR,
     stub_start DATE,
     stub_end DATE,
+    -- bank matching settings copied from config.toml [diligence] when the engagement opens (like query_threshold)
+    match_window_days INTEGER NOT NULL DEFAULT 60,
+    fx_window_days INTEGER NOT NULL DEFAULT 7,
+    invoice_due_days INTEGER NOT NULL DEFAULT 30,
+    fiscal_start_month INTEGER NOT NULL DEFAULT 4,
     status VARCHAR NOT NULL CHECK (status IN ('open', 'closed')),
     opened_run_id VARCHAR NOT NULL,
     opened_at TIMESTAMP NOT NULL,

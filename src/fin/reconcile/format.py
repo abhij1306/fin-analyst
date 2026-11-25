@@ -9,6 +9,7 @@ only those that differ are listed.
 from typing import Any
 
 from fin.diligence.engagement import rupees
+from fin.reconcile import bank
 from fin.reconcile.base import DETAIL_LEVELS
 
 LEFT = {
@@ -48,6 +49,8 @@ def _text(line: dict[str, Any], names: tuple[str, str], threshold: Any) -> str:
 
 
 def format_result(result: dict[str, Any]) -> str:
+    if result["name"] in bank.NAMES:
+        return bank.format_result(result)
     lines, threshold = result["lines"], result["threshold"]
     names = LEFT[result["name"]]
     detail = [line for line in lines if line["level"] in DETAIL_LEVELS]

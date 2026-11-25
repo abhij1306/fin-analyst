@@ -11,7 +11,7 @@ import typer
 
 from fin.audit.errors import InvalidMapping
 from fin.audit.logger import Run, execute
-from fin.diligence import ledgers
+from fin.diligence import bank_proposals, ledgers
 from fin.diligence.ledgers import list_ledgers
 from fin.findings import recheck_held
 from fin.map import review
@@ -38,6 +38,10 @@ CompanyArg = Annotated[
 ]
 LedgersOption = Annotated[
     bool, typer.Option("--ledgers", help="Tally ledgers (`fin map ledgers`) instead of labels.")
+]
+MatchesOption = Annotated[
+    bool,
+    typer.Option("--matches", help="Bank match proposals (`fin reconcile <co> match`) instead."),
 ]
 OptionalCompany = Annotated[
     str | None, typer.Argument(callback=_company, help="Only this company.")
@@ -185,11 +189,24 @@ def review_list(
     json_output: Annotated[bool, typer.Option("--json", help="Print items as JSON.")] = False,
     all_items: Annotated[bool, typer.Option("--all", help="Include rejected items.")] = False,
     ledger_items: LedgersOption = False,
+    match_items: MatchesOption = False,
 ) -> None:
     """List the items waiting for review (from review/<company>/pending.json), or with --ledgers
-    the Tally ledgers waiting for an account (--all: every ledger)."""
+    the Tally ledgers waiting for an account (--all: every ledger), or with --matches the bank
+    match proposals waiting for the user."""
 
     def body(run: Run) -> None:
+        if match_items:
+            if company is None:
+                raise typer.BadParameter("--matches needs a company")
+            rows = bank_proposals.list_proposals(run, company, not all_items)
+            if json_output:
+                typer.echo(json.dumps(rows, indent=2, default=str))
+            else:
+                typer.echo(
+                    "\n".join(map(bank_proposals.format_proposal, rows)) or "nothing waiting"
+                )
+            return
         if ledger_items:
             rows = []
             for name in [company] if company else _ledger_companies(run):
@@ -211,7 +228,12 @@ def review_list(
                 f"{waiting} ledgers waiting for review: `fin review list {company} --ledgers`"
             )
 
-    args = {"company": company, "json": json_output, "ledgers": ledger_items}
+    args = {
+        "company": company,
+        "json": json_output,
+        "ledgers": ledger_items,
+        "matches": match_items,
+    }
     execute("review list", args, body)
 
 
@@ -232,6 +254,7 @@ def review_confirm(
         str | None, typer.Option(help="New-account proposal: add it under this parent instead.")
     ] = None,
     ledger_items: LedgersOption = False,
+    match_items: MatchesOption = False,
 ) -> None:
     """Confirm items, all or nothing: the label joins the dictionary and the company's matching
     facts are confirmed. The item must have a proposed account, or pass --account. A proposed new
@@ -242,6 +265,10 @@ def review_confirm(
     (or --account) are confirmed; only the user does this."""
 
     def body(run: Run) -> None:
+        if match_items:
+            for i in bank_proposals.decide(run, company, ids, "confirmed"):
+                typer.echo(f"match #{i} confirmed; applied by the next bank_vs_invoices run")
+            return
         if ledger_items:
             if scope != "company" or name or parent:
                 raise typer.BadParameter("--scope, --name and --parent do not apply to --ledgers")
@@ -272,6 +299,7 @@ def review_confirm(
             "name": name,
             "parent": parent,
             "ledgers": ledger_items,
+            "matches": match_items,
         },
         body,
     )
@@ -282,11 +310,16 @@ def review_reject(
     company: CompanyArg,
     ids: Annotated[list[int], typer.Argument(help="Item ids from `fin review list`.")],
     ledger_items: LedgersOption = False,
+    match_items: MatchesOption = False,
 ) -> None:
     """Reject items, all or nothing: their facts stay unconfirmed. With --ledgers the ids are
-    ledger ids: the ledgers stay unmapped."""
+    ledger ids: the ledgers stay unmapped. With --matches they are match proposal ids."""
 
     def body(run: Run) -> None:
+        if match_items:
+            for i in bank_proposals.decide(run, company, ids, "rejected"):
+                typer.echo(f"match #{i} rejected")
+            return
         if ledger_items:
             for row in ledgers.reject(run, company, ids):
                 typer.echo(f"ledger #{row['ledger_id']} {row['ledger']!r} rejected")
@@ -295,7 +328,8 @@ def review_reject(
         for item_id in dict.fromkeys(ids):
             typer.echo(f"#{item_id} rejected")
 
-    execute("review reject", {"ids": ids, "company": company, "ledgers": ledger_items}, body)
+    args = {"ids": ids, "company": company, "ledgers": ledger_items, "matches": match_items}
+    execute("review reject", args, body)
 
 
 @map_app.command("ledgers")

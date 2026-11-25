@@ -23,6 +23,8 @@ from fin.evals.golden import (
     write_golden,
 )
 from fin.map.dictionary import Account, load_accounts
+from fin.reconcile.bank import INVOICES as BANK_RUN
+from fin.reconcile.bank import TB as BANK_TB
 
 LATEST = LATEST_ENGAGEMENT
 
@@ -105,6 +107,27 @@ JOIN accountant_queries a ON a.query_id = q.query_id
 WHERE a.engagement_id = {LATEST} AND a.status IN ('approved', 'sent', 'answered', 'closed')
 GROUP BY a.query_id, a.period, i.kind ORDER BY a.query_id, i.kind
 """
+_MATCH = f"""
+SELECT r.period, {{column}}, string_agg(DISTINCT s.file_name, '; ' ORDER BY s.file_name)
+FROM recon_match_lines m
+JOIN recon_items i ON i.recon_id = m.recon_id AND i.item_no = m.item_no
+JOIN recon_runs r ON r.recon_id = m.recon_id
+JOIN source_files s ON s.file_id = m.file_id
+{{join}}
+WHERE r.name = ? AND i.kind = ? AND m.side = ? AND r.engagement_id = {LATEST}
+    AND r.recon_id IN (
+        SELECT max(recon_id) FROM recon_runs WHERE name = ? GROUP BY period
+    )
+GROUP BY r.period, {{column}}
+ORDER BY 1, 2
+"""
+_BANK_TB = f"""
+SELECT r.period, i.left_source, i.right_source
+FROM recon_items i JOIN recon_runs r USING (recon_id)
+WHERE r.name = ? AND r.engagement_id = {LATEST}
+    AND r.recon_id IN (SELECT max(recon_id) FROM recon_runs WHERE name = ? GROUP BY period)
+ORDER BY r.period
+"""
 _STUB = f"""
 SELECT x.period, x.account, s.file_name
 FROM stub_figures x JOIN source_files s USING (file_id)
@@ -118,6 +141,35 @@ def _row(kind: str, period: str, source: str, **values: str) -> dict[str, str]:
     row = dict.fromkeys((*COLUMNS, *OPTIONAL), "")
     row.update(kind=kind, period=period, source=source, **values)
     return row
+
+
+BANK_JOIN = 'JOIN bank_lines b ON b.file_id = m.file_id AND b.sheet = m.sheet AND b."row" = m."row"'
+
+
+def _matches(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
+    """The bank_vs_invoices and bank_vs_tb outputs a person can check."""
+    rows = []
+    for kind, column, join, item, side, note in (
+        ("bank_unmatched", "b.account", BANK_JOIN,
+         "left_only", "bank", "receipts with no invoice, in the account's currency"),
+        ("invoice_unmatched", "m.party", "", "right_only", "invoice",
+         "invoices with no receipt, Amount in Rs"),
+        ("fx_line", "i.ledger", "", "fx", "invoice", "FX gain positive, loss negative; 0 if none"),
+    ):  # fmt: skip
+        sql = _MATCH.format(column=column, join=join)
+        for period, ledger, file_name in con.execute(
+            sql, [BANK_RUN, item, side, BANK_RUN]
+        ).fetchall():
+            rows.append(
+                _row(kind, period, f"{file_name} (unmatched lines of the run)", ledger=ledger,
+                     unit="rupees", note=note)
+            )  # fmt: skip
+    for period, left, right in con.execute(_BANK_TB, [BANK_TB, BANK_TB]).fetchall():
+        rows.append(
+            _row("bank_vs_tb", period, "; ".join(s for s in (left, right) if s), unit="rupees",
+                 note="bank statements less trial balance")
+        )  # fmt: skip
+    return rows
 
 
 def candidates(
@@ -251,6 +303,7 @@ def candidates(
                 note="value of this kind of difference in the issue, without signs",
             )
         )
+    rows += _matches(con)
     for period, account, file_name in con.execute(_STUB).fetchall():
         rows.append(
             _row(

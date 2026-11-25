@@ -258,7 +258,7 @@ CREATE TABLE recon_runs (
     recon_id INTEGER PRIMARY KEY DEFAULT nextval('recon_runs_seq'),
     engagement_id INTEGER NOT NULL,
     name VARCHAR NOT NULL CHECK (name IN ('tb_vs_statements', 'sales_register_vs_gl',
-        'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl')),
+        'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl', 'bank_vs_invoices', 'bank_vs_tb')),
     period VARCHAR NOT NULL,
     scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
     left_file_id INTEGER NOT NULL,
@@ -266,6 +266,8 @@ CREATE TABLE recon_runs (
     threshold DECIMAL(20, 2) NOT NULL,
     input_hash VARCHAR NOT NULL,
     unmapped INTEGER NOT NULL,
+    as_of DATE,  -- bank_vs_invoices: the period's last day, the date open invoices are aged to
+    due_days INTEGER,  -- bank_vs_invoices: invoice_due_days from config.toml at the run
     run_id VARCHAR NOT NULL,
     created_at TIMESTAMP NOT NULL
 );
@@ -279,6 +281,9 @@ CREATE TABLE recon_runs (
 --   fx          (registers) a foreign-currency invoice on both sides whose rupee amounts differ only by the ledger's
 --               conversion rate (within the rate band): shown as FX gain or loss in note, listed, never queried, never
 --               plugged;
+--   fx          (bank_vs_invoices) a matched foreign-currency receipt whose booked rupee value (Ledger Vouchers) differs from its
+--               invoice's Amount in Rs: left_amount the receipt's booked rupees, right_amount the invoice's, difference
+--               the FX gain (positive) or loss; listed, never queried, never plugged.
 --   not_reconciled  (gl_vs_tb) a balance sheet ledger with no prior trial balance to start from: listed.
 -- difference = left_amount - right_amount (a missing side counts as 0). tb_vs_statements: a line at or above the
 -- threshold gets a draft accountant query (query_id) once every ledger is mapped; one below it is listed only. The D4
@@ -289,6 +294,13 @@ CREATE TABLE recon_runs (
 -- item_id: a number for the line across runs (`fin query raise --items`). level and key: what a D4 line compares
 -- ('month' 2024-05, 'party' CUST-0001, 'invoice' INV-1001, 'ledger' a ledger name, 'payroll' the period); note: how it
 -- was matched, or the fx rates.
+-- bank_vs_invoices (level 'match' a receipt group and its invoices, 'receipt' an unmatched receipt, 'invoice' an unmatched
+-- invoice; key the invoice numbers, the bank line or the invoice number): match_pass 'reference', 'party_amount_date',
+-- 'amount_date' (fixed passes, fin.reconcile.bank_match) or 'confirmed' (a match Claude proposed and the user confirmed);
+-- currency: the currency of left_amount and right_amount (NULL: rupees); amount_inr: the difference in rupees, what the
+-- threshold is tested on (NULL when a foreign-currency line has no rupee value); note 'not_yet_due': an unmatched
+-- invoice not yet past its due days at the period's last day (listed, not queried); 'no booked value': a foreign-currency
+-- match with no Ledger Vouchers receipt to take the booked rupees from.
 CREATE SEQUENCE recon_items_seq START 1;
 CREATE TABLE recon_items (
     recon_id INTEGER NOT NULL,
@@ -301,6 +313,9 @@ CREATE TABLE recon_items (
     key VARCHAR,
     needs_query BOOLEAN NOT NULL DEFAULT FALSE,
     note VARCHAR,
+    match_pass VARCHAR,
+    currency VARCHAR,
+    amount_inr DECIMAL(20, 2),
     account VARCHAR,
     ledger VARCHAR,
     left_amount DECIMAL(20, 2),
@@ -318,6 +333,44 @@ CREATE TABLE query_items (
     query_id INTEGER NOT NULL,
     item_id INTEGER NOT NULL,
     PRIMARY KEY (query_id, item_id)
+);
+
+-- The bank lines and invoices behind each bank_vs_invoices item, with lineage (file_id + sheet + row). side 'bank' (a
+-- receipt: bank_lines credit) or 'invoice' (register_lines, kind sales). party: the customer token. amount: in the
+-- line's currency (a receipt's credit; an invoice's Amount, or Amount in Rs for INR); amount_inr: the invoice's Amount
+-- in Rs, or the receipt's booked rupees from Ledger Vouchers (foreign currency; NULL when not found), the credit
+-- itself for an INR receipt. Several lines share one item_no when a receipt pays several invoices or the reverse.
+CREATE TABLE recon_match_lines (
+    recon_id INTEGER NOT NULL,
+    item_no INTEGER NOT NULL,
+    side VARCHAR NOT NULL CHECK (side IN ('bank', 'invoice')),
+    file_id INTEGER NOT NULL,
+    sheet VARCHAR NOT NULL,
+    "row" INTEGER NOT NULL,
+    party VARCHAR,
+    line_date DATE NOT NULL,
+    reference VARCHAR,
+    currency VARCHAR NOT NULL,
+    amount DECIMAL(20, 2) NOT NULL,
+    amount_inr DECIMAL(20, 2),
+    PRIMARY KEY (recon_id, item_no, side, file_id, sheet, "row")
+);
+
+-- Matches Claude proposed for what the fixed passes left unmatched (`fin reconcile <co> match --propose <file>`). One
+-- row per proposed match: the bank lines and invoices it joins (lists of file_id, sheet, row). proposed -> confirmed or
+-- rejected by the user (`fin review confirm|reject <co> <ids> --matches`); only confirmed ones are applied, as pass
+-- 'confirmed', the next time bank_vs_invoices runs.
+CREATE SEQUENCE match_proposals_seq START 1;
+CREATE TABLE match_proposals (
+    proposal_id INTEGER PRIMARY KEY DEFAULT nextval('match_proposals_seq'),
+    engagement_id INTEGER NOT NULL,
+    bank_lines VARCHAR NOT NULL,  -- JSON: [[file_id, sheet, row], ...]
+    invoice_lines VARCHAR NOT NULL,  -- JSON: [[file_id, sheet, row], ...]
+    confidence DOUBLE,
+    reason VARCHAR NOT NULL,
+    status VARCHAR NOT NULL CHECK (status IN ('proposed', 'confirmed', 'rejected')),
+    run_id VARCHAR NOT NULL,  -- the run of the last change
+    changed_at TIMESTAMP NOT NULL
 );
 
 -- The current-year stub's figures: its loaded trial balance rolled up through the confirmed ledger mappings to
@@ -344,3 +397,53 @@ JOIN trial_balance t ON t.file_id = s.file_id AND t.row_type = 'ledger'
 LEFT JOIN ledger_accounts m ON m.ledger = t.ledger AND m.status = 'confirmed'
 WHERE e.stub IS NOT NULL
 GROUP BY e.engagement_id, e.stub, s.period_start, s.period_end, m.account, m.statement, s.file_id;
+
+-- Collections per customer and period, from the latest bank_vs_invoices run of the latest engagement (the invoices in
+-- its lines; customer is the token). invoiced_inr: invoices of the period's lines; received_inr: those matched to a
+-- receipt (matched or difference lines); open_inr: those with no receipt. collection_days: the average days from
+-- invoice to receipt over the matched invoices, weighted by Amount in Rs (a group of several lines uses its latest
+-- dates); NULL with none. Open invoices are aged at as_of (the period's last day): not_due is up to due_days old,
+-- overdue_* the days past due_days. Invoices of a period with no bank statement are not in a run.
+CREATE VIEW customer_collections AS
+WITH latest AS (
+    SELECT recon_id, period, as_of, due_days FROM recon_runs
+    WHERE name = 'bank_vs_invoices' AND engagement_id = (SELECT max(engagement_id) FROM engagement)
+    QUALIFY row_number() OVER (PARTITION BY period ORDER BY recon_id DESC) = 1
+),
+spans AS (
+    SELECT recon_id, item_no,
+        max(line_date) FILTER (WHERE side = 'bank') - max(line_date) FILTER (WHERE side = 'invoice') AS days
+    FROM recon_match_lines GROUP BY recon_id, item_no
+),
+inv AS (
+    SELECT l.period, l.as_of, l.due_days, m.party AS customer, i.kind, m.amount_inr, m.line_date, s.days
+    FROM recon_match_lines m
+    JOIN latest l USING (recon_id)
+    JOIN recon_items i ON i.recon_id = m.recon_id AND i.item_no = m.item_no
+    JOIN spans s ON s.recon_id = m.recon_id AND s.item_no = m.item_no
+    WHERE m.side = 'invoice' AND i.kind <> 'fx'
+)
+SELECT
+    period,
+    customer,
+    sum(amount_inr) AS invoiced_inr,
+    coalesce(sum(amount_inr) FILTER (WHERE kind IN ('matched', 'difference')), 0) AS received_inr,
+    coalesce(sum(amount_inr) FILTER (WHERE kind = 'right_only'), 0) AS open_inr,
+    round(sum(amount_inr * days) FILTER (WHERE kind IN ('matched', 'difference'))
+        / nullif(sum(amount_inr) FILTER (WHERE kind IN ('matched', 'difference')), 0), 1) AS collection_days,
+    coalesce(sum(amount_inr) FILTER (
+        WHERE kind = 'right_only' AND date_diff('day', line_date, as_of) <= due_days), 0) AS not_due_inr,
+    coalesce(sum(amount_inr) FILTER (
+        WHERE kind = 'right_only' AND date_diff('day', line_date, as_of) - due_days BETWEEN 1 AND 30), 0)
+        AS overdue_1_30_inr,
+    coalesce(sum(amount_inr) FILTER (
+        WHERE kind = 'right_only' AND date_diff('day', line_date, as_of) - due_days BETWEEN 31 AND 60), 0)
+        AS overdue_31_60_inr,
+    coalesce(sum(amount_inr) FILTER (
+        WHERE kind = 'right_only' AND date_diff('day', line_date, as_of) - due_days BETWEEN 61 AND 90), 0)
+        AS overdue_61_90_inr,
+    coalesce(sum(amount_inr) FILTER (
+        WHERE kind = 'right_only' AND date_diff('day', line_date, as_of) - due_days > 90), 0)
+        AS overdue_over_90_inr
+FROM inv
+GROUP BY period, customer;

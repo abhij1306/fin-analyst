@@ -33,6 +33,8 @@ a command returns when the error ends it:
 - E858-E861 (the query export, fin.diligence.export: no approved query, a file that cannot be read
   or written, a reply file that cannot be recorded, a token with no real value) stop the command:
   exit 2.
+- E854-E855 (bank matching: a match proposal file that is not valid, an unknown match proposal id or
+  a status change not allowed) stop the command: exit 2.
 - E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
   to bundle, a bundle that would contain a real name) stop the command: exit 2.
 """
@@ -282,9 +284,10 @@ class DiligenceTableWrite(FinError):
     """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
-    recon_items, passthrough_customers): those change only through `fin engagement`,
-    `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
-    `fin map ledgers` with `fin review --ledgers`, and `fin reconcile`. Nothing was run."""
+    recon_items, passthrough_customers, recon_match_lines, match_proposals): those change only
+    through `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
+    `fin map ledgers` with `fin review --ledgers`, and `fin reconcile` (with
+    `fin review --matches`). Nothing was run."""
 
     code = "E806"
 
@@ -478,3 +481,21 @@ class UnknownToken(FinError):
     is named; nothing written. Edit the draft (or re-raise it) with the right token."""
 
     code = "E861"
+
+
+# E854-E855: bank matching (fin.diligence.bank_proposals). Stop the command.
+
+
+class MatchProposalInvalid(FinError):
+    """E854. `fin reconcile match --propose`: the file is not a JSON list of matches, or a match
+    has no bank lines or invoices, names a line that is not a loaded bank credit or sales invoice
+    line, or lacks a reason. Nothing stored."""
+
+    code = "E854"
+
+
+class MatchChangeRefused(FinError):
+    """E855. `fin review confirm|reject --matches`: no match proposal with that id, or it is no
+    longer waiting. Nothing changed."""
+
+    code = "E855"

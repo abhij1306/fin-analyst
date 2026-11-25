@@ -150,14 +150,11 @@ def open_engagement(
     """Open an engagement for the periods (and the stub, e.g. 'FY27-YTD-SEP'), with the threshold
     given or config.toml's. E803 when one is already open; E808 for a stub `parse_stub`
     refuses."""
+    config = load_config(run.root)
     if threshold is None:
-        threshold = load_config(run.root).query_threshold
+        threshold = config.query_threshold
     try:
-        ytd = (
-            parse_stub(stub, periods, load_config(run.root).fiscal_year_start_month)
-            if stub
-            else None
-        )
+        ytd = parse_stub(stub, periods, config.fiscal_year_start_month) if stub else None
     except ValueError as exc:
         raise SourcePeriodInvalid(f"{company}: {exc}; nothing opened") from exc
     with company_database(run, company, write=True) as con, transaction(con):
@@ -171,7 +168,8 @@ def open_engagement(
         now = utcnow()
         new = con.execute(
             "INSERT INTO engagement (periods, query_threshold, stub, stub_start, stub_end, "
-            "status, opened_run_id, opened_at) VALUES (?, ?, ?, ?, ?, 'open', ?, ?) "
+            "match_window_days, fx_window_days, invoice_due_days, fiscal_start_month, status, "
+            "opened_run_id, opened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?) "
             "RETURNING engagement_id",
             [
                 ",".join(periods),
@@ -179,6 +177,10 @@ def open_engagement(
                 ytd and ytd.name,
                 ytd and ytd.start,
                 ytd and ytd.end,
+                config.match_window_days,
+                config.fx_window_days,
+                config.invoice_due_days,
+                config.fiscal_year_start_month,
                 run.run_id,
                 now,
             ],
