@@ -20,6 +20,7 @@ COLUMNS = (
     "kind", "level", "key", "note", "account", "ledger", "left_amount", "right_amount",
     "difference", "left_source", "right_source",
 )  # fmt: skip
+EXTRA = ("match_pass", "currency", "amount_inr")  # bank_vs_invoices lines only; NULL for the rest
 
 
 def latest_run(
@@ -66,29 +67,44 @@ def save(
     engagement_id, threshold = engagement["engagement_id"], engagement["query_threshold"]
     new = con.execute(
         "INSERT INTO recon_runs (engagement_id, name, period, scope, left_file_id, right_file_id, "
-        "threshold, input_hash, unmapped, run_id, created_at) "
-        "VALUES (?, ?, ?, 'standalone', ?, ?, ?, ?, ?, ?, ?) RETURNING recon_id",
+        "threshold, input_hash, unmapped, as_of, due_days, run_id, created_at) "
+        "VALUES (?, ?, ?, 'standalone', ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING recon_id",
         [
             engagement_id, name, period, computed.left_file_id, computed.right_file_id,
-            threshold, input_hash(computed, threshold), computed.unmapped, run.run_id, utcnow(),
+            threshold, input_hash(computed, threshold), computed.unmapped, computed.as_of,
+            computed.due_days, run.run_id, utcnow(),
         ],
     ).fetchone()  # fmt: skip
     assert new is not None
     lines = []
     for number, source in enumerate(computed.lines, start=1):
         line = dict(source)
-        line["needs_query"] = needs_query(line, threshold)
+        line["needs_query"] = line.get("needs_query", needs_query(line, threshold))
         line["query_id"] = (
             _earlier_query(con, engagement_id, name, period, line) if line["needs_query"] else None
         )
-        marks = ", ".join("?" for _ in COLUMNS)
+        columns = (*COLUMNS, *EXTRA)
+        marks = ", ".join("?" for _ in columns)
         item = con.execute(
             f"INSERT INTO recon_items (recon_id, item_no, needs_query, query_id, "
-            f"{', '.join(COLUMNS)}) VALUES (?, ?, ?, ?, {marks}) RETURNING item_id",
-            [new[0], number, line["needs_query"], line["query_id"], *(line[c] for c in COLUMNS)],
+            f"{', '.join(columns)}) VALUES (?, ?, ?, ?, {marks}) RETURNING item_id",
+            [
+                new[0],
+                number,
+                line["needs_query"],
+                line["query_id"],
+                *(line.get(c) for c in columns),
+            ],
         ).fetchone()
         assert item is not None
         line["item_id"] = item[0]
+        for m in line.get("match_lines", []):  # bank_vs_invoices: the lines behind the item
+            con.execute(
+                "INSERT INTO recon_match_lines VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT DO NOTHING",
+                [new[0], number, m["side"], *m["key"], m["party"], m["day"], m["reference"]]
+                + [m["currency"], m["amount"], m["amount_inr"]],
+            )
         if line["query_id"] is not None:
             con.execute(
                 "INSERT INTO query_items (query_id, item_id) VALUES (?, ?)",

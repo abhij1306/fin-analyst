@@ -246,6 +246,20 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   below it is listed. Ledgers not mapped to an account are flagged and no query is drafted until every ledger is
   mapped. Nothing is changed to make it tie. The stub has no audited statement: its figures are the view
   `stub_figures`, labelled unaudited (E812 if asked to reconcile it).
+- `fin reconcile <company> bank_vs_invoices [--period]`: bank receipts (credits of the loaded statements) against sales
+  invoices, in fixed passes: the invoice number in the receipt's reference or remarks, then same customer + amount +
+  dates within the engagement's `match_window_days` (copied from `config.toml` when it opens), then same amount + dates within the window when neither has another candidate.
+  Each match records its pass; what is left is a receipt without an invoice (`left_only`) or an invoice without a
+  receipt (`right_only`). A foreign-currency receipt matches on customer, own-currency amount and date; its booked
+  rupee value (the Ledger Vouchers receipt on the customer's ledger, within `fx_window_days`) is compared with the
+  invoice's Amount in Rs and a difference is an `fx` line (gain or loss), listed and never queried or plugged. Lines at
+  or above the threshold in rupees are for Claude to group into queries (`fin query raise --items`; an invoice not yet past
+  `invoice_due_days` is listed only). The view
+  `customer_collections` gives collection days and overdue ageing. What the passes leave goes to Claude:
+  `fin reconcile <company> match --propose <file.json>`; you confirm with `fin review list|confirm|reject <company>
+  --matches`, and the next run applies the confirmed ones. `fin reconcile <company> bank_vs_tb` compares the INR
+  statements' closing balances at a period's last day with the trial balance's cash and bank ledgers (the stub's
+  cross-check against bank). G2 needs both to have run on current data.
 
 Every change, and every gate approval, is recorded in the audit table `diligence_events`.
 
@@ -347,7 +361,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
 | E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, an unknown account, effects that do not add up (EBITDA effect not revenue effect minus cost effect), or a reclassification that is not valid | Nothing changed. Add the evidence or correct the value and run again |
 | E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |
-| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `recon_runs`, `recon_items`, `passthrough_customers`, `query_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
+| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `recon_runs`, `recon_items`, `recon_match_lines`, `match_proposals`, `passthrough_customers`, `query_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
 | E807 | `fin ingest --kind`: the column profile named is unknown or invalid, or no profile matches the file's headers | Nothing loaded. The message lists the header lines found: write a profile in `templates/profiles/` (docs/CUSTOMISING.md) and ingest with `--profile` |
 | E808 | `fin ingest --kind`: the export's header gives no period, or a period that is not a year of the open engagement nor exactly its stub; or `fin engagement open --stub` names a stub that is not the year to date of the fiscal year after the last period | Nothing loaded or opened. Check the export's period, or the engagement's periods and stub (`uv run fin engagement status <company>`) |
 | E809 | A trial balance with group rows only (Tally's Condensed export) | Nothing loaded. Export the trial balance again in Detailed mode, with ledgers, and ingest that |
@@ -372,5 +386,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E832 | `fin eval bundle`: no company database to evaluate, or none for the company named | Nothing written. Load the company's documents first |
 | E833 | `fin eval bundle`: the results would contain a real name (a masked party, a company or a file name) | Nothing written; the name is not printed. Report the run id: a bundle must never carry names |
 | E845 | `fin engagement passthrough`: a customer token that is not on a loaded sales register, or no sales register is loaded | Nothing changed. Load the registers (`fin ingest <company> <file> --kind registers`) and use a token from `SELECT DISTINCT customer FROM register_lines WHERE kind = 'sales'` |
+| E854 | `fin reconcile <co> match --propose`: the file is not a JSON list of matches, a match has no bank lines or invoices, names a line that is not a loaded bank credit or sales invoice line, has no reason, or a confidence outside 0 to 1 | Nothing stored. Fix the file; take the `[file_id, sheet, row]` of each line from `fin sql` on `bank_lines` and `register_lines` |
+| E855 | `fin review confirm|reject --matches`: no match proposal with that id, or it is no longer waiting | Nothing changed. List them with `fin review list <co> --matches --all` |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

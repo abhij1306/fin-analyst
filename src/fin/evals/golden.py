@@ -29,6 +29,15 @@ One line per check, the value a person read in the company's document and checke
   `FY25` or `FY24-FY25`), ledger `sales` or `purchase`;
 - `payroll_total`: the sum of gross salary or of CTC (annual rupees) over the employees of the
   loaded payroll file: period is the file's period, ledger `gross_salary` or `ctc`.
+- `bank_unmatched`: the receipts (bank credits) of a bank account that no invoice matched in the
+  period's latest `bank_vs_invoices` run, summed in the account's own currency (ledger the
+  account number);
+- `invoice_unmatched`: a customer's invoices with no receipt in that run, Amount in Rs summed
+  (ledger the customer token);
+- `fx_line`: a customer's FX gain (positive) or loss in that run, rupees (ledger the customer
+  token; 0 when there is none);
+- `bank_vs_tb`: the difference in the period's latest `bank_vs_tb` run (bank statements' closing
+  balances less the trial balance's cash and bank ledgers).
 
 `expected` is the figure as printed (brackets or a minus for negative) in `unit`; `source` is where
 it is printed (file + sheet!cell, sheet!row or page). Only a line whose `checked` is `yes` is
@@ -53,6 +62,7 @@ OPTIONAL = ("note",)
 RECON_KINDS = ("sales_register_vs_gl", "purchase_register_vs_gl", "gl_vs_tb", "payroll_vs_gl")
 QUERY_KINDS = ("query_issue", "query_difference")
 PASSTHROUGH_KINDS = ("core_revenue", "passthrough_revenue", "adjusted_revenue", "adjusted_ebitda")
+BANK_KINDS = ("bank_unmatched", "invoice_unmatched", "fx_line", "bank_vs_tb")
 KINDS = (
     "statement",
     "tb_ledger",
@@ -64,6 +74,7 @@ KINDS = (
     *QUERY_KINDS,
     "register_total",
     "payroll_total",
+    *BANK_KINDS,
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -78,6 +89,10 @@ NEEDS = {
     "adjusted_ebitda": ("period", "scope"),
     "register_total": ("period", "ledger"),
     "payroll_total": ("period", "ledger"),
+    "bank_unmatched": ("period", "ledger"),
+    "invoice_unmatched": ("period", "ledger"),
+    "fx_line": ("period", "ledger"),
+    "bank_vs_tb": ("period",),
 }
 LEDGERS = {"register_total": ("sales", "purchase"), "payroll_total": ("gross_salary", "ctc")}
 YES, NO = "yes", ("", "no")

@@ -70,7 +70,22 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      FX gain or loss) and `not_reconciled`, `unmapped`, month and party lines are listed, not queried; never plug
      them. E840: an input is not loaded, a payroll unit is not confirmed annual, or no ledger is confirmed to
      revenue, purchases or employee expense. E841/E842: a line id that is unknown, stale or cannot be raised.
-   - **Golden evaluation.** The trial balance ledgers, `tb_vs_statements` and D4 reconciliation differences and stub figures can be scored
+   - **Bank receipts vs invoices.** With a bank statement and the registers loaded, run
+     `uv run fin reconcile <company> bank_vs_invoices` (fixed passes: invoice number in the reference, then customer +
+     amount + date window, then amount + date window; each match shows its pass). Report its lines as printed:
+     receipts with no invoice (`left_only`), invoices with no receipt (`right_only`), differences, and `fx` lines
+     (a USD receipt's booked rupees against the invoice: gain or loss, listed, never queried or plugged). Lines at or
+     above the threshold need a query (group them with `fin query raise --items`, as above); an invoice not yet due is listed only. The view
+     `customer_collections` has collection days and ageing (`fin sql`). For what the passes left, you may propose
+     matches: write `[{"bank": [[file_id, "sheet", row]], "invoices": [[file_id, "sheet", row]], "confidence": 0-1,
+     "reason": ...}]` using the keys from `fin sql` on `bank_lines` and `register_lines`, and run `uv run fin reconcile
+     <company> match --propose <file.json>`. Show `uv run fin review list <company> --matches`; confirm or reject only
+     what the user says (`uv run fin review confirm|reject <company> <ids> --matches`), then run the reconciliation
+     again. Never fuzzy-match yourself. `uv run fin reconcile <company> bank_vs_tb` compares the statements' closing
+     balances with the trial balance (the stub's bank cross-check). G2 needs both to have run on current data.
+     E840: a statement, register or trial balance is missing; E854: a bad proposal file; E855: a proposal id that is
+     unknown or already decided.
+   - **Golden evaluation.** The trial balance ledgers, `tb_vs_statements` differences and stub figures can be scored
      against values a person checked (`/eval`, `docs/EVAL.md`). Never mark a golden line checked yourself.
 2. **Queries from findings.** Run `uv run fin findings list <company> --json`. For each open or accepted finding in
    a period of the engagement, with a difference at or above the engagement's query threshold, draft a short,

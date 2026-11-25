@@ -84,8 +84,9 @@ def _lines(
 def summary(con: duckdb.DuckDBPyConnection, query_id: int) -> str:
     """'3 left_only ₹4,00,000.00; 1 difference ₹50,000.00': count and value per kind."""
     rows = con.execute(
-        "SELECT i.kind, count(*), sum(abs(i.difference)) FROM query_items q JOIN recon_items i "
-        "USING (item_id) WHERE q.query_id = ? GROUP BY i.kind ORDER BY i.kind",
+        "SELECT i.kind, count(*), sum(abs(coalesce(i.amount_inr, i.difference))) "
+        "FROM query_items q JOIN recon_items i USING (item_id) WHERE q.query_id = ? "
+        "GROUP BY i.kind ORDER BY i.kind",
         [query_id],
     ).fetchall()
     return "; ".join(f"{count} {kind} {rupees(value)}" for kind, count, value in rows)
@@ -135,7 +136,10 @@ def raise_from_items(
                 "period": periods[0],
                 "scope": "standalone",
                 "question": question,
-                "amount": sum(abs(line["difference"]) for line in lines),
+                "amount": sum(
+                    abs(line["difference"] if line["amount_inr"] is None else line["amount_inr"])
+                    for line in lines
+                ),
                 "sources": "; ".join(dict.fromkeys(sources)) + more,
             },
         )

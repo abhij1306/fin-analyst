@@ -19,8 +19,15 @@ from fin.evals.counts import counts, related_codes
 from fin.evals.golden import LATEST_ENGAGEMENT, RECON_KINDS, Check, read_golden
 from fin.map.dictionary import load_accounts
 from fin.paths import evals_dir
+from fin.reconcile.bank import INVOICES as BANK_RUN
+from fin.reconcile.bank import TB as BANK_TB
 
 OUTCOMES = ("pass", "fail", "missing", "unchecked")
+
+_RUN = (
+    f"(SELECT max(recon_id) FROM recon_runs WHERE name = '{BANK_RUN}' AND period = ? "
+    f"AND engagement_id = {LATEST_ENGAGEMENT})"
+)
 
 _FIN_VALUE = {
     "statement": (
@@ -71,6 +78,33 @@ _FIN_VALUE = {
         f"WHERE s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT} AND s.period = ? "
         "HAVING count(*) > 0",
         ("ledger", "period"),
+    ),
+    "bank_unmatched": (
+        "SELECT coalesce((SELECT sum(m.amount) FROM recon_match_lines m "
+        "JOIN recon_items i USING (recon_id, item_no) JOIN bank_lines b ON b.file_id = m.file_id "
+        'AND b.sheet = m.sheet AND b."row" = m."row" '
+        f"WHERE m.recon_id = {_RUN} AND m.side = 'bank' AND i.kind = 'left_only' "
+        f"AND b.account = ?), 0) WHERE EXISTS (SELECT 1 FROM recon_runs WHERE recon_id = {_RUN})",
+        ("period", "ledger", "period"),
+    ),
+    "invoice_unmatched": (
+        "SELECT coalesce((SELECT sum(m.amount_inr) FROM recon_match_lines m "
+        "JOIN recon_items i USING (recon_id, item_no) "
+        f"WHERE m.recon_id = {_RUN} AND m.side = 'invoice' AND i.kind = 'right_only' "
+        f"AND m.party = ?), 0) WHERE EXISTS (SELECT 1 FROM recon_runs WHERE recon_id = {_RUN})",
+        ("period", "ledger", "period"),
+    ),
+    "fx_line": (
+        f"SELECT coalesce((SELECT sum(difference) FROM recon_items WHERE recon_id = {_RUN} "
+        f"AND kind = 'fx' AND ledger = ?), 0) "
+        f"WHERE EXISTS (SELECT 1 FROM recon_runs WHERE recon_id = {_RUN})",
+        ("period", "ledger", "period"),
+    ),
+    "bank_vs_tb": (
+        "SELECT difference FROM recon_items WHERE recon_id = (SELECT max(recon_id) FROM "
+        f"recon_runs WHERE name = '{BANK_TB}' AND period = ? "
+        f"AND engagement_id = {LATEST_ENGAGEMENT})",
+        ("period",),
     ),
     "stub": (
         "SELECT value FROM stub_figures WHERE period = ? AND account = ? "

@@ -17,9 +17,9 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction
 from fin.diligence import recon
 from fin.diligence.engagement import company_database, require_open
+from fin.reconcile import bank, registers, store
 from fin.reconcile import gl_vs_tb as gl_module
 from fin.reconcile import payroll_vs_gl as payroll_module
-from fin.reconcile import registers, store
 from fin.reconcile.base import Computed, input_hash
 from fin.reconcile.format import format_result
 
@@ -38,6 +38,8 @@ RECONCILIATIONS: dict[str, tuple[Compute, Applies]] = {
     ),
     gl_module.NAME: (gl_module.gl_vs_tb, gl_module.applies),
     payroll_module.NAME: (payroll_module.payroll_vs_gl, payroll_module.applies),
+    bank.INVOICES: (bank.bank_vs_invoices, bank.applies_invoices),
+    bank.TB: (bank.bank_vs_tb, bank.applies_tb),
 }
 NAMES = (recon.NAME, *RECONCILIATIONS)
 

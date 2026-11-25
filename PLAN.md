@@ -209,7 +209,7 @@ adjustments in those periods, else the company's scopes, else standalone), so a 
 NULLs. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): G1 Ingestion
 (every annual period in scope has mapped figures in `current_facts`, what the metrics use, no held documents, no
 mapping items waiting for review; its inputs include the figures, every `current_facts` value by account, period and
-scope, so a changed figure reopens it), G2 Reconciliation (no query in draft; its inputs are each query's id, wording and whether it is a draft, so a new or
+scope, so a changed figure reopens it), G2 Reconciliation (no query in draft, and once a bank statement is loaded `bank_vs_invoices` and `bank_vs_tb` have run on current data with every line at or above the threshold in a query; its inputs are each query's id, wording and whether it is a draft and the latest bank reconciliation runs, so a new or
 edited query reopens it and sending, answering or closing one does not; unlocks `fin adjust accept|reject`), G4 Adjustments (no
 proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 comes later.
 `fin gate approve <co> <gate>` appends a row to `gate_approvals` (company database) with the sha256 of the gate's
@@ -328,6 +328,27 @@ logs or stores (except `mask_values`) holds a name. The database does not change
 (`answer_source` names it); a .txt/.eml/.md reply is read with known names masked and is the answer unless `--text` is
 given, any other file needs `--text` (E860). Errors E858-E861; choices `docs/decisions/d8-query-export.md`. Golden eval
 kinds: `query_issue` (the issue's amount) and `query_difference` (one kind of difference, ledger `<id> <kind>`).
+
+Bank matching (D5; `docs/decisions/d5-bank-match.md`). `fin reconcile <co> bank_vs_invoices [--period]`
+(`fin/reconcile/bank.py`, lines in `bank_lines.py`, passes in `bank_match.py`; registered with the D4 reconciliations) matches the loaded bank statements' credits
+(receipts) with sales register invoices in fixed passes: the invoice number in the receipt's reference or remarks
+(`reference`; several receipts or invoices naming each other form one group, the amounts need not agree), same customer +
+amount + dates at most `[diligence] match_window_days` apart (`party_amount_date`, the closest dates first), same amount
++ window when neither side has another candidate and the customers do not disagree (`amount_date`); `confirmed` is a
+match Claude proposed (`fin reconcile <co> match --propose <file.json>`, table `match_proposals`) and the user confirmed
+(`fin review list|confirm|reject <co> --matches`). Amounts are compared in the receipt's currency (an INR receipt with the
+invoice's Amount in Rs, a USD receipt with the invoice's own Amount). One `recon_runs` row per period with a bank
+statement (receipts in the period of their statement, invoices in the period of their date, a matched group in its
+receipts' period; `as_of` is the period end, `due_days` the engagement's) with `recon_items` (`match_pass`,
+`currency`, `amount_inr`, `note`) and `recon_match_lines` (the bank lines and invoices behind each item). Lines at or
+above the threshold in rupees (`difference`, `left_only`, `right_only`; a foreign line with no rupee value too) are
+`needs_query` (grouped with `fin query raise --items`, levels `match`, `receipt`, `invoice`); an `fx` line (the receipt's booked rupees in Ledger Vouchers, found on the customer's ledger within
+`fx_window_days` of the bank date, against the invoice's Amount in Rs) is listed, never queried; an unmatched invoice not
+past `invoice_due_days` at the period end is `not_yet_due`, listed. The view `customer_collections` gives, per period and
+customer, invoiced, received and open rupees, collection days and the overdue ageing of open invoices.
+`fin reconcile <co> bank_vs_tb` (`bank.py`) compares the INR statements ending on a period's last day with the trial
+balance's cash and bank ledgers. G2 requires both through the D4 checks (`fin/reconcile/checks.py`). The engagement copies `match_window_days`, `fx_window_days`, `invoice_due_days` and `fiscal_start_month` from `config.toml` when it opens. E854-E855. Golden check kinds:
+`bank_unmatched`, `invoice_unmatched`, `fx_line`, `bank_vs_tb`.
 
 Payroll (D3, `docs/decisions/d3-payroll.md`): `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot, one
 row per employee, with the profile `templates/profiles/sparsh_payroll.toml` (the period pattern has one group,

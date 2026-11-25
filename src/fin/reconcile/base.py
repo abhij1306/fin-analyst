@@ -20,7 +20,14 @@ from fin.audit.errors import ReconCannotRun
 
 ZERO = Decimal("0.00")
 QUERIED_KINDS = ("difference", "left_only", "right_only")
-DETAIL_LEVELS = ("invoice", "ledger", "payroll")  # lines a query can be raised on
+DETAIL_LEVELS = (
+    "invoice",
+    "ledger",
+    "payroll",
+    "match",
+    "receipt",
+    "balance",
+)  # lines a query can be raised on
 SHOWN_ROWS = 5  # source rows named in a line's source; the rest are counted
 
 
@@ -30,6 +37,8 @@ class Computed:
     left_file_id: int
     right_file_id: int | None
     unmapped: int = 0  # ledgers of the Ledger Vouchers not confirmed to an account
+    as_of: date | None = None  # bank_vs_invoices: the period's last day, open invoices age to it
+    due_days: int | None = None  # bank_vs_invoices: the invoice due days used
 
 
 def kind_of(left: Decimal | None, right: Decimal | None) -> str:

@@ -33,7 +33,8 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Current-year stub from unaudited management data | Planned | D2 on |
 | Pass-through revenue split out of core revenue and growth | **Built** | D4 |
 | Reconciliation: register ↔ ledger ↔ accounts | Planned | D4 |
-| Reconciliation: bank ↔ receipts ↔ invoices, with FX lines for USD | Planned | D5 |
+| Reconciliation: bank ↔ receipts ↔ invoices, with FX lines for USD | **Built**: matching passes, `fx` lines, collections view, Claude's proposals; the stub's bank cross-check | D5 |
+
 | Service-period revenue recast from the sales register | Planned | D6 |
 | Normalised working capital, diligence report and dashboard | Planned | D7 |
 | Query export: marked-up workbook and draft email, or a brief per issue | **Built** (`fin query export`, `answer --file`; choices: `docs/decisions/d8-query-export.md`) | D8 |
@@ -147,7 +148,7 @@ and every gate approval.
 | `bank_statements` (**built**) | file_id, bank, account, currency, period, opening and closing balance (from the header or the rows), debit and credit totals, line count, ties, reader (excel or the PDF add-on), saved-parse path | D3 |
 | `bank_lines` (**built**) | file_id, sheet or page, row, bank, account, currency, date, remarks (names as tokens), reference, debit, credit, balance | D3 |
 | `payroll_lines` (**built**) | file_id, sheet, row, snapshot date, employee name and code (tokens), designation, department, vertical, sub-vertical, joining date, resign date, gross salary and CTC (annual, unit confirmed by the user). No month column | D3 |
-| `recon_runs`, `recon_items` (**built** for `tb_vs_statements`) | each reconciliation run (name, period, scope, left file, threshold, hash of its inputs, unmapped count) and its lines (`matched`, `difference`, `left_only`, `right_only`, `unmapped`; D5 adds `fx`), each with both sources, both amounts, the difference and its query | D2, D4, D5 |
+| `recon_runs`, `recon_items` (**built** for `tb_vs_statements`, `bank_vs_invoices`, `bank_vs_tb`; D5 added `fx`, `match_pass`, `currency`, `amount_inr`, `note`, `recon_match_lines` and `match_proposals`) | each reconciliation run (name, period, scope, left file, threshold, hash of its inputs, unmapped count) and its lines (`matched`, `difference`, `left_only`, `right_only`, `unmapped`; D5 adds `fx`), each with both sources, both amounts, the difference and its query | D2, D4, D5 |
 | `query_items` | query_id, recon item id: the lines an issue groups; count and value per kind of difference come from it | D4 |
 | `adjustments` (changed, **built**) | adds revenue effect and cost effect; the EBITDA effect (`amount`) must equal revenue effect minus cost effect; a reclassification between cost accounts names both (`account`, `from_account`) and the amount moved (`moved_amount`) | D4 |
 | `passthrough_customers` (**built**) | engagement_id, customer token, source of the list, run | D4 |
@@ -177,7 +178,7 @@ The gates follow that.
 | Gate | Checklist fin evaluates | Unlocks | Status |
 |---|---|---|---|
 | G1 Ingestion | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it. D2 adds: a trial balance and Ledger Vouchers per period (and for the stub); every ledger mapped; every TB ledger present in Ledger Vouchers; each audited year's TB ties to its statements (each account difference at or above the threshold is in a query). The stub has no audited statement: its TB is checked against Ledger Vouchers only, and it is marked unaudited. D3 adds: payroll unit confirmed (**built**, only when a payroll file is loaded, `fin/diligence/payroll.py`); every bank parse ties (**built**, only when a bank statement is loaded, `fin/diligence/bank_checks.py`: an accepted `bank_tie` finding counts; overlaps and balance gaps are listed, not blocking) | approving G2 | **Built** as "Ingestion": statement checks, and D2's trial balance checks once the engagement has a source file or a stub (`fin/diligence/tb_checks.py`) |
-| G2 Reconciliation | No query in draft. A new or reworded query reopens it; sending, answering, closing or withdrawing one does not. D4–D5 add: every required reconciliation ran; every line at or above the threshold is in a query (`fx` lines are listed, not queried) | `fin adjust accept\|reject` | **Built** as "Reconciliation" |
+| G2 Reconciliation | No query in draft. A new or reworded query reopens it; sending, answering, closing or withdrawing one does not. D4–D5 add: every required reconciliation ran; every line at or above the threshold is in a query (`fx` lines are listed, not queried). **D5 built**: with a bank statement loaded, `bank_vs_invoices` and `bank_vs_tb` ran on current data and their lines are queried (`bank_checks_g2.py`) | `fin adjust accept\|reject` | **Built** as "Reconciliation" |
 | G3 Recast | Every sales line at or above the threshold has service start and end dates, or is in a query; the recast ran for every period; each period's recast difference has a proposed or decided `recast` adjustment. Contracts are optional evidence | approving G4 | Planned (D6) |
 | G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |
 
@@ -216,7 +217,7 @@ that writes to a diligence table.
 | `fin map ledgers <co> [file.json]` (Tally ledger → account; the user confirms with `fin review confirm <co> <ids> --ledgers`) | D2 (**built**) |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 (**built**) |
 | `fin engagement passthrough <co> --customers <file>` (the user's SI/reseller list; fin prints the tokens it matched) | D4 |
-| `fin reconcile <co> [name] [--period]` (**built** in D2 for `tb_vs_statements`), more reconciliations and `fin reconcile match --propose <file.json>` | D2, D4, D5 |
+| `fin reconcile <co> [name] [--period]` (**built** in D2 for `tb_vs_statements`, in D5 for `bank_vs_invoices` and `bank_vs_tb`), more reconciliations; `fin reconcile <co> match [--propose <file.json>]` and `fin review list|confirm|reject <co> --matches` (**built**, D5) | D2, D4, D5 |
 | `fin query raise <co> --items <recon item ids>` (one issue, many lines) | D4 |
 | `fin adjust propose ... --revenue N --cost N` | D4 |
 | `fin report <co> --diligence` | D7 |
@@ -339,7 +340,8 @@ The pass-through and adjustment-effect part is **built** (`docs/decisions/d4-pas
 planted USD rate difference shows as an `fx` line; a pass-through customer's revenue is split out and the
 reclassification adjustment changes margins with zero EBITDA effect.
 
-### D5: Bank ↔ receipts ↔ invoices
+### D5: Bank ↔ receipts ↔ invoices — built
+Status, 2026-11-25: built (`docs/decisions/d5-bank-match.md`; `fin/diligence/bank_*.py`). The stub's bank cross-check is `bank_vs_tb`.
 - Matching in fixed passes: exact reference, then amount + party + date window (config), then amount + date
   window. Each match records the pass that made it. Unmatched items become `left_only` / `right_only`.
 - Axis USD receipts match on customer, USD amount and a date window; the booked rupee value is compared, and a

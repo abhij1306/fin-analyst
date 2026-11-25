@@ -58,6 +58,13 @@ query_threshold = 100000.00
 adjustment_categories = [
     "management", "normalisation", "reclassification", "recast", "error",
 ]
+# Bank matching (fin reconcile): a receipt matches an invoice when their dates are at most
+# match_window_days apart (passes 2 and 3); a foreign-currency receipt takes its booked rupee
+# value from a Ledger Vouchers receipt at most fx_window_days from its bank date; an unmatched
+# invoice is overdue after invoice_due_days.
+match_window_days = 60
+fx_window_days = 7
+invoice_due_days = 30
 
 [pdf]
 # The optional PDF add-on that reads the statement pages pdfplumber cannot (and scanned results
@@ -76,6 +83,9 @@ class Config:
     query_threshold: Decimal  # [diligence]: a difference at or above it becomes a query
     adjustment_categories: tuple[str, ...]  # [diligence]: the categories an adjustment may have
     pdf_parser: str = "none"  # [pdf] parser: the PDF add-on for the pages pdfplumber skips
+    match_window_days: int = 60  # [diligence]: date window of bank matching passes 2 and 3
+    fx_window_days: int = 7  # [diligence]: window for a receipt's booked rupee value
+    invoice_due_days: int = 30  # [diligence]: an unmatched invoice is overdue after this
 
 
 # The value only, so indentation, a quoted key and a trailing comment are kept.
@@ -211,7 +221,12 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
     }
 
     diligence = _table(data, "diligence", path)
-    _keys(diligence, ("query_threshold", "adjustment_categories"), "[diligence]", path)
+    days = ("match_window_days", "fx_window_days", "invoice_due_days")
+    _keys(diligence, ("query_threshold", "adjustment_categories", *days), "[diligence]", path)
+    for key in days:
+        value = diligence[key]
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 3650:
+            raise _invalid(path, f"diligence.{key} = {value!r}; expected whole days, 0 to 3650")
     threshold = _rupees(diligence["query_threshold"], "diligence.query_threshold", path)
     categories = diligence["adjustment_categories"]
     if (
@@ -237,6 +252,9 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         query_threshold=threshold,
         adjustment_categories=tuple(categories),
         pdf_parser=parser,
+        match_window_days=diligence["match_window_days"],
+        fx_window_days=diligence["fx_window_days"],
+        invoice_due_days=diligence["invoice_due_days"],
     )
 
 
