@@ -1,4 +1,4 @@
-"""`fin ingest <co> <file> --kind trial_balance|ledger_vouchers|registers|payroll`: load a source file.
+"""`fin ingest <co> <file> --kind trial_balance|ledger_vouchers|registers|payroll`: load a file.
 
 For one file, `ingest_source`:
 
