@@ -10,8 +10,10 @@ fixed; you draft and propose, the user decides; fin never sends anything.
 
 1. **Where it stands.** Run `uv run fin engagement status <company>`. If it fails with E803 (no open engagement), ask
    the user which annual periods are in scope (e.g. FY24,FY25,FY26) and whether to use the default query threshold
-   (`query_threshold` in `config.toml`), then run `uv run fin engagement open <company> --periods FY24,FY25,FY26
-   [--threshold N]`. Report the engagement, the queries by status and the adjustments by status with their sums,
+   (`query_threshold` in `config.toml`), and whether there is a current-year stub (e.g. April to September after the
+   last year: `FY27-YTD-SEP`), then run `uv run fin engagement open <company> --periods FY24,FY25,FY26
+   [--threshold N] [--stub FY27-YTD-SEP]`. The stub is unaudited management accounts: say so whenever you show its
+   figures (the view `stub_figures`), and never annualise them or use them for growth. Report the engagement, the queries by status and the adjustments by status with their sums,
    from the command output.
    - **Source files.** Load each period's Tally trial balance (Detailed mode) first, then its Ledger Vouchers:
      `uv run fin ingest <company> <file> --kind trial_balance`, then `--kind ledger_vouchers` (E811 if the trial
@@ -20,9 +22,22 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      missing from the Ledger Vouchers (ask the user for the export with all ledgers) and the ledgers masked as
      `LEDG-...`. E807 lists the header lines of a layout no profile reads: write a profile in
      `templates/profiles/` (`docs/CUSTOMISING.md`) and ingest with `--profile <name>`. E808: the period is not a
-     year of the engagement; E809: ask for the Detailed export.
+     year of the engagement nor exactly its stub; E809: ask for the Detailed export.
    - **Names are tokens** (`CUST-0001`, `VEND-0001`, `LEDG-0001`). Use them as they are in queries and answers;
      never try to read `mask_values` (`fin sql` refuses, E810) or guess a name.
+   - **Ledger mapping.** `uv run fin map ledgers <company>` lists the trial balance ledgers waiting for an account.
+     Propose one per ledger from its name and group (`uv run fin map accounts` for the accounts: balance sheet or
+     profit and loss) in a JSON file `[{"ledger": ..., "account": ..., "confidence": 0-1, "reason": ...}]` and run
+     `uv run fin map ledgers <company> <file.json>`. Then show `uv run fin review list <company> --ledgers` and confirm
+     or reject only what the user says: `uv run fin review confirm <company> <ids> --ledgers [--account <account>]`,
+     `uv run fin review reject <company> <ids> --ledgers`. Never confirm a ledger on your own.
+   - **Trial balance vs statements.** Once the ledgers are mapped, run `uv run fin reconcile <company>`
+     (`tb_vs_statements`, each audited year). Report its lines as printed: each line at or above the threshold has a
+     draft query (origin `recon`; reword it with `fin query edit` if needed, then step 3); lines below are listed:
+     show them, do not raise them unless the user asks. Unmapped ledgers are flagged and no query is drafted until
+     every ledger is mapped. A difference is queried, never fixed; a wrong mapping (fin's own error) is fixed in
+     review and the reconciliation run again. E812: the period has no trial balance or statement figures, or is the
+     stub (which has no audited statement).
 2. **Queries from findings.** Run `uv run fin findings list <company> --json`. For each open or accepted finding in
    a period of the engagement, with a difference at or above the engagement's query threshold, draft a short,
    neutral question for the company's accountant: what the two figures are, where each is (file + sheet!cell or
@@ -65,7 +80,10 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      it in;
    - open or accepted findings and unconfirmed mappings in those periods, as for any answer.
 9. **Gates.** Gates are approved in order, by the user only: G1 Ingestion (every period in scope has mapped figures
-   from a loaded document, no held documents, no mappings waiting for review), G2 Reconciliation (no query in draft;
+   from a loaded document, no held documents, no mappings waiting for review; once there is a trial balance or a
+   stub, also a trial balance and Ledger Vouchers per period and the stub, every ledger in both, every ledger
+   mapped, and each year's `fin reconcile` on the current data with every difference at or above the threshold in
+   a query), G2 Reconciliation (no query in draft;
    unlocks `fin adjust accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence;
    unlocks `fin engagement close`; an engagement with no queries and no adjustments closes without its gates). A
    gate reopens on its own when the data under it changes (G1 also when a figure changes) or its checklist fails.
@@ -84,4 +102,4 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    misread figure) is still done through `/ingest` and `/review`. If a command fails (E801 a gate not approved, E802
    a gate not ready, E803 no open engagement, E804 an adjustment that is not valid, E805 an unknown id or a status
    change not allowed, E806 `fin sql --write` on a diligence table, E807-E811 a source file that cannot load or
-   `mask_values` read), report the error code and run_id and stop.
+   `mask_values` read, E812 a reconciliation that cannot run), report the error code and run_id and stop.

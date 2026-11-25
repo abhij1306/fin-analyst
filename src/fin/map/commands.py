@@ -5,17 +5,19 @@ import csv
 import io
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
 from fin.audit.errors import InvalidMapping
 from fin.audit.logger import Run, execute
+from fin.diligence import ledgers
+from fin.diligence.ledgers import list_ledgers
 from fin.findings import recheck_held
 from fin.map import review
 from fin.map.dictionary import STATEMENTS, added_rows
 from fin.metrics.export import refresh_analytics
-from fin.paths import COMPANY_NAME
+from fin.paths import COMPANY_NAME, companies_dir, company_db_path
 
 map_app = typer.Typer(
     no_args_is_help=True, help="Mapping proposals, company mappings and the account list."
@@ -33,6 +35,9 @@ def _company(value: str | None) -> str | None:
 
 CompanyArg = Annotated[
     str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.", show_default=False)
+]
+LedgersOption = Annotated[
+    bool, typer.Option("--ledgers", help="Tally ledgers (`fin map ledgers`) instead of labels.")
 ]
 OptionalCompany = Annotated[
     str | None, typer.Argument(callback=_company, help="Only this company.")
@@ -179,10 +184,18 @@ def review_list(
     company: OptionalCompany = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print items as JSON.")] = False,
     all_items: Annotated[bool, typer.Option("--all", help="Include rejected items.")] = False,
+    ledger_items: LedgersOption = False,
 ) -> None:
-    """List the items waiting for review (from review/<company>/pending.json)."""
+    """List the items waiting for review (from review/<company>/pending.json), or with --ledgers
+    the Tally ledgers waiting for an account (--all: every ledger)."""
 
     def body(run: Run) -> None:
+        if ledger_items:
+            rows = []
+            for name in [company] if company else _ledger_companies(run):
+                rows += [{"company": name, **row} for row in list_ledgers(run, name, not all_items)]
+            _echo_ledgers(rows, json_output)
+            return
         items = _items(run, company, all_items)
         run.pending_review = len(items)
         if json_output:
@@ -192,8 +205,14 @@ def review_list(
             typer.echo(_line(item))
         if not items:
             typer.echo("nothing to review")
+        has_db = company and company_db_path(run.root, company).is_file()
+        if has_db and (waiting := len(list_ledgers(run, company, True))):
+            typer.echo(
+                f"{waiting} ledgers waiting for review: `fin review list {company} --ledgers`"
+            )
 
-    execute("review list", {"company": company, "json": json_output}, body)
+    args = {"company": company, "json": json_output, "ledgers": ledger_items}
+    execute("review list", args, body)
 
 
 @review_app.command("confirm")
@@ -212,15 +231,25 @@ def review_confirm(
     parent: Annotated[
         str | None, typer.Option(help="New-account proposal: add it under this parent instead.")
     ] = None,
+    ledger_items: LedgersOption = False,
 ) -> None:
     """Confirm items, all or nothing: the label joins the dictionary and the company's matching
     facts are confirmed. The item must have a proposed account, or pass --account. A proposed new
     account is added to the dictionary first (--name and --parent change it; --account uses an
     existing account instead). Held documents and the documents whose facts changed are then
     checked again (a fix that clears a held document's findings loads it; a loaded document that
-    now fails a check is held)."""
+    now fails a check is held). With --ledgers the ids are ledger ids: their proposed accounts
+    (or --account) are confirmed; only the user does this."""
 
     def body(run: Run) -> None:
+        if ledger_items:
+            if scope != "company" or name or parent:
+                raise typer.BadParameter("--scope, --name and --parent do not apply to --ledgers")
+            for row in ledgers.confirm(run, company, ids, account):
+                typer.echo(
+                    f"ledger #{row['ledger_id']} {row['ledger']!r} confirmed as {row['account']}"
+                )
+            return
         confirmed, changed = review.confirm(run, company, ids, account, scope, name, parent)
         for item_id, facts in confirmed:
             typer.echo(f"#{item_id} confirmed ({scope} scope); {facts} facts updated")
@@ -242,6 +271,7 @@ def review_confirm(
             "scope": scope,
             "name": name,
             "parent": parent,
+            "ledgers": ledger_items,
         },
         body,
     )
@@ -251,12 +281,60 @@ def review_confirm(
 def review_reject(
     company: CompanyArg,
     ids: Annotated[list[int], typer.Argument(help="Item ids from `fin review list`.")],
+    ledger_items: LedgersOption = False,
 ) -> None:
-    """Reject items, all or nothing: their facts stay unconfirmed."""
+    """Reject items, all or nothing: their facts stay unconfirmed. With --ledgers the ids are
+    ledger ids: the ledgers stay unmapped."""
 
     def body(run: Run) -> None:
+        if ledger_items:
+            for row in ledgers.reject(run, company, ids):
+                typer.echo(f"ledger #{row['ledger_id']} {row['ledger']!r} rejected")
+            return
         review.reject(run, company, ids)
         for item_id in dict.fromkeys(ids):
             typer.echo(f"#{item_id} rejected")
 
-    execute("review reject", {"ids": ids, "company": company}, body)
+    execute("review reject", {"ids": ids, "company": company, "ledgers": ledger_items}, body)
+
+
+@map_app.command("ledgers")
+def map_ledgers(
+    company: CompanyArg,
+    file: Annotated[
+        Path | None,
+        typer.Argument(help="JSON list of proposals: {ledger, account, confidence, reason}."),
+    ] = None,
+) -> None:
+    """Tally ledgers -> Schedule III accounts. Without FILE: list the ledgers waiting for an
+    account. With FILE: store Claude's proposals; nothing is confirmed (the user confirms them:
+    `fin review confirm <co> <ids> --ledgers`). Party ledgers go by their token."""
+
+    def body(run: Run) -> None:
+        if file is None:
+            _echo_ledgers(list_ledgers(run, company, True), False)
+            return
+        try:
+            proposals = json.loads(file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise InvalidMapping(f"cannot read proposals from {file}: {exc}") from exc
+        if not isinstance(proposals, list):
+            raise InvalidMapping(f"{file}: expected a JSON list of proposals")
+        count = ledgers.propose(run, company, proposals)
+        typer.echo(
+            f"{count} ledger proposals stored for {company}; the user reviews them: "
+            f"`fin review list {company} --ledgers`"
+        )
+
+    execute("map ledgers", {"company": company, "file": file}, body)
+
+
+def _ledger_companies(run: Run) -> list[str]:
+    return sorted(db.stem for db in companies_dir(run.root).glob("*.duckdb"))
+
+
+def _echo_ledgers(rows: list[dict[str, Any]], json_output: bool) -> None:
+    if json_output:
+        typer.echo(json.dumps(rows, indent=2, default=str))
+    else:
+        typer.echo("\n".join(map(ledgers.format_ledger, rows)) if rows else "no ledgers waiting")

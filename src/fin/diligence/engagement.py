@@ -1,8 +1,9 @@
 """The engagement: one diligence job on one company (`fin engagement open|status|close`).
 
-It holds the annual periods in scope and the query threshold, and lives in the company database
-(table `engagement`, db/schema/diligence.sql). At most one is open at a time; every other diligence
-command works on the open one and stops with E803 when there is none.
+It holds the annual periods in scope, the optional current-year stub (`fin.diligence.stub`) and
+the query threshold, and lives in the company database (table `engagement`,
+db/schema/diligence.sql). At most one is open at a time; every other diligence command works on the
+open one and stops with E803 when there is none.
 
 Every engagement, query and adjustment added, and every status change, is appended to the audit
 table `diligence_events` (`record_event`) in the same unit of work as the change, as `fin.findings`
@@ -19,12 +20,13 @@ from typing import Any
 
 import duckdb
 
-from fin.audit.errors import DependencyMissing, EngagementState
+from fin.audit.errors import DependencyMissing, EngagementState, SourcePeriodInvalid
 from fin.audit.logger import Run
 from fin.config import load_config
 from fin.db.conn import connect, transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
+from fin.diligence.stub import UNAUDITED, parse_stub
 from fin.paths import company_db_path
 from fin.query.write import backup
 
@@ -139,12 +141,25 @@ def require_open(con: duckdb.DuckDBPyConnection, company: str) -> dict[str, Any]
 
 
 def open_engagement(
-    run: Run, company: str, periods: list[str], threshold: Decimal | None
+    run: Run,
+    company: str,
+    periods: list[str],
+    threshold: Decimal | None,
+    stub: str | None = None,
 ) -> dict[str, Any]:
-    """Open an engagement for the periods, with the threshold given or config.toml's. E803 when one
-    is already open."""
+    """Open an engagement for the periods (and the stub, e.g. 'FY27-YTD-SEP'), with the threshold
+    given or config.toml's. E803 when one is already open; E808 for a stub `parse_stub`
+    refuses."""
     if threshold is None:
         threshold = load_config(run.root).query_threshold
+    try:
+        ytd = (
+            parse_stub(stub, periods, load_config(run.root).fiscal_year_start_month)
+            if stub
+            else None
+        )
+    except ValueError as exc:
+        raise SourcePeriodInvalid(f"{company}: {exc}; nothing opened") from exc
     with company_database(run, company, write=True) as con, transaction(con):
         existing = open_engagement_row(con)
         if existing is not None:
@@ -155,9 +170,18 @@ def open_engagement(
             )
         now = utcnow()
         new = con.execute(
-            "INSERT INTO engagement (periods, query_threshold, status, opened_run_id, opened_at) "
-            "VALUES (?, ?, 'open', ?, ?) RETURNING engagement_id",
-            [",".join(periods), threshold, run.run_id, now],
+            "INSERT INTO engagement (periods, query_threshold, stub, stub_start, stub_end, "
+            "status, opened_run_id, opened_at) VALUES (?, ?, ?, ?, ?, 'open', ?, ?) "
+            "RETURNING engagement_id",
+            [
+                ",".join(periods),
+                threshold,
+                ytd and ytd.name,
+                ytd and ytd.start,
+                ytd and ytd.end,
+                run.run_id,
+                now,
+            ],
         ).fetchone()
         assert new is not None
         record_event(run, company, con, "engagement", new[0])
@@ -230,8 +254,10 @@ def engagement_status(run: Run, company: str) -> dict[str, Any]:
 
 def format_engagement(row: dict[str, Any]) -> str:
     line = (
-        f"engagement #{row['engagement_id']} {row['status']}: periods {row['periods']}, "
-        f"query threshold {rupees(row['query_threshold'])}, opened {row['opened_at']:%Y-%m-%d}"
+        f"engagement #{row['engagement_id']} {row['status']}: periods {row['periods']}"
+        + (f", stub {row['stub']} ({UNAUDITED})" if row.get("stub") else "")
+        + f", query threshold {rupees(row['query_threshold'])}"
+        + f", opened {row['opened_at']:%Y-%m-%d}"
     )
     if row["closed_at"] is not None:
         line += f", closed {row['closed_at']:%Y-%m-%d}"

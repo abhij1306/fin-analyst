@@ -78,6 +78,7 @@ def test_g1_checklist_names_what_is_missing(con: duckdb.DuckDBPyConnection) -> N
         (False, "FY25: no loaded document has mapped figures for it"),
         (False, "held documents: doc_id 2 b.xlsx (`fin findings list acme`)"),
         (False, "1 mapping items waiting for review (`fin review list acme`)"),
+        (True, "no trial balance loaded and no stub: the trial balance checks apply once one is"),
     ]
     assert [(line["ok"], line["text"]) for line in g2["checklist"]] == [
         (True, "no queries in draft")

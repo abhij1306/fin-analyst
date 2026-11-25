@@ -249,6 +249,31 @@ write `source_files`, `trial_balance` and `ledger_entries` (E806). One transacti
 same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
 period or refusal error stops the command and loads nothing.
 
+Ledger mapping, `tb_vs_statements`, the stub and G1's trial balance checks (D2, second half). `ledger_accounts`
+(`fin/diligence/ledgers.py`): a trial balance load adds its new ledgers as pending; `fin map ledgers <co>` lists
+them and `fin map ledgers <co> <file.json>` stores Claude's proposals (`{ledger, account, confidence, reason}`; a
+balance sheet or profit and loss account in rupees, else E304; a confirmed ledger is changed only by the user);
+`fin review list|confirm|reject <co> ... --ledgers` is the user's decision (`--account` to choose another); each step
+goes to `mapping_decisions` (scope `ledger`). A confirmed ledger stores its account's statement and side (1 debit,
+-1 credit, from the dictionary tree's top lines). `fin reconcile <co> [tb_vs_statements] [--period]`
+(`fin/diligence/recon.py`, `fin/cli/reconcile.py`): per annual period with a loaded trial balance, ledger balances
+roll up to the nearest of their account and its subtotals that is a detail line of the standalone statement
+(`current_facts`; a figure with no figure below it), and the profit and loss ledgers also roll into `other_equity`
+(Tally lists the year's income and expenses beside the opening Profit & Loss A/c). One `recon_runs` row per period
+(with the hash of what it compared) and `recon_items` per account (`matched`, `difference`, `left_only`,
+`right_only`) and per unmapped ledger (`unmapped`). A line at or above the engagement threshold gets a draft query
+(origin `recon`; one from an earlier run with the same account and difference is kept), unless a ledger is unmapped;
+lines below are listed. E812: a period not annual, no trial balance or no statement figures. The stub
+(`fin engagement open ... --stub FY27-YTD-SEP`, `fin/diligence/stub.py`): the year to date of the fiscal year after
+the last period, columns `stub`, `stub_start`, `stub_end` on `engagement` (a bad stub is E808); its exports load
+with basis `unaudited` and the view `stub_figures` rolls its trial balance up by confirmed mapping, labelled
+"unaudited management accounts", never annualised. G1 (`fin/diligence/tb_checks.py`), once the engagement has a
+source file or a stub: a trial balance and Ledger Vouchers per period and the stub, every trial balance ledger in its
+Ledger Vouchers, every ledger mapped, each annual period's latest `tb_vs_statements` on the current data with every
+line at or above the threshold in a query, the stub marked unaudited; its inputs add the source files, the ledger
+mappings and the latest reconciliations. `fin sql --write` refuses `ledger_accounts`, `recon_runs`, `recon_items`
+(E806).
+
 ---
 
 ## 1. What it does
@@ -374,7 +399,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - Diligence: `engagement`, `accountant_queries`, `adjustments` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash` (views on the latest engagement)
-- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `mask_values` (never printed: `fin sql` refuses it, E810)
+- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, the view `stub_figures`
 
 **Shared**
 

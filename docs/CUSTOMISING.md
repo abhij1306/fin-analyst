@@ -8,7 +8,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 - `cli/`: the `fin` commands (Typer), one module per group: `core.py` (the root `app`, `--version`, shared argument checks), `init.py` (init, doctor), `ingest.py` (ingest, ingest-batch, verify), `findings.py` (findings, status), `statements.py` (statements, export), `data.py` (sql, dashboard, audit, delete, update, report). Each command runs through the audit logger. To add a command group, make a module that does `from fin.cli.core import app` and decorates its commands, then add it to the import line in `cli/__init__.py` (the order is the order in `fin --help`).
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
-- `audit/errors.py`: error classes and codes (E001 to E811). `audit/logger.py`: run records and logging.
+- `audit/errors.py`: error classes and codes (E001 to E812). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
   database from its schema file.
@@ -43,6 +43,10 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   Source files (`fin ingest --kind`): `sources.py` (one file in one transaction: period check, archive,
   `source_files`, supersede), `tally.py` (what trial balance and Ledger Vouchers rows mean: groups, ledger blocks,
   the group-sum finding), `mask.py` (tokens for names, `mask_values`). Tables: `db/schema/sources.sql`.
+  `ledgers.py` (`ledger_accounts`: Tally ledger to account, proposed by Claude, confirmed in review; an account's
+  side), `recon.py` (`tb_vs_statements`: `recon_runs`, `recon_items`, draft queries at or above the threshold,
+  E812; CLI `cli/reconcile.py`), `stub.py` (the current-year stub, `--stub FY27-YTD-SEP`), `tb_checks.py` (gate
+  G1's trial balance checklist lines and inputs).
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.

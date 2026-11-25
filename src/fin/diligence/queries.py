@@ -92,6 +92,18 @@ def _insert(
     return _get(con, engagement, company, new[0])
 
 
+def draft_in(
+    run: Run,
+    company: str,
+    con: duckdb.DuckDBPyConnection,
+    engagement: dict[str, Any],
+    values: dict[str, Any],
+) -> dict[str, Any]:
+    """Add a draft query in the caller's transaction (a reconciliation's line): `values` are
+    origin, finding_id, period, scope, question, amount and sources."""
+    return _insert(run, company, con, engagement, values)
+
+
 def raise_from_finding(run: Run, company: str, finding_id: int, question: str) -> dict[str, Any]:
     """A draft query on an open or accepted finding: its period, scope, difference (as the amount)
     and sources. E805 for an unknown finding or one no longer open or accepted."""
@@ -205,7 +217,7 @@ def list_queries(run: Run, company: str, status: str | None = None) -> list[dict
 
 
 def format_query(row: dict[str, Any]) -> str:
-    origin = f"finding {row['finding_id']}" if row["origin"] == "finding" else "manual"
+    origin = f"finding {row['finding_id']}" if row["origin"] == "finding" else row["origin"]
     where = " ".join(x for x in (row["period"], row["scope"]) if x) or "-"
     lines = [
         f"#{row['query_id']} {row['status']} {where} {rupees(row['amount'])} ({origin}): "

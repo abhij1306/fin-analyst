@@ -75,6 +75,8 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
         "    pass: FY25: a loaded document has mapped figures for it\n"
         "    pass: no held documents\n"
         "    pass: no mapping items waiting for review\n"
+        "    pass: no trial balance loaded and no stub: the trial balance checks apply once one"
+        " is\n"
         "    unlocks: approving G2\n"
     )
     assert fin("gate", "approve", "bluepeak", "G2").exit_code == 0

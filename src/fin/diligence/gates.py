@@ -17,10 +17,12 @@ E801 until it is approved (`require`), checked in the same transaction as their 
 Gates in this build (docs/DILIGENCE_BUILD.md); G3 (recast) comes later:
     G1 Ingestion    every annual period in scope has figures in current_facts (a loaded document,
                     mapped and confirmed: what the metrics use), no held documents, no mapping
-                    items waiting for review. Its inputs are the
+                    items waiting for review; and the trial balance checks
+                    (`fin.diligence.tb_checks`). Its inputs are the
                     periods, the documents, the mapping items and the figures (every
                     current_facts value by account, period and scope), so a changed figure
-                    (`fin sql --write` on facts, a review that maps a line) reopens it;
+                    (`fin sql --write` on facts, a review that maps a line) reopens it, and
+                    the trial balance inputs (source files, ledger mappings, reconciliations);
     G2 Reconciliation no query in draft: every query's wording is reviewed. Its inputs are each
                     query's id, wording and whether it is a draft, so a new or edited query
                     reopens it; sending, answering, closing or withdrawing an approved one does
@@ -42,6 +44,7 @@ from fin.audit.errors import GateNotApproved, GateNotReady
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
+from fin.diligence import tb_checks
 from fin.diligence.engagement import company_database, require_open
 from fin.map.review import open_items, read_pending
 
@@ -124,7 +127,7 @@ def _data_checklist(ctx: Context) -> list[Line]:
         )
     else:
         lines.append((True, "no mapping items waiting for review"))
-    return lines
+    return lines + tb_checks.checklist(ctx)
 
 
 def _data_inputs(ctx: Context) -> dict[str, Any]:
@@ -140,6 +143,7 @@ def _data_inputs(ctx: Context) -> dict[str, Any]:
             [item["id"], item["status"], item["statement"], item["section"], item["label"]]
             for item in ctx.pending
         ),
+        **tb_checks.inputs(ctx),
     }
 
 
