@@ -218,6 +218,21 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      period is E874, no engagement is E873. The report also has the recast (once `fin recast run` has run), the collections and
      ageing, the customers section and a sources appendix; they need no narrative. The report renders at any gate state and
      prints each gate's state; tell the user which gates were not approved.
+   - **FDD findings and report** (`docs/fdd.md` F8). Once the FDD data is loaded (F1-F7 above), propose findings: one
+     per issue a buyer should know, each with evidence. `uv run fin fdd finding propose <company> --area <section>
+     --title "..." --observation "..." [--implication "..."] --severity high|medium|low --impact
+     ebitda|net_debt|working_capital|revenue|disclosure|none --deal price|spa_protection|condition_precedent|further_work|none
+     --evidence "<file + page, fin output, query>"`, linking where the amount comes from: `--adjustment N`,
+     `--netdebt-item N` or `--recon N` (one of them), and `--query N` for the management response (and the amount
+     when nothing else is linked). Never type an amount or any number in the text (E970); no valuation, investment
+     rating or buy/don't-buy words. Edit or drop drafts with `fin fdd finding update|drop`. Show
+     `uv run fin fdd finding list <company>` and ask the user which to mark final; run `uv run fin fdd finding final
+     <company> <ids>` (or `--undo`) only when the user says so (a hook asks first). Then `uv run fin report <company>
+     --fdd` writes `fdd_narrative.md` (headings: key findings, quality of earnings, working capital, net debt, revenue,
+     walkthroughs, provisions, tax, contingencies, related parties, inquiries, basis); write it: severity, implications
+     and deal considerations are allowed, numbers only as `{{figure:<name>:<period>}}` (E602, E874), no valuation,
+     rating or buy/don't-buy language (E972). Run it again to render. Only final findings are in it; `--drafts` makes a
+     labelled draft copy when the user asks. A section with no data says it is not loaded: tell the user which.
 9. **Gates.** Gates are approved in order, by the user only: G1 Ingestion (every period in scope has mapped figures
    from a loaded document, no held documents, no mappings waiting for review; once there is a trial balance or a
    stub, also a trial balance and Ledger Vouchers per period and the stub, every ledger in both, every ledger
@@ -239,8 +254,8 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      gate is not approved: show the failing lines.
    - A command refused with E801 names the gate and its state (open or reopened, and what changed): show it and
      go back to `fin gate status`.
-10. **Never** approve, mark sent, close or withdraw a query, accept or reject an adjustment, or approve a gate on your
-   own. Never change the company's data to make a difference go away; fixing fin's own reading (a wrong mapping, a
+10. **Never** approve, mark sent, close or withdraw a query, accept or reject an adjustment, mark an FDD finding final,
+   or approve a gate on your own. Never change the company's data to make a difference go away; fixing fin's own reading (a wrong mapping, a
    misread figure) is still done through `/ingest` and `/review`. If a command fails (E801 a gate not approved, E802
    a gate not ready, E803 no open engagement, E804 an adjustment that is not valid, E805 an unknown id or a status
    change not allowed, E806 `fin sql --write` on a diligence table, E807-E811 a source file that cannot load or

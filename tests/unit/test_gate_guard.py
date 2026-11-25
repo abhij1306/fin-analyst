@@ -73,7 +73,30 @@ def test_commands_that_look_like_a_gate_approval_ask(command: str) -> None:
 @pytest.mark.parametrize(
     "command",
     [
+        "uv run fin fdd finding final bluepeak 3",
+        "uv run fin fdd 'finding' final bluepeak 3 --undo",
+        "uv run fin fdd FINDING \\\n  final bluepeak 3",
+        'uv run python -c "from fin.fdd.findings import set_status"',
+        'uv run python -c "from fin.fdd import findings; findings.set_status(r, c, [1])"',
+        'uv run python -c "import fin.fdd.findings as f; f.set_status(r, c, [1])"',
+        'uv run python -c "from fin.fdd import findings as f; f.set_status(r, c, [1])"',
+    ],
+)
+def test_marking_an_fdd_finding_final_asks_the_user(command: str) -> None:
+    result = run_hook(bash(command))
+
+    assert result.returncode == 0
+    reason = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+    assert reason.startswith("Only you mark an FDD finding final")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
         "uv run fin gate status bluepeak",
+        "uv run fin fdd finding list bluepeak",
+        "uv run fin fdd finding propose bluepeak --title x",
+        "uv run fin report bluepeak --fdd",
         "uv run fin adjust accept bluepeak 1",
         "echo fin gate approved",
         'git commit -m "Fix the gate status output"',

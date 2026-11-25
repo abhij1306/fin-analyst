@@ -22,6 +22,7 @@ from fin.delete import delete_company
 from fin.query.run import query
 from fin.query.write import write_sql
 from fin.report.dd_render import make_diligence_report
+from fin.report.fdd_render import make_fdd_report
 from fin.report.render import make_report
 from fin.update import update as run_update
 
@@ -197,14 +198,29 @@ def report_command(
             "diligence_narrative.md, with {{figure:name:period}} references).",
         ),
     ] = False,
+    fdd: Annotated[
+        bool,
+        typer.Option(
+            "--fdd",
+            help="The FDD findings report of the latest engagement (final findings by severity "
+            "and every FDD section; the narrative is fdd_narrative.md).",
+        ),
+    ] = False,
+    drafts: Annotated[
+        bool, typer.Option("--drafts", help="With --fdd: include draft findings (a draft copy).")
+    ] = False,
 ) -> None:
     """Health report. The first run writes reports/<company>/<scope>/narrative.md (fill it with
     /report); the next run lints it (E602 on hand-typed numbers) and renders HTML, docx and PDF.
     A failed render (E601) keeps the last good report."""
     peer_list = [check_company(p.strip()) for p in peers.split(",") if p.strip()] if peers else None
+    if diligence and fdd:
+        raise typer.BadParameter("use --diligence or --fdd, not both")
 
     def body(run: Run) -> None:
-        if diligence:
+        if fdd:
+            result = make_fdd_report(run, company, scope, render, drafts)
+        elif diligence:
             result = make_diligence_report(run, company, scope, render)
         else:
             result = make_report(run, company, scope, render, peer_list)
@@ -216,5 +232,7 @@ def report_command(
         "render": render,
         "peers": peer_list,
         "diligence": diligence,
+        "fdd": fdd,
+        "drafts": drafts,
     }
     execute("report", args, body)

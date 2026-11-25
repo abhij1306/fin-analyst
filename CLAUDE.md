@@ -44,6 +44,10 @@ Rules for diligence work (`fin engagement`, `fin query`, `fin adjust`, `fin gate
   `fin gate approve` unless the user says so; a hook asks the user before any command that looks like a gate
   approval. The diligence tables change only through `fin engagement|query|adjust|gate`: `fin sql --write` refuses
   to write them (E806).
+- FDD findings (`fin fdd finding`, `docs/fdd.md` F8): you propose them with evidence and edit or drop your drafts.
+  Only the user marks a finding final or returns it to draft: never run `fin fdd finding final` unless the user says
+  so; the same hook asks the user first. The FDD report (`fin report --fdd`) shows final findings only, unless the
+  user asks for `--drafts`.
 
 ## Customising
 

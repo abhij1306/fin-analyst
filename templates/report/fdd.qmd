@@ -1,0 +1,172 @@
+---
+title: "{{title}}"
+subtitle: "{{subtitle}}"
+format:
+  html:
+    embed-resources: true
+    toc: true
+  docx:
+    toc: true
+  typst:
+    toc: true
+---
+
+<!--
+fin-analyst FDD report template (fin.report.fdd_render fills it; no code runs in Quarto).
+Placeholders:
+  {{title}}, {{subtitle}}
+  {{narrative:<section>}}  the narrative under that section's heading in fdd_narrative.md
+  {{table:<name>}}         draft_note, key_findings, basis, gates, ebitda, bridge, adjustments, walk,
+                           revenue, nwc_year_end, nwc_monthly, net_debt, coverage, visibility,
+                           walkthroughs, receivables, gratuity, tax_charge, gst, contingencies,
+                           related, inquiries, recon, queries, findings, mappings, sources
+  {{section:recast}}       the service-period recast (empty until `fin recast run` has run)
+Every value comes from SQL on the company database (docs/fdd.md F8).
+-->
+
+Financial due diligence findings on the figures of the engagement. Findings carry a severity, their
+implications and the deal considerations they raise; this report gives no valuation, no rating of the
+company as an investment and no view on whether to buy it. Names are tokens.
+
+{{table:draft_note}}
+
+## Key findings
+
+{{narrative:summary}}
+
+Each amount comes from the linked evidence (an adjustment, a net debt item, a reconciliation or a
+query); the management response is the answer to the linked query.
+
+{{table:key_findings}}
+
+## Quality of earnings
+
+{{narrative:qoe}}
+
+{{table:ebitda}}
+
+### Bridge from reported to adjusted EBITDA
+
+{{table:bridge}}
+
+### Adjustments and their evidence
+
+Only accepted adjustments are in adjusted EBITDA. Proposed ones are shown, not applied.
+
+{{table:adjustments}}
+
+### EBITDA to cash
+
+{{table:walk}}
+
+## Working capital
+
+{{narrative:nwc}}
+
+{{table:nwc_year_end}}
+
+### By month
+
+{{table:nwc_monthly}}
+
+## Net debt and debt-like items
+
+{{narrative:net_debt}}
+
+Net debt = debt + debt-like − cash, from the trial balance ledgers' classes and the accepted debt-like
+items. Proposed items are shown, not applied.
+
+{{table:net_debt}}
+
+## Revenue, contracts and visibility
+
+{{narrative:revenue}}
+
+{{table:revenue}}
+
+### Contracts of the top customers and vendors
+
+{{table:coverage}}
+
+### Revenue visibility for the next year
+
+{{table:visibility}}
+
+{{section:recast}}
+
+## Walkthroughs
+
+{{narrative:walkthroughs}}
+
+{{table:walkthroughs}}
+
+## Provisions and payroll
+
+{{narrative:provisions}}
+
+### Receivables ageing and the doubtful debts provision
+
+{{table:receivables}}
+
+### Gratuity (indicative)
+
+{{table:gratuity}}
+
+## Tax
+
+{{narrative:tax}}
+
+{{table:tax_charge}}
+
+{{table:gst}}
+
+## Contingencies and commitments
+
+{{narrative:contingencies}}
+
+{{table:contingencies}}
+
+## Related parties
+
+{{narrative:related}}
+
+{{table:related}}
+
+## Management inquiries
+
+{{narrative:inquiries}}
+
+{{table:inquiries}}
+
+## Reconciliations and queries
+
+{{table:recon}}
+
+{{table:queries}}
+
+## Basis, gates and scope
+
+{{narrative:basis}}
+
+{{table:basis}}
+
+The gates as they stood when this report was rendered:
+
+{{table:gates}}
+
+### Scope and limitations
+
+fin computed the figures from the documents loaded and recorded Claude's readings of contracts, notes and
+notices with their file and page; the readings are not verified by fin. Not done: an actuarial valuation
+(gratuity is indicative and undiscounted), leave encashment, a legal review of contracts or litigation,
+site visits, and the reconciliation of MIS or KPIs (raised as inquiries only).
+
+## Data findings and mappings
+
+{{table:findings}}
+
+{{table:mappings}}
+
+## Appendix: sources of the figures
+
+{{table:sources}}

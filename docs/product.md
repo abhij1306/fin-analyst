@@ -883,3 +883,37 @@ ledgers still unclassified (net debt may be incomplete while any is); a period w
 figures (never 0). `net_debt_lines` lists each ledger (file + sheet!row) and item (its evidence). Golden kind
 `net_debt` (`ledger`: cash, debt, debt_like, net_debt). The FDD report (F8) reads F4 through
 `fin.diligence.netdebt.collect(con, period)`.
+
+FDD findings report (F8, `docs/fdd.md`; decisions in `docs/decisions/fdd-f8.md`): an FDD finding has an area (the
+report section: qoe, working_capital, net_debt, revenue, walkthroughs, provisions, tax, contingencies,
+related_parties, inquiries, other), a title, an observation, an optional implication, an impact type (ebitda,
+net_debt, working_capital, revenue, disclosure, none), a severity (high, medium, low), a deal consideration (price,
+spa_protection, condition_precedent, further_work, none) and evidence (file + page, fin output, query). Claude
+proposes one with `fin fdd finding propose <co> --area --title --observation --severity --impact --deal --evidence
+[--implication] [--adjustment N | --netdebt-item N | --recon N] [--query N]` (E970) and changes or drops it while it is
+a draft (`fin fdd finding update <co> <id> ...`, `fin fdd finding drop <co> <ids>`; E971). The amount is never typed:
+it is the linked adjustment's or net debt item's amount, a reconciliation run's lines at or above the threshold (sum
+of their absolute differences), else the linked query's amount, shown with where it comes from; the linked query's
+answer is the management response. The text is masked and may not hold a typed number or valuation, investment-rating
+or buy/don't-buy language (E970). Only the user marks a finding final (`fin fdd finding final <co> <ids>`, or
+`--undo` to return it to draft); the gate-guard hook asks the user before any such command. `fin fdd finding list <co>
+[--all] [--json]` lists them by severity. Table `fdd_findings` (`db/schema/fdd_findings.sql`, view
+`fdd_finding_rows`), refused by `fin sql --write` (E806); every change is a run event.
+
+`fin report <co> --fdd [--drafts] [--render] [--scope S]` builds the FDD report of the latest engagement on the
+diligence report's machinery (E873 without an engagement): the first run writes `fdd_narrative.md`, the next lints it
+and renders `fdd.html`, `fdd.docx`, `fdd.pdf` and `fdd_data.json` (every value, the references, the gate states and
+whether drafts were in). Sections: key findings by severity (each finding with its observation, implication, impact and
+amount, deal consideration, management response and evidence); quality of earnings (adjusted EBITDA, bridge,
+adjustments, EBITDA to cash); working capital; net debt and debt-like items (F4); revenue, contracts and visibility
+(revenue split, contract coverage of the top customers and vendors, revenue visibility, the recast); walkthroughs (F1);
+provisions and payroll (receivables ageing, indicative gratuity with its assumptions; F3); tax (tax charge and GST
+reconciliations; F6); contingencies and commitments, and related parties (Claude's readings, labelled not verified, and
+the related parties' transactions in the books; F5); management inquiries and their answers (F2); reconciliations and
+queries; basis, gates and scope (with the scope and limitations: no actuarial valuation, leave encashment, legal
+review, site visits or MIS/KPI reconciliation); data findings and mappings; the sources appendix. A section whose data
+is not loaded says so. Only final findings are in it; `--drafts` adds the drafts and labels the copy a draft. The
+narrative may state findings, severity, implications and deal considerations; it never types a number (E602; references
+are `{{figure:<name>:<period>}}` with the diligence report's figures plus `net_debt`, `net_debt_cash`,
+`net_debt_debt`, `net_debt_debt_like` and `effective_tax_rate`, E874) and has no valuation, investment-rating or
+buy/don't-buy language (E972).

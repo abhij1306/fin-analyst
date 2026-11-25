@@ -467,18 +467,18 @@ diligence user's documents. Their reading: the number core (D1 to D9) looks stro
 financial due diligence (FDD) workstream. Some of these items are judgement and management work, not data processing.
 Owner, 2026-11-25: build what fin can of this list, including the FDD-style report. Plan: [fdd.md](fdd.md).
 
-| # | Gap | What fin has today |
-|---|---|---|
-| 1 | Contract review of major customers and vendors: lock-in, SLA, penalties, escalation, renewal | `fin recast contracts` loads Claude's reading of a contract (customer, dates, value, billing terms) as optional evidence for the recast. No other contract terms, no vendor contracts |
-| 2 | Sample deal walkthroughs to validate commercial terms and dates | Register lines carry contract and service dates, rate and quantity; `bank_vs_invoices` matches receipts. No sample selection and no walkthrough record |
-| 3 | Management inquiries: revenue recognition, cut-off controls, MIS/KPIs, accounting-policy changes, capitalisation | Queries are built around a difference (amount, period, source). No inquiry list for policies or controls |
-| 4 | Provisioning and actuarial review: doubtful debts, gratuity and leave assumptions, wage-code impact | None. Payroll is an annual snapshot (gross salary, CTC) |
-| 5 | Contingencies, commitments, litigation, off-balance-sheet items | None |
-| 6 | Direct and indirect tax: returns, assessments, MAT, deferred tax, GST reconciliation, RCM, notices | None. Registers are before GST; the EBITDA-to-cash walk has a taxes-paid line |
-| 7 | Balance-sheet judgements: receivable recoverability and provisions, accrual and cut-off completeness, debt-like items for net debt | Working capital (`nwc_year_end`, `nwc_monthly`) and collections ageing (`customer_collections`). No net debt or debt-like items schedule (borrowings, leases and tax are outside working capital) |
-| 8 | Related-party analysis beyond a listing: terms, financing, rate comparisons | None |
-| 9 | Orderbook and revenue visibility beyond a supplied file | Historical analytics on the sales register (D9) and the recast (D6). No orderbook input |
-| 10 | An FDD-style findings report | The diligence report (D7) shows figures, differences, queries and adjustments. It describes and does not judge (`CLAUDE.md`: no ratings or recommendations), so it is not an FDD report or opinion. Changing that rule is an owner decision |
+| # | Gap | What fin has now (FDD, [fdd.md](fdd.md)) | What stays out |
+|---|---|---|---|
+| 1 | Contract review of major customers and vendors: lock-in, SLA, penalties, escalation, renewal | F1: Claude's readings of customer and vendor contracts with their terms (file + page), `contract_coverage` of the top customers and vendors (`fin contracts coverage`) | A legal opinion on the terms: the user's |
+| 2 | Sample deal walkthroughs to validate commercial terms and dates | F1: reproducible samples (`fin sample draw`), walkthrough results per check with evidence (`fin walkthrough record`), `walkthrough_summary` | — |
+| 3 | Management inquiries: revenue recognition, cut-off controls, MIS/KPIs, accounting-policy changes, capitalisation | F2: inquiries as queries with a topic, a standard checklist (`fin query checklist`) | MIS/KPI reconciliation: an inquiry, not a computation |
+| 4 | Provisioning and actuarial review: doubtful debts, gratuity and leave assumptions, wage-code impact | F3: provision ledgers, receivables ageing against the doubtful debts provision, indicative undiscounted gratuity on stated assumptions (`fin provisions show`) | Actuarial valuation, leave encashment |
+| 5 | Contingencies, commitments, litigation, off-balance-sheet items | F5: Claude's readings of notes and notices as schedules (`fin disclosures`) | A legal assessment of litigation |
+| 6 | Direct and indirect tax: returns, assessments, MAT, deferred tax, GST reconciliation, RCM, notices | F6: GST returns, tax ledgers, four GST reconciliations, `tax_charge`; F5: tax matters and notices | — |
+| 7 | Balance-sheet judgements: receivable recoverability and provisions, accrual and cut-off completeness, debt-like items for net debt | F3: ageing and cut-off reconciliations; F4: net debt and debt-like items (`fin netdebt`) | — |
+| 8 | Related-party analysis beyond a listing: terms, financing, rate comparisons | F5: matches to the books, transactions, pricing and loans views, `rpt_vs_books` | — |
+| 9 | Orderbook and revenue visibility beyond a supplied file | F7: orderbook load, contracted backlog, `revenue_visibility`, `orderbook_vs_register` | — |
+| 10 | An FDD-style findings report | F8: FDD findings with severity, implication, deal consideration, amount from evidence and management response (`fin fdd finding`; the user marks them final), and `fin report --fdd` with every FDD section | Valuation, investment rating, buy/don't-buy; site visits |
 
 ## Commands and behaviour (as built)
 

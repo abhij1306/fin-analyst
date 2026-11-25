@@ -54,6 +54,10 @@ FREE_TEXT_COLUMNS = (
     ("recon_items", "note"),  # the walkthrough reconciliation copies the evidence into its notes
     ("disclosures", "nature"),
     ("disclosures", "relationship"),
+    ("fdd_findings", "title"),
+    ("fdd_findings", "observation"),
+    ("fdd_findings", "implication"),
+    ("fdd_findings", "evidence"),
 )
 
 

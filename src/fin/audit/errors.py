@@ -603,8 +603,11 @@ class FigureReferenceUnknown(FinError):
 from fin.audit.errors_fdd import (  # noqa: E402, F401
     CutoffCannotRun,
     DisclosureReadingInvalid,
+    FddFindingInvalid,
+    FddFindingUnknown,
     GstReturnInvalid,
     InquiryInvalid,
+    NarrativeJudges,
     NetDebtClassInvalid,
     NetDebtClassUnknown,
     NetDebtItemInvalid,

@@ -199,7 +199,15 @@ Schema `db/schema/fdd_orderbook.sql`; errors E960–E961. Commands: `fin ingest 
   against the last year's core revenue.
 - `orderbook_vs_register`: orders with no billing, billing with no order (matched by customer: the register has no order number).
 
-### F8: FDD findings report (gap 10)
+### F8: FDD findings report (gap 10) — built
+
+Built as below; behaviour in `docs/product.md` ("FDD findings report"), choices in
+[decisions/fdd-f8.md](decisions/fdd-f8.md). Schema `db/schema/fdd_findings.sql` (table `fdd_findings`, view
+`fdd_finding_rows`); errors E970–E972. Commands: `fin fdd finding propose|update|list|drop <co>` (Claude),
+`fin fdd finding final <co> <ids> [--undo]` (the user's word only; the gate-guard hook asks first),
+`fin report <co> --fdd [--drafts] [--render]` (template `templates/report/fdd.qmd`, files `fdd_narrative.md`,
+`fdd.html|docx|pdf`, `fdd_data.json`). Data function: `fin.fdd.findings.collect(con, engagement_id, drafts)`;
+the report reads every workstream's data function through `fin.report.fdd_data.collect`. Plan as written:
 
 - Table `fdd_findings`: area, title, observation, impact type (EBITDA, net debt, working capital, revenue,
   disclosure, none), amount (only from linked evidence: an adjustment, a net debt item, a recon run or a query),
