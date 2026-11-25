@@ -110,19 +110,30 @@ Decisions: [decisions/fdd-f3.md](decisions/fdd-f3.md). Schema: `db/schema/fdd_bs
 - Golden kinds: `receivable_ageing`, `doubtful_debt_provision`, `gratuity_provision` (`evals/provisions.py`),
   `sales_cutoff`, `purchase_cutoff` (recon kinds).
 
-### F4: Net debt and debt-like items (gap 7)
+### F4: Net debt and debt-like items (gap 7) — built
 
-- Each trial balance ledger at a period end gets a net debt class: cash, debt, debt_like or none. fin defaults the
-  class from the ledger's confirmed account (borrowings and lease liabilities: debt; cash and bank: cash) and leaves
-  the rest unclassified; Claude proposes classes for the rest (`fin netdebt propose <co> <file.json>`, with a reason)
-  and the user confirms or rejects them (`fin review ... --netdebt`). Typical debt-like candidates: employee benefit
-  provisions, overdue statutory dues, income tax payable, capex creditors, deferred or contingent consideration,
-  customer advances not in working capital, unpaid dividends.
-- Items not in a ledger (an indicative gratuity shortfall, a probable contingency, a cut-off item): `fin netdebt item
-  propose <co> --period P --amount N --description ... --evidence <ref>`; the user accepts or rejects
-  (`fin netdebt item accept|reject`), as for adjustments.
-- View `net_debt` per period end: cash, debt, debt-like (ledgers and accepted items), net debt, proposed items shown
-  not applied; `net_debt_lines` with each ledger or item and its source. `fin netdebt <co> [--json]`.
+Decisions: [decisions/fdd-f4.md](decisions/fdd-f4.md). Schema: `db/schema/fdd_netdebt.sql`. Errors E930–E934.
+
+- Each trial balance ledger of the latest engagement has a net debt class: cash, debt, debt_like or none, one class
+  per ledger for every period end. fin defaults it from the ledger's confirmed account (`netdebt_default_accounts`:
+  borrowings, debt securities, subordinated liabilities and lease liabilities are debt; cash, other bank balances and
+  cash and bank balances are cash; a profit and loss account is none) and leaves the rest unclassified
+  (`netdebt_ledger_classes`). Claude proposes classes (`fin netdebt propose <co> <file.json>`:
+  `[{ledger, class, reason}]`, E930; without a file it lists the unclassified ledgers) and the user confirms or
+  rejects them (`fin review list|confirm|reject <co> [ids] --netdebt`, E931). A confirmed class wins over the
+  default; rejecting it restores the default. Table `netdebt_classes`.
+- Items not in a ledger: `fin netdebt item propose <co> --period P --amount N --description ... --evidence <ref>`
+  (signed rupees, positive raises net debt; a year of the open engagement or its stub; names masked; E932); the user
+  accepts or rejects them (`fin netdebt item accept <co> <ids>`, `reject <co> <ids> --reason`, E933;
+  `fin netdebt item list <co>`). Table `netdebt_items`.
+- Views: `net_debt` per period end of the latest engagement (annual periods, then the stub as unaudited): cash, debt,
+  debt-like (ledgers and accepted items), net debt = debt + debt-like − cash, proposed items (sum and count, not
+  applied), unclassified ledgers and classes waiting; ledger figures NULL for a period with no trial balance.
+  `net_debt_lines`: each ledger (file + sheet!row) and item (its evidence), applied or not.
+  `fin netdebt show <co> [--period P] [--json]` (E934 without an engagement).
+- `fin sql --write` refuses `netdebt_classes` and `netdebt_items` (E806); each change is a run event. Golden kind
+  `net_debt` (`ledger`: cash, debt, debt_like, net_debt). The FDD report (F8) reads F4 through
+  `fin.diligence.netdebt.collect(con, period)`.
 
 ### F5: Contingencies, commitments, notices and related parties (gaps 5, 6, 8) — built
 

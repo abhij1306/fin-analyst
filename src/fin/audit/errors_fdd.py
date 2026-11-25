@@ -131,3 +131,44 @@ class RelatedPartyLinkInvalid(FinError):
     already matched, or an unknown link id. Nothing changed."""
 
     code = "E941"
+
+
+# E930-E939: FDD F4, net debt and debt-like items (fin.diligence.netdebt, netdebt_items).
+
+
+class NetDebtClassInvalid(FinError):
+    """E930. `fin netdebt propose`: the file is not a JSON list of {ledger, class, reason}, a
+    ledger is not in a loaded trial balance or is named twice, the class is not cash, debt,
+    debt_like or none, the reason is empty, or the ledger's class is already confirmed (only the
+    user changes it). Nothing stored."""
+
+    code = "E930"
+
+
+class NetDebtClassUnknown(FinError):
+    """E931. `fin review confirm|reject --netdebt`: no net debt class proposal with that id, or it
+    is not waiting for that decision (confirm needs a proposal; reject a proposal or a confirmed
+    class). Nothing changed."""
+
+    code = "E931"
+
+
+class NetDebtItemInvalid(FinError):
+    """E932. `fin netdebt item propose`: a period that is not a year of the open engagement nor
+    its stub, an amount of 0, or an empty description or evidence. Nothing stored."""
+
+    code = "E932"
+
+
+class NetDebtItemUnknown(FinError):
+    """E933. `fin netdebt item accept|reject`: no item with that id in the open engagement, it
+    is not proposed, or a reject without a reason. Nothing changed."""
+
+    code = "E933"
+
+
+class NetDebtUnavailable(FinError):
+    """E934. `fin netdebt show`: the company has no engagement, or `--period` is not a period of
+    the latest engagement. Nothing shown."""
+
+    code = "E934"

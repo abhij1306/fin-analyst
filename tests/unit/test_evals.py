@@ -187,6 +187,7 @@ def test_init_lists_what_to_check_and_never_changes_a_persons_lines(root: Path) 
         "stub",
         "adjusted_revenue",
         "nwc_year_end",
+        "net_debt",
     }
     assert not any(name in first["path"].read_text(encoding="utf-8") for name in CUSTOMERS)
 

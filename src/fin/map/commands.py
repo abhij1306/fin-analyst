@@ -19,7 +19,7 @@ from fin.diligence.ledgers import list_ledgers
 from fin.disclosures import related
 from fin.fdd import tax_ledgers
 from fin.findings import recheck_held
-from fin.map import review
+from fin.map import review, review_netdebt
 from fin.map.dictionary import STATEMENTS, added_rows
 from fin.metrics.export import refresh_analytics
 from fin.paths import COMPANY_NAME, companies_dir, company_db_path
@@ -57,6 +57,9 @@ TaxOption = Annotated[
 ]
 TaxClassOption = Annotated[
     str | None, typer.Option(help="--tax: the class to use instead of the proposed one.")
+]
+NetdebtOption = Annotated[
+    bool, typer.Option("--netdebt", help="Net debt classes (`fin netdebt propose`) instead.")
 ]
 RelatedOption = Annotated[
     bool,
@@ -254,15 +257,21 @@ def review_list(
     customer_items: CustomersOption = False,
     tax_items: TaxOption = False,
     related_items: RelatedOption = False,
+    netdebt_items: NetdebtOption = False,
 ) -> None:
     """List the items waiting for review (from review/<company>/pending.json), or with --ledgers
     the Tally ledgers waiting for an account (--all: every ledger), or with --customers the
     customers waiting for a sector, or with --matches the bank match proposals waiting for the
     user, or with --tax the tax ledger classes waiting (--all: every one), or with --related the
-    related party links Claude proposed (--all: every link)."""
+    related party links Claude proposed (--all: every link), or with --netdebt the net debt
+    class proposals."""
 
     def body(run: Run) -> None:
-        if related_items:
+        if netdebt_items:
+            names = [company] if company else _ledger_companies(run)
+            modes = any((ledger_items, match_items, customer_items, tax_items, related_items))
+            review_netdebt.list_classes(run, names, all_items, json_output, modes)
+        elif related_items:
             if company is None:
                 raise typer.BadParameter("--related needs a company")
             rows = related.list_links(run, company, not all_items)
@@ -291,6 +300,7 @@ def review_list(
         "customers": customer_items,
         "tax": tax_items,
         "related": related_items,
+        "netdebt": netdebt_items,
     }
     execute("review list", args, body)
 
@@ -385,6 +395,7 @@ def review_confirm(
     tax_items: TaxOption = False,
     tax_class: TaxClassOption = None,
     related_items: RelatedOption = False,
+    netdebt_items: NetdebtOption = False,
 ) -> None:
     """Confirm items, all or nothing: the label joins the dictionary and the company's matching
     facts are confirmed. The item must have a proposed account, or pass --account. A proposed new
@@ -395,9 +406,15 @@ def review_confirm(
     (or --account) are confirmed; only the user does this. With --customers the ids are customer
     ids: their proposed sectors (or --sector) are confirmed; only the user does this. With --tax the
     ids are tax ledger ids: their proposed classes (or --tax-class) are confirmed. With --related
-    the ids are related party link ids; only the user does this."""
+    the ids are related party link ids; only the user does this. With --netdebt, net debt class
+    ids; only the user confirms them."""
 
     def body(run: Run) -> None:
+        if netdebt_items:
+            flags = (ledger_items, match_items, customer_items, tax_items, related_items)
+            options = (account, sector, tax_class, name, parent, scope != "company")
+            review_netdebt.decide(run, company, ids, "confirmed", any(flags + options))
+            return
         if related_items:
             _decide_related(run, company, ids, "confirmed")
             return
@@ -438,6 +455,7 @@ def review_confirm(
             "tax": tax_items,
             "tax_class": tax_class,
             "related": related_items,
+            "netdebt": netdebt_items,
         },
         body,
     )
@@ -480,14 +498,19 @@ def review_reject(
     customer_items: CustomersOption = False,
     tax_items: TaxOption = False,
     related_items: RelatedOption = False,
+    netdebt_items: NetdebtOption = False,
 ) -> None:
     """Reject items, all or nothing: their facts stay unconfirmed. With --ledgers the ids are
     ledger ids: the ledgers stay unmapped. With --customers the ids are customer ids: the
     customers stay unmapped. With --matches they are match proposal ids. With --tax they are tax
-    ledger ids: the ledgers have no tax class. With --related, related party link ids."""
+    ledger ids: the ledgers have no tax class. With --related, related party link ids. With
+    --netdebt, net debt class ids: the ledger keeps its default class."""
 
     def body(run: Run) -> None:
-        if related_items:
+        if netdebt_items:
+            flags = (ledger_items, match_items, customer_items, tax_items, related_items)
+            review_netdebt.decide(run, company, ids, "rejected", any(flags))
+        elif related_items:
             _decide_related(run, company, ids, "rejected")
         elif tax_items:
             _reject_tax(run, company, ids, any((ledger_items, match_items, customer_items)))
@@ -508,6 +531,7 @@ def review_reject(
         "customers": customer_items,
         "tax": tax_items,
         "related": related_items,
+        "netdebt": netdebt_items,
     }
     execute("review reject", args, body)
 

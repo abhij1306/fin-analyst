@@ -44,6 +44,7 @@ SCHEMA_FILES = {
         "fdd_orderbook.sql",
         "fdd_gst.sql",
         "fdd_disclosures.sql",
+        "fdd_netdebt.sql",
     ],
 }
 

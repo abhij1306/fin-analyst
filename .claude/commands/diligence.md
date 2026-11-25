@@ -176,6 +176,19 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    undiscounted, not an actuarial valuation" and the basic share assumption. A shortfall is for a query or a net debt item,
    never a fix. `uv run fin reconcile <company> sales_cutoff` and `purchase_cutoff` list invoices across a year end; group
    those at or above the threshold into queries (`fin query raise --items`).
+7c. **Net debt (FDD F4).** `uv run fin netdebt propose <company>` lists the trial balance ledgers with no net debt class
+   (borrowings and leases default to debt, cash and bank to cash, profit and loss ledgers to none). Propose a class for
+   each from its name, group and account: a JSON list `[{"ledger": ..., "class": "cash"|"debt"|"debt_like"|"none",
+   "reason": ...}]` loaded with `uv run fin netdebt propose <company> <file>` (debt-like candidates: employee benefit
+   provisions, overdue statutory dues, income tax payable, capex creditors, deferred or contingent consideration,
+   customer advances outside working capital, unpaid dividends). Show `uv run fin review list <company> --netdebt`;
+   confirm or reject only what the user says (`uv run fin review confirm|reject <company> <ids> --netdebt`). A debt-like
+   item not in a ledger (an indicative gratuity shortfall from `fin provisions show`, a probable contingency, a cut-off
+   item): `uv run fin netdebt item propose <company> --period <P> --amount <rupees from fin output> --description "..."
+   --evidence "<query, fin output or file + page>"`; the user accepts or rejects it (`fin netdebt item accept|reject`,
+   only on their word). `uv run fin netdebt show <company>` prints cash, debt, debt-like and net debt per period end: say
+   which items are proposed (not applied) and how many ledgers are unclassified; the stub is unaudited management
+   accounts. E930-E934: report the code and stop.
 8. **Bridge and walk.** `uv run fin engagement bridge <company> [--period FY25] [--scope standalone|consolidated]`
    (`--json` for rupees) shows, per period and scope of the latest engagement, the EBITDA bridge (reported EBITDA,
    each accepted adjustment, adjusted EBITDA) and the EBITDA-to-cash walk (non-cash and other, working capital
