@@ -256,7 +256,7 @@ def _check_proposal(
     return item
 
 
-def _storednew_account_row(new: dict[str, str] | None) -> dict[str, Any] | None:
+def _stored_new_account(new: dict[str, str] | None) -> dict[str, Any] | None:
     """A proposed new account as kept on its pending item (sign as +1/-1, no parent as None)."""
     if new is None:
         return None
@@ -291,7 +291,7 @@ def propose(run: Run, company: str, proposals: list[dict[str, Any]]) -> int:
             account=proposal["account"],
             confidence=proposal["confidence"],
             reason=proposal["reason"],
-            new_account=_storednew_account_row(new),
+            new_account=_stored_new_account(new),
         )
         _decide(run, company, item, "proposed", item["account"], None)
         if item["confidence"] < LOW_CONFIDENCE:
