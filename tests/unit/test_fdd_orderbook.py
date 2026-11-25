@@ -10,15 +10,14 @@ import pytest
 
 from fin.audit.errors import OrderbookRowInvalid, ReconCannotRun, VisibilityUnavailable
 from fin.audit.logger import Run
-from fin.config import load_config, write_default_config
+from fin.config import load_config
 from fin.db.conn import connect, utcnow
-from fin.db.schema import ensure_database
 from fin.diligence.sources import ingest_source
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.score import run_eval
-from fin.map.dictionary import load_seed
-from fin.paths import company_db_path, dictionary_db_path
+from fin.paths import company_db_path
 from fin.reconcile import RECONCILIATIONS, run_new, visibility
+from tests.engagement_root import engagement_root
 from tests.orderbook_fixtures import MAPLE, write_orderbook
 from tests.register_fixtures import write_registers
 
@@ -38,20 +37,7 @@ def run(root: Path) -> Run:
 
 @pytest.fixture(scope="module")
 def template(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    root = tmp_path_factory.mktemp("template") / "data"
-    root.mkdir()
-    write_default_config(root)
-    ensure_database(dictionary_db_path(root), "dictionary")
-    load_seed(root, Run("init", {}, root))
-    path = company_db_path(root, "acme")
-    ensure_database(path, "company")
-    with connect(path, write=True) as con:
-        con.execute(
-            "INSERT INTO engagement (periods, query_threshold, status, opened_run_id, opened_at) "
-            "VALUES ('FY25', 100000, 'open', 'r0', ?)",
-            [utcnow()],
-        )
-    return root
+    return engagement_root(tmp_path_factory.mktemp("template"))  # acme, engagement FY25, 100000
 
 
 @pytest.fixture

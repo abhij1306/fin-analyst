@@ -77,7 +77,7 @@ def _day(value: Any, profile: Profile, where: str) -> date | None:
     return found
 
 
-def _money(value: Any, profile: Profile, where: str) -> Decimal | None:
+def money(value: Any, profile: Profile, where: str) -> Decimal | None:
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
     _, number = parse_number(value, where)
@@ -107,7 +107,7 @@ def rows(table: Table, file: dict[str, Any], run_id: str, masker: Masker) -> lis
             + [_text(cells.get(f)) for f in ("designation", "department", "vertical")]
             + [_text(cells.get("sub_vertical"))]
             + [_day(cells.get(f), profile, f"{where} {f}") for f in ("joining_date", "resign_date")]
-            + [_money(cells.get(f), profile, f"{where} {f}") for f in ("gross_salary", "ctc")]
+            + [money(cells.get(f), profile, f"{where} {f}") for f in ("gross_salary", "ctc")]
             + [run_id]
         )
     return out

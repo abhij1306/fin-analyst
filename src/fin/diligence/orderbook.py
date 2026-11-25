@@ -10,7 +10,6 @@ customer, order number or value, or an unreadable date or amount, is E960.
 """
 
 from datetime import date
-from decimal import Decimal
 from typing import Any
 
 import duckdb
@@ -18,7 +17,7 @@ import duckdb
 from fin.audit.errors import OrderbookRowInvalid
 from fin.diligence.loading import clean_text
 from fin.diligence.mask import Masker
-from fin.extract.excel import parse_number
+from fin.diligence.payroll import money
 from fin.extract.ledger import Table, parse_date
 from fin.extract.profiles import Profile, norm
 
@@ -40,13 +39,6 @@ def _day(value: Any, profile: Profile, where: str) -> date | None:
     return found
 
 
-def _money(value: Any, profile: Profile, where: str) -> Decimal | None:
-    if value is None or (isinstance(value, str) and not value.strip()):
-        return None
-    _, number = parse_number(value, where)
-    return (number * profile.unit).quantize(Decimal("0.01"))
-
-
 def rows(table: Table, file: dict[str, Any], run_id: str, masker: Masker) -> list[list[Any]]:
     """The `orderbook_lines` values (`COLUMNS`) of the table's rows. E960 for a row with no
     customer, order number or order value, or a bad date; E204 for an amount that is not a
@@ -58,7 +50,7 @@ def rows(table: Table, file: dict[str, Any], run_id: str, masker: Masker) -> lis
         if any(t is not None and norm(t) in profile.skip for t in (customer, order_no)):
             continue
         where = f"{file['file_name']} {r.sheet}!row {r.row}"
-        value = _money(cells.get("value"), profile, f"{where} value")
+        value = money(cells.get("value"), profile, f"{where} value")
         if customer is None or order_no is None or value is None:
             what = (
                 "customer" if customer is None else "order number" if order_no is None else "value"
@@ -72,7 +64,7 @@ def rows(table: Table, file: dict[str, Any], run_id: str, masker: Masker) -> lis
             + [order_no, _day(cells.get("order_date"), profile, f"{where} order date"), value]
             + [currency, _day(cells.get("start_date"), profile, f"{where} start date")]
             + [_day(cells.get("end_date"), profile, f"{where} end date")]
-            + [_money(cells.get("billed"), profile, f"{where} billed"), run_id]
+            + [money(cells.get("billed"), profile, f"{where} billed"), run_id]
         )
     return out
 
