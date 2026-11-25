@@ -83,7 +83,9 @@ def _statements(
     rows = con.execute(
         "SELECT b.file_id, s.file_name, b.bank, b.account, b.currency, b.closing_balance "
         "FROM bank_statements b JOIN source_files s USING (file_id) WHERE s.status = 'loaded' "
-        "AND s.engagement_id = ? AND b.period_end = ? ORDER BY b.file_id",
+        "AND s.engagement_id = ? AND b.period_end = ? AND (b.ties OR EXISTS (SELECT 1 FROM "
+        "findings f WHERE f.file_id = b.file_id AND f.check_name = 'bank_tie' "
+        "AND f.status = 'accepted')) ORDER BY b.file_id",
         [engagement["engagement_id"], end],
     ).fetchall()
     latest = {(r[2], r[3], r[4]): r for r in rows}

@@ -108,7 +108,7 @@ WHERE a.engagement_id = {LATEST} AND a.status IN ('approved', 'sent', 'answered'
 GROUP BY a.query_id, a.period, i.kind ORDER BY a.query_id, i.kind
 """
 _MATCH = f"""
-SELECT DISTINCT r.period, {{column}}, s.file_name
+SELECT r.period, {{column}}, string_agg(DISTINCT s.file_name, '; ' ORDER BY s.file_name)
 FROM recon_match_lines m
 JOIN recon_items i ON i.recon_id = m.recon_id AND i.item_no = m.item_no
 JOIN recon_runs r ON r.recon_id = m.recon_id
@@ -118,6 +118,7 @@ WHERE r.name = ? AND i.kind = ? AND m.side = ? AND r.engagement_id = {LATEST}
     AND r.recon_id IN (
         SELECT max(recon_id) FROM recon_runs WHERE name = ? GROUP BY period
     )
+GROUP BY r.period, {{column}}
 ORDER BY 1, 2
 """
 _BANK_TB = f"""

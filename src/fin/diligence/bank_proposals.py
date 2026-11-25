@@ -60,6 +60,20 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
             if not isinstance(p, dict) or not isinstance(p.get("reason"), str) or not p["reason"]:
                 raise MatchProposalInvalid(f"proposal {n}: expected an object with a reason")
             bank, invoices = _refs(n, p, "bank"), _refs(n, p, "invoices")
+            if any(len({tuple(r) for r in refs}) != len(refs) for refs in (bank, invoices)):
+                raise MatchProposalInvalid(f"proposal {n}: a line is named twice")
+            currencies = set()
+            for ref in bank:
+                found = con.execute(_BANK, [eid, *ref]).fetchone()
+                currencies |= {found[1]} if found else set()
+            for ref in invoices:
+                found = con.execute(_INVOICE, [eid, *ref]).fetchone()
+                currencies |= {found[1]} if found else set()
+            if len(currencies) > 1:
+                raise MatchProposalInvalid(
+                    f"proposal {n}: the lines are in different currencies "
+                    f"({', '.join(sorted(currencies))}); propose one currency at a time"
+                )
             for ref in bank:
                 if con.execute(_BANK, [eid, *ref]).fetchone() is None:
                     raise MatchProposalInvalid(

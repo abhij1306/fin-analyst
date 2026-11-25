@@ -83,6 +83,8 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
         key = (fid, sheet, row)
         receipts.append(Receipt(key, day, cur, credit, found[0] if found else None, text))
         receipt_period[key] = period
+    first = min(a for a, _ in bounds.values())
+    last = max(b for _, b in bounds.values())  # invoices of the engagement's periods only
     invoices = []
     for fid, sheet, row, day, cur, amount, inr, party, number in con.execute(
         "SELECT r.file_id, r.sheet, r.\"row\", r.invoice_date, coalesce(r.currency, 'INR'), "
@@ -92,8 +94,11 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
         'ORDER BY r.file_id, r.sheet, r."row"',
         [eid],
     ).fetchall():
-        own = inr if cur == "INR" or amount is None else Decimal(amount).quantize(CENT)
-        invoices.append(Invoice((fid, sheet, row), day, cur, own, inr, party, number))
+        if cur != "INR" and amount is None:
+            cur = "INR"  # only the rupee amount is known
+        own = inr if cur == "INR" else Decimal(amount).quantize(CENT)
+        if first <= day <= last:
+            invoices.append(Invoice((fid, sheet, row), day, cur, own, inr, party, number))
     booked = [
         Booked((fid, sheet, row), day, ledger, credit)
         for fid, sheet, row, day, ledger, credit in con.execute(
@@ -274,7 +279,8 @@ def build(data: Data, engagement: dict[str, Any]) -> dict[str, list[dict[str, An
             rate = _rate(data, r.currency, r.party, r.day)
             value = hit.credit if hit else (r.amount * rate).quantize(CENT) if rate else None
         out[period].append(
-            _line("receipt", f"{r.key[1]}!{r.key[2]} {r.day}", "left_only", r.amount, None,
+            _line("receipt", f"{r.key[0]}:{r.key[1]}!{r.key[2]} {r.day}", "left_only",
+                  r.amount, None,
                   ledger=r.party, left_source=_text(data, [r.key]), currency=r.currency,
                   amount_inr=value, match_lines=[_mline("bank", r, r.party, value)])
         )  # fmt: skip

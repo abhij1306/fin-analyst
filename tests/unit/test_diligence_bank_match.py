@@ -212,6 +212,26 @@ def test_a_confirmed_proposal_is_applied_and_a_rejected_one_is_not(root: Path) -
     assert [(x["kind"], x["difference"]) for x in confirmed] == [("difference", D(-50000))]
 
 
+def test_a_proposal_cannot_repeat_a_line_or_mix_currencies(root: Path) -> None:
+    twice = [
+        {"bank": [[BANK, "S", 6], [BANK, "S", 6]], "invoices": [[REG, "Sales", 7]], "reason": "x"}
+    ]
+    with pytest.raises(MatchProposalInvalid, match="twice"):
+        bank_proposals.propose(run(root), "acme", twice)
+    mixed = [
+        {"bank": [[BANK, "S", 6]], "invoices": [[REG, "Sales", 6]], "reason": "x"}
+    ]  # INR vs USD
+    with pytest.raises(MatchProposalInvalid, match="currencies"):
+        bank_proposals.propose(run(root), "acme", mixed)
+
+
+def test_an_invoice_outside_the_engagement_periods_is_not_a_candidate(root: Path) -> None:
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE register_lines SET invoice_date = DATE '2019-01-01' WHERE \"row\" = 7")
+    keys = [x["key"] for x in go(root)["lines"]]
+    assert "INV-1007" not in keys
+
+
 def test_the_passes_in_isolation() -> None:
     def inv(n: int, party: str | None, day: int, amount: int) -> bank_match.Invoice:
         return bank_match.Invoice(

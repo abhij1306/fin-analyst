@@ -84,12 +84,28 @@ def _lines(
 def summary(con: duckdb.DuckDBPyConnection, query_id: int) -> str:
     """'3 left_only ₹4,00,000.00; 1 difference ₹50,000.00': count and value per kind."""
     rows = con.execute(
-        "SELECT i.kind, count(*), sum(abs(coalesce(i.amount_inr, i.difference))) "
+        "SELECT i.kind, count(*), sum(abs(coalesce(i.amount_inr, CASE "
+        "WHEN coalesce(i.currency, 'INR') = 'INR' THEN i.difference END))) "
         "FROM query_items q JOIN recon_items i USING (item_id) WHERE q.query_id = ? "
         "GROUP BY i.kind ORDER BY i.kind",
         [query_id],
     ).fetchall()
-    return "; ".join(f"{count} {kind} {rupees(value)}" for kind, count, value in rows)
+    return "; ".join(
+        f"{count} {kind} {rupees(value) if value is not None else 'with no rupee value'}"
+        for kind, count, value in rows
+    )
+
+
+def _rupees(line: dict[str, Any]) -> Any:
+    """The line's difference in rupees; None for a foreign-currency line with no rupee value."""
+    if line["amount_inr"] is not None:
+        return line["amount_inr"]
+    return line["difference"] if (line["currency"] or "INR") == "INR" else None
+
+
+def _amount(lines: list[dict[str, Any]]) -> Any:
+    values = [_rupees(line) for line in lines]
+    return None if any(v is None for v in values) else sum(abs(v) for v in values)
 
 
 def raise_from_items(
@@ -136,10 +152,7 @@ def raise_from_items(
                 "period": periods[0],
                 "scope": "standalone",
                 "question": question,
-                "amount": sum(
-                    abs(line["difference"] if line["amount_inr"] is None else line["amount_inr"])
-                    for line in lines
-                ),
+                "amount": _amount(lines),
                 "sources": "; ".join(dict.fromkeys(sources)) + more,
             },
         )

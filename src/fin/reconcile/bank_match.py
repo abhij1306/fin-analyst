@@ -131,15 +131,20 @@ def match(
         for i in group.invoices:
             free_i.pop(i.key, None)
 
-    for bank_keys, invoice_keys in confirmed or []:
-        if all(tuple(k) in free_r for k in bank_keys) and all(
-            tuple(k) in free_i for k in invoice_keys
-        ):
+    for raw_bank, raw_invoices in confirmed or []:
+        bank_keys = list(dict.fromkeys(tuple(k) for k in raw_bank))
+        invoice_keys = list(dict.fromkeys(tuple(k) for k in raw_invoices))
+        if not all(k in free_r for k in bank_keys) or not all(k in free_i for k in invoice_keys):
+            continue
+        currencies = {free_r[k].currency for k in bank_keys} | {
+            free_i[k].currency for k in invoice_keys
+        }
+        if len(currencies) == 1:
             take(
                 Group(
                     "confirmed",
-                    tuple(free_r[tuple(k)] for k in bank_keys),
-                    tuple(free_i[tuple(k)] for k in invoice_keys),
+                    tuple(free_r[k] for k in bank_keys),
+                    tuple(free_i[k] for k in invoice_keys),
                 )
             )
     for group in _reference_groups(list(free_r.values()), list(free_i.values())):

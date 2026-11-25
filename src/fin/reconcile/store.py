@@ -43,11 +43,12 @@ def _earlier_query(
         "JOIN accountant_queries q ON q.query_id = i.query_id AND q.status <> 'withdrawn' "
         "WHERE r.engagement_id = ? AND r.name = ? AND r.period = ? AND i.level = ? AND i.key = ? "
         "AND i.kind = ? AND i.left_amount IS NOT DISTINCT FROM ? "
-        "AND i.right_amount IS NOT DISTINCT FROM ? AND i.query_id IS NOT NULL "
+        "AND i.right_amount IS NOT DISTINCT FROM ? AND i.amount_inr IS NOT DISTINCT FROM ? "
+        "AND i.query_id IS NOT NULL "
         "ORDER BY r.recon_id DESC LIMIT 1",
         [
             engagement_id, name, period, line["level"], line["key"], line["kind"],
-            line["left_amount"], line["right_amount"],
+            line["left_amount"], line["right_amount"], line.get("amount_inr"),
         ],
     ).fetchone()  # fmt: skip
     return row[0] if row else None

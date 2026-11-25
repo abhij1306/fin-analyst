@@ -102,6 +102,9 @@ def _match(run: Run, company: str, file: Path | None, json_output: bool) -> None
         except (OSError, json.JSONDecodeError) as exc:
             raise MatchProposalInvalid(f"cannot read proposals from {file}: {exc}") from exc
         ids = bank_proposals.propose(run, company, proposals)
+        if json_output:
+            typer.echo(json.dumps({"proposal_ids": ids}))
+            return
         typer.echo(
             f"{len(ids)} match proposals stored for {company} (#{', #'.join(map(str, ids))}); the "
             f"user reviews them: `fin review list {company} --matches`"
