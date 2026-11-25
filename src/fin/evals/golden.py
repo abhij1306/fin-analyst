@@ -7,7 +7,10 @@ One line per check, the value a person read in the company's document and checke
   token for a party);
 - `tb_vs_statements`: the difference on an account in the period's latest `tb_vs_statements` run
   (trial balance less statements);
-- `stub`: an account's figure in `stub_figures` (unaudited management accounts).
+- `stub`: an account's figure in `stub_figures` (unaudited management accounts);
+- `bank_closing`: a bank statement's closing balance, in the account's own currency (use unit
+  `rupees` for the amount as printed, INR or USD): period is the statement's end date (YYYY-MM-DD),
+  ledger its account number.
 
 `expected` is the figure as printed (brackets or a minus for negative) in `unit`; `source` is where
 it is printed (file + sheet!cell, sheet!row or page). Only a line whose `checked` is `yes` is
@@ -29,12 +32,13 @@ from fin.paths import evals_dir
 
 COLUMNS = ("kind", "period", "scope", "account", "ledger", "expected", "unit", "source", "checked")
 OPTIONAL = ("note",)
-KINDS = ("statement", "tb_ledger", "tb_vs_statements", "stub")
+KINDS = ("statement", "tb_ledger", "tb_vs_statements", "stub", "bank_closing")
 NEEDS = {
     "statement": ("period", "scope", "account"),
     "tb_ledger": ("period", "ledger"),
     "tb_vs_statements": ("period", "account"),
     "stub": ("period", "account"),
+    "bank_closing": ("period", "ledger"),
 }
 YES, NO = "yes", ("", "no")
 # Diligence checks read the latest engagement's files and runs: a closed engagement's trial balance

@@ -169,6 +169,9 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
     fix with `fin sql --write`), a new source file, a mapping change or a new reconciliation reopens it, and so
     does any change after which its checklist fails. Once a payroll file is loaded, G1 also needs the user to
     have confirmed its unit (`fin payroll confirm-unit`).
+  - **G1 and bank statements:** once a bank statement is loaded, also every bank parse ties (opening + credits −
+    debits = closing, or the user has accepted its finding). Overlapping periods and balance gaps are findings for
+    queries, listed in G1 but not blocking it.
   - **G2 Reconciliation:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
     approved query does not. Needed by `fin adjust accept|reject`.
   - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
@@ -189,6 +192,18 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   its invoice dates (a later registers file replaces the earlier whatever its period). Amount in Rs is before GST.
   The same invoice number twice (sales: the number; purchases: the vendor and number) is a finding, both rows kept
   (E813 only when a row is not an invoice line: no number, date, party or Amount in Rs, or a date in another format).
+- Bank statements: `fin ingest <company> <file> --kind bank [--profile <name>]` loads an Excel or PDF statement (ICICI,
+  SBI or Axis; INR or USD accounts, the profiles `templates/profiles/bank_*.toml`) into `bank_statements` and
+  `bank_lines`, each row with its file and sheet!row (Excel) or page and row (PDF). Remarks keep their text with
+  known masked names replaced by tokens. A statement covers part of one period of the engagement (it must not cross
+  a year end, E808). A PDF is read by the PDF add-on you chose (`fin parser use`; E816 when there is none): its
+  tables are saved in the data folder as `cache/bank/<sha256>.json`, so the same file is never parsed twice and
+  every row traces to that parse. LlamaParse uploads the pages to its cloud and needs `LLAMA_CLOUD_API_KEY` in
+  the environment (a missing key or a failed call is E206; nothing loaded); use Docling or LiteParse for statements
+  that must not leave your Mac. A statement whose opening + credits − debits is not its closing balance is a
+  finding (`bank_tie`), as are statements of one account that overlap (`bank_overlap`) or whose balances do not
+  join (`bank_balance_gap`: a statement or transaction may be missing). Findings, not failures: the rows stay as
+  filed and you decide (`fin findings accept`, or a query to the accountant).
 - Names: party ledgers (under Sundry Debtors and Sundry Creditors) are stored and printed as tokens (`CUST-0001`,
   `VEND-0001`), the same name the same token in every file; register customers, vendors, handlers and submitted-by
   are tokens too (`CUST-`, `VEND-`, `USER-`); known names in Ledger Vouchers particulars are
@@ -313,7 +328,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
 | E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, or an unknown account | Nothing changed. Add the evidence or correct the value and run again |
 | E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |
-| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `recon_runs`, `recon_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
+| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `recon_runs`, `recon_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
 | E807 | `fin ingest --kind`: the column profile named is unknown or invalid, or no profile matches the file's headers | Nothing loaded. The message lists the header lines found: write a profile in `templates/profiles/` (docs/CUSTOMISING.md) and ingest with `--profile` |
 | E808 | `fin ingest --kind`: the export's header gives no period, or a period that is not a year of the open engagement nor exactly its stub; or `fin engagement open --stub` names a stub that is not the year to date of the fiscal year after the last period | Nothing loaded or opened. Check the export's period, or the engagement's periods and stub (`uv run fin engagement status <company>`) |
 | E809 | A trial balance with group rows only (Tally's Condensed export) | Nothing loaded. Export the trial balance again in Detailed mode, with ledgers, and ingest that |
@@ -321,6 +336,9 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E811 | Ledger Vouchers ingested before their period's trial balance | Nothing loaded. Ingest the period's trial balance first (it says which ledgers are parties), then the Ledger Vouchers |
 | E812 | `fin reconcile`: the period is not a year of the engagement (the stub has no audited statement), or it has no loaded trial balance or no audited standalone statement figures | Nothing recorded. Load the period's trial balance and statements, or see the stub's figures in the view `stub_figures` |
 | E813 | `fin ingest --kind registers`: a register row is not an invoice line: no invoice number, date, party or Amount in Rs, a date not in the profile's date format, or a row the profile does not skip (a total) | Nothing loaded. The message names the file, sheet!row and what is missing: fix the cell, or add the row's name to `[rows] skip` in the profile |
+| E816 | A PDF bank statement cannot be read: `[pdf] parser` is `none`, its add-on is not installed, the parser could not read a page, or it found no table | Nothing loaded. Choose a PDF add-on (`uv run fin parser use docling\|liteparse\|llamaparse`; a local one keeps the pages on this Mac) and ingest again |
+| E817 | A bank statement's header lines give no account number, or no opening or closing balance when its first or last row has no balance to stand in for it | Nothing loaded. Check the header lines against the profile's `[header]` patterns in `templates/profiles/bank_*.toml` (docs/CUSTOMISING.md) |
+| E818 | The saved parse of a bank PDF (`cache/bank/<sha256>.json` in the data folder) cannot be read | Nothing loaded. Delete the file to parse the PDF again |
 | E820 | `fin payroll confirm-unit` names no loaded payroll file of the open engagement (unknown name or id, not a payroll file, or superseded by a later snapshot, or several loaded files with that name) | Nothing recorded. The message lists the loaded payroll files: use one's file name or file_id |
 | E821 | A payroll snapshot row has no employee name or code, or a joining or resign date that is not a date in the profile's format | Nothing loaded. Ask the company for a corrected file, or fix the profile's `date_format`, and ingest again |
 | E830 | `fin eval run`: the company has no golden set | Make one with `uv run fin eval init <company>` ([docs/EVAL.md](docs/EVAL.md)) |

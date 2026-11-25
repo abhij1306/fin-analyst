@@ -24,6 +24,8 @@ from fin.query.write import check_write_sql, write_sql
         ("UPDATE facts SET value = 1 WHERE doc_id IN (SELECT 1 FROM adjustments)", "adjustments"),
         ("DELETE FROM trial_balance", "trial_balance"),
         ("UPDATE ledger_entries SET debit = 0", "ledger_entries"),
+        ("DELETE FROM bank_lines", "bank_lines"),
+        ("UPDATE bank_statements SET ties = true", "bank_statements"),
         ("DELETE FROM source_files", "source_files"),
         ("UPDATE register_lines SET amount_inr = 0", "register_lines"),
     ],

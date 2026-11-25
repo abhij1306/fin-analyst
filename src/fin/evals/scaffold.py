@@ -1,9 +1,10 @@
 """`fin eval init <company>`: list what a person can check, with where it is printed.
 
 Each line names one output of fin (a statement figure in current figures, a trial balance ledger, a
-`tb_vs_statements` line, a stub figure) and its source, and leaves `expected` and `checked` empty:
-the value comes from the document, never from fin. Run again after loading more, it adds the lines
-the golden set does not have yet and never changes or removes one."""
+`tb_vs_statements` line, a stub figure, a bank closing balance) and its source, and leaves
+`expected` and `checked` empty: the value comes from the document, never from fin. Run again after
+loading more, it adds the lines the golden set does not have yet and never changes or removes
+one."""
 
 from typing import Any
 
@@ -49,6 +50,12 @@ WHERE r.recon_id IN (
 )
     AND i.account IS NOT NULL
 ORDER BY r.period, i.item_no
+"""
+_BANK = f"""
+SELECT b.period_end::VARCHAR, b.account, s.file_name, b.currency
+FROM bank_statements b JOIN source_files s USING (file_id)
+WHERE s.status = 'loaded' AND s.engagement_id = {LATEST}
+ORDER BY b.account, b.period_end, b.file_id
 """
 _STUB = f"""
 SELECT x.period, x.account, s.file_name
@@ -107,6 +114,17 @@ def candidates(
                 account=account,
                 unit="rupees",
                 note="trial balance less statements",
+            )
+        )
+    for period, account, file_name, currency in con.execute(_BANK).fetchall():
+        rows.append(
+            _row(
+                "bank_closing",
+                period,
+                f"{file_name} closing balance",
+                ledger=account,
+                unit="rupees",
+                note=f"closing balance as printed, in {currency}",
             )
         )
     for period, account, file_name in con.execute(_STUB).fetchall():

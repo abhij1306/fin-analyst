@@ -104,7 +104,7 @@ def test_a_groups_only_trial_balance_is_refused(root: Path, tmp_path: Path) -> N
     ("args", "message"),
     [
         (["--profile", "tally_trial_balance"], "--profile needs --kind"),
-        (["--kind", "bank"], "--kind takes"),
+        (["--kind", "weather"], "--kind takes"),
         (["--kind", "trial_balance", "--force"], "--kind does not take --force or --reading"),
     ],
 )

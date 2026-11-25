@@ -36,6 +36,13 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      outside the engagement. A repeated invoice number is a finding (`register_duplicate_invoice`, both rows kept):
      show it with `fin findings list` and ask the user, then draft a query from it as in step 2. E813: a row is not
      an invoice line (the message names sheet!row); E807: no profile reads the layout (write one).
+   - **Bank statements.** `uv run fin ingest <company> <file> --kind bank` (Excel or PDF; ICICI, SBI or Axis, INR or
+     USD). A PDF needs the user's PDF add-on (E816: `fin parser use`); LlamaParse uploads the pages, so say so
+     before using it on a statement and prefer a local parser, and it needs `LLAMA_CLOUD_API_KEY` (E206). A
+     statement that does not tie (opening + credits − debits ≠ closing), statements that overlap and a balance gap
+     between statements are findings, not failures: show them neutrally with `fin findings list` and ask the user
+     (accept as filed, or a query); never edit bank rows to make them tie. G1 needs every bank parse to tie or
+     its finding accepted by the user.
    - **Names are tokens** (`CUST-0001`, `VEND-0001`, `LEDG-0001`, `EMP-0001`, `ECODE-0001`). Use them as they are in queries and answers;
      never try to read `mask_values` (`fin sql` refuses, E810) or guess a name.
    - **Ledger mapping.** `uv run fin map ledgers <company>` lists the trial balance ledgers waiting for an account.
@@ -97,7 +104,7 @@ fixed; you draft and propose, the user decides; fin never sends anything.
 9. **Gates.** Gates are approved in order, by the user only: G1 Ingestion (every period in scope has mapped figures
    from a loaded document, no held documents, no mappings waiting for review; once there is a trial balance or a
    stub, also a trial balance and Ledger Vouchers per period and the stub, every ledger in both, every ledger
-   mapped, and each year's `fin reconcile` on the current data with every difference at or above the threshold in
+   mapped, every bank parse tying (once a bank statement is loaded), and each year's `fin reconcile` on the current data with every difference at or above the threshold in
    a query; once a payroll file is loaded, its unit confirmed by the user), G2 Reconciliation (no query in draft;
    unlocks `fin adjust accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence;
    unlocks `fin engagement close`; an engagement with no queries and no adjustments closes without its gates). A

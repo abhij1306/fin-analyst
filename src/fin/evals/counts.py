@@ -8,7 +8,9 @@
   verified). Whether one is trusted stays the user's decision; this only counts;
 - `read_by_pdf_addon`: figures the PDF add-on read;
 - `unmapped_labels`: distinct printed lines with no confirmed account, and mapping items waiting;
-- `ledgers`: trial balance ledgers by mapping status (only confirmed ones count in reconciliations).
+- `ledgers`: trial balance ledgers by mapping status (only confirmed ones count in reconciliations);
+- `bank_statements`: loaded bank statements by reader (excel or the PDF add-on), and whether they
+  tie.
 """
 
 import json
@@ -52,6 +54,12 @@ _UNMAPPED = f"""
 SELECT count(DISTINCT (r.statement, r.section, r.raw_label)) FROM facts f
 JOIN raw_values r USING (raw_id) JOIN documents d ON d.doc_id = f.doc_id
 WHERE (f.account IS NULL OR NOT f.confirmed) AND d.status IN {LIVE}
+"""
+
+
+_BANK = f"""
+SELECT b.reader, b.ties, count(*) FROM bank_statements b JOIN source_files s USING (file_id)
+WHERE s.status = 'loaded' AND s.engagement_id = {LATEST_ENGAGEMENT} GROUP BY ALL ORDER BY ALL
 """
 
 
@@ -100,6 +108,10 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
         "unmapped_labels": _one(con, _UNMAPPED),
         "mappings_waiting": len(open_items(read_pending(root, company))),
         "ledgers": ledgers,
+        "bank_statements": {
+            f"{reader}, {'ties' if ties else 'does not tie'}": n
+            for reader, ties, n in con.execute(_BANK).fetchall()
+        },
     }
 
 
@@ -125,6 +137,16 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
         if held and held[0]:
             codes.add("held")
         return sorted(codes)
+    if check.kind == "bank_closing":  # the period is a date: findings on that account's statements
+        return sorted(
+            c
+            for (c,) in con.execute(
+                "SELECT DISTINCT f.check_name FROM findings f "
+                "JOIN bank_statements b USING (file_id) "
+                "WHERE f.status IN ('open', 'accepted') AND b.account = ?",
+                [check.ledger],
+            ).fetchall()
+        )
     codes |= {
         c
         for (c,) in con.execute(

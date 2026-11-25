@@ -245,7 +245,7 @@ Creditors: vendor) are stored as tokens (`CUST-0001`, `VEND-0001`; the same valu
 file, whatever kind it is found as later); known names in other ledger names and in masked fields (Ledger Vouchers
 particulars) are replaced as whole words; a Ledger Vouchers ledger not in its trial balance is masked as
 `LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql --write` refuses to
-write `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks` and `register_lines` (E806). One transaction per file; a later file of the
+write `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements` and `bank_lines` (E806). One transaction per file; a later file of the
 same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
 period or refusal error stops the command and loads nothing.
 
@@ -300,6 +300,24 @@ answer in `payroll_units` (one row per file, replaced by a later answer, logged 
 payroll file). G1 gains one line per loaded payroll file (none without one): passes on `annual`, fails when
 unconfirmed or `monthly` (fin never converts amounts); its inputs add the confirmations. `fin sql --write` refuses
 `payroll_lines` and `payroll_units` (E806).
+
+Bank statements (D3, bank; decisions in `docs/decisions/d3-bank.md`): `fin ingest <co> <file> --kind bank [--profile]`
+(`fin/diligence/bank.py`) loads one Excel or PDF statement for the open engagement. Profiles `bank_icici`, `bank_sbi`,
+`bank_axis` (kind `bank`: the table's columns, `bank`, default `currency`, and `[header]` regular expressions for the
+account, currency, opening and closing balance in the lines around the table) read INR and USD accounts alike; an
+Excel file is read by `extract/ledger.read_table`, a PDF by `diligence/bank_pdf.py`: the chosen `[pdf] parser` reads
+every page once, its tables and text lines are saved as `cache/bank/<sha256>.json` (a second ingest of the same bytes
+never calls the parser; `bank_statements.parse_path` and the rows' page + row trace to it), and the same profile reads
+the saved parse (a table with the profile's header starts the transactions, a headerless table of the same width
+continues them). Tables `bank_statements` (one per file: bank, account, currency, period, opening and closing
+balance with where each came from, totals, `ties`, reader, parse path) and `bank_lines` (sheet or page, row, date,
+remarks and reference with known masked names replaced, debit, credit, balance), money in the account's own
+currency. The period of `source_files` is the engagement period (or the stub) holding all the statement's dates
+(E808 across a year end); bank files are never superseded (the same bytes again are E105). A statement whose opening
++ credits − debits is not its closing balance is a finding (`bank_tie`, rows kept as filed); `diligence/bank_checks.py`
+records `bank_overlap` and `bank_balance_gap` findings across the statements of one account after every load. G1 adds
+"every bank parse ties" (a `bank_tie` finding accepted by the user counts); overlaps and gaps are listed, not
+blocking. E816-E818; LlamaParse's key and failures are `llamaparse_run`'s (E206).
 
 ---
 
@@ -427,7 +445,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - Diligence: `engagement`, `accountant_queries`, `adjustments` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash` (views on the latest engagement)
-- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
+- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
 
 **Shared**
 
@@ -550,7 +568,7 @@ claude
 | `fin init`, `fin doctor` | — | Human |
 | `fin ingest <co> [path] [--force]` | `/ingest` | Either |
 | `fin ingest <co> <file> --reading <csv>` | `/ingest` (offered after a failure or skipped page) | Claude, when the user asks |
-| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|payroll [--profile]` | `/diligence` | Either |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|payroll\|bank [--profile]` | `/diligence` | Either |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` | `/diligence` | Either (only when the user says which) |
 | `fin ingest-batch [folder]` (default `inbox/`) | `/ingest-batch` | Either |
 | `fin verify <co> <file> --reading <csv>` | `/verify` | Either (when the user asks) |
