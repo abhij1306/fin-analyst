@@ -72,6 +72,26 @@ def rows(root: Path, sql: str) -> list[tuple[Any, ...]]:
         return con.execute(sql).fetchall()
 
 
+def test_ledger_block_without_vouchers_counts_as_in_the_ledger_vouchers(
+    root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fin.diligence.tb_checks import _missing_from_vouchers
+
+    monkeypatch.setitem(VOUCHERS, "Share Capital", [])  # only an opening balance in the year
+    load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
+    ledgers = [*CUSTOMERS, *VENDORS, "Software Sales", "Share Capital", "GST Payable"]
+    ledgers += [BANK, "Rent", "Salaries"]
+
+    lines = load(root, write_ledger_vouchers(tmp_path / "lv.xlsx", ledgers), "ledger_vouchers")
+
+    assert lines[-1] == "every FY25 trial balance ledger is in it"
+    count = "SELECT count(*) FROM {} WHERE ledger = 'Share Capital'"
+    assert rows(root, count.format("ledger_entries")) == [(0,)]
+    assert rows(root, count.format("ledger_blocks")) == [(1,)]
+    with connect(company_db_path(root, "acme")) as con:
+        assert _missing_from_vouchers(con, 1, 2) == []
+
+
 def test_trial_balance_loads_with_lineage_and_masked_parties(root: Path, tmp_path: Path) -> None:
     lines = load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
 

@@ -86,7 +86,7 @@ def read(con: duckdb.DuckDBPyConnection, open_only: bool = False) -> list[dict[s
         con,
         "SELECT m.*, EXISTS (SELECT 1 FROM trial_balance t JOIN source_files s USING (file_id) "
         "WHERE s.status = 'loaded' AND t.ledger = m.ledger AND t.row_type = 'ledger') AS in_tb, "
-        "EXISTS (SELECT 1 FROM ledger_entries e JOIN source_files s USING (file_id) "
+        "EXISTS (SELECT 1 FROM ledger_blocks e JOIN source_files s USING (file_id) "
         "WHERE s.status = 'loaded' AND e.ledger = m.ledger) AS in_lv "
         f"FROM ledger_accounts m {where} ORDER BY m.ledger_id",
     )

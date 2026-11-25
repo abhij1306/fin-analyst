@@ -83,6 +83,16 @@ CREATE TABLE ledger_entries (
     PRIMARY KEY (file_id, sheet, "row")
 );
 
+-- Ledger Vouchers ledger blocks: one per ledger block header the export has, with or without voucher lines (a ledger
+-- with only an opening balance has none). Whether a trial balance ledger is "in the Ledger Vouchers" is read from here.
+CREATE TABLE ledger_blocks (
+    file_id INTEGER NOT NULL,
+    sheet VARCHAR NOT NULL,
+    "row" INTEGER NOT NULL,
+    ledger VARCHAR NOT NULL,
+    PRIMARY KEY (file_id, sheet, "row")
+);
+
 -- Tally ledgers mapped to Schedule III dictionary accounts (fin.diligence.ledgers): one row per ledger as stored (the
 -- token for a party ledger), for the company. A trial balance load adds its new ledgers as 'pending'.
 --   pending    not proposed yet;

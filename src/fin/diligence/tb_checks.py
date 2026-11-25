@@ -3,7 +3,8 @@
 They apply once the engagement has a stub or a loaded diligence source file; an engagement on
 statements only says so in one passing line. Then, for every annual period and the stub:
 
-- a loaded trial balance and Ledger Vouchers, and every trial balance ledger in the Ledger Vouchers;
+- a loaded trial balance and Ledger Vouchers, and every trial balance ledger in the Ledger
+  Vouchers (a ledger block, even one with no voucher lines in the year);
 - every trial balance ledger confirmed to an account (`fin map ledgers`, then the user confirms);
 - each annual period's trial balance reconciled to its statements on the current data
   (`tb_vs_statements`, `fin.diligence.recon`), with every line at or above the threshold in a
@@ -41,7 +42,7 @@ def _missing_from_vouchers(con: duckdb.DuckDBPyConnection, tb: int, lv: int) -> 
         ledger
         for (ledger,) in con.execute(
             "SELECT ledger FROM trial_balance WHERE file_id = ? AND row_type = 'ledger' "
-            "AND ledger NOT IN (SELECT ledger FROM ledger_entries WHERE file_id = ?) "
+            "AND ledger NOT IN (SELECT ledger FROM ledger_blocks WHERE file_id = ?) "
             'ORDER BY sheet, "row"',
             [tb, lv],
         ).fetchall()
