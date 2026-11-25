@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fin.audit.logger import Run
+from fin.config import write_default_config
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.diligence.engagement import engagement_status, open_engagement
@@ -17,6 +18,7 @@ def engagements(path: Path) -> list[tuple[int, str]]:
 
 
 def test_opening_an_engagement_backs_up_the_database_as_it_was(tmp_path: Path) -> None:
+    write_default_config(tmp_path)
     path = company_db_path(tmp_path, "acme")
     ensure_database(path, "company")
     run = Run("engagement open", {}, tmp_path)
@@ -29,6 +31,7 @@ def test_opening_an_engagement_backs_up_the_database_as_it_was(tmp_path: Path) -
 
 
 def test_reading_makes_no_backup(tmp_path: Path) -> None:
+    write_default_config(tmp_path)
     path = company_db_path(tmp_path, "acme")
     ensure_database(path, "company")
     open_engagement(Run("engagement open", {}, tmp_path), "acme", ["FY24"], Decimal(1))
