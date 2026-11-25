@@ -31,7 +31,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E501 | A database is in use by another `fin` command | Wait for it to finish and run again |
 | E502 | `fin sql` without `--write` was given something other than one SELECT | Use `--write` only for a change you asked for |
 | E503 | A database could not be created from its schema file | Report the error |
-| E504 | A SQL statement failed (syntax, unknown column, constraint) | Nothing changed. Fix the statement |
+| E504 | A SQL statement failed (syntax, unknown column, constraint), or `fin sql --write` was given a statement that changes the schema or the session (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM), or one that would read a file (`fin sql` runs with file access closed) | Nothing changed. Fix the statement. If a company database was changed some other way, restore it from `backups/<run_id>/` |
 | E601 | Report render failed | The last good report is kept. Run `uv run fin doctor` (Quarto) and try again |
 | E602 | The report narrative contains hand-typed numbers | Replace each listed number with a `{{metric:...}}` or `{{fact:...}}` reference, or reword it |
 | E603 | Dashboard build failed | The last good build is kept. Run `uv run fin doctor` (node) and try again |
@@ -76,6 +76,8 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E869 | `fin analytics`: the company has no engagement, or no sales register line in an engagement period | Nothing shown. Open an engagement and load the registers (`fin ingest <company> <file> --kind registers`) |
 | E863 | `fin recast run`: a period that is not an annual period of the open engagement, or no loaded sales register line to recast | Nothing recorded. Load the sales register (`fin ingest <company> <file> --kind registers`) and use a period of the engagement |
 | E864 | `fin recast contracts`: the contract reading cannot be used (a missing column, a bad date, amount or page, an end before its start, no rows) | Nothing recorded. Fix the CSV lines the message names |
+| E890 | A figure in a document is too large to store (10^16 rupees or more, usually a wrong unit or a misread cell); the message names the sheet!cell or page | The file is moved to `review/<company>/` with the reason; the next file loads. Ask the company for a corrected file |
+| E891 | The database refused a document's rows (a value or text it cannot store) | The document is rolled back and moved to `review/<company>/`; the next file loads. Report the message and run_id |
 | E865 | `fin recast contracts`: a contract names a customer or invoice number that no loaded sales register has | Nothing recorded. Use the customer's token (`SELECT DISTINCT customer FROM register_lines WHERE kind = 'sales'`) or the invoice number as in the register |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

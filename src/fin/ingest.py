@@ -5,7 +5,8 @@ For each file, `ingest_file`:
 1. Hashes it. A file whose sha256 is already loaded is skipped with E105, unless `force`, which
    loads it again as a new version and marks the earlier one superseded.
 2. Extracts its values: Excel (`fin.extract.excel`) or PDF (`fin.extract.pdf`; notes and the
-   auditor's report also go to `notes/<company>/` as Markdown). With a PDF add-on chosen
+   auditor's report also go to `notes/<company>/<sha256[:12]>/` as Markdown). With a PDF add-on
+   chosen
    (`[pdf] parser`: Docling, LiteParse or LlamaParse; `fin.extract.fallback`), the statement pages
    pdfplumber skipped go to it, and a scanned results PDF is read by its OCR; those facts have
    `read_by` = the engine's name (`fin verify` compares them with a Claude reading on request).
@@ -46,9 +47,11 @@ from fin.audit.errors import (
     DocumentFailure,
     DuplicateFile,
     FileUnreadable,
+    LoadRejected,
     ReadingInvalid,
     UnmappedLabel,
     UnsupportedFormat,
+    ValueOutOfRange,
 )
 from fin.audit.logger import Run
 from fin.config import Config
@@ -63,9 +66,10 @@ from fin.extract.text import write_notes_markdown
 from fin.extract.units import rupees_per_unit
 from fin.findings import check_document, supersede
 from fin.map.dictionary import LabelMap, map_rows
-from fin.paths import archive_dir, company_db_path, review_dir
+from fin.paths import archive_dir, company_db_path, notes_dir, review_dir
 
 EXCEL_SUFFIXES = (".xlsx", ".xlsm")
+MAX_RUPEES = Decimal(10) ** 16  # facts.value is DECIMAL(20, 2); a figure this large is a misread
 
 
 @dataclass(frozen=True)
@@ -184,7 +188,8 @@ def _read_pdf(run: Run, path: Path, company: str, config: Config) -> Document:
     notices: list[str] = []  # the add-on's own are logged as it runs (`fallback._log`)
     notes: list[tuple[str, Path]] = []
     if not read.scanned:
-        written = write_notes_markdown(path, run.root / "notes" / company)
+        # one folder per file content: two different PDFs with the same name keep their own notes
+        written = write_notes_markdown(path, notes_dir(run.root, company) / sha256_of(path)[:12])
         notes = [(note.name[len(path.stem) + 1 : -len(".md")], note) for note in written]
         in_notes = sum(1 for v in read.by_fin if v.statement == "notes")
         notices.append(
@@ -297,6 +302,18 @@ def read_with_reading(
     return Document(rows, document.notes, notices, document.warnings, document.unread)
 
 
+def check_range(document: Document, name: str) -> None:
+    """E890 when a figure is 10**16 rupees or more (it cannot be stored); names where it is."""
+    for r in document.rows:
+        if abs(r.rupees) >= MAX_RUPEES:
+            where = f"{r.sheet}!{r.cell}" if r.sheet else f"page {r.page}"
+            raise ValueOutOfRange(
+                f"{name}: {r.label!r} at {where} is {r.raw!r} {r.unit_text}, too large to store "
+                f"(Rs {r.rupees:,} or more than 10^16); a wrong unit or a misread cell. Nothing "
+                "loaded"
+            )
+
+
 def _copy(source: Path, target: Path) -> None:
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -403,6 +420,12 @@ def _load(
             supersede(run, company, con, doc_id, sha256)
             open_findings = check_document(run, company, con, doc_id)
             con.execute("COMMIT")
+        except duckdb.Error as exc:
+            con.execute("ROLLBACK")
+            raise LoadRejected(
+                f"{path.name}: the database refused its rows: {' '.join(str(exc).split())}. "
+                "Nothing loaded"
+            ) from exc
         except BaseException:
             con.execute("ROLLBACK")
             raise
@@ -457,6 +480,7 @@ def ingest_file(
         else:
             document = read_with_reading(run, path, company, config, reading)
             archived_reading = _archive_reading(run, company, reading)
+        check_range(document, path.name)
         for notice in document.notices:
             run.event("extract", notice, file=name)
         for warning in document.warnings:

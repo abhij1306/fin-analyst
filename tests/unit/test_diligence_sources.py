@@ -101,6 +101,11 @@ def test_trial_balance_loads_with_lineage_and_masked_parties(root: Path, tmp_pat
     assert (
         lines[1] == "trial balance FY25: 10 ledgers in 9 groups, 4 names newly masked, 0 findings"
     )
+    assert lines[2] == (
+        "party groups (ledgers masked): Sundry Creditors (2 ledgers), Sundry Debtors (2 ledgers); "
+        "other groups: Indirect Expenses (2 ledgers), Bank Accounts (1 ledgers), "
+        "Capital Account (1 ledgers), Duties & Taxes (1 ledgers), Sales Accounts (1 ledgers)"
+    )
     assert rows(
         root,
         "SELECT kind, period, period_start::VARCHAR, period_end::VARCHAR, basis, status, "

@@ -111,7 +111,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
     analytics.duckdb      # all companies' metrics, read by dashboards
   review/<company>/       # failed docs + reasons, pending mappings
   evals/<company>/        # golden set and eval reports; evals/bundle-* results bundles (docs/client-handoff.md)
-  notes/<company>/        # Markdown of notes to accounts, auditor reports
+  notes/<company>/<sha256[:12]>/  # Markdown of notes to accounts, auditor reports (one folder per PDF: two PDFs with one name never overwrite each other)
   evidence/  reports/  logs/  backups/
 ```
 
@@ -185,10 +185,11 @@ Every `fin` command:
 **Traceability**
 
 - `fin audit <company> <metric> <fy>`: metric → facts → mapping decisions → raw values → file + sheet!cell or page, plus the ingest run.
-- `fin audit <company>`: full history of ingests, reviews, queries, reports, failures. A run belongs to the company
+- `fin audit <company>`: full history of ingests, reviews, queries, reports, failures and diligence changes (every query, adjustment, gate and engagement change, with its run id). A run belongs to the company
   when its args name it or an audit row names it (events about `<company>/<file>`, mapping decisions, validation
   results, findings, queries, reports, deletions, diligence events), so a batch ingest stays after the company is
   deleted.
+- `fin delete <company>` backs up, then removes the company's database, inbox, archive, review, notes, reports, exports and evals folders, the evidence pages of its queries and the saved PDF parses of its files (`cache/<engine>/<sha256>...`, except those of a file another company loaded too); it prints how many company-scope label mappings stay in the shared dictionary.
 - Lineage of a summed value: `current_facts.fact_ids` (and `standard_statements.fact_ids`) list every printed line
   behind it. `fin sql` with a `fact_ids` column gives every line's source ("sum of N sources: ..."), confirmed only
   when every line is; the evidence page shows each line. Traces show a per-share fact in rupees per
@@ -203,7 +204,7 @@ E401-E405 are findings (the document is held); setup, database and output errors
 **Rules**
 
 - No silent failures, no bare `except`, no default values filling gaps.
-- One bad file never stops a batch.
+- One bad file never stops a batch: a figure too large to store (E890) or rows the database refuses (E891) fail that file only, which goes to `review/` with the reason. A first ingest for a new company where no file loads leaves no company database behind.
 - Each document loads in one transaction: stage → validate → commit (held when a check finds something), or roll
   back entirely on an error.
 - What a company filed that does not add up is a finding, never a failure. Only nothing readable (E1xx/E2xx) fails.
@@ -526,8 +527,8 @@ date in another format is never dropped); and the outcome lists the trial balanc
 (`fin/diligence/mask.py`): ledgers and sub-groups under the profile's party groups (Sundry Debtors: customer, Sundry
 Creditors: vendor) are stored as tokens (`CUST-0001`, `VEND-0001`; the same value keeps its first token in every
 file, whatever kind it is found as later); known names in other ledger names and in masked fields (Ledger Vouchers
-particulars) are replaced as whole words; a Ledger Vouchers ledger not in its trial balance is masked as
-`LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql --write` refuses to
+particulars) are replaced as whole words (an employee code is never searched for in free text: a code such as 101 would rewrite amounts); a load that learns new names masks them in the free text already stored (bank remarks and reference, Ledger Vouchers particulars, register text fields, contract billing terms) in the same transaction and says how many earlier values changed, so the result does not depend on load order; the trial balance load lists the groups it treated as party groups (masked) and the other groups, with ledger counts; a Ledger Vouchers ledger not in its trial balance is masked as
+`LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql` runs with file access closed (no `read_csv`, `read_blob`, `glob`, `COPY` of a file: it cannot read the original files, the logs or the exports), and `fin sql --write` also refuses schema changes (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) and refuses to
 write `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements` and `bank_lines` (E806). One transaction per file; a later file of the
 same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
 period or refusal error stops the command and loads nothing.

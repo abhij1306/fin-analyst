@@ -9,7 +9,9 @@ from fin.audit.errors import DiligenceTableWrite, MaskedTableRead, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
-from fin.paths import company_db_path
+from fin.map.dictionary import load_seed
+from fin.paths import company_db_path, dictionary_db_path
+from fin.query.run import run_select
 from fin.query.write import check_write_sql, write_sql
 
 
@@ -105,3 +107,51 @@ def test_a_commit_in_the_batch_runs_nothing(tmp_path: Path) -> None:
             "SELECT count(*) FROM information_schema.tables WHERE table_name = 'early'"
         ).fetchone() == (0,)
     assert not (tmp_path / "backups").exists()
+
+
+@pytest.mark.parametrize(
+    "sql",
+    ["DROP VIEW current_facts", "CREATE TABLE early (x INT)", "ALTER TABLE facts ADD COLUMN x INT"]
+    + ["PRAGMA threads=1", "SET threads=1", "VACUUM"],
+)
+def test_schema_changes_are_refused_and_the_database_is_unchanged(tmp_path: Path, sql: str) -> None:
+    path = company_db_path(tmp_path, "acme")
+    ensure_database(path, "company")
+    run = Run("sql", {}, tmp_path)
+
+    with pytest.raises(SqlFailed, match="schema changes are not allowed"):
+        write_sql(run, "acme", sql)
+
+    with connect(path) as con:
+        assert con.execute(
+            "SELECT count(*) FROM information_schema.tables WHERE table_name = 'current_facts'"
+        ).fetchone() == (1,)
+    assert not (tmp_path / "backups").exists()
+
+
+def test_the_written_sql_cannot_read_files(tmp_path: Path) -> None:
+    path = company_db_path(tmp_path, "acme")
+    ensure_database(path, "company")
+    secret = tmp_path / "secret.csv"
+    secret.write_text("a\n1\n")
+
+    with pytest.raises(SqlFailed):
+        write_sql(
+            Run("sql", {}, tmp_path),
+            "acme",
+            f"UPDATE facts SET value = (SELECT count(*) FROM read_csv('{secret.as_posix()}'))",
+        )
+
+
+@pytest.mark.parametrize("function", ["read_csv", "read_text", "read_blob"])
+def test_a_select_cannot_read_files_but_a_plain_one_works(tmp_path: Path, function: str) -> None:
+    ensure_database(company_db_path(tmp_path, "acme"), "company")
+    ensure_database(dictionary_db_path(tmp_path), "dictionary")
+    load_seed(tmp_path, Run("init", {}, tmp_path))
+    secret = tmp_path / "secret.csv"
+    secret.write_text("a\n1\n")
+
+    with pytest.raises(SqlFailed):
+        run_select(tmp_path, "acme", f"SELECT * FROM {function}('{secret.as_posix()}')")
+
+    assert run_select(tmp_path, "acme", "SELECT count(*) AS n FROM facts") == [{"n": 0}]

@@ -6,7 +6,7 @@ matched, thresholded or labelled; what counts as a finding, a query or a load fa
 gets masked; how ambiguous plan wording was read. File splits, module layout, names, libraries, tests and other
 code choices do not belong here: they are in the code and `docs/development.md`.
 
-A decision the client must confirm is marked NEEDS CLIENT CONFIRMATION (first: [masking.md](masking.md)); the client's agent asks about them ([client-handoff.md](../client-handoff.md), step 5).
+A decision the client must confirm is marked NEEDS CLIENT CONFIRMATION (first: [masking.md](masking.md); the audit's client list: [final-fixes.md](final-fixes.md)); the client's agent asks about them ([client-handoff.md](../client-handoff.md), step 5).
 
 Each entry has:
 

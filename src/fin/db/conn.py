@@ -63,6 +63,15 @@ def connect(
         con.close()
 
 
+def lock_files(con: duckdb.DuckDBPyConnection) -> None:
+    """Close the connection to everything outside its database, for good: no read_csv, read_blob,
+    glob, COPY or ATTACH of a file, and the setting cannot be changed back. `fin sql` calls it
+    before it runs the user's SQL, so a statement cannot read the original files, the logs or the
+    exports."""
+    con.execute("SET enable_external_access = false")
+    con.execute("SET lock_configuration = true")
+
+
 @contextmanager
 def transaction(con: duckdb.DuckDBPyConnection) -> Iterator[None]:
     """BEGIN; COMMIT when the block ends; ROLLBACK and re-raise on any exception."""

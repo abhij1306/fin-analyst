@@ -310,6 +310,7 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
         )
         file_id = masker.file_id = file["file_id"]
         _insert(run, con, st, file_id, masker, raw)
+        remasked = masker.remask()
         found = tie_findings(st, name)
         record(
             run, company, con, found, "file_id = ? AND check_name = 'bank_tie'", [file_id], file_id
@@ -327,6 +328,8 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
         f"{'ties' if st.ties else 'DOES NOT TIE'}, {masker.added} names newly masked"
     )
     lines = [head, summary]
+    if remasked:
+        lines.append(f"{remasked} earlier free-text values masked with the new names")
     if found:
         lines.append(
             f"{found[0]['message']} (a finding, not a failure: `fin findings list {company}`)"

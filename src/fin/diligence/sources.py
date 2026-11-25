@@ -140,6 +140,7 @@ def _load_tb(
         f"trial balance {period}: {ledgers} ledgers in {len(rows) - ledgers} groups, "
         f"{masker.added} names newly masked, {len(findings)} findings"
     ]
+    lines.append(tally.group_summary(rows, names, table.profile))
     if findings:
         lines.append(
             f"{len(findings)} groups are not the sum of the ledgers under them (rows kept as "
@@ -353,9 +354,12 @@ def ingest_source(
             run, company, con, kind, content, file, (tb, masker), (engagement, month)
         )
         replaced = _supersede(run, company, con, file)
+        remasked = masker.remask()
     head = f"loaded as source file_id {file['file_id']} ({kind} {period}, profile {profile_name})"
     if basis == "unaudited":
         head += f"; {period} is the stub: {UNAUDITED}"
     if replaced:
         head += f"; supersedes file_id {', '.join(map(str, replaced))}"
+    if remasked:
+        lines.append(f"{remasked} earlier free-text values masked with the new names")
     return log_load(run, company, file, [head, *lines], archive)

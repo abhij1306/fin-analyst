@@ -3,8 +3,8 @@
 - `fact_trace`: fact -> mapping (dictionary row and review decisions) -> raw value -> file and
   `sheet!cell` or `page N`, plus the ingest run that loaded it.
 - `metric_trace`: metric -> facts (`metric_inputs`), then each fact as above.
-- `company_history`: ingests, reviews, queries, writes, reports, validation failures and deletions
-  from the audit database.
+- `company_history`: ingests, reviews, queries, writes, reports, validation failures, deletions
+  and diligence changes (queries, adjustments, gates, engagement) from the audit database.
 
 Everything here is read-only. Results are plain dicts, ready for JSON.
 """
@@ -226,6 +226,12 @@ def company_history(root: Path, company: str) -> dict[str, Any]:
                 [company],
             ),
             "deletions": fetch_dicts(con, f"SELECT * FROM deletions {by_company}", [company]),
+            "diligence_events": fetch_dicts(
+                con,
+                "SELECT recorded_at, kind, item_id, status, run_id, detail FROM diligence_events "
+                "WHERE company = ? ORDER BY recorded_at",
+                [company],
+            ),
         }
 
 
@@ -271,6 +277,11 @@ HISTORY_SECTIONS = [
         "{recorded_at} {error_code} {check_name} {message}",
     ),
     ("deletions", "deletions", "{recorded_at} removed {files_removed}, backup {backup_path}"),
+    (
+        "diligence_events",
+        "diligence changes",
+        "{recorded_at} {kind} {item_id} {status} (run {run_id})",
+    ),
 ]
 
 

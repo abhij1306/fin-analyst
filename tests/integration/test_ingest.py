@@ -117,11 +117,20 @@ def test_pdf_facts_equal_the_answer_key_with_page_and_notes(
     )
     assert len(rows) == len(expected) == 216
     assert set(rows) == expected
-    notes = query(root, "tarang", "SELECT section, markdown_path FROM notes ORDER BY markdown_path")
     stem = "Tarang_Industrial_Services_Annual_Report_FY2024-25"
-    assert notes[-2:] == [
-        ("auditor_report", f"notes/tarang/{stem}.auditor_report.md"),
-        ("notes", f"notes/tarang/{stem}.notes.md"),
+    notes = query(
+        root,
+        "tarang",
+        "SELECT n.section, n.markdown_path FROM notes n JOIN documents d USING (doc_id) "
+        "WHERE d.file_name = ? ORDER BY n.section",
+        [f"{stem}.pdf"],
+    )
+    folder = (
+        f"notes/tarang/{fin.ingest.sha256_of(samples / 'clean' / 'tarang' / f'{stem}.pdf')[:12]}"
+    )
+    assert notes == [
+        ("auditor_report", f"{folder}/{stem}.auditor_report.md"),
+        ("notes", f"{folder}/{stem}.notes.md"),
     ]
     assert (root / notes[-1][1]).read_text(encoding="utf-8").startswith(f"Source: {stem}.pdf")
 
@@ -266,7 +275,7 @@ def test_broken_files_go_to_review_with_their_code(root: Path, samples: Path) ->
         "notes.csv": "E103",
     }
     assert "summary: loaded 0, skipped 0, failed 4 (E102, E103, E104, E203)," in result.stderr
-    assert query(root, "bluepeak", "SELECT count(*) FROM documents") == [(0,)]
+    assert not company_db_path(root, "bluepeak").exists()  # nothing loaded: no empty company
 
 
 def test_unmapped_label_loads_unconfirmed_and_logs_e301(
