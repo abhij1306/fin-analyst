@@ -166,7 +166,8 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
     an account, and each year's `tb_vs_statements` run on the current data with every difference at or above the
     threshold in a query (the stub is checked against its Ledger Vouchers only). A changed figure (for example a
     fix with `fin sql --write`), a new source file, a mapping change or a new reconciliation reopens it, and so
-    does any change after which its checklist fails.
+    does any change after which its checklist fails. Once a payroll file is loaded, G1 also needs the user to
+    have confirmed its unit (`fin payroll confirm-unit`).
   - **G2 Reconciliation:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
     approved query does not. Needed by `fin adjust accept|reject`.
   - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
@@ -174,7 +175,7 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
 
   A command that needs a gate that is not approved refuses with E801; a gate that cannot be approved yet, E802.
   `fin status` shows an open engagement's queries, proposed adjustments and gates.
-- Source files: `fin ingest <company> <file> --kind trial_balance|ledger_vouchers [--profile <name>]` loads a Tally
+- Source files: `fin ingest <company> <file> --kind trial_balance|ledger_vouchers|payroll [--profile <name>]` loads a Tally
   Trial Balance (Detailed mode) or Ledger Vouchers export into `trial_balance` or `ledger_entries` (and `ledger_blocks`, every ledger block the export has, even one with no voucher lines), each row with
   its file (`source_files`: sha256, archive copy, profile) and sheet!row. The period comes from the export's header
   lines and must be a year of the open engagement, or exactly its stub (E808). A column profile (`templates/profiles/*.toml`) says how
@@ -187,6 +188,13 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   `VEND-0001`), the same name the same token in every file, and known names in Ledger Vouchers particulars are
   replaced too. A Ledger Vouchers ledger not in its trial balance is masked as `LEDG-0001`, since fin cannot tell
   whether it is a party. The real names stay on your Mac in `mask_values`, which `fin sql` refuses to read (E810).
+- Payroll: `--kind payroll` loads the Sparsh snapshot (one row per employee, profile `sparsh_payroll`) into
+  `payroll_lines`; the snapshot date in its header ("Employee Master as on 31-Mar-2025") must fall in a year of the
+  engagement or its stub (E808). Employee name and code are tokens (`EMP-0001`, `ECODE-0001`). Gross salary and CTC are
+  read as annual rupees: fin warns when their medians are under Rs 1,50,000 (they look monthly), and you tell it
+  the unit with `fin payroll confirm-unit <company> <file> --annual|--monthly`. G1 shows "unit confirmed annual by
+  the user" for each payroll file and fails until you confirm; `--monthly` keeps it failing (fin does not convert).
+  A row with no employee name or code, or a bad date, is E821 and nothing loads.
 - Ledger mapping: each trial balance ledger maps to a Schedule III account. `fin map ledgers <company>` lists the
   ledgers waiting; Claude proposes accounts with `fin map ledgers <company> <file.json>`; you confirm or reject
   them with `fin review list|confirm|reject <company> ... --ledgers` (`--account` to choose another). fin never
@@ -290,12 +298,14 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E803 | No open engagement for the company, or one is already open | Open one with `uv run fin engagement open <company> --periods ...`, or close the open one first |
 | E804 | An adjustment cannot be proposed: no evidence (query, finding or source), a category not in `config.toml`, a period not in the engagement, or an unknown account | Nothing changed. Add the evidence or correct the value and run again |
 | E805 | An unknown query, adjustment or finding id, or a status change that is not allowed | Nothing changed. Check the ids and statuses with `uv run fin query list` or `uv run fin adjust list` |
-| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `ledger_accounts`, `recon_runs`, `recon_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
+| E806 | `fin sql --write` was given a statement that writes to a diligence table (`engagement`, `accountant_queries`, `adjustments`, `gate_approvals`, `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `payroll_lines`, `payroll_units`, `ledger_accounts`, `recon_runs`, `recon_items`) | Nothing was run. Make the change with `uv run fin engagement`, `fin query`, `fin adjust` or `fin gate`, load the source file again with `fin ingest --kind`, map ledgers with `fin map ledgers` and `fin review --ledgers`, or run `fin reconcile` again |
 | E807 | `fin ingest --kind`: the column profile named is unknown or invalid, or no profile matches the file's headers | Nothing loaded. The message lists the header lines found: write a profile in `templates/profiles/` (docs/CUSTOMISING.md) and ingest with `--profile` |
 | E808 | `fin ingest --kind`: the export's header gives no period, or a period that is not a year of the open engagement nor exactly its stub; or `fin engagement open --stub` names a stub that is not the year to date of the fiscal year after the last period | Nothing loaded or opened. Check the export's period, or the engagement's periods and stub (`uv run fin engagement status <company>`) |
 | E809 | A trial balance with group rows only (Tally's Condensed export) | Nothing loaded. Export the trial balance again in Detailed mode, with ledgers, and ingest that |
 | E810 | `fin sql` was given SQL naming `mask_values` (the real names behind the tokens), or calling `query`, `query_table` or `read_duckdb`, which could reach it | Nothing was run. Work with the tokens; fin never prints the real names |
 | E811 | Ledger Vouchers ingested before their period's trial balance | Nothing loaded. Ingest the period's trial balance first (it says which ledgers are parties), then the Ledger Vouchers |
 | E812 | `fin reconcile`: the period is not a year of the engagement (the stub has no audited statement), or it has no loaded trial balance or no audited standalone statement figures | Nothing recorded. Load the period's trial balance and statements, or see the stub's figures in the view `stub_figures` |
+| E820 | `fin payroll confirm-unit` names no loaded payroll file of the open engagement (unknown name or id, not a payroll file, or superseded by a later snapshot, or several loaded files with that name) | Nothing recorded. The message lists the loaded payroll files: use one's file name or file_id |
+| E821 | A payroll snapshot row has no employee name or code, or a joining or resign date that is not a date in the profile's format | Nothing loaded. Ask the company for a corrected file, or fix the profile's `date_format`, and ingest again |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

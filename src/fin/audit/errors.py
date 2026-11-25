@@ -21,6 +21,8 @@ a command returns when the error ends it:
   Vouchers before its period's trial balance) stop the command: exit 2.
 - E812 (a reconciliation cannot run: a period not annual in the engagement, no loaded trial balance,
   or no audited statement figures for the period) stops the command: exit 2.
+- E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
+  employee name or code, or an unreadable date) stop the command: exit 2.
 """
 
 # Exit codes
@@ -267,8 +269,9 @@ class DiligenceChangeRefused(FinError):
 class DiligenceTableWrite(FinError):
     """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
-    ledger_blocks, ledger_accounts, recon_runs, recon_items): those change only through
-    `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
+    ledger_blocks, payroll_lines, payroll_units, ledger_accounts, recon_runs, recon_items): those
+    change only through `fin engagement`, `fin query`, `fin adjust`, `fin gate`,
+    `fin ingest --kind`,
     `fin map ledgers` with `fin review --ledgers`, and `fin reconcile`. Nothing was run."""
 
     code = "E806"
@@ -319,3 +322,19 @@ class ReconNotPossible(FinError):
     figures. Nothing recorded."""
 
     code = "E812"
+
+
+class PayrollFileNotFound(FinError):
+    """E820. `fin payroll confirm-unit` names no loaded payroll file of the open engagement (an
+    unknown name or id, not a payroll file, or one a later snapshot superseded). Nothing
+    recorded."""
+
+    code = "E820"
+
+
+class PayrollRowInvalid(FinError):
+    """E821. A payroll snapshot row has amounts or other cells but no employee name or code, or a
+    joining or resign date that is not a date in the profile's format. Nothing loaded: fin cannot
+    mask or trace a row it cannot identify, and never drops one."""
+
+    code = "E821"

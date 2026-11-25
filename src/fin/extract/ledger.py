@@ -110,6 +110,11 @@ def _period(sheet: Worksheet, first_data_row: int, profile: Profile) -> tuple[da
             match = profile.period.search(str(cell.value)) if cell.value is not None else None
             if match is None:
                 continue
+            if "date" in profile.period.groupindex:  # a payroll snapshot: one date
+                day = parse_date(match.group("date"), profile)
+                if day is not None:
+                    return day, day
+                continue
             start, end = (parse_date(match.group(g), profile) for g in ("start", "end"))
             if start is not None and end is not None:
                 return start, end

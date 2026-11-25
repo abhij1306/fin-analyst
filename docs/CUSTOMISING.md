@@ -42,7 +42,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   approval (E802)), `cli.py` (the `fin engagement`, `fin query`, `fin adjust` and `fin gate` Typer groups). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
   Source files (`fin ingest --kind`): `sources.py` (one file in one transaction: period check, archive,
   `source_files`, supersede), `tally.py` (what trial balance and Ledger Vouchers rows mean: groups, ledger blocks,
-  the group-sum finding), `mask.py` (tokens for names, `mask_values`). Tables: `db/schema/sources.sql`.
+  the group-sum finding), `mask.py` (tokens for names, `mask_values`), `payroll.py` (the payroll snapshot:
+  rows, snapshot period, the monthly-amounts check, `fin payroll confirm-unit`, G1's payroll line; the CLI is
+  `cli/payroll.py`). Tables: `db/schema/sources.sql`.
   `ledgers.py` (`ledger_accounts`: Tally ledger to account, proposed by Claude, confirmed in review; an account's
   side), `recon.py` (`tb_vs_statements`: `recon_runs`, `recon_items`, draft queries at or above the threshold,
   E812; CLI `cli/reconcile.py`), `stub.py` (the current-year stub, `--stub FY27-YTD-SEP`), `tb_checks.py` (gate
@@ -69,7 +71,7 @@ When `fin ingest <co> <file> --kind <kind>` fails with E807, the message lists t
 Copy the nearest profile in `templates/profiles/` to `<name>.toml` (lower case, digits, `_`) and change only what
 differs: `[columns]` (header text as printed, joined over `header_rows` rows, to a field; the fields each kind needs
 are `FIELDS` in `extract/profiles.py`), `date_format`, `period` (a regular expression with groups `start` and `end`
-for the header line naming the period), `unit`, `[rows]` (`skip`; for a trial balance `group` and `level`; for
+for the header line naming the period; a payroll profile has one group, `date`), `unit`, `[rows]` (`skip`; for a trial balance `group` and `level`; for
 Ledger Vouchers `block` and `block_prefix`) and `[mask]` (`groups`: the party groups whose ledgers are masked, and
 `fields`). Then ingest with `--profile <name>`. Add a test with a synthetic file in that layout
 (`tests/tally_fixtures.py` shows how). Keep it to what the profile can state: no layout special cases in code.

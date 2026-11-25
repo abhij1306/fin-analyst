@@ -23,7 +23,14 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      `LEDG-...`. E807 lists the header lines of a layout no profile reads: write a profile in
      `templates/profiles/` (`docs/CUSTOMISING.md`) and ingest with `--profile <name>`. E808: the period is not a
      year of the engagement nor exactly its stub; E809: ask for the Detailed export.
-   - **Names are tokens** (`CUST-0001`, `VEND-0001`, `LEDG-0001`). Use them as they are in queries and answers;
+   - **Payroll.** Load the Sparsh snapshot with `uv run fin ingest <company> <file> --kind payroll` (its header gives
+     the snapshot date, which must fall in a year of the engagement or the stub). Report the outcome lines as printed,
+     including a `WARNING: the amounts look monthly` line. Gross salary and CTC are read as annual: ask the user
+     whether they are annual or monthly, and run `uv run fin payroll confirm-unit <company> <file> --annual` (or
+     `--monthly`) only when the user says which; never decide the unit yourself. `--monthly` keeps G1 failing: fin does
+     not convert, so ask the company for an annual snapshot. E820: no loaded payroll file of that name or id; E821: a
+     row with no employee name or code, or a bad date (a corrected file is the company's to send).
+   - **Names are tokens** (`CUST-0001`, `VEND-0001`, `LEDG-0001`, `EMP-0001`, `ECODE-0001`). Use them as they are in queries and answers;
      never try to read `mask_values` (`fin sql` refuses, E810) or guess a name.
    - **Ledger mapping.** `uv run fin map ledgers <company>` lists the trial balance ledgers waiting for an account.
      Propose one per ledger from its name and group (`uv run fin map accounts` for the accounts: balance sheet or
@@ -83,7 +90,7 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    from a loaded document, no held documents, no mappings waiting for review; once there is a trial balance or a
    stub, also a trial balance and Ledger Vouchers per period and the stub, every ledger in both, every ledger
    mapped, and each year's `fin reconcile` on the current data with every difference at or above the threshold in
-   a query), G2 Reconciliation (no query in draft;
+   a query; once a payroll file is loaded, its unit confirmed by the user), G2 Reconciliation (no query in draft;
    unlocks `fin adjust accept|reject`), G4 Adjustments (no proposed adjustment, every accepted one has evidence;
    unlocks `fin engagement close`; an engagement with no queries and no adjustments closes without its gates). A
    gate reopens on its own when the data under it changes (G1 also when a figure changes) or its checklist fails.
@@ -102,4 +109,4 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    misread figure) is still done through `/ingest` and `/review`. If a command fails (E801 a gate not approved, E802
    a gate not ready, E803 no open engagement, E804 an adjustment that is not valid, E805 an unknown id or a status
    change not allowed, E806 `fin sql --write` on a diligence table, E807-E811 a source file that cannot load or
-   `mask_values` read, E812 a reconciliation that cannot run), report the error code and run_id and stop.
+   `mask_values` read, E812 a reconciliation that cannot run, E820-E821 payroll: no loaded payroll file named, or an unreadable row), report the error code and run_id and stop.
