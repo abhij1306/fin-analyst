@@ -126,22 +126,27 @@ def _issue_refs(issue: Issue) -> list[tuple[str, str]]:
     return refs
 
 
-def source_marks(
-    issues: list[Issue], files: list[tuple[int, str, str, str, str]]
-) -> dict[tuple[int, str], dict[int, tuple[set[str], set[str]]]]:
+Marks = dict[tuple[int, str], dict[int, tuple[set[str], set[str]]]]
+
+
+def _mark(marks: Marks, key: tuple[int, str], spec: str, tag: str) -> None:
+    cell = "" if spec.isdigit() else spec.upper()
+    row = int(spec) if not cell else int(coordinate_from_string(cell)[1])
+    cells, labels = marks[key].setdefault(row, (set(), set()))
+    cells.add(cell)
+    labels.add(tag)
+
+
+def source_marks(issues: list[Issue], files: list[tuple[int, str, str, str, str]]) -> Marks:
     """(file_id, sheet) -> row -> (cells to highlight, labels). A row given as a number is
     highlighted whole; one given as a cell, that cell only."""
-    marks: dict[tuple[int, str], dict[int, tuple[set[str], set[str]]]] = defaultdict(dict)
+    marks: Marks = defaultdict(dict)
     for issue in issues:
         for text, tag in _issue_refs(issue):
             parsed = [_parse(part, files, issue.query["period"]) for part in text.split("; ")]
             for file_id, sheet, specs in (p for p in parsed if p is not None):
                 for spec in specs:
-                    cell = "" if spec.isdigit() else spec.upper()
-                    row = int(spec) if not cell else int(coordinate_from_string(cell)[1])
-                    cells, labels = marks[(file_id, sheet)].setdefault(row, (set(), set()))
-                    cells.add(cell)
-                    labels.add(tag)
+                    _mark(marks, (file_id, sheet), spec, tag)
     return marks
 
 

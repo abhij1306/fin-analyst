@@ -217,11 +217,9 @@ def _matches(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
     return rows
 
 
-def candidates(
+def _statement_rows(
     con: duckdb.DuckDBPyConnection, accounts: dict[str, Account]
 ) -> list[dict[str, str]]:
-    """One line per output fin has for the company now, with its source. A per-share figure is
-    stored as printed, so its unit is rupees whatever the statement's unit."""
     rows = []
     statement = con.execute(_STATEMENT).fetchall()
     for account, period, scope, file_name, ref, per_unit, lines in statement:
@@ -239,6 +237,11 @@ def candidates(
                 note=note,
             )
         )
+    return rows
+
+
+def _ledger_rows(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
+    rows = []
     for period, ledger, file_name, sheet, number in con.execute(_LEDGER).fetchall():
         rows.append(
             _row(
@@ -284,6 +287,11 @@ def candidates(
                 "lines that show a difference",
             )
         )
+    return rows
+
+
+def _split_rows(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
+    rows = []
     for period, files, passthrough_lines in con.execute(_SPLIT).fetchall():
         for kind, note in (
             ("core_revenue", "sales register, customers not on the pass-through list"),
@@ -295,7 +303,11 @@ def candidates(
         ):
             if kind != "linked_purchase_cost" or passthrough_lines:
                 rows.append(_row(kind, period, files or "", unit="rupees", note=note))
-    rows += qoe.candidates(con, _row)
+    return rows
+
+
+def _recast_rows(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
+    rows = []
     for period, files in con.execute(_RECAST).fetchall():
         for kind, note in (
             ("recast_revenue", "revenue recognised over the service periods (sales register)"),
@@ -316,6 +328,11 @@ def candidates(
                         note="reported plus accepted adjustments (statements)",
                     )
                 )
+    return rows
+
+
+def _total_rows(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
+    rows = []
     for period, kind, file_name, sheet, _ in con.execute(_REGISTERS).fetchall():
         rows.append(
             _row(
@@ -361,7 +378,11 @@ def candidates(
                 note="value of this kind of difference in the issue, without signs",
             )
         )
-    rows += _matches(con)
+    return rows
+
+
+def _analytics_rows(con: duckdb.DuckDBPyConnection) -> list[dict[str, str]]:
+    rows = []
     files = con.execute(
         "SELECT string_agg(DISTINCT file_name, '; ') FROM source_files WHERE kind = 'registers' "
         f"AND status = 'loaded' AND engagement_id = {LATEST}"
@@ -389,6 +410,22 @@ def candidates(
                 note="unaudited management accounts",
             )
         )
+    return rows
+
+
+def candidates(
+    con: duckdb.DuckDBPyConnection, accounts: dict[str, Account]
+) -> list[dict[str, str]]:
+    """One line per output fin has for the company now, with its source. A per-share figure is
+    stored as printed, so its unit is rupees whatever the statement's unit."""
+    rows = _statement_rows(con, accounts)
+    rows += _ledger_rows(con)
+    rows += _split_rows(con)
+    rows += qoe.candidates(con, _row)
+    rows += _recast_rows(con)
+    rows += _total_rows(con)
+    rows += _matches(con)
+    rows += _analytics_rows(con)
     return rows
 
 

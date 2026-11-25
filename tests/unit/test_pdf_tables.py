@@ -264,5 +264,7 @@ def test_a_row_shorter_than_the_table_is_not_read() -> None:
         header_rows=1,
     )
 
+    a_page = page()
+    tables = [Table(shifted)]
     with pytest.raises(ParseError, match="fewer cells than the table"):
-        read_tables(page(), [Table(shifted)], start_month=4)
+        read_tables(a_page, tables, start_month=4)

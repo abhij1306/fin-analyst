@@ -145,8 +145,9 @@ def test_the_stub_is_the_year_to_date_after_the_last_period() -> None:
 def test_open_with_a_stub_and_a_bad_stub_is_e808(root: Path) -> None:
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute("UPDATE engagement SET status = 'closed'")
+    run_root = run(root)
     with pytest.raises(SourcePeriodInvalid, match="FY26"):
-        open_engagement(run(root), "acme", ["FY24", "FY25"], None, "FY27-YTD-SEP")
+        open_engagement(run_root, "acme", ["FY24", "FY25"], None, "FY27-YTD-SEP")
 
     row = open_engagement(run(root), "acme", ["FY24", "FY25"], None, "FY26-YTD-SEP")
 
@@ -160,15 +161,17 @@ def test_open_with_a_stub_and_a_bad_stub_is_e808(root: Path) -> None:
 def test_ledgers_are_proposed_then_confirmed_only_by_review(root: Path, tmp_path: Path) -> None:
     lines = load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
     assert lines[-1] == "10 new ledgers waiting for an account (`fin map ledgers acme`)"
+    run_root = run(root)
     with pytest.raises(InvalidMapping, match="unknown account 'sales'"):
         ledgers.propose(
-            run(root),
+            run_root,
             "acme",
             [{"ledger": "Rent", "account": "sales", "confidence": 1, "reason": ""}],
         )
+    run_root = run(root)
     with pytest.raises(InvalidMapping, match="cash_flow account"):
         ledgers.propose(
-            run(root),
+            run_root,
             "acme",
             [{"ledger": "Rent", "account": "cfo", "confidence": 1, "reason": ""}],
         )
@@ -185,16 +188,18 @@ def test_ledgers_are_proposed_then_confirmed_only_by_review(root: Path, tmp_path
         f"ledger #{rent['ledger_id']} [proposed] 'Rent' in Indirect Expenses (trial balance) "
         "-> other_expenses (confidence 0.9): r"
     )
+    run_root = run(root)
     with pytest.raises(InvalidMapping, match="has no proposed account"):
-        ledgers.confirm(run(root), "acme", [rent["ledger_id"], rent["ledger_id"] - 1])
+        ledgers.confirm(run_root, "acme", [rent["ledger_id"], rent["ledger_id"] - 1])
     [confirmed] = ledgers.confirm(run(root), "acme", [rent["ledger_id"]])
     assert (confirmed["status"], confirmed["account"], confirmed["side"]) == (
         "confirmed",
         "other_expenses",
         1,
     )
+    run_root = run(root)
     with pytest.raises(InvalidMapping, match="only the user changes it"):
-        ledgers.propose(run(root), "acme", proposals)
+        ledgers.propose(run_root, "acme", proposals)
 
 
 def test_account_sides_follow_the_dictionary_tree(root: Path) -> None:
@@ -218,7 +223,8 @@ def test_tb_vs_statements_queries_a_difference_at_the_threshold_and_lists_one_be
     load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
 
     [unmapped] = recon.tb_vs_statements(run(root), "acme")
-    assert len(unmapped["unmapped"]) == 10 and unmapped["drafted"] == []
+    assert len(unmapped["unmapped"]) == 10
+    assert unmapped["drafted"] == []
     assert rows(root, "SELECT count(*) FROM accountant_queries") == [(0,)]
 
     map_all(root)
@@ -274,7 +280,8 @@ def test_tb_vs_statements_queries_a_difference_at_the_threshold_and_lists_one_be
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute("UPDATE accountant_queries SET status = 'withdrawn'")
     [after] = recon.tb_vs_statements(run(root), "acme")
-    assert after["kept"] == [] and len(after["drafted"]) == 1
+    assert after["kept"] == []
+    assert len(after["drafted"]) == 1
 
 
 def test_g1_checks_the_trial_balance_and_reopens_when_it_changes(
@@ -338,7 +345,9 @@ def test_a_stub_loads_labelled_unaudited_and_is_not_reconciled(root: Path, tmp_p
         ("FY26-YTD-SEP", "unaudited management accounts", "revenue", Decimal("900000.00")),
         ("FY26-YTD-SEP", "unaudited management accounts", "trade_payables", Decimal("180000.00")),
     ]
+    run_root = run(root)
     with pytest.raises(ReconNotPossible, match="the stub has no audited statement"):
-        recon.tb_vs_statements(run(root), "acme", "FY26-YTD-SEP")
+        recon.tb_vs_statements(run_root, "acme", "FY26-YTD-SEP")
+    run_root = run(root)
     with pytest.raises(ReconNotPossible, match="no annual period"):
-        recon.tb_vs_statements(run(root), "acme")
+        recon.tb_vs_statements(run_root, "acme")

@@ -119,7 +119,8 @@ def test_excel_statements_load_with_lineage_and_masked_remarks(
     lines = load(root, write_statement(tmp_path / "s.xlsx", bank, currency=currency))
 
     assert lines[0].startswith("loaded as source file_id 1 (bank FY25, profile bank_")
-    assert "ties" in lines[1] and "DOES NOT TIE" not in lines[1]
+    assert "ties" in lines[1]
+    assert "DOES NOT TIE" not in lines[1]
     assert rows(
         root,
         "SELECT bank, account, currency, period_start::VARCHAR, period_end::VARCHAR, "
@@ -158,7 +159,8 @@ def test_excel_statements_load_with_lineage_and_masked_remarks(
     )
     assert lines_[1][4] == "IMPS to VEND-0001 rent"
     stored = " ".join(str(r) for r in rows(root, "SELECT * FROM bank_lines"))
-    assert CUSTOMER not in stored and VENDOR not in stored
+    assert CUSTOMER not in stored
+    assert VENDOR not in stored
     assert rows(root, "SELECT kind, period, basis FROM source_files") == [
         ("bank", "FY25", "audited")
     ]
@@ -176,7 +178,8 @@ def test_a_statement_that_does_not_tie_is_a_finding_and_blocks_g1_until_accepted
     ]
     assert rows(root, "SELECT ties, line_count FROM bank_statements") == [(False, 3)]
     ok, text = g1(root)[0]
-    assert not ok and "1 bank parses do not tie" in text
+    assert not ok
+    assert "1 bank parses do not tie" in text
 
     accept(Run("accept", {}, root), "acme", [1])
     assert g1(root) == [(True, "every bank parse ties (1 statements)")]
@@ -283,7 +286,9 @@ def test_a_file_is_loaded_once_and_unknown_layouts_and_headers_are_refused(
 
 def test_a_bank_profile_reads_its_header_patterns() -> None:
     profile = load_profile("bank_icici")
-    assert profile.kind == "bank" and profile.bank == "ICICI" and profile.unit == 1
+    assert profile.kind == "bank"
+    assert profile.bank == "ICICI"
+    assert profile.unit == 1
     assert set(profile.header) == {"account", "currency", "opening", "closing"}
 
 
@@ -311,7 +316,8 @@ def test_a_pdf_statement_loads_from_its_saved_parse_with_page_lineage(
 
     lines = load(root, pdf, parser="liteparse")
 
-    assert "read by liteparse" in lines[0] and "ties" in lines[1]
+    assert "read by liteparse" in lines[0]
+    assert "ties" in lines[1]
     assert rows(
         root,
         "SELECT bank, account, reader, parse_path LIKE 'cache/bank/%.json', ties, line_count "
@@ -374,7 +380,9 @@ def test_a_pdf_is_parsed_once_per_sha256(
     first, path = bank_pdf.read_parse(run, config, pdf, sha256_of(pdf))
     second, _ = bank_pdf.read_parse(run, config, pdf, sha256_of(pdf))
 
-    assert calls == [1] and first == second and path.startswith("cache/bank/")
+    assert calls == [1]
+    assert first == second
+    assert path.startswith("cache/bank/")
     assert json.loads((root / path).read_text(encoding="utf-8"))["engine"] == "liteparse"
 
 
@@ -395,7 +403,8 @@ def test_llamaparse_reads_a_recorded_response_and_is_never_called(
 
     lines = load(root, pdf, parser="llamaparse")
 
-    assert "read by llamaparse" in lines[0] and "ties" in lines[1]
+    assert "read by llamaparse" in lines[0]
+    assert "ties" in lines[1]
     assert rows(root, "SELECT line_count, ties FROM bank_statements") == [(4, True)]
 
 

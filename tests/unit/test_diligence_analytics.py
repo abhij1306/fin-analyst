@@ -346,8 +346,9 @@ def test_a_cohort_with_nobody_left_keeps_its_rows(root: Path) -> None:
 
 
 def test_analytics_needs_a_sales_register(bare: Path) -> None:
+    run_bare = run(bare)
     with pytest.raises(AnalyticsUnavailable, match="no sales register lines"):
-        analytics.collect(run(bare), "acme")
+        analytics.collect(run_bare, "acme")
 
 
 def test_the_commands(root: Path, monkeypatch: pytest.MonkeyPatch) -> None:

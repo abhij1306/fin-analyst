@@ -107,7 +107,8 @@ def test_sales_differences_and_the_fx_line(root: Path) -> None:
         "INV-2005": ("fx", -4000),
     }
     assert [k for k, x in lines.items() if x["needs_query"]] == ["INV-2003", "INV-2004"]
-    assert "FX gain" in lines["INV-2005"]["note"] and "82.0000" in lines["INV-2005"]["note"]
+    assert "FX gain" in lines["INV-2005"]["note"]
+    assert "82.0000" in lines["INV-2005"]["note"]
     assert lines["INV-2003"]["left_source"] == "registers.xlsx Sales Register!4"
     assert lines["INV-2003"]["right_source"] is None
     assert lines["INV-2004"]["right_source"].startswith("lv.xlsx Ledger Vouchers!")
@@ -133,7 +134,8 @@ def test_gl_vs_tb_finds_only_the_planted_ledgers(root: Path) -> None:
         "Neem Consulting": ("left_only", 25000),
     } or odd(result, "ledger").keys() >= {"Axis Bank Current Account", "Rent"}
     lines = detail(result, "ledger")
-    assert lines["Axis Bank Current Account"]["needs_query"] and not lines["Rent"]["needs_query"]
+    assert lines["Axis Bank Current Account"]["needs_query"]
+    assert not lines["Rent"]["needs_query"]
     assert lines["Profit & Loss A/c"]["kind"] == "matched"
     assert "prior period's profit" in lines["Profit & Loss A/c"]["note"]
     assert {k for k, x in lines.items() if x["kind"] == "unmapped"} == {"LEDG-0001"}
@@ -191,19 +193,23 @@ def test_raise_items_groups_lines_and_a_rerun_keeps_the_query(root: Path) -> Non
         "FY25",
         550000,
     )
-    assert "1 left_only" in summary and "1 right_only" in summary
+    assert "1 left_only" in summary
+    assert "1 right_only" in summary
+    run_root = run(root)
     with pytest.raises(ReconItemNotQueryable, match="cannot be raised"):
-        items.raise_from_items(run(root), "acme", ids[:1], "again")
+        items.raise_from_items(run_root, "acme", ids[:1], "again")
     again = recon(root, "sales_register_vs_gl")
     assert {x["key"]: x["query_id"] for x in again["lines"] if x["needs_query"]} == {
         "INV-2003": query["query_id"],
         "INV-2004": query["query_id"],
     }
+    run_root = run(root)
     with pytest.raises(ReconItemUnknown, match="latest run"):
-        items.raise_from_items(run(root), "acme", ids, "stale")
+        items.raise_from_items(run_root, "acme", ids, "stale")
     fx = [x["item_id"] for x in again["lines"] if x["kind"] == "fx"]
+    run_root = run(root)
     with pytest.raises(ReconItemNotQueryable):
-        items.raise_from_items(run(root), "acme", fx, "fx")
+        items.raise_from_items(run_root, "acme", fx, "fx")
 
 
 def g2(root: Path) -> list[tuple[bool, str]]:
@@ -286,7 +292,8 @@ def test_vendors_sharing_an_invoice_number_stay_apart_and_stale_data_is_refused(
         con.execute(
             "UPDATE ledger_accounts SET account = 'other_expenses' WHERE ledger = 'Software Sales'"
         )
+    run_root = run(root)
     with pytest.raises(ReconItemUnknown, match="has changed since"):
-        items.raise_from_items(run(root), "acme", ids, "stale data")
+        items.raise_from_items(run_root, "acme", ids, "stale data")
     with pytest.raises(ValueError):
         items.parse_ids("1 2")

@@ -118,7 +118,7 @@ def propose(root: Path, **kwargs: Any) -> dict[str, Any]:
     defaults = {
         "period": "FY25",
         "scope": "standalone",
-        "source_ref": "reg.xlsx Sales!2",
+        "evidence": adjustments.Evidence(source_ref="reg.xlsx Sales!2"),
         "category": "normalisation",
         "description": "d",
     }
@@ -131,13 +131,15 @@ def accept(root: Path, adj_id: int) -> None:
 
 
 def test_a_list_needs_a_loaded_sales_register(bare: Path) -> None:
+    run_bare = run(bare)
     with pytest.raises(PassthroughInvalid, match="no loaded sales register"):
-        passthrough.set_customers(run(bare), "acme", ["CUST-0001"], "email")
+        passthrough.set_customers(run_bare, "acme", ["CUST-0001"], "email")
 
 
 def test_the_list_is_checked_against_the_sales_register(root: Path) -> None:
+    run_root = run(root)
     with pytest.raises(PassthroughInvalid, match="CUST-9999"):
-        passthrough.set_customers(run(root), "acme", ["CUST-9999"], "email")
+        passthrough.set_customers(run_root, "acme", ["CUST-9999"], "email")
     assert query(root, "SELECT * FROM passthrough_customers") == []
 
 
@@ -239,8 +241,9 @@ def test_effects_default_to_a_cost_effect_and_must_add_up(root: Path) -> None:
         D("-280000.00"),
         D("-90000.00"),
     )
+    inconsistent = {"amount": D("1"), "revenue_effect": D("-280000"), "cost_effect": D("-90000")}
     with pytest.raises(AdjustmentInvalid, match="not the revenue effect"):
-        propose(root, amount=D("1"), revenue_effect=D("-280000"), cost_effect=D("-90000"))
+        propose(root, **inconsistent)
     with pytest.raises(AdjustmentInvalid, match="give --amount"):
         propose(root)
     assert propose(root, amount=D("-190000"), revenue_effect=D("-280000"), cost_effect=D("-90000"))
@@ -255,7 +258,7 @@ def test_a_cost_reclassification_names_both_accounts_and_has_no_effect(root: Pat
         moved_amount=D("40000"),
         amount=D("0"),
     )
-    assert (row["amount"], row["revenue_effect"], row["cost_effect"]) == (D("0.00"),) * 3
+    assert (D("0.00"),) * 3 == (row["amount"], row["revenue_effect"], row["cost_effect"])
     assert "other_expenses -> employee_expense" in adjustments.format_adjustment(row)
     base = {"category": "reclassification", "account": "employee_expense", "amount": D("0")}
     for bad, match in (
@@ -272,15 +275,15 @@ def test_a_cost_reclassification_names_both_accounts_and_has_no_effect(root: Pat
     ):
         with pytest.raises(AdjustmentInvalid, match=match):
             propose(root, **(base | bad))
+    no_effect = {
+        "category": "reclassification",
+        "account": "employee_expense",
+        "from_account": "other_expenses",
+        "moved_amount": D("1"),
+        "amount": D("5"),
+    }
     with pytest.raises(AdjustmentInvalid, match="has no revenue, cost or EBITDA effect"):
-        propose(
-            root,
-            category="reclassification",
-            account="employee_expense",
-            from_account="other_expenses",
-            moved_amount=D("1"),
-            amount=D("5"),
-        )
+        propose(root, **no_effect)
 
 
 def test_a_reclassification_changes_margins_with_zero_ebitda_effect(root: Path) -> None:

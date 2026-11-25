@@ -65,7 +65,8 @@ def test_monthly_working_capital_starts_from_the_previous_year_end(root: Path) -
         ("2024-05-31", D("694000")),
         ("2024-06-30", D("564000")),
     ]
-    assert len(got) == 12 and got[-1][0] == "2025-03-31"
+    assert len(got) == 12
+    assert got[-1][0] == "2025-03-31"
     assert {(i, x) for _, _, i, x in got} == {(4, 0)}
     # The last month is the year-end trial balance when every ledger is in.
     assert got[-1][1] == D("564000")
@@ -83,7 +84,9 @@ def test_a_ledger_that_does_not_tie_is_left_out_with_its_reason(root: Path) -> N
         "SELECT month_end::VARCHAR, ledgers_included, ledgers_excluded FROM nwc_monthly "
         "WHERE period = 'FY26-YTD-SEP' ORDER BY month_end",
     )
-    assert month and month[-1][0] == "2025-09-30" and month[-1][2] > 0
+    assert month
+    assert month[-1][0] == "2025-09-30"
+    assert month[-1][2] > 0
 
 
 def test_a_reconciliation_that_ran_on_other_files_is_not_used(root: Path, tmp_path: Path) -> None:

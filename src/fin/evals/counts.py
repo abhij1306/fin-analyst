@@ -261,34 +261,54 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
     `no_passthrough_list` (a revenue split or analytics check with no pass-through customers
     recorded), `unconfirmed_sectors` (a sector check while customers have no confirmed sector),
     `recast_not_run` (a recast check for a period with no `fin recast run`)."""
-    codes: set[str] = set()
     if check.kind == "statement":
         return _statement_codes(con, check)
-    if check.kind in (*MATCH_KINDS, "bank_vs_tb"):
-        name = "bank_vs_tb" if check.kind == "bank_vs_tb" else "bank_vs_invoices"
-        ran = con.execute(
-            "SELECT count(*) FROM recon_runs WHERE name = ? AND period = ? "
-            f"AND engagement_id = {LATEST_ENGAGEMENT}",
-            [name, check.period],
-        ).fetchone()
-        if ran is not None and not ran[0]:
-            codes.add("not_reconciled")
-        waiting = con.execute(
-            "SELECT count(*) FROM match_proposals WHERE status = 'proposed'"
-        ).fetchone()
-        if check.kind in MATCH_KINDS and waiting is not None and waiting[0]:
-            codes.add("match_proposals_waiting")
     if check.kind == "bank_closing":  # the period is a date: findings on that account's statements
-        return sorted(
-            c
-            for (c,) in con.execute(
-                "SELECT DISTINCT f.check_name FROM findings f "
-                "JOIN bank_statements b USING (file_id) "
-                "WHERE f.status IN ('open', 'accepted') AND b.account = ?",
-                [check.ledger],
-            ).fetchall()
-        )
-    codes |= {
+        return _bank_closing_codes(con, check)
+    codes = _bank_markers(con, check)
+    codes |= _period_finding_codes(con, check)
+    codes |= _recon_markers(con, check)
+    return sorted(codes)
+
+
+def _count(con: duckdb.DuckDBPyConnection, sql: str, params: list[Any] | None = None) -> int:
+    row = con.execute(sql, params).fetchone()
+    return int(row[0]) if row else 0
+
+
+def _bank_markers(con: duckdb.DuckDBPyConnection, check: Check) -> set[str]:
+    codes: set[str] = set()
+    if check.kind not in (*MATCH_KINDS, "bank_vs_tb"):
+        return codes
+    name = "bank_vs_tb" if check.kind == "bank_vs_tb" else "bank_vs_invoices"
+    ran = _count(
+        con,
+        "SELECT count(*) FROM recon_runs WHERE name = ? AND period = ? "
+        f"AND engagement_id = {LATEST_ENGAGEMENT}",
+        [name, check.period],
+    )
+    if not ran:
+        codes.add("not_reconciled")
+    waiting = _count(con, "SELECT count(*) FROM match_proposals WHERE status = 'proposed'")
+    if check.kind in MATCH_KINDS and waiting:
+        codes.add("match_proposals_waiting")
+    return codes
+
+
+def _bank_closing_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
+    return sorted(
+        c
+        for (c,) in con.execute(
+            "SELECT DISTINCT f.check_name FROM findings f "
+            "JOIN bank_statements b USING (file_id) "
+            "WHERE f.status IN ('open', 'accepted') AND b.account = ?",
+            [check.ledger],
+        ).fetchall()
+    )
+
+
+def _period_finding_codes(con: duckdb.DuckDBPyConnection, check: Check) -> set[str]:
+    return {
         c
         for (c,) in con.execute(
             "SELECT DISTINCT coalesce(f.code, f.check_name) FROM findings f JOIN source_files s "
@@ -297,34 +317,40 @@ def related_codes(con: duckdb.DuckDBPyConnection, check: Check) -> list[str]:
             [check.period],
         ).fetchall()
     }
+
+
+def _recon_markers(con: duckdb.DuckDBPyConnection, check: Check) -> set[str]:
+    codes: set[str] = set()
     if check.kind == "sector_revenue":
-        waiting = con.execute(
-            "SELECT count(*) FROM customers WHERE status <> 'confirmed'"
-        ).fetchone()
-        if waiting and waiting[0]:
+        if _count(con, "SELECT count(*) FROM customers WHERE status <> 'confirmed'"):
             codes.add("unconfirmed_sectors")
     if check.kind in ("core_revenue", "passthrough_revenue", *ANALYTICS_KINDS):
-        listed = con.execute(
-            f"SELECT count(*) FROM passthrough_customers WHERE engagement_id = {LATEST_ENGAGEMENT}"
-        ).fetchone()
-        if listed and not listed[0]:
+        listed = _count(
+            con,
+            f"SELECT count(*) FROM passthrough_customers WHERE engagement_id = {LATEST_ENGAGEMENT}",
+        )
+        if not listed:
             codes.add("no_passthrough_list")
     if check.kind in RECAST_KINDS:
-        ran = con.execute(
+        ran = _count(
+            con,
             "SELECT count(*) FROM recon_runs WHERE period = ? AND name = 'service_recast' "
             f"AND engagement_id = {LATEST_ENGAGEMENT}",
             [check.period],
-        ).fetchone()
-        if ran is not None and not ran[0]:
+        )
+        if not ran:
             codes.add("recast_not_run")
     if check.kind == "tb_vs_statements" or check.kind in RECON_KINDS:
-        run = con.execute(
-            "SELECT unmapped FROM recon_runs WHERE period = ? AND name = ? "
-            f"AND engagement_id = {LATEST_ENGAGEMENT} ORDER BY recon_id DESC LIMIT 1",
-            [check.period, check.kind],
-        ).fetchone()
-        if run is None:
-            codes.add("not_reconciled")
-        elif run[0]:
-            codes.add("unmapped_ledgers")
-    return sorted(codes)
+        codes |= _unmapped_marker(con, check)
+    return codes
+
+
+def _unmapped_marker(con: duckdb.DuckDBPyConnection, check: Check) -> set[str]:
+    run = con.execute(
+        "SELECT unmapped FROM recon_runs WHERE period = ? AND name = ? "
+        f"AND engagement_id = {LATEST_ENGAGEMENT} ORDER BY recon_id DESC LIMIT 1",
+        [check.period, check.kind],
+    ).fetchone()
+    if run is None:
+        return {"not_reconciled"}
+    return {"unmapped_ledgers"} if run[0] else set()

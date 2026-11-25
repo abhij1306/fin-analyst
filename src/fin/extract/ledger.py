@@ -69,19 +69,35 @@ def _header(sheet: Worksheet, profile: Profile) -> tuple[int, dict[int, str]] | 
     merged = _merged(sheet)
     width = min(sheet.max_column, 60)
     for top in range(1, min(sheet.max_row, HEADER_SEARCH_ROWS) + 1):
-        found: dict[int, str] = {}
-        for column in range(1, width + 1):
-            parts: list[str] = []
-            for row in range(top, top + profile.header_rows):
-                text = norm(merged.get((row, column), sheet.cell(row, column).value))
-                if text and (not parts or parts[-1] != text):
-                    parts.append(text)
-            field = profile.columns.get(" ".join(parts))
-            if field is not None and field not in found.values():
-                found[column] = field
+        found = _columns_at(sheet, merged, top, profile, width)
         if len(found) == len(set(profile.columns.values())):
             return top + profile.header_rows, found
     return None
+
+
+def _header_text(
+    sheet: Worksheet, merged: dict[tuple[int, int], Any], top: int, column: int, rows: int
+) -> str:
+    """The header text of a column over `rows` rows from `top`, repeated lines once."""
+    parts: list[str] = []
+    for row in range(top, top + rows):
+        text = norm(merged.get((row, column), sheet.cell(row, column).value))
+        if text and (not parts or parts[-1] != text):
+            parts.append(text)
+    return " ".join(parts)
+
+
+def _columns_at(
+    sheet: Worksheet, merged: dict[tuple[int, int], Any], top: int, profile: Profile, width: int
+) -> dict[int, str]:
+    """column -> field for the profile's headers found in the rows from `top`."""
+    found: dict[int, str] = {}
+    for column in range(1, width + 1):
+        text = _header_text(sheet, merged, top, column, profile.header_rows)
+        field = profile.columns.get(text)
+        if field is not None and field not in found.values():
+            found[column] = field
+    return found
 
 
 def parse_date(value: Any, profile: Profile) -> date | None:
@@ -108,22 +124,28 @@ def amount(value: Any, profile: Profile, where: str) -> Decimal:
 
 def _period(sheet: Worksheet, first_data_row: int, profile: Profile) -> tuple[date, date] | None:
     """The period a header line above the column header names ("1-Apr-2024 to 31-Mar-2025")."""
-    if profile.period is None:
+    pattern = profile.period
+    if pattern is None:
         return None
     for row in sheet.iter_rows(max_row=max(first_data_row - profile.header_rows - 1, 0)):
         for cell in row:
-            match = profile.period.search(str(cell.value)) if cell.value is not None else None
-            if match is None:
+            if cell.value is None:
                 continue
-            if "date" in profile.period.groupindex:  # a payroll snapshot: one date
-                day = parse_date(match.group("date"), profile)
-                if day is not None:
-                    return day, day
-                continue
-            start, end = (parse_date(match.group(g), profile) for g in ("start", "end"))
-            if start is not None and end is not None:
-                return start, end
+            match = pattern.search(str(cell.value))
+            found = _period_of(match, pattern, profile) if match is not None else None
+            if found is not None:
+                return found
     return None
+
+
+def _period_of(
+    match: re.Match[str], pattern: re.Pattern[str], profile: Profile
+) -> tuple[date, date] | None:
+    if "date" in pattern.groupindex:  # a payroll snapshot: one date
+        day = parse_date(match.group("date"), profile)
+        return (day, day) if day is not None else None
+    start, end = (parse_date(match.group(g), profile) for g in ("start", "end"))
+    return (start, end) if start is not None and end is not None else None
 
 
 def cell_text(value: Any) -> str:

@@ -39,7 +39,8 @@ def test_use_syncs_the_extra_downloads_models_and_records_it(
 
     assert result.exit_code == 0, result.output
     assert steps[0] == ["sync", "--frozen", "--extra", "liteparse"]
-    assert steps[1][:2] == ["-I", "-c"] and "ENGINES['liteparse']" in steps[1][2]
+    assert steps[1][:2] == ["-I", "-c"]
+    assert "ENGINES['liteparse']" in steps[1][2]
     assert load_config(data_root).pdf_parser == "liteparse"
     assert result.stdout.splitlines() == [
         "done     uv sync --extra liteparse",
@@ -84,7 +85,8 @@ def test_an_engine_this_mac_cannot_run_is_refused_before_anything_changes(
 
     assert result.exit_code != 0
     assert "E001: no Intel Macs" in result.output
-    assert steps == [] and load_config(data_root).pdf_parser == "none"
+    assert steps == []
+    assert load_config(data_root).pdf_parser == "none"
 
 
 def test_a_failing_sync_is_e005_and_config_is_unchanged(

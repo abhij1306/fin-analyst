@@ -162,10 +162,12 @@ def test_what_needs_a_query_fx_and_not_yet_due(root: Path) -> None:
     assert lines[("left_only", D(250000))]["needs_query"]
     assert lines[("right_only", D(-300000))]["needs_query"]
     not_due = lines[("right_only", D(-150000))]
-    assert not not_due["needs_query"] and not_due["note"] == "not yet due"
+    assert not not_due["needs_query"]
+    assert not_due["note"] == "not yet due"
     assert not lines[("difference", D(-5000))]["needs_query"]  # below the threshold
     fx = lines[("fx", D(3000))]
-    assert not fx["needs_query"] and "FX gain" in fx["note"]  # listed, never queried
+    assert not fx["needs_query"]  # listed, never queried
+    assert "FX gain" in fx["note"]
     assert [x["level"] for x in lines.values()].count("receipt") == 1
 
 
@@ -195,8 +197,9 @@ def test_collections_view(root: Path) -> None:
 def test_a_confirmed_proposal_is_applied_and_a_rejected_one_is_not(root: Path) -> None:
     ref = [BANK, "S", 6]
     bad = [{"bank": [[BANK, "S", 99]], "invoices": [[REG, "Sales", 7]], "reason": "x"}]
+    run_root = run(root)
     with pytest.raises(MatchProposalInvalid):
-        bank_proposals.propose(run(root), "acme", bad)
+        bank_proposals.propose(run_root, "acme", bad)
     ids = bank_proposals.propose(
         run(root), "acme",
         [{"bank": [ref], "invoices": [[REG, "Sales", 7]], "confidence": 0.5, "reason": "payer"}],
@@ -206,8 +209,9 @@ def test_a_confirmed_proposal_is_applied_and_a_rejected_one_is_not(root: Path) -
     )
     assert not [x for x in go(root)["lines"] if x["match_pass"] == "confirmed"]
     bank_proposals.decide(run(root), "acme", ids, "confirmed")
+    run_root = run(root)
     with pytest.raises(MatchChangeRefused):
-        bank_proposals.decide(run(root), "acme", ids, "rejected")
+        bank_proposals.decide(run_root, "acme", ids, "rejected")
     confirmed = [x for x in go(root)["lines"] if x["match_pass"] == "confirmed"]
     assert [(x["kind"], x["difference"]) for x in confirmed] == [("difference", D(-50000))]
 
@@ -216,13 +220,15 @@ def test_a_proposal_cannot_repeat_a_line_or_mix_currencies(root: Path) -> None:
     twice = [
         {"bank": [[BANK, "S", 6], [BANK, "S", 6]], "invoices": [[REG, "Sales", 7]], "reason": "x"}
     ]
+    run_root = run(root)
     with pytest.raises(MatchProposalInvalid, match="twice"):
-        bank_proposals.propose(run(root), "acme", twice)
+        bank_proposals.propose(run_root, "acme", twice)
     mixed = [
         {"bank": [[BANK, "S", 6]], "invoices": [[REG, "Sales", 6]], "reason": "x"}
     ]  # INR vs USD
+    run_root = run(root)
     with pytest.raises(MatchProposalInvalid, match="currencies"):
-        bank_proposals.propose(run(root), "acme", mixed)
+        bank_proposals.propose(run_root, "acme", mixed)
 
 
 def test_an_invoice_outside_the_engagement_periods_is_not_a_candidate(root: Path) -> None:
@@ -282,10 +288,12 @@ def test_g2_needs_the_reconciliation_and_its_queries(root: Path) -> None:
 def test_it_cannot_run_without_a_register(root: Path) -> None:
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute("UPDATE source_files SET status = 'superseded' WHERE kind = 'registers'")
+    run_root = run(root)
     with pytest.raises(ReconCannotRun, match="sales register"):
-        run_new(run(root), "acme", "bank_vs_invoices", None)
+        run_new(run_root, "acme", "bank_vs_invoices", None)
+    run_root = run(root)
     with pytest.raises(ReconCannotRun):
-        run_new(run(root), "acme", "bank_vs_tb", None)
+        run_new(run_root, "acme", "bank_vs_tb", None)
 
 
 def test_bank_vs_tb_compares_the_closing_balance_with_the_books(root: Path) -> None:

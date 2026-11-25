@@ -108,7 +108,7 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
             [eid],
         ).fetchall()
     ]
-    with_bank = sorted({p for p in receipt_period.values()})
+    with_bank = set(receipt_period.values())
     statement_periods = {
         p
         for (p,) in con.execute(
@@ -116,7 +116,7 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
             "AND engagement_id = ?",
             [eid],
         ).fetchall()
-    } | set(with_bank)
+    } | with_bank
     names = dict(
         con.execute(
             "SELECT file_id, file_name FROM source_files WHERE engagement_id = ?", [eid]
@@ -200,10 +200,7 @@ def _group_lines(data: Data, group: Group, booking: _Booking) -> list[dict[str, 
     mlines = [_mline("invoice", i, i.party, None) for i in group.invoices]
     booked_total, missing = ZERO, False
     for r in group.receipts:
-        value = r.amount if cur == "INR" else None
-        if cur != "INR" and diff == 0:
-            hit = booking.find(party or r.party, r.day, True)
-            value = hit.credit if hit else None
+        value = _receipt_value(r, cur, diff, party, booking)
         missing = missing or value is None
         booked_total += value or ZERO
         mlines.append(_mline("bank", r, r.party or party, value))
@@ -216,21 +213,42 @@ def _group_lines(data: Data, group: Group, booking: _Booking) -> list[dict[str, 
     )  # fmt: skip
     out = [base]
     if cur != "INR" and diff == 0:
-        if missing:
-            base["note"] = (
-                "no booked value: no Receipt voucher on the customer's ledger near the bank date"
-            )
-        elif booked_total != inv_inr:
-            out.append(
-                base | {
-                    "kind": "fx", "left_amount": booked_total, "right_amount": inv_inr,
-                    "difference": booked_total - inv_inr, "currency": "INR",
-                    "amount_inr": booked_total - inv_inr,
-                    "note": "FX " + ("gain" if booked_total > inv_inr else "loss")
-                    + ": receipt as booked less the invoice's Amount in Rs",
-                }
-            )  # fmt: skip
+        out += _fx_lines(base, missing, booked_total, inv_inr)
     return out
+
+
+def _receipt_value(
+    r: Receipt, cur: str, diff: Decimal, party: str | None, booking: _Booking
+) -> Decimal | None:
+    """A receipt's value in the group: rupees as is, a foreign one at its booked value."""
+    if cur == "INR":
+        return r.amount
+    if diff != 0:
+        return None
+    hit = booking.find(party or r.party, r.day, True)
+    return hit.credit if hit else None
+
+
+def _fx_lines(
+    base: dict[str, Any], missing: bool, booked_total: Decimal, inv_inr: Decimal
+) -> list[dict[str, Any]]:
+    """The fx line of an agreeing foreign group (none when it ties); a note when no booked value."""
+    if missing:
+        base["note"] = (
+            "no booked value: no Receipt voucher on the customer's ledger near the bank date"
+        )
+        return []
+    if booked_total == inv_inr:
+        return []
+    kind = "gain" if booked_total > inv_inr else "loss"
+    return [
+        base | {
+            "kind": "fx", "left_amount": booked_total, "right_amount": inv_inr,
+            "difference": booked_total - inv_inr, "currency": "INR",
+            "amount_inr": booked_total - inv_inr,
+            "note": f"FX {kind}: receipt as booked less the invoice's Amount in Rs",
+        }
+    ]  # fmt: skip
 
 
 def _rate(data: Data, cur: str, party: str | None, day: date) -> Decimal | None:
@@ -267,24 +285,47 @@ def build(data: Data, engagement: dict[str, Any]) -> dict[str, list[dict[str, An
         period = min(data.receipt_period[r.key] for r in group.receipts) if group.receipts else None
         if period in out:
             out[period] += _group_lines(data, group, booking)
+    _add_receipts(out, data, booking, matched_r)
+    _add_invoices(out, data, matched_i, due)
+    for lines in out.values():
+        for line in lines:
+            line["needs_query"] = _wants_query(line, threshold)
+    return out
+
+
+def _unmatched_value(data: Data, r: Receipt, booking: _Booking) -> Decimal | None:
+    """An unmatched receipt in rupees: as is, its booked value, or at the party's last rate."""
+    if r.currency == "INR":
+        return r.amount
+    hit = booking.find(r.party, r.day, True)
+    if hit:
+        return hit.credit
+    rate = _rate(data, r.currency, r.party, r.day)
+    return (r.amount * rate).quantize(CENT) if rate else None
+
+
+def _add_receipts(
+    out: dict[str, list[dict[str, Any]]], data: Data, booking: _Booking, matched: set[Key]
+) -> None:
     for r in data.receipts:
         period = data.receipt_period[r.key]
-        if r.key in matched_r or period not in out:
+        if r.key in matched or period not in out:
             continue
-        value = r.amount if r.currency == "INR" else None
-        if r.currency != "INR":
-            hit = booking.find(r.party, r.day, True)
-            rate = _rate(data, r.currency, r.party, r.day)
-            value = hit.credit if hit else (r.amount * rate).quantize(CENT) if rate else None
+        value = _unmatched_value(data, r, booking)
         out[period].append(
             _line("receipt", f"{r.key[0]}:{r.key[1]}!{r.key[2]} {r.day}", "left_only",
                   r.amount, None,
                   ledger=r.party, left_source=_text(data, [r.key]), currency=r.currency,
                   amount_inr=value, match_lines=[_mline("bank", r, r.party, value)])
         )  # fmt: skip
+
+
+def _add_invoices(
+    out: dict[str, list[dict[str, Any]]], data: Data, matched: set[Key], due: int
+) -> None:
     for i in data.invoices:
         period = _period_of(i.day, data.periods)
-        if i.key in matched_i or period is None:
+        if i.key in matched or period is None:
             continue
         overdue = (data.periods[period][1] - i.day).days > due
         out[period].append(
@@ -293,7 +334,3 @@ def build(data: Data, engagement: dict[str, Any]) -> dict[str, list[dict[str, An
                   note=None if overdue else "not yet due",
                   match_lines=[_mline("invoice", i, i.party, None)])
         )  # fmt: skip
-    for lines in out.values():
-        for line in lines:
-            line["needs_query"] = _wants_query(line, threshold)
-    return out

@@ -73,6 +73,25 @@ def _is_skipped(r: SheetRow, profile: Profile) -> bool:
     return any(norm(v) in profile.skip for v in r.cells.values() if v is not None)
 
 
+def _field_values(cells: dict[str, Any], profile: Profile, where: str) -> dict[str, Any]:
+    """The cells other than the invoice date and amount, as typed values. E813 for a date or number
+    that does not parse."""
+    values: dict[str, Any] = {}
+    for field, value in cells.items():
+        if field in DATES:
+            values[field] = parse_date(value, profile)
+            if _text(value) is not None and values[field] is None:
+                raise RegisterLineInvalid(
+                    f"{where}: {field.replace('_', ' ')} {value!r} is not a date in the profile's "
+                    f"date format ({profile.date_format}, profile {profile.name})"
+                )
+        elif field in NUMBERS:
+            values[field] = parse_number(value, where)[1] if _text(value) is not None else None
+        elif field not in ("invoice_date", "amount_inr"):
+            values[field] = _text(value)
+    return values
+
+
 def _line(kind: str, r: SheetRow, profile: Profile, file_name: str) -> Line:
     where = f"{file_name} {r.sheet}!{r.row}"
     cells = r.cells
@@ -91,19 +110,7 @@ def _line(kind: str, r: SheetRow, profile: Profile, file_name: str) -> Line:
         )
     if _text(cells.get("amount_inr")) is None:
         raise RegisterLineInvalid(f"{where}: no Amount in Rs")
-    values: dict[str, Any] = {}
-    for field, value in cells.items():
-        if field in DATES:
-            values[field] = parse_date(value, profile)
-            if _text(value) is not None and values[field] is None:
-                raise RegisterLineInvalid(
-                    f"{where}: {field.replace('_', ' ')} {value!r} is not a date in the profile's "
-                    f"date format ({profile.date_format}, profile {profile.name})"
-                )
-        elif field in NUMBERS:
-            values[field] = parse_number(value, where)[1] if _text(value) is not None else None
-        elif field not in ("invoice_date", "amount_inr"):
-            values[field] = _text(value)
+    values = _field_values(cells, profile, where)
     return Line(
         kind, r.sheet, r.row, invoice_date, amount(cells["amount_inr"], profile, where), values
     )

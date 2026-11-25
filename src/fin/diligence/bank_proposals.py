@@ -48,6 +48,52 @@ def _refs(number: int, proposal: dict[str, Any], field: str) -> list[list[Any]]:
     return refs
 
 
+def _check_lines(
+    con: duckdb.DuckDBPyConnection,
+    eid: int,
+    number: int,
+    bank: list[list[Any]],
+    invoices: list[list[Any]],
+) -> None:
+    """E854 when the lines are in different currencies or one is not a loaded line of its kind."""
+    wanted = [(ref, _BANK, "a loaded bank credit line") for ref in bank]
+    wanted += [(ref, _INVOICE, "a loaded sales invoice line") for ref in invoices]
+    hits = [(ref, con.execute(sql, [eid, *ref]).fetchone(), what) for ref, sql, what in wanted]
+    currencies = {found[1] for _, found, _ in hits if found}
+    if len(currencies) > 1:
+        raise MatchProposalInvalid(
+            f"proposal {number}: the lines are in different currencies "
+            f"({', '.join(sorted(currencies))}); propose one currency at a time"
+        )
+    for ref, found, what in hits:
+        if found is None:
+            raise MatchProposalInvalid(f"proposal {number}: {ref} is not {what}")
+
+
+def _confidence(number: int, proposal: dict[str, Any]) -> Any:
+    confidence = proposal.get("confidence")
+    if confidence is not None and (
+        isinstance(confidence, bool) or not isinstance(confidence, int | float)
+        or not 0 <= confidence <= 1
+    ):  # fmt: skip
+        raise MatchProposalInvalid(f"proposal {number}: confidence must be from 0 to 1")
+    return confidence
+
+
+def _check_proposal(
+    con: duckdb.DuckDBPyConnection, eid: int, number: int, proposal: Any
+) -> tuple[list[list[Any]], list[list[Any]], Any, str]:
+    """(bank refs, invoice refs, confidence, reason) of a valid proposal; E854 otherwise."""
+    reason = proposal.get("reason") if isinstance(proposal, dict) else None
+    if not isinstance(reason, str) or not reason:
+        raise MatchProposalInvalid(f"proposal {number}: expected an object with a reason")
+    bank, invoices = _refs(number, proposal, "bank"), _refs(number, proposal, "invoices")
+    if any(len({tuple(r) for r in refs}) != len(refs) for refs in (bank, invoices)):
+        raise MatchProposalInvalid(f"proposal {number}: a line is named twice")
+    _check_lines(con, eid, number, bank, invoices)
+    return bank, invoices, _confidence(number, proposal), reason
+
+
 def propose(run: Run, company: str, proposals: Any) -> list[int]:
     """Store the proposals (all or nothing); returns their ids. E854 for a bad one."""
     if not isinstance(proposals, list) or not proposals:
@@ -55,42 +101,7 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
         eid = engagement["engagement_id"]
-        rows = []
-        for n, p in enumerate(proposals, start=1):
-            if not isinstance(p, dict) or not isinstance(p.get("reason"), str) or not p["reason"]:
-                raise MatchProposalInvalid(f"proposal {n}: expected an object with a reason")
-            bank, invoices = _refs(n, p, "bank"), _refs(n, p, "invoices")
-            if any(len({tuple(r) for r in refs}) != len(refs) for refs in (bank, invoices)):
-                raise MatchProposalInvalid(f"proposal {n}: a line is named twice")
-            currencies = set()
-            for ref in bank:
-                found = con.execute(_BANK, [eid, *ref]).fetchone()
-                currencies |= {found[1]} if found else set()
-            for ref in invoices:
-                found = con.execute(_INVOICE, [eid, *ref]).fetchone()
-                currencies |= {found[1]} if found else set()
-            if len(currencies) > 1:
-                raise MatchProposalInvalid(
-                    f"proposal {n}: the lines are in different currencies "
-                    f"({', '.join(sorted(currencies))}); propose one currency at a time"
-                )
-            for ref in bank:
-                if con.execute(_BANK, [eid, *ref]).fetchone() is None:
-                    raise MatchProposalInvalid(
-                        f"proposal {n}: {ref} is not a loaded bank credit line"
-                    )
-            for ref in invoices:
-                if con.execute(_INVOICE, [eid, *ref]).fetchone() is None:
-                    raise MatchProposalInvalid(
-                        f"proposal {n}: {ref} is not a loaded sales invoice line"
-                    )
-            confidence = p.get("confidence")
-            if confidence is not None and (
-                isinstance(confidence, bool) or not isinstance(confidence, int | float)
-                or not 0 <= confidence <= 1
-            ):  # fmt: skip
-                raise MatchProposalInvalid(f"proposal {n}: confidence must be from 0 to 1")
-            rows.append((bank, invoices, confidence, p["reason"]))
+        rows = [_check_proposal(con, eid, n, p) for n, p in enumerate(proposals, start=1)]
         ids = []
         for bank, invoices, confidence, reason in rows:
             new = con.execute(

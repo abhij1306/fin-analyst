@@ -60,7 +60,8 @@ def test_init_lists_every_working_capital_line_with_its_source(root: Path) -> No
         rows = [r for r in csv.DictReader(handle) if r["kind"].startswith("nwc_")]
     year_end = [r for r in rows if r["kind"] == "nwc_year_end"]
     monthly = [r for r in rows if r["kind"] == "nwc_monthly"]
-    assert len(year_end) == 3 * 6 and len(monthly) == 18 * 6
+    assert len(year_end) == 3 * 6
+    assert len(monthly) == 18 * 6
     assert {r["source"] for r in year_end} == {"tb24.xlsx", "tb25.xlsx", "tb-stub.xlsx"}
     assert all(
         "lv.xlsx on the closing of tb24.xlsx" == r["source"]

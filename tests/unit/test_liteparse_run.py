@@ -56,8 +56,9 @@ def test_a_scope_word_over_two_columns_stays_where_liteparse_put_it() -> None:
 
     (table,) = found[2].tables
     assert [c.text for c in table.grid[0]] == ["", "", "Standalone", "", "Consolidated"]
+    ctx2 = context(2, results=True)
     with pytest.raises(PeriodsNotDetected, match=r"page 2 \(LiteParse\): two columns hold"):
-        read_tables(context(2, results=True), [table], 4)
+        read_tables(ctx2, [table], 4)
 
 
 def box(left: float, right: float) -> tuple[float, float, float, float]:
@@ -108,7 +109,8 @@ def test_a_page_whose_table_cannot_be_squared_is_unread_with_the_reason() -> Non
     found = liteparse_run.read_pages([page], [9])
 
     assert found[9].tables == []
-    assert found[9].error is not None and found[9].error.code == "E204"
+    assert found[9].error is not None
+    assert found[9].error.code == "E204"
     assert found[9].error.message.startswith("page 9: table cell '2024' has no position")
 
 

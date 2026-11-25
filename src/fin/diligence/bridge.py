@@ -113,11 +113,13 @@ def _bridge_block(
         note = missing(summary, ("reported_ebitda",)) if step["amount"] is None else ""
         out.append(_line(label, step["amount"], unit, note))
     if summary["accepted_revenue_effect"]:  # a margin on adjusted revenue differs from the reported
-        out.append(_line("Revenue", summary["revenue"], unit))
-        out.append(_line("Adjusted revenue", summary["adjusted_revenue"], unit))
-        out.append(_ratio("EBITDA margin, reported", summary["reported_ebitda_margin"], ""))
-        out.append(
-            _ratio("EBITDA margin, on adjusted revenue", summary["adjusted_ebitda_margin"], "")
+        out.extend(
+            [
+                _line("Revenue", summary["revenue"], unit),
+                _line("Adjusted revenue", summary["adjusted_revenue"], unit),
+                _ratio("EBITDA margin, reported", summary["reported_ebitda_margin"], ""),
+                _ratio("EBITDA margin, on adjusted revenue", summary["adjusted_ebitda_margin"], ""),
+            ]
         )
     if summary["proposed_count"]:
         out.append(

@@ -16,6 +16,7 @@ Accepting or rejecting needs gate G2 approved (fin.diligence.gates): E801 otherw
 Every adjustment proposed or decided is appended to the audit table `diligence_events`.
 """
 
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -147,6 +148,18 @@ def _check_reclassification(
         )
 
 
+@dataclass(frozen=True)
+class Evidence:
+    """What backs an adjustment: a query, a finding and/or a source reference."""
+
+    query_id: int | None = None
+    finding_id: int | None = None
+    source_ref: str | None = None
+
+
+NO_EVIDENCE = Evidence()
+
+
 def propose(
     run: Run,
     company: str,
@@ -161,9 +174,7 @@ def propose(
     account: str | None = None,
     from_account: str | None = None,
     moved_amount: Decimal | None = None,
-    query_id: int | None = None,
-    finding_id: int | None = None,
-    source_ref: str | None = None,
+    evidence: Evidence = NO_EVIDENCE,
 ) -> dict[str, Any]:
     """Propose an adjustment. E804 without evidence, for a category not in config.toml, a period
     not in the engagement, an account not in the dictionary, effects that do not add up
@@ -185,9 +196,7 @@ def propose(
             account=account,
             from_account=from_account,
             moved_amount=moved_amount,
-            query_id=query_id,
-            finding_id=finding_id,
-            source_ref=source_ref,
+            evidence=evidence,
         )
 
 
@@ -205,12 +214,11 @@ def propose_in(
     account: str | None = None,
     from_account: str | None = None,
     moved_amount: Decimal | None = None,
-    query_id: int | None = None,
-    finding_id: int | None = None,
-    source_ref: str | None = None,
+    evidence: Evidence = NO_EVIDENCE,
 ) -> dict[str, Any]:
     """`propose` in the caller's transaction: the checks and the insert (`effects` as
     `resolve_effects` gives them)."""
+    query_id, finding_id, source_ref = evidence.query_id, evidence.finding_id, evidence.source_ref
     if query_id is None and finding_id is None and not source_ref:
         raise AdjustmentInvalid(
             "an adjustment needs evidence: --query, --finding or --source; nothing proposed"

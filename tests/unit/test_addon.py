@@ -136,7 +136,8 @@ def test_a_page_the_engine_could_not_read_stays_unread_with_its_reason(tmp_path:
 
     found = addon.read_skipped(engine(convert), path, skipped, 4, tmp_path)
 
-    assert found.values == [] and found.warnings == []
+    assert found.values == []
+    assert found.warnings == []
     assert [u.as_dict() for u in found.unread] == [
         {
             "page": 1,

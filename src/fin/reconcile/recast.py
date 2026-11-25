@@ -119,6 +119,106 @@ def contract_note(con: duckdb.DuckDBPyConnection, engagement_id: int, sale: Sale
     )
 
 
+@dataclass
+class _Tally:
+    """What the register's lines add up to inside the period's months."""
+
+    inside: set[str]
+    recast: dict[str, Decimal] = field(default_factory=dict)
+    booked: dict[str, Decimal] = field(default_factory=dict)
+    counts: dict[str, list[int]] = field(default_factory=dict)  # month -> [recast, booked lines]
+    schedule: dict[str, list[Decimal]] = field(default_factory=dict)  # invoice -> [recast, booked]
+    notes: dict[str, set[str]] = field(default_factory=dict)
+    undated: dict[str, Sale] = field(default_factory=dict)
+
+
+def _add_undated(tally: _Tally, number: str, row: tuple[Any, ...]) -> None:
+    """Add a line with no usable service dates to its invoice's undated sale."""
+    _, file_name, sheet, row_no, _, invoice_day, start, end, amount, customer = row
+    sale = tally.undated.setdefault(number, Sale(number, customer))
+    sale.amount += amount
+    sale.refs.append((file_name, sheet, row_no))
+    sale.first = min(sale.first or invoice_day, invoice_day)
+    sale.last = max(sale.last or invoice_day, invoice_day)
+    sale.note = "service end is before its start" if start and end else "no service dates"
+
+
+def _tally_line(tally: _Tally, row: tuple[Any, ...]) -> None:
+    """Add one register line to the booked amounts, the recast and the schedule."""
+    number = str(row[4]).strip()
+    invoice_day, start, end, amount = row[5], row[6], row[7], row[8]
+    month = month_of(invoice_day)
+    ok = usable(start, end)
+    if month in tally.inside:
+        if not ok:
+            _add_undated(tally, number, row)
+        tally.booked[month] = tally.booked.get(month, ZERO) + amount
+        tally.counts.setdefault(month, [0, 0])[1] += 1
+        tally.schedule.setdefault(number, [ZERO, ZERO])[1] += amount
+    shares = spread(amount, start, end) if ok else {month: amount}
+    for key, share in shares.items():
+        if key not in tally.inside:
+            continue
+        tally.recast[key] = tally.recast.get(key, ZERO) + share
+        tally.counts.setdefault(key, [0, 0])[0] += 1
+        tally.schedule.setdefault(number, [ZERO, ZERO])[0] += share
+        if ok:
+            tally.notes.setdefault(number, set()).add(f"service {start} to {end}")
+
+
+def _month_lines(
+    months: list[str], tally: _Tally, sources: tuple[Any, Any]
+) -> list[dict[str, Any]]:
+    return [
+        make_line(
+            "month",
+            month,
+            tally.recast.get(month, ZERO),
+            tally.booked.get(month, ZERO),
+            count_text(*sources, tally.counts[month][0]),
+            count_text(*sources, tally.counts[month][1]),
+        )
+        for month in months
+        if month in tally.recast or month in tally.booked
+    ]
+
+
+def _schedule_lines(tally: _Tally) -> list[dict[str, Any]]:
+    lines = []
+    for number in sorted(tally.schedule):
+        left, right = tally.schedule[number]
+        if left != right:
+            note = "; ".join(sorted(tally.notes.get(number, ()))) or None
+            lines.append(make_line("schedule", number, left, right, None, None, note=note))
+    return lines
+
+
+def _undated_lines(
+    con: duckdb.DuckDBPyConnection, engagement_id: int, tally: _Tally
+) -> list[dict[str, Any]]:
+    lines = []
+    for number in sorted(tally.undated):
+        sale = tally.undated[number]
+        text = f"{sale.note}: recognised on the invoice date ({sale.first})"
+        if contract := contract_note(con, engagement_id, sale):
+            text += f"; {contract}"
+        if sale.customer:
+            text += f"; customer {sale.customer}"
+        lines.append(
+            make_line(
+                "invoice",
+                number,
+                sale.amount,
+                None,
+                rows_text(sale.refs),
+                None,
+                kind="undated",
+                note=text,
+            )  # fmt: skip
+        )
+    return lines
+
+
 def compute(
     con: duckdb.DuckDBPyConnection, company: str, engagement: dict[str, Any], period: str
 ) -> Computed:
@@ -137,89 +237,23 @@ def compute(
             "--kind registers`); nothing recorded"
         )
     months = months_of(period, engagement.get("fiscal_start_month", 4))
-    inside = set(months)
-    recast: dict[str, Decimal] = {}
-    booked: dict[str, Decimal] = {}
-    counts: dict[str, list[int]] = {}  # month -> [recast lines, booked lines]
-    schedule: dict[str, list[Decimal]] = {}  # invoice -> [recast, booked]
-    notes: dict[str, set[str]] = {}
-    undated: dict[str, Sale] = {}
-    for _, file_name, sheet, row, number, invoice_day, start, end, amount, customer in rows:
-        number = str(number).strip()
-        month = month_of(invoice_day)
-        shares = spread(amount, start, end) if usable(start, end) else {month: amount}
-        if not usable(start, end) and month in inside:
-            sale = undated.setdefault(number, Sale(number, customer))
-            sale.amount += amount
-            sale.refs.append((file_name, sheet, row))
-            sale.first = min(sale.first or invoice_day, invoice_day)
-            sale.last = max(sale.last or invoice_day, invoice_day)
-            sale.note = "service end is before its start" if start and end else "no service dates"
-        if month in inside:
-            booked[month] = booked.get(month, ZERO) + amount
-            counts.setdefault(month, [0, 0])[1] += 1
-            schedule.setdefault(number, [ZERO, ZERO])[1] += amount
-        for key, share in shares.items():
-            if key in inside:
-                recast[key] = recast.get(key, ZERO) + share
-                counts.setdefault(key, [0, 0])[0] += 1
-                schedule.setdefault(number, [ZERO, ZERO])[0] += share
-                if usable(start, end):
-                    notes.setdefault(number, set()).add(f"service {start} to {end}")
+    tally = _Tally(set(months))
+    for row in rows:
+        _tally_line(tally, row)
     first_file, sources = min(r[0] for r in rows), (rows[0][1], rows[0][2])
     lines = [
         make_line(
             "period",
             period,
-            sum(recast.values(), ZERO),
-            sum(booked.values(), ZERO),
+            sum(tally.recast.values(), ZERO),
+            sum(tally.booked.values(), ZERO),
             "recast of the register's service periods",
-            count_text(*sources, sum(c[1] for c in counts.values())),
+            count_text(*sources, sum(c[1] for c in tally.counts.values())),
         )
     ]
-    for month in months:
-        if month in recast or month in booked:
-            lines.append(
-                make_line(
-                    "month",
-                    month,
-                    recast.get(month, ZERO),
-                    booked.get(month, ZERO),
-                    count_text(*sources, counts[month][0]),
-                    count_text(*sources, counts[month][1]),
-                )
-            )
-    for number in sorted(schedule):
-        left, right = schedule[number]
-        if left != right:
-            lines.append(
-                make_line(
-                    "schedule",
-                    number,
-                    left,
-                    right,
-                    None,
-                    None,
-                    note="; ".join(sorted(notes.get(number, ()))) or None,
-                )
-            )
-    for number in sorted(undated):
-        sale = undated[number]
-        text = f"{sale.note}: recognised on the invoice date ({sale.first})"
-        if contract := contract_note(con, engagement_id, sale):
-            text += f"; {contract}"
-        lines.append(
-            make_line(
-                "invoice",
-                number,
-                sale.amount,
-                None,
-                rows_text(sale.refs),
-                None,
-                kind="undated",
-                note=text + (f"; customer {sale.customer}" if sale.customer else ""),
-            )
-        )
+    lines += _month_lines(months, tally, sources)
+    lines += _schedule_lines(tally)
+    lines += _undated_lines(con, engagement_id, tally)
     return Computed(lines, first_file, None)
 
 

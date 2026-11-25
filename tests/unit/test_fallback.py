@@ -17,7 +17,7 @@ def test_each_parser_name_but_none_has_its_engine() -> None:
     assert fallback.engine("docling") is docling_run
     assert fallback.engine("liteparse") is liteparse_run
     assert fallback.engine("llamaparse") is llamaparse_run
-    assert ["none", *fallback.ENGINES] == list(PARSERS)
+    assert list(PARSERS) == ["none", *fallback.ENGINES]
     assert {name: e.LABEL for name, e in fallback.ENGINES.items()} == ADDON_LABELS
 
 
