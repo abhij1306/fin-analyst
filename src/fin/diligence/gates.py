@@ -50,6 +50,7 @@ from fin.db.rows import fetch_dicts
 from fin.diligence import bank_checks, payroll, tb_checks
 from fin.diligence.engagement import company_database, require_open
 from fin.map.review import open_items, read_pending
+from fin.reconcile import checks as reconcile_checks
 
 Line = tuple[bool, str]  # (passes, what it says)
 
@@ -184,6 +185,14 @@ def _queries_inputs(ctx: Context) -> dict[str, Any]:
     }
 
 
+def _reconciliation_checklist(ctx: Context) -> list[Line]:
+    return _queries_checklist(ctx) + reconcile_checks.checklist(ctx)
+
+
+def _reconciliation_inputs(ctx: Context) -> dict[str, Any]:
+    return {**_queries_inputs(ctx), **reconcile_checks.inputs(ctx)}
+
+
 # G4 Adjustments
 
 
@@ -229,7 +238,13 @@ def _adjustments_inputs(ctx: Context) -> dict[str, Any]:
 
 GATES = (
     Gate("G1", "Ingestion", "approving G2", _data_checklist, _data_inputs),
-    Gate("G2", "Reconciliation", "`fin adjust accept|reject`", _queries_checklist, _queries_inputs),
+    Gate(
+        "G2",
+        "Reconciliation",
+        "`fin adjust accept|reject`",
+        _reconciliation_checklist,
+        _reconciliation_inputs,
+    ),
     Gate(
         "G4",
         "Adjustments",

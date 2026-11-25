@@ -242,7 +242,11 @@ CREATE TABLE ledger_accounts (
     changed_at TIMESTAMP NOT NULL
 );
 
--- Reconciliations (fin.diligence.recon): one row per run of a named comparison for one period. tb_vs_statements
+-- Reconciliations (fin.diligence.recon, fin.reconcile): one row per run of a named comparison for one period.
+-- D4 adds sales_register_vs_gl and purchase_register_vs_gl (register lines vs the Ledger Vouchers entries of the
+-- ledgers confirmed to revenue / purchases: left_file_id the first register file, right_file_id the Ledger Vouchers),
+-- gl_vs_tb (Ledger Vouchers movements vs the trial balance: left_file_id the Ledger Vouchers, right_file_id the trial
+-- balance) and payroll_vs_gl (left_file_id the payroll file, right_file_id the Ledger Vouchers). tb_vs_statements
 -- compares a period's trial balance (left_file_id), rolled up by confirmed ledger mapping, with the audited
 -- standalone statement figures (current_facts). input_hash: sha256 of what it compared (the trial balance, the
 -- ledger mappings, the figures, the threshold), so gate G1 can tell when it must run again. unmapped: trial balance
@@ -251,10 +255,12 @@ CREATE SEQUENCE recon_runs_seq START 1;
 CREATE TABLE recon_runs (
     recon_id INTEGER PRIMARY KEY DEFAULT nextval('recon_runs_seq'),
     engagement_id INTEGER NOT NULL,
-    name VARCHAR NOT NULL CHECK (name IN ('tb_vs_statements')),
+    name VARCHAR NOT NULL CHECK (name IN ('tb_vs_statements', 'sales_register_vs_gl',
+        'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl')),
     period VARCHAR NOT NULL,
     scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
     left_file_id INTEGER NOT NULL,
+    right_file_id INTEGER,
     threshold DECIMAL(20, 2) NOT NULL,
     input_hash VARCHAR NOT NULL,
     unmapped INTEGER NOT NULL,
@@ -267,15 +273,32 @@ CREATE TABLE recon_runs (
 --   difference  both sides have a figure and they differ;
 --   left_only   the trial balance has a balance for the account, the statements no figure;
 --   right_only  the statements have a figure, no confirmed ledger rolls up to the account;
---   unmapped    a ledger not confirmed to an account (ledger; left_amount its debit - credit); flagged, not guessed.
--- difference = left_amount - right_amount (a missing side counts as 0). A line whose difference is at or above the
--- threshold gets a draft accountant query (query_id) once every ledger is mapped; one below it is listed only.
--- Differences are queried, never fixed. sources: file + sheet!row (trial balance) and file + sheet!cell or page.
+--   unmapped    a ledger not confirmed to an account (ledger; left_amount its debit - credit); flagged, not guessed;
+--   fx          (registers) a foreign-currency invoice on both sides whose rupee amounts differ only by the ledger's
+--               conversion rate (within the rate band): shown as FX gain or loss in note, listed, never queried, never
+--               plugged;
+--   not_reconciled  (gl_vs_tb) a balance sheet ledger with no prior trial balance to start from: listed.
+-- difference = left_amount - right_amount (a missing side counts as 0). tb_vs_statements: a line at or above the
+-- threshold gets a draft accountant query (query_id) once every ledger is mapped; one below it is listed only. The D4
+-- reconciliations draft nothing: needs_query marks the lines Claude groups into issues (`fin query raise --items`:
+-- query_id, and query_items), a difference, left_only or right_only line at a detail level (invoice, ledger, payroll)
+-- at or above the threshold; the month and party lines are roll-ups, listed. Differences are queried, never fixed.
+-- sources: file + sheet!row (trial balance) and file + sheet!cell or page.
+-- item_id: a number for the line across runs (`fin query raise --items`). level and key: what a D4 line compares
+-- ('month' 2024-05, 'party' CUST-0001, 'invoice' INV-1001, 'ledger' a ledger name, 'payroll' the period); note: how it
+-- was matched, or the fx rates.
+CREATE SEQUENCE recon_items_seq START 1;
 CREATE TABLE recon_items (
     recon_id INTEGER NOT NULL,
     item_no INTEGER NOT NULL,
+    item_id INTEGER NOT NULL UNIQUE DEFAULT nextval('recon_items_seq'),
     kind VARCHAR NOT NULL
-        CHECK (kind IN ('matched', 'difference', 'left_only', 'right_only', 'unmapped')),
+        CHECK (kind IN ('matched', 'difference', 'left_only', 'right_only', 'unmapped', 'fx',
+            'not_reconciled')),
+    level VARCHAR,
+    key VARCHAR,
+    needs_query BOOLEAN NOT NULL DEFAULT FALSE,
+    note VARCHAR,
     account VARCHAR,
     ledger VARCHAR,
     left_amount DECIMAL(20, 2),
@@ -285,6 +308,14 @@ CREATE TABLE recon_items (
     right_source VARCHAR,
     query_id INTEGER,
     PRIMARY KEY (recon_id, item_no)
+);
+
+-- The lines an issue (an accountant query raised with `fin query raise --items`) groups: the query and each
+-- recon_items.item_id in it. The count and value of each kind of difference in a query come from here.
+CREATE TABLE query_items (
+    query_id INTEGER NOT NULL,
+    item_id INTEGER NOT NULL,
+    PRIMARY KEY (query_id, item_id)
 );
 
 -- The current-year stub's figures: its loaded trial balance rolled up through the confirmed ledger mappings to

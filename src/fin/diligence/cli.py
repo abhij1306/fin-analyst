@@ -15,6 +15,7 @@ from fin.config import SCOPES
 from fin.diligence import adjustments, bridge, engagement, gates, queries
 from fin.diligence.stub import STUB
 from fin.paths import COMPANY_NAME
+from fin.reconcile import items as recon_items
 
 engagement_app = typer.Typer(
     no_args_is_help=True, help="Diligence engagement: open one, show where it stands, close it."
@@ -264,20 +265,48 @@ def query_raise(
             help="Without --finding: where the figures are (file + sheet!cell or page).",
         ),
     ] = None,
+    items: Annotated[
+        str | None,
+        typer.Option(
+            "--items",
+            metavar="IDS",
+            help="One issue for these reconciliation lines (item ids from `fin reconcile`, "
+            "e.g. 12,13,14; one period, at or above the threshold).",
+        ),
+    ] = None,
 ) -> None:
     """Raise a draft query: from a finding (its period, scope, difference and sources; the finding
-    is not changed), or with --amount, --period and --source."""
+    is not changed), from reconciliation lines (--items: one issue, many lines), or with --amount,
+    --period and --source."""
 
     # Usage errors, before the run starts (like the option callbacks).
-    if finding is not None and any(value is not None for value in (amount, period, scope, source)):
+    item_ids: list[int] = []
+    if items is not None:
+        if any(value is not None for value in (finding, amount, period, scope, source)):
+            raise typer.BadParameter(
+                "--items takes the period, amount and sources from the lines; do not give "
+                "--finding, --amount, --period, --scope or --source too"
+            )
+        try:
+            item_ids = recon_items.parse_ids(items)
+        except ValueError:
+            raise typer.BadParameter("give item ids separated by commas, e.g. 12,13,14") from None
+    elif finding is not None and any(
+        value is not None for value in (amount, period, scope, source)
+    ):
         raise typer.BadParameter(
             "--finding takes the amount, period, scope and sources from the finding; "
             "do not give them too"
         )
-    if finding is None and (amount is None or period is None or source is None):
-        raise typer.BadParameter("give --finding, or --amount, --period and --source")
+    if items is None and finding is None and (amount is None or period is None or source is None):
+        raise typer.BadParameter("give --finding, --items, or --amount, --period and --source")
 
     def body(run: Run) -> None:
+        if items is not None:
+            row, summary = recon_items.raise_from_items(run, company, item_ids, question)
+            typer.echo(queries.format_query(row))
+            typer.echo(f"    lines: {len(item_ids)} ({summary})")
+            return
         if finding is not None:
             row = queries.raise_from_finding(run, company, finding, question)
         else:
@@ -301,6 +330,7 @@ def query_raise(
         "period": period,
         "scope": scope,
         "source": source,
+        "items": items,
     }
     execute("query raise", args, body)
 

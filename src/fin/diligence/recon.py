@@ -75,7 +75,9 @@ def _ledgers(con: duckdb.DuckDBPyConnection, file_id: int) -> list[Ledger]:
     return [Ledger(*row) for row in rows]
 
 
-def _figures(con: duckdb.DuckDBPyConnection, period: str) -> list[tuple[str, Decimal, str]]:
+def statement_figures(
+    con: duckdb.DuckDBPyConnection, period: str
+) -> list[tuple[str, Decimal, str]]:
     """(account, value, source) of the period's standalone statement figures."""
     return con.execute(
         "SELECT c.account, c.value, string_agg(d.file_name || ' ' || coalesce(r.sheet || '!' || "
@@ -98,7 +100,7 @@ def input_hash(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], perio
     value = {
         "file": tb[0],
         "ledgers": [[x.ledger, x.net, x.account] for x in _ledgers(con, tb[0])],
-        "figures": [[a, v] for a, v, _ in _figures(con, period)],
+        "figures": [[a, v] for a, v, _ in statement_figures(con, period)],
         "threshold": engagement["query_threshold"],
     }
     text = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
@@ -247,7 +249,7 @@ def _reconcile(
             f"{company} {period}: no loaded trial balance (`fin ingest {company} <file> --kind "
             "trial_balance`); nothing recorded"
         )
-    figures = _figures(con, period)
+    figures = statement_figures(con, period)
     if not figures:
         raise ReconNotPossible(
             f"{company} {period}: no audited standalone statement figures to compare with; "
@@ -257,6 +259,12 @@ def _reconcile(
     unmapped = [line["ledger"] for line in lines if line["kind"] == "unmapped"]
     drafted, kept = [], []
     for line in lines:
+        # a line `fin query raise --items` may group (none while a ledger is unmapped)
+        line["needs_query"] = (
+            not unmapped
+            and line["kind"] not in ("matched", "unmapped")
+            and abs(line["difference"]) >= threshold
+        )
         line["query_id"] = None
         if unmapped or line["kind"] in ("matched", "unmapped"):
             continue
@@ -298,6 +306,10 @@ def _reconcile(
             f"VALUES (?, ?, {', '.join('?' for _ in columns)})",
             [new[0], number, *line.values()],
         )
+    for item_no, item_id in con.execute(
+        "SELECT item_no, item_id FROM recon_items WHERE recon_id = ?", [new[0]]
+    ).fetchall():
+        lines[item_no - 1]["item_id"] = item_id
     return {
         "recon_id": new[0],
         "name": NAME,
@@ -385,7 +397,8 @@ def format_result(result: dict[str, Any]) -> str:
         else:
             mark = "no query yet"
         out.append(
-            f"  {line['kind']} {line['account']}: trial balance {rupees(line['left_amount'])}, "
+            f"  [item #{line['item_id']}] {line['kind']} {line['account']}: trial balance "
+            f"{rupees(line['left_amount'])}, "
             f"statements {rupees(line['right_amount'])}, difference {rupees(line['difference'])}"
             f" ({mark})"
         )
