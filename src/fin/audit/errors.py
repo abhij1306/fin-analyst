@@ -614,3 +614,38 @@ class SampleUnknown(FinError):
     engagement. Nothing changed."""
 
     code = "E903"
+
+
+# E920-E929: FDD F3, provisions and cut-off (fin.diligence.provisions, fin.reconcile.cutoff).
+
+
+class ProvisionLedgerInvalid(FinError):
+    """E920. `fin provisions propose`: the file is not a JSON list of {ledger, kind, reason}, a
+    ledger is not in a loaded trial balance, the kind is not doubtful_debts or gratuity, the reason
+    is empty, or the ledger is already confirmed (only the user changes it). Nothing stored."""
+
+    code = "E920"
+
+
+class ProvisionLedgerUnknown(FinError):
+    """E921. `fin provisions confirm|reject`: no provision ledger with that id, or it is not
+    waiting for that decision (confirm needs a proposal; reject a proposal or a confirmed one).
+    Nothing changed."""
+
+    code = "E921"
+
+
+class CutoffCannotRun(ReconCannotRun):
+    """E922. `fin reconcile sales_cutoff|purchase_cutoff`: the period is not an annual period of
+    the open engagement, or no loaded register has lines of that kind in the window around its
+    year end. Nothing recorded. A kind of E840, so `fin reconcile` without a name lists it as not
+    run."""
+
+    code = "E922"
+
+
+class ProvisionsUnavailable(FinError):
+    """E923. `fin provisions show`: the company has no engagement, or a period that is not one of
+    the latest engagement's annual periods. Nothing shown."""
+
+    code = "E923"

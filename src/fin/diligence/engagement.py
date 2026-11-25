@@ -168,8 +168,9 @@ def open_engagement(
         now = utcnow()
         new = con.execute(
             "INSERT INTO engagement (periods, query_threshold, stub, stub_start, stub_end, "
-            "match_window_days, fx_window_days, invoice_due_days, fiscal_start_month, status, "
-            "opened_run_id, opened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?) "
+            "match_window_days, fx_window_days, invoice_due_days, fiscal_start_month, cutoff_days, "
+            "unrecorded_days, status, opened_run_id, opened_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?) "
             "RETURNING engagement_id",
             [
                 ",".join(periods),
@@ -181,6 +182,8 @@ def open_engagement(
                 config.fx_window_days,
                 config.invoice_due_days,
                 config.fiscal_year_start_month,
+                config.fdd["cutoff_days"],
+                config.fdd["unrecorded_days"],
                 run.run_id,
                 now,
             ],

@@ -40,7 +40,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `export.py` with `export_data.py`, `export_xlsx.py`, `export_docs.py` (`fin query export`: the one reader of
   `mask_values`; E858–E861) and `answers.py` (`query answer --file`),
   `adjustments.py` (adjustments to EBITDA, revenue and costs with evidence, E804; `resolve_effects` makes the EBITDA effect revenue minus cost), `passthrough.py` (`fin engagement passthrough`: the user's pass-through customers, E845; the views are `db/schema/diligence_split_views.sql`), `customers.py` (customer sectors: sync, propose, confirm, reject, E868; `fin map customers`, `fin review --customers`), `analytics.py` (`fin analytics`, E869; the views are `db/schema/diligence_analytics.sql`; the report section is `report/customers.py`), `bridge.py` (`fin engagement bridge`: reads and
-  formats the EBITDA bridge and EBITDA-to-cash walk views), `gates.py` (`fin gate status|approve`: the `GATES`
+  formats the EBITDA bridge and EBITDA-to-cash walk views), `provisions.py` (FDD F3, `docs/fdd.md`: provision ledgers proposed by Claude and confirmed by the user, E920-E923, and `collect`, the receivables ageing and indicative gratuity figures for `fin provisions show` and the FDD report; CLI `cli/provisions.py`; schema `db/schema/fdd_bsheet.sql`), `gates.py` (`fin gate status|approve`: the `GATES`
   registry with each gate's checklist and inputs, the approved/reopened/open states, `require` (E801) and
   approval (E802)), `cli.py` (the `fin engagement`, `fin query`, `fin adjust` and `fin gate` Typer groups; `cli_checks.py` checks the options of `fin query raise`). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
   Source files (`fin ingest --kind`): `sources.py` (one file in one transaction: period check, archive,
@@ -67,6 +67,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   for sampled lines.
 - `sampling/`: FDD F1 samples and walkthroughs: `draw.py` (`fin sample`), `walkthrough.py` (`fin walkthrough`); CLI `cli/fdd_contracts.py`
   (also `fin contracts coverage`); schema `db/schema/fdd_contracts.sql`; golden kinds `evals/fdd_contracts.py`.
+  F3's cut-off tests are reconciliations too: `cutoff.py` (`sales_cutoff`, `purchase_cutoff`, in `RECONCILIATIONS`;
+  windows copied onto the engagement from `config.toml [fdd]`).
 - `map/`: `dictionary.py` (seed, label map, lookup by section and balance-sheet part), `normalize.py` (label
   cleaning), `review.py` (with `review_accounts.py`: checks of a proposed or new account) and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
@@ -79,7 +81,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).
 - `evals/`: the golden evaluation (`docs/client-handoff.md`): `golden.py` (the golden set format, `evals/<company>/golden.csv`,
-  E830/E831), `scaffold.py` (`fin eval init`), `score.py` (`fin eval run` and its report), `counts.py` (error codes,
+  E830/E831), `scaffold.py` (`fin eval init`), `score.py` (`fin eval run` and its report), `provisions.py` (F3's golden kinds), `counts.py` (error codes,
   findings, unread pages, Claude-read figures, unmapped labels and ledgers), `bundle.py` (`fin eval bundle`: no names,
   no figures by default, E832/E833). CLI: `cli/evals.py`.
 - `delete.py`, `update.py`, `doctor.py`, `parser.py`: `fin delete`, `fin update`, `fin doctor`, `fin parser show|use`
@@ -275,7 +277,7 @@ Each database is created from its schema files in `src/fin/db/schema/`, run in t
 `src/fin/db/schema.py` lists them: `audit.sql`, `dictionary.sql`, `analytics.sql`, and for a company `company.sql`
 (tables), `company_views.sql` and the `company_metric_*.sql` / `company_metrics.sql` files (metric macros and
 views), `diligence.sql` (diligence tables), `diligence_views.sql` (EBITDA bridge and walk views), `sources.sql` and
-`sources_views.sql` (source tables and their views) and the other diligence view files. `fin init` creates the
+`sources_views.sql` (source tables and their views) and the other diligence view files, then the FDD files (`fdd_bsheet.sql`: F3's provision ledgers and views). `fin init` creates the
 shared databases, and a company database is created the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
 numbers.
 

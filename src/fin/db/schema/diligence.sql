@@ -27,6 +27,9 @@ CREATE TABLE engagement (
     fx_window_days INTEGER NOT NULL DEFAULT 7,
     invoice_due_days INTEGER NOT NULL DEFAULT 30,
     fiscal_start_month INTEGER NOT NULL DEFAULT 4,
+    -- FDD cut-off windows (docs/fdd.md F3) copied from config.toml [fdd] when the engagement opens
+    cutoff_days INTEGER NOT NULL DEFAULT 15,
+    unrecorded_days INTEGER NOT NULL DEFAULT 60,
     status VARCHAR NOT NULL CHECK (status IN ('open', 'closed')),
     opened_run_id VARCHAR NOT NULL,
     opened_at TIMESTAMP NOT NULL,

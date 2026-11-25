@@ -3,7 +3,7 @@
 Detail lines (invoice, ledger, payroll) that are not matched are listed with their item number
 (the id `fin query raise --items` takes) and what happens to them: needs a query, in query #n,
 listed (below the threshold, fx, not reconciled, unmapped). Month and party lines are roll-ups:
-only those that differ are listed.
+only those that differ are listed. Coverage lines (the cut-off tests, F3) say what was not tested.
 """
 
 from typing import Any
@@ -18,6 +18,8 @@ LEFT = {
     "gl_vs_tb": ("Ledger Vouchers", "trial balance"),
     "payroll_vs_gl": ("payroll", "books"),
     "walkthrough": ("register", "evidence"),
+    "sales_cutoff": ("register", "not compared"),
+    "purchase_cutoff": ("register", "not compared"),
 }
 
 
@@ -57,17 +59,18 @@ def format_result(result: dict[str, Any]) -> str:
     detail = [line for line in lines if line["level"] in DETAIL_LEVELS]
     count = lambda kind: sum(1 for line in detail if line["kind"] == kind)  # noqa: E731
     needing = [line for line in detail if line["needs_query"]]
+    not_reconciled = sum(1 for line in lines if line["kind"] == "not_reconciled")
     head = (
         f"{result['name']} {result['period']} (recon #{result['recon_id']}, threshold "
         f"{rupees(threshold)}): {len(detail)} {detail[0]['level'] if detail else 'line'} lines, "
         f"{count('matched')} matched, {len(needing)} at or above the threshold "
         f"({sum(1 for line in needing if line['query_id'])} already in a query), "
-        f"{count('fx')} fx, {count('not_reconciled')} not reconciled, "
+        f"{count('fx')} fx, {not_reconciled} not reconciled, "
         f"{count('unmapped')} unmapped"
     )
     out = [head]
     out += [_text(line, names, threshold) for line in detail if line["kind"] != "matched"]
-    for level in ("month", "party"):
+    for level in ("month", "party", "coverage"):
         rolled = [line for line in lines if line["level"] == level and line["kind"] != "matched"]
         out += [_text(line, names, threshold) for line in rolled]
     if result["unmapped"]:
