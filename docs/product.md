@@ -800,3 +800,23 @@ every query; `fin query list` shows `inquiry: <topic>`. `templates/fdd/inquiries
 `fin query checklist <co> [--json]` prints each topic with its inquiries, their status and answers, and for a topic with no
 active inquiry (none, or only withdrawn) the standard questions, which Claude adapts and drafts; fin raises nothing itself. The FDD
 report (F8) reads this through `fin.diligence.inquiries.collect(con, engagement_id, topics)`.
+
+FDD orderbook and revenue visibility (F7, `docs/fdd.md`, decisions in `docs/decisions/fdd-f7.md`). `fin ingest <co> <file> --kind orderbook`
+(profile `templates/profiles/orderbook.toml`, needs an open engagement) loads the company's orderbook, one row per order: customer (a token, the
+registers' token for the same customer), order number, order date, value, currency, start, end and billed to date, as at the date in the title
+line ("Orderbook as at 31-Mar-2025"), which must be in an annual period or the stub (E808); `orderbook_lines`, with file + sheet!row. A row with
+no customer, order number or value, or a bad date, is E960 and nothing loads; a blank billed cell is NULL (counted as not billed, listed). Orders
+in a currency other than INR are loaded but have no rupee amount ("not converted"). `fin sql --write` refuses `orderbook_lines` (E806).
+`fin visibility <co> [--json]` (`fin/reconcile/visibility.py`, view `revenue_visibility` over `backlog_lines`; E961 when no source is loaded)
+shows for the 12 months after the last annual period's end, for each of three sources, the items, what is still to come and the part that falls in
+that year (straight-line by day over the remaining term), with that part as a percentage of the last period's core revenue: the unbilled
+orderbook (value less billed to date, from the later of the start date and the day after the as-at date to the end date; an order with no end date
+is in the backlog but not spread); revenue billed but not yet earned at the period end (core sales register lines invoiced by then whose service
+period runs past it, the service-period recast's share); customer contract value remaining (F1 contracts ending after the period end, core
+customers; a contract whose value was not read has no amount). The sources overlap and are not added together; a source not loaded says so. The
+reconciliation `orderbook_vs_register` (`fin/reconcile/orderbook_vs_register.py`, in `RECONCILIATIONS`, so `fin reconcile` and gate G2 see
+it) lists, per period, orders whose customer has no sales register line in the period (left_only, the order value) and core customers billed in
+the register with no order on the orderbook (right_only, the billing); the register has no order reference, so they match by customer. A line at
+or above the threshold is grouped into a query (`fin query raise --items`, level `order`), below it is listed. Golden eval kinds
+`backlog_remaining` and `visibility_covered` (period, ledger = the source: `orderbook`, `billed_not_earned` or `contract`). The FDD
+report (F8) reads F7 through `fin.reconcile.visibility.visibility(con, engagement_id)`.

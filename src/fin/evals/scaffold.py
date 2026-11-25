@@ -13,7 +13,7 @@ import duckdb
 from fin.audit.logger import Run
 from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
-from fin.evals import fdd_contracts, provisions, qoe
+from fin.evals import fdd_contracts, fdd_orderbook, provisions, qoe
 from fin.evals.golden import (
     COLUMNS,
     EXPORTED,
@@ -430,6 +430,7 @@ def candidates(
     rows += _split_rows(con)
     rows += qoe.candidates(con, _row)
     rows += fdd_contracts.candidates(con, _row)
+    rows += fdd_orderbook.candidates(con, _row)
     rows += provisions.candidates(con, _row)
     rows += _recast_rows(con)
     rows += _total_rows(con)

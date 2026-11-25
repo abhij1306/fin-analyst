@@ -1,0 +1,26 @@
+# Orderbook (one row per customer order) exported to Excel, with the date it is as at in a title line
+# ("Orderbook as at 31-Mar-2025"). Synthetic headers: replace them with the headers of the real export
+# (docs/development.md). Customer names are masked on load (the same token as the registers). Order value
+# and billed to date are in the order's currency; `Currency` is optional and defaults to the profile's
+# `currency` (INR). Only INR orders count in rupees (docs/decisions/fdd-f7.md).
+# How profiles work: src/fin/extract/profiles.py and docs/development.md.
+kind = "orderbook"
+header_rows = 1
+date_format = "%d-%b-%Y"
+period = 'as at\s+(?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})'
+unit = 1
+currency = "INR"
+
+[columns]
+"Customer" = "customer"
+"Order No" = "order_no"
+"Order Date" = "order_date"
+"Order Value" = "value"
+"Currency" = "currency"
+"Start Date" = "start_date"
+"End Date" = "end_date"
+"Billed To Date" = "billed"
+
+# Rows whose customer or order number is one of these are not orders.
+[rows]
+skip = ["Total", "Grand Total"]

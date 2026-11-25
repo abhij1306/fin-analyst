@@ -20,6 +20,7 @@ LEFT = {
     "walkthrough": ("register", "evidence"),
     "sales_cutoff": ("register", "not compared"),
     "purchase_cutoff": ("register", "not compared"),
+    "orderbook_vs_register": ("orderbook", "register"),
 }
 
 

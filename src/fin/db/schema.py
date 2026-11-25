@@ -41,6 +41,7 @@ SCHEMA_FILES = {
         "fdd_contracts.sql",
         "fdd_bsheet.sql",
         "fdd_inquiries.sql",
+        "fdd_orderbook.sql",
     ],
 }
 

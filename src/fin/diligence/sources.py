@@ -1,4 +1,5 @@
-"""`fin ingest <co> <file> --kind trial_balance|ledger_vouchers|registers|payroll`: load a file.
+"""`fin ingest <co> <file> --kind <kind>`: load a diligence source file (trial_balance,
+ledger_vouchers, registers, payroll or orderbook).
 
 For one file, `ingest_source`:
 
@@ -7,7 +8,8 @@ For one file, `ingest_source`:
    matches, its header lines listed with known masked names replaced).
 2. Checks the period its header lines give is an annual period of the open engagement, or exactly
    its stub (basis unaudited: unaudited management accounts) (E808). A payroll snapshot has one
-   date, which must fall in an annual period or the stub (`fin.diligence.payroll`).
+   date, which must fall in an annual period or the stub (`fin.diligence.payroll`); so does an
+   orderbook (F7, `fin.diligence.orderbook`).
    Ledger Vouchers need their period's trial balance loaded first (E811): it says which ledgers
    are parties. A registers workbook has no period header: its period comes from its invoice dates
    (`fin.diligence.registers`), and a later registers file replaces the earlier whatever its period.
@@ -33,7 +35,7 @@ from fin.audit.errors import SourcePeriodInvalid, TrialBalanceNeeded
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, transaction
-from fin.diligence import customers, ledgers, payroll, registers, tally
+from fin.diligence import customers, ledgers, orderbook, payroll, registers, tally
 from fin.diligence.engagement import require_open
 from fin.diligence.loading import (
     Loaded,
@@ -275,7 +277,7 @@ def _read_source(
         period, basis, start, end = registers.file_period(parsed, engagement, month)
         return parsed, (period, basis, start, end, reg_table.profile.name)
     table = read_table(path, kind, profile, hide=hide)
-    if kind == "payroll":
+    if kind in ("payroll", "orderbook"):  # one as-at date, in an annual period or the stub
         period, basis = payroll.snapshot_period(table, engagement, month, name)
     else:
         period, basis = period_of_file(table, engagement, month, name)
@@ -305,6 +307,14 @@ def _load_source(
         return lines
     if kind == "payroll":
         return _load_payroll(run, company, con, content, file, masker)
+    if kind == "orderbook":
+        insert_rows(
+            con,
+            "orderbook_lines",
+            orderbook.COLUMNS,
+            orderbook.rows(content, file, run.run_id, masker),
+        )
+        return orderbook.summary(con, file, masker)
     if kind == "registers":
         engagement, month = when
         lines = registers.load(run, company, con, content, file, masker, engagement, month)

@@ -74,6 +74,7 @@ step builds on the earlier ones.
 | 8 | `query_issue`, `query_difference` | each approved query | a query that misses its period or amount, or absent from the lists and gates |
 | 9 | `customer_revenue`, `sector_revenue`, `product_revenue`, `top_customers_revenue`, `retained_revenue`, `pvm_*`, `nwc_year_end`, `nwc_monthly` | a few per period | analytics and working capital on real data |
 | 10 | `receivable_ageing`, `doubtful_debt_provision`, `gratuity_provision`, `sales_cutoff`, `purchase_cutoff` | per year end; each flagged cut-off invoice | an invoice aged in the wrong bucket or counted open when it was paid; the wrong provision ledgers confirmed; a cut-off line on an invoice whose service dates are read wrongly |
+| 11 | `backlog_remaining`, `visibility_covered` | per backlog source with items | orderbook headers or currencies read wrongly; orders with no end date; a contract value not read |
 
 What each kind's value is (the person works out the derived ones from the documents; rupees unless said):
 
@@ -97,6 +98,7 @@ What each kind's value is (the person works out the derived ones from the docume
 | `receivable_ageing` | sales invoices open at the year end (unpaid, or paid only after it; the unpaid part of a partly paid one), Amount in Rs, in the bucket of days from invoice date to the year end (`ledger`: `0-90`, `91-180`, `181-365`, `over 365` or `total`) |
 | `doubtful_debt_provision`, `gratuity_provision` | the closing credit less debit of the ledgers the user confirmed as that provision, in the period's trial balance |
 | `sales_cutoff`, `purchase_cutoff` | the Amount in Rs of one invoice the cut-off test flagged at the period's year end (`ledger` is the invoice number) |
+| `backlog_remaining`, `visibility_covered` | for a backlog source (`ledger`: `orderbook`, `billed_not_earned` or `contract`) at the last annual period: what is still to come (orderbook: value less billed to date of INR orders; billed not earned: register amount for service days after the period end; contract: value for days after the period end), and the part in the 12 months after the period end, both straight-line by day |
 
 ## 4. Run the eval
 

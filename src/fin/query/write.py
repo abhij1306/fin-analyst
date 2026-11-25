@@ -48,7 +48,7 @@ DILIGENCE_TABLE = re.compile(
     r"|ledger_entries|ledger_blocks|register_lines|ledger_accounts|recon_runs|recon_items"
     r"|query_items|payroll_lines|payroll_units|bank_statements|bank_lines|passthrough_customers"
     r"|recon_match_lines|match_proposals|customers|contracts|samples|sample_lines|walkthroughs"
-    r"|provision_ledgers|inquiries)\b"
+    r"|provision_ledgers|inquiries|orderbook_lines)\b"
 )
 
 # Statements that would end the wrapping transaction or reach past the company database.
