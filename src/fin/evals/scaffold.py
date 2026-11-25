@@ -91,6 +91,20 @@ FROM payroll_lines p JOIN source_files s USING (file_id)
 WHERE s.status = 'loaded' AND s.engagement_id = {LATEST}
 ORDER BY s.file_id
 """
+_ISSUES = f"""
+SELECT a.query_id, a.period, a.sources FROM accountant_queries a
+WHERE a.engagement_id = {LATEST} AND a.status IN ('approved', 'sent', 'answered', 'closed')
+    AND a.amount IS NOT NULL
+ORDER BY a.query_id
+"""
+_ISSUE_KINDS = f"""
+SELECT a.query_id, a.period, i.kind, string_agg(
+    coalesce(i.left_source, i.right_source), '; ' ORDER BY i.item_id)
+FROM query_items q JOIN recon_items i ON i.item_id = q.item_id
+JOIN accountant_queries a ON a.query_id = q.query_id
+WHERE a.engagement_id = {LATEST} AND a.status IN ('approved', 'sent', 'answered', 'closed')
+GROUP BY a.query_id, a.period, i.kind ORDER BY a.query_id, i.kind
+"""
 _STUB = f"""
 SELECT x.period, x.account, s.file_name
 FROM stub_figures x JOIN source_files s USING (file_id)
@@ -215,6 +229,28 @@ def candidates(
                     note=f"sum of {label} (annual rupees) over the employees, total row left out",
                 )
             )
+    for query_id, period, sources in con.execute(_ISSUES).fetchall():
+        rows.append(
+            _row(
+                "query_issue",
+                period,
+                sources,
+                ledger=str(query_id),
+                unit="rupees",
+                note="the issue's amount at issue: its lines' differences added without signs",
+            )
+        )
+    for query_id, period, kind, sources in con.execute(_ISSUE_KINDS).fetchall():
+        rows.append(
+            _row(
+                "query_difference",
+                period,
+                sources,
+                ledger=f"{query_id} {kind}",
+                unit="rupees",
+                note="value of this kind of difference in the issue, without signs",
+            )
+        )
     for period, account, file_name in con.execute(_STUB).fetchall():
         rows.append(
             _row(

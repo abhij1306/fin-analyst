@@ -12,6 +12,11 @@ One line per check, the value a person read in the company's document and checke
   one detail line of the period's latest run of that reconciliation, register (or Ledger Vouchers,
   or payroll) less books (or trial balance); `ledger` is the invoice number, the ledger as
   stored, or the period for payroll.
+- `query_issue`: an exported issue's amount at issue (the lines' differences added without their
+  signs) for a query that is approved or later; `ledger` is the query id.
+- `query_difference`: the value of one kind of difference in an issue, as the export shows it
+  (lines' differences without signs); `ledger` is the query id, a space and the kind
+  (`left_only`, `right_only` or `difference`), e.g. `3 left_only`.
 - `bank_closing`: a bank statement's closing balance, in the account's own currency (use unit
   `rupees` for the amount as printed, INR or USD): period is the statement's end date (YYYY-MM-DD),
   ledger its account number;
@@ -46,6 +51,7 @@ from fin.paths import evals_dir
 COLUMNS = ("kind", "period", "scope", "account", "ledger", "expected", "unit", "source", "checked")
 OPTIONAL = ("note",)
 RECON_KINDS = ("sales_register_vs_gl", "purchase_register_vs_gl", "gl_vs_tb", "payroll_vs_gl")
+QUERY_KINDS = ("query_issue", "query_difference")
 PASSTHROUGH_KINDS = ("core_revenue", "passthrough_revenue", "adjusted_revenue", "adjusted_ebitda")
 KINDS = (
     "statement",
@@ -55,6 +61,7 @@ KINDS = (
     "bank_closing",
     *RECON_KINDS,
     *PASSTHROUGH_KINDS,
+    *QUERY_KINDS,
     "register_total",
     "payroll_total",
 )
@@ -64,7 +71,7 @@ NEEDS = {
     "tb_vs_statements": ("period", "account"),
     "stub": ("period", "account"),
     "bank_closing": ("period", "ledger"),
-    **{kind: ("period", "ledger") for kind in RECON_KINDS},
+    **{kind: ("period", "ledger") for kind in (*RECON_KINDS, *QUERY_KINDS)},
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),
     "adjusted_revenue": ("period", "scope"),

@@ -11,6 +11,8 @@
 - `ledgers`: trial balance ledgers by mapping status (only confirmed ones count in reconciliations);
 - `bank_statements`: loaded bank statements by reader (excel or the PDF add-on), and whether they
   tie;
+- `queries`: the latest engagement's queries by status, and the approved-or-later ones that group
+  reconciliation lines (the issues an export marks up);
 - `passthrough`: customers on the latest engagement's pass-through list, and its adjustments by
   status;
 - `recon_lines`: the latest D4 reconciliation runs' detail lines by reconciliation and kind, and
@@ -121,6 +123,24 @@ def _recon_lines(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
     return out
 
 
+def _queries(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
+    by_status = dict(
+        con.execute(
+            "SELECT status, count(*) FROM accountant_queries "
+            f"WHERE engagement_id = {LATEST_ENGAGEMENT} GROUP BY 1 ORDER BY 1"
+        ).fetchall()
+    )
+    return {
+        "by_status": by_status,
+        "issues_with_lines": _one(
+            con,
+            "SELECT count(DISTINCT q.query_id) FROM query_items q JOIN accountant_queries a "
+            f"ON a.query_id = q.query_id WHERE a.engagement_id = {LATEST_ENGAGEMENT} "
+            "AND a.status IN ('approved', 'sent', 'answered', 'closed')",
+        ),
+    }
+
+
 def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
     findings: dict[str, dict[str, int]] = {}
     for code, status, n in con.execute(_FINDINGS).fetchall():
@@ -135,6 +155,7 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
     )
     return {
         "recon_lines": _recon_lines(con),
+        "queries": _queries(con),
         "error_codes": _audit_codes(root, company),
         "findings": findings,
         "unread_pages": _unread(con),
