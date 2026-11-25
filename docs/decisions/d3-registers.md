@@ -1,6 +1,6 @@
 # Decisions: d3-registers
 
-Product-level choices for registers (DILIGENCE_PLAN.md §7 D3), written 2026-11-25 by the builder. Each is a builder's reading until the owner confirms or changes it.
+Product-level choices for registers (docs/diligence.md §7 D3), written 2026-11-25 by the builder. Each is a builder's reading until the owner confirms or changes it.
 
 ## 1. A register's period comes from its invoice dates
 

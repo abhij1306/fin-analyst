@@ -420,7 +420,7 @@ class PayrollRowInvalid(FinError):
     code = "E821"
 
 
-# E83x: golden evaluation (fin.evals, docs/EVAL.md). Stop the command.
+# E83x: golden evaluation (fin.evals, docs/client-handoff.md). Stop the command.
 
 
 class GoldenSetMissing(FinError):

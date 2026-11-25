@@ -106,7 +106,7 @@ Plain requests work; these are shortcuts. Each one runs `fin` (see `uv run fin -
 | `/audit <company> [metric year]` | Trace a figure back to its source, or show the company's history. |
 | `/verify <company> <file>` | Have Claude read a loaded or held document again and compare that reading with what is stored, whenever you want; each run is recorded. |
 | `/diligence <company>` | A diligence engagement: queries for the company's accountant and adjustments to EBITDA, with evidence, and the gates you approve. |
-| `/eval [company]` | Golden evaluation: values you checked in your documents, fin scored against them, and a results file with no names to send back ([docs/EVAL.md](docs/EVAL.md)). |
+| `/eval [company]` | Golden evaluation: values you checked in your documents, fin scored against them, and a results file with no names to send back ([docs/client-handoff.md](docs/client-handoff.md)). |
 
 ## Findings
 
@@ -138,7 +138,7 @@ with what is stored.
 
 ## Golden evaluation
 
-To see how well fin reads your own documents, follow [docs/EVAL.md](docs/EVAL.md) (written for your Claude agent): `fin eval init <company>` lists the figures to check, you check them against the documents, `fin eval run <company>` scores fin, and `fin eval bundle` writes a results file with no company, party or file names to send back.
+To see how well fin reads your own documents, follow [docs/client-handoff.md](docs/client-handoff.md) (written for your Claude agent): `fin eval init <company>` lists the figures to check, you check them against the documents, `fin eval run <company>` scores fin, and `fin eval bundle` writes a results file with no company, party or file names to send back.
 
 ## Your data
 
@@ -154,7 +154,7 @@ it.
   shared/               # chart of accounts, audit log, dashboard data
   reports/<company>/    # health reports and Excel exports
   review/<company>/     # files fin could not load, with the reason
-  evals/                # golden sets, eval reports and results bundles (docs/EVAL.md)
+  evals/                # golden sets, eval reports and results bundles (docs/client-handoff.md)
   archive/  evidence/  notes/  logs/  backups/
   cache/llamaparse/     # LlamaParse's saved answers, when that add-on is used
 ```
@@ -183,7 +183,7 @@ database first (`backups/<run_id>/`) and records the change in the audit log; ev
 | [docs/development.md](docs/development.md) | Where code lives and how to add an account, metric, check, profile or report section |
 | [docs/errors.md](docs/errors.md) | Error codes: what each means and what to do |
 | [docs/decisions/](docs/decisions/) | Product-level decisions and how to change them |
-| [docs/EVAL.md](docs/EVAL.md) | Golden evaluation runbook |
+| [docs/client-handoff.md](docs/client-handoff.md) | Run fin on real documents, build the golden eval, report back |
 | `CLAUDE.md` | Rules for Claude Code in this repo |
 
 When a command fails it prints an error code and a run id; look the code up in [docs/errors.md](docs/errors.md).

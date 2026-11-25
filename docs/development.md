@@ -74,7 +74,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
   Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).
-- `evals/`: the golden evaluation (`docs/EVAL.md`): `golden.py` (the golden set format, `evals/<company>/golden.csv`,
+- `evals/`: the golden evaluation (`docs/client-handoff.md`): `golden.py` (the golden set format, `evals/<company>/golden.csv`,
   E830/E831), `scaffold.py` (`fin eval init`), `score.py` (`fin eval run` and its report), `counts.py` (error codes,
   findings, unread pages, Claude-read figures, unmapped labels and ledgers), `bundle.py` (`fin eval bundle`: no names,
   no figures by default, E832/E833). CLI: `cli/evals.py`.
@@ -274,7 +274,7 @@ re-created or changed to match.
 
 ## Eval checks
 
-The golden evaluation (`docs/EVAL.md`, `src/fin/evals/`) scores fin's outputs against values a person checked in real
+The golden evaluation (`docs/client-handoff.md`, `src/fin/evals/`) scores fin's outputs against values a person checked in real
 documents. A feature that produces a figure the user relies on (a later diligence phase's registers, bank and
 reconciliation lines, adjusted EBITDA) adds a check kind so the client's golden sets cover it:
 
@@ -287,7 +287,7 @@ reconciliation lines, adjusted EBITDA) adds a check kind so the client's golden 
 4. `evals/counts.py`: if the feature has its own failure markers, add them to `related_codes`; if it adds a count
    worth watching, add it to `counts`. The bundle carries whatever these return, so return only accounts, periods,
    codes, tokens and counts: never names, file names, labels or figures.
-5. `docs/EVAL.md`: the kind in the column table of step 4, with what its value is.
+5. `docs/client-handoff.md`: the kind in the "What each kind's value is" table of step 3, and its place in the check order.
 6. Test in `tests/unit/test_evals.py`: a correct golden line for the kind passes and a planted wrong one fails.
 
 ## Tests and fixtures

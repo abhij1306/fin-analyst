@@ -1,6 +1,6 @@
 # d7-qoe: working capital, the diligence report and its dashboard
 
-Product-level decisions of the D7 workstream (DILIGENCE_PLAN.md §7 D7, §4 `nwc_year_end`, `nwc_monthly`). Each is a builder's reading until the owner confirms it (see README.md in this folder).
+Product-level decisions of the D7 workstream (docs/diligence.md §7 D7, §4 `nwc_year_end`, `nwc_monthly`). Each is a builder's reading until the owner confirms it (see README.md in this folder).
 
 ## 1. Which ledgers are working capital
 

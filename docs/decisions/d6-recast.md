@@ -1,6 +1,6 @@
 # d6-recast: service-period recast and gate G3
 
-Product-level decisions of the D6 workstream (DILIGENCE_PLAN.md §7 D6, §4 contracts, §5 G3). Each is a builder's reading until the owner confirms it (see README.md in this folder).
+Product-level decisions of the D6 workstream (docs/diligence.md §7 D6, §4 contracts, §5 G3). Each is a builder's reading until the owner confirms it (see README.md in this folder).
 
 ## 1. "Revenue booked by period" is the sales register by invoice date
 

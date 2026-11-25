@@ -88,7 +88,7 @@ def backups_dir(root: Path) -> Path:
 
 
 def evals_dir(root: Path) -> Path:
-    """Golden sets, eval reports and results bundles (docs/EVAL.md). Made on first use."""
+    """Golden sets, eval reports and results bundles (docs/client-handoff.md). Made on first use."""
     return root / "evals"
 
 

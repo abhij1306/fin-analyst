@@ -62,5 +62,5 @@ This app is meant to be modified with Claude Code. Keep modules small and readab
 - Health check: `uv run fin doctor`
 - What is loaded and waiting per company: `uv run fin status`; findings: `uv run fin findings list`
 - Tests: `uv run pytest`
-- Golden evaluation on real documents (golden sets in the data folder, never committed): `uv run fin eval init|run|bundle`, runbook `docs/EVAL.md`
+- Golden evaluation on real documents (golden sets in the data folder, never committed): `uv run fin eval init|run|bundle`, runbook `docs/client-handoff.md`
 - Lint: `uv run ruff check .`

@@ -1,6 +1,6 @@
 # D3 bank statements: product decisions
 
-Only decisions that affect the analysis or what the user sees. Plan: docs/DILIGENCE_PLAN.md §7 D3.
+Only decisions that affect the analysis or what the user sees. Plan: docs/diligence.md §7 D3.
 
 ## 1. A statement that does not tie is kept as filed, with a finding
 - **Decision:** the plan's "a finding, not a load" is read as: the rows are stored, an open `bank_tie` finding is

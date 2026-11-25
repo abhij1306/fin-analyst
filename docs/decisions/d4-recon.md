@@ -1,6 +1,6 @@
 # Decisions: d4-recon
 
-Product-level choices for the register, ledger, trial balance and payroll reconciliations (DILIGENCE_PLAN.md §7 D4), written 2026-11-25 by the builder. Each is a builder's reading until the owner confirms or changes it.
+Product-level choices for the register, ledger, trial balance and payroll reconciliations (docs/diligence.md §7 D4), written 2026-11-25 by the builder. Each is a builder's reading until the owner confirms or changes it.
 
 ## 1. Only invoice, ledger and payroll lines are queried; month and party lines are roll-ups
 

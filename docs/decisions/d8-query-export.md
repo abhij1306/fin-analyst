@@ -1,6 +1,6 @@
 # Decisions: d8-query-export
 
-Product-level choices for the query export (DILIGENCE_PLAN.md §7 D8), written 2026-11-25 by the builder. Each is a builder's reading until the owner confirms or changes it.
+Product-level choices for the query export (docs/diligence.md §7 D8), written 2026-11-25 by the builder. Each is a builder's reading until the owner confirms or changes it.
 
 ## 1. Only approved queries are exported; export does not change status
 

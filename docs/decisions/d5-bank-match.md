@@ -1,6 +1,6 @@
 # D5 bank ↔ receipts ↔ invoices: product decisions
 
-Only decisions that affect the analysis or what the user sees. Plan: docs/DILIGENCE_PLAN.md §7 D5.
+Only decisions that affect the analysis or what the user sees. Plan: docs/diligence.md §7 D5.
 
 ## 1. Receipts are bank credits; invoices are sales register lines
 - **Decision:** a receipt is a credit line of a loaded bank statement; an invoice is a sales register line. A statement

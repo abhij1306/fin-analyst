@@ -5,7 +5,7 @@ argument-hint: [company] [init|run|bundle]
 
 Golden evaluation: $ARGUMENTS
 
-Follow `docs/EVAL.md` (the full runbook). In short:
+Follow `docs/client-handoff.md` (the full handoff). In short:
 
 1. **Golden set.** `uv run fin eval init <company>` writes or extends `evals/<company>/golden.csv` in the data folder:
    one line per figure fin has, with its source; `expected` and `checked` are empty. It never changes a line that is
@@ -18,12 +18,12 @@ Follow `docs/EVAL.md` (the full runbook). In short:
    A failure is a question for the person: fin's misreading or mapping (fix only through `/review`, `fin map set`,
    `fin ingest --force` when the person says so), a wrong golden value (correct it with the person), or a filing
    that does not add up (a finding).
-3. **Decisions review.** Read `docs/decisions/*.md` and write `evals/decisions-review.md` in the data folder
-   (`docs/EVAL.md` section 6): decision, suggestion, evidence from the eval (kinds, accounts, periods, codes,
-   counts; never names, file names or figures), and whether the person agrees.
+3. **Client decisions.** Ask the client about the decisions in `docs/client-handoff.md` step 5 (masking scope first), then
+   write `evals/results-report.md` in the data folder (step 6): the client's answers with dates, and an issues list (what
+   failed, where, what the client decided, status); never names, file names or figures.
 4. **Bundle.** `uv run fin eval bundle [company]` writes `evals/bundle-<run_id>.md` and `.json` and prints the paths
    only. Add `--with-figures` only when the person agrees to share figures. Show the person the bundle and the
-   decisions review; the person sends them. Never send anything yourself.
+   results report; the person sends them. Never send anything yourself.
 
 If a command fails (E830 no golden set: run `fin eval init`; E831 a golden set line fin cannot read: fix the lines the
 message lists; E832 no company database; E833 the bundle would carry a real name: nothing written), report the error

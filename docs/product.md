@@ -67,7 +67,7 @@ Where Claude fits:
 fin-analyst/
   README.md              # install + daily use, written for the end user
   CLAUDE.md  CHANGELOG.md  LICENSE
-  docs/                  # product.md, diligence.md, development.md, errors.md, EVAL.md, decisions/
+  docs/                  # product.md, diligence.md, development.md, errors.md, client-handoff.md, decisions/
   Brewfile  install.sh
   pyproject.toml  uv.lock  .python-version  .gitignore
   .claude/
@@ -110,7 +110,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
     audit.duckdb          # append-only
     analytics.duckdb      # all companies' metrics, read by dashboards
   review/<company>/       # failed docs + reasons, pending mappings
-  evals/<company>/        # golden set and eval reports; evals/bundle-* results bundles (docs/EVAL.md)
+  evals/<company>/        # golden set and eval reports; evals/bundle-* results bundles (docs/client-handoff.md)
   notes/<company>/        # Markdown of notes to accounts, auditor reports
   evidence/  reports/  logs/  backups/
 ```
@@ -287,7 +287,7 @@ verify and update.
 ## 12. Testing and CI
 
 - **Synthetic fixtures** (`tests/fixtures/sample-financials/`): three fake companies (Kestrel Forgings: Excel with formulas; Bluepeak Polymers: Excel per year, crores, older wording, standalone + consolidated; Tarang Industrial Services: text PDF with notes), known values in `answer_key.json`, plus deliberately broken files. The set is committed, so CI needs no LibreOffice.
-- **Golden evaluation** (`fin.evals`, runbook `docs/EVAL.md`): per company, `evals/<company>/golden.csv` in the data folder (never committed) holds values a person checked in the real documents, with their source. `fin eval init <co>` lists what to check (statement figures in current figures, trial balance ledgers, `tb_vs_statements` lines, stub figures, bank closing balances, register totals per sheet and payroll totals) with source and unit and leaves the value and `checked` empty; only lines marked `checked` are scored. `fin eval run <co>` compares each exactly in rupees after unit conversion (pass, fail, missing in fin, unchecked; the relative difference to six significant digits, so a misread digit in a large figure never shows as 0) and writes a report to `evals/<co>/`, with counts: error codes in the company's runs, findings by code, unread pages, Claude-read figures by document status and latest verify outcome, unmapped labels, mapping items waiting, ledgers by status, bank statements by reader and tie, register lines by kind and payroll files by confirmed unit. `fin eval bundle [co] [--with-figures]` writes a shareable Markdown and JSON file (fin version and commit, doctor summary, scores, lines not passing with their source kind and related codes, counts): companies as `company-N`, ledgers only as mask tokens, no file names, labels or sources, no absolute figures without `--with-figures`; E833 refuses one that would contain a masked, company or file name. Errors E830-E833. Decisions: `docs/decisions/eval-kit.md`.
+- **Golden evaluation** (`fin.evals`, runbook `docs/client-handoff.md`): per company, `evals/<company>/golden.csv` in the data folder (never committed) holds values a person checked in the real documents, with their source. `fin eval init <co>` lists what to check (statement figures in current figures, trial balance ledgers, `tb_vs_statements` lines, stub figures, bank closing balances, register totals per sheet and payroll totals) with source and unit and leaves the value and `checked` empty; only lines marked `checked` are scored. `fin eval run <co>` compares each exactly in rupees after unit conversion (pass, fail, missing in fin, unchecked; the relative difference to six significant digits, so a misread digit in a large figure never shows as 0) and writes a report to `evals/<co>/`, with counts: error codes in the company's runs, findings by code, unread pages, Claude-read figures by document status and latest verify outcome, unmapped labels, mapping items waiting, ledgers by status, bank statements by reader and tie, register lines by kind and payroll files by confirmed unit. `fin eval bundle [co] [--with-figures]` writes a shareable Markdown and JSON file (fin version and commit, doctor summary, scores, lines not passing with their source kind and related codes, counts): companies as `company-N`, ledgers only as mask tokens, no file names, labels or sources, no absolute figures without `--with-figures`; E833 refuses one that would contain a masked, company or file name. Errors E830-E833. Decisions: `docs/decisions/eval-kit.md`.
 - **CI** (`.github/workflows/ci.yml`, Linux, every PR and main push): ruff, pytest, `shellcheck install.sh`; one job ingests the synthetic companies once, renders a report (Quarto) and builds the Evidence dashboard (node 24). A `pdf-addon` job per engine syncs its extra: Docling and LiteParse restore their model caches and
 run the tests marked `docling` / `liteparse` (the real engine on synthetic PDFs); LlamaParse checks its fixture's
 shape against the SDK and never calls the API (its live test skips without `LLAMA_CLOUD_API_KEY`); the other jobs run
