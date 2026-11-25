@@ -38,12 +38,14 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
             "closed_at": None,
         },
         "adjusted_ebitda": [
-            {"period": "FY26", "scope": "consolidated", "proposed_count": 0},
+            {"period": "FY26", "scope": "consolidated", "proposed_count": 0,
+             "accepted_revenue_effect": D("0.00")},
         ],
         "bridge": [
             {"period": "FY26", "scope": "consolidated", "kind": "reported", "adj_id": None,
              "category": None, "description": "Reported EBITDA", "amount": D("1500000.00")},
             {"period": "FY26", "scope": "consolidated", "kind": "adjustment", "adj_id": 9,
+             "from_account": None, "account": None, "moved_amount": None,
              "category": "run_rate", "description": "New plant", "amount": D("100000.00")},
             {"period": "FY26", "scope": "consolidated", "kind": "adjusted", "adj_id": None,
              "category": None, "description": "Adjusted EBITDA", "amount": D("1600000.00")},
