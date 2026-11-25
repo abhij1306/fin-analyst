@@ -1,10 +1,10 @@
 """`fin eval init <company>`: list what a person can check, with where it is printed.
 
 Each line names one output of fin (a statement figure in current figures, a trial balance ledger, a
-`tb_vs_statements` line, a stub figure, a bank closing balance, the pass-through revenue split, adjusted revenue and EBITDA) and its source, and leaves
-`expected` and `checked` empty: the value comes from the document, never from fin. Run again after
-loading more, it adds the lines the golden set does not have yet and never changes or removes
-one."""
+`tb_vs_statements` line, a stub figure, a bank closing balance, the pass-through revenue split,
+adjusted revenue and EBITDA) and its source, and leaves `expected` and `checked` empty: the
+value comes from the document, never from fin. Run again after loading more, it adds the lines
+the golden set does not have yet and never changes or removes one."""
 
 from typing import Any
 
