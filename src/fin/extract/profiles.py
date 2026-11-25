@@ -185,11 +185,16 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
         raise _invalid(name, f"period needs the named groups {' and '.join(needs)}")
     if profile.group != "bold" or profile.level not in ("indent", "none"):
         raise _invalid(name, 'rows.group must be "bold" and rows.level "indent" or "none"')
-    if kind == "bank":
-        _check_bank(name, profile)
-    if kind == "gst":
-        _check_gst(name, profile)
+    _check_kind(name, profile)
     return profile
+
+
+def _check_kind(name: str, profile: Profile) -> None:
+    """The checks only bank and gst profiles have."""
+    if profile.kind == "bank":
+        _check_bank(name, profile)
+    if profile.kind == "gst":
+        _check_gst(name, profile)
 
 
 def _check_gst(name: str, profile: Profile) -> None:

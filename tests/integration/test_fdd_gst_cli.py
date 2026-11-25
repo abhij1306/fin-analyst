@@ -70,9 +70,11 @@ def test_gst_returns_tax_ledgers_and_reconciliations(root: Path, tmp_path: Path)
     wrong = fin("review", "confirm", "acme", "1", "--tax", "--sector", "x")
     books = fin("reconcile", "acme", "gstr3b_vs_books", "--period", "FY25")
 
-    assert stored.exit_code == 0 and "8 tax ledger proposals stored" in stored.stdout
+    assert stored.exit_code == 0
+    assert "8 tax ledger proposals stored" in stored.stdout
     assert waiting.stdout.startswith("tax ledger #1 [proposed] 'Output CGST' (Duties & Taxes)")
-    assert before.exit_code == 2 and "E840" in before.stderr
+    assert before.exit_code == 2
+    assert "E840" in before.stderr
     assert confirmed.exit_code == 0, confirmed.output
     assert "tax ledger #8 'MAT Credit Entitlement' confirmed as mat_credit" in confirmed.stdout
     assert "tax ledger #6 'TDS Payable' rejected" in rejected.stdout

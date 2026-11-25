@@ -297,7 +297,11 @@ def _confirm_customers(
         )
 
 
-def _confirm_tax(run: Run, company: str, ids: list[int], tax_class: str | None) -> None:
+def _confirm_tax(
+    run: Run, company: str, ids: list[int], tax_class: str | None, other_options: bool
+) -> None:
+    if other_options:
+        raise typer.BadParameter("with --tax use only --tax-class")
     for row in tax_ledgers.confirm(run, company, ids, tax_class):
         typer.echo(
             f"tax ledger #{row['tax_ledger_id']} {row['ledger']!r} confirmed as {row['tax_class']}"
@@ -375,9 +379,8 @@ def review_confirm(
             _confirm_matches(run, company, ids)
             return
         if tax_items:
-            if ledger_items or customer_items or account or sector or name or parent:
-                raise typer.BadParameter("with --tax use only --tax-class")
-            _confirm_tax(run, company, ids, tax_class)
+            others = any((ledger_items, customer_items, account, sector, name, parent))
+            _confirm_tax(run, company, ids, tax_class, others)
             return
         if tax_class is not None:
             raise typer.BadParameter("--tax-class applies to --tax")

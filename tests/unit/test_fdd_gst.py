@@ -186,9 +186,10 @@ def test_tax_ledger_proposals_need_review(loaded: Path) -> None:
         r,
         "acme",
         [{"ledger": "Output CGST", "class": "gst_output", "confidence": 0.5, "reason": "name"}],
-    )  # noqa: E501
+    )
     [row] = tax_ledgers.list_rows(r, "acme", open_only=True)
-    assert row["status"] == "proposed" and row["group_name"] == "Duties & Taxes"
+    assert row["status"] == "proposed"
+    assert row["group_name"] == "Duties & Taxes"
     assert query(loaded, "SELECT count(*) FROM tax_ledger_balances") == [(0,)]
 
     [done] = tax_ledgers.confirm(r, "acme", [row["tax_ledger_id"]], "gst_input")
@@ -196,7 +197,7 @@ def test_tax_ledger_proposals_need_review(loaded: Path) -> None:
     with pytest.raises(TaxLedgerInvalid, match="is confirmed as gst_input"):
         tax_ledgers.propose(
             r, "acme", [{"ledger": "Output CGST", "class": "rcm", "confidence": 1, "reason": ""}]
-        )  # noqa: E501
+        )
     [rejected] = tax_ledgers.reject(r, "acme", [row["tax_ledger_id"]])
     assert rejected["status"] == "rejected"
     with pytest.raises(TaxLedgerInvalid, match="has no proposed class"):
@@ -218,12 +219,14 @@ def test_a_bad_tax_proposal_stores_nothing(
 ) -> None:
     good = {"ledger": "RCM Payable", "class": "rcm", "confidence": 1, "reason": ""}
 
-    with pytest.raises(TaxLedgerInvalid, match=message):
-        tax_ledgers.propose(run(loaded), "acme", [good, proposal])
+    r = run(loaded)
 
-    assert tax_ledgers.list_rows(run(loaded), "acme") == []
+    with pytest.raises(TaxLedgerInvalid, match=message):
+        tax_ledgers.propose(r, "acme", [good, proposal])
+
+    assert tax_ledgers.list_rows(r, "acme") == []
     with pytest.raises(TaxLedgerInvalid, match="no tax ledger with id 7"):
-        tax_ledgers.reject(run(loaded), "acme", [7])
+        tax_ledgers.reject(r, "acme", [7])
 
 
 def test_gstr1_vs_sales_register(root: Path) -> None:
