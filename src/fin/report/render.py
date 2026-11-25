@@ -344,7 +344,7 @@ def _render_files(
     built: Built,
     report_data: str,
     qmd_file: str = QMD_FILE,
-    outputs: tuple[str, ...] = OUTPUTS,
+    names: tuple[str, ...] = OUTPUTS,
     data_file: str = DATA_FILE,
 ) -> list[str]:
     """Render in `folder/temp_name`, then move the outputs and `report_data` into `folder`; the
@@ -361,8 +361,8 @@ def _render_files(
             (temp / data_file).write_text(report_data, encoding="utf-8")
         except OSError as exc:
             raise DataFolderNotWritable(f"cannot write the report files in {temp}: {exc}") from exc
-        quarto_render(temp / qmd_file, outputs)
-        for name in (*outputs, data_file):
+        quarto_render(temp / qmd_file, names)
+        for name in (*names, data_file):
             try:
                 (temp / name).replace(folder / name)
             except OSError as exc:

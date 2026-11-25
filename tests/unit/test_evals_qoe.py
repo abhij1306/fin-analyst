@@ -54,7 +54,7 @@ def test_a_wrong_figure_fails_and_a_month_fin_does_not_have_is_missing(root: Pat
 
 
 def test_init_lists_every_working_capital_line_with_its_source(root: Path) -> None:
-    golden_path(root, "acme").unlink()
+    golden_path(root, "acme").unlink(missing_ok=True)
     init_golden(run(root), "acme")
     with golden_path(root, "acme").open(encoding="utf-8", newline="") as handle:
         rows = [r for r in csv.DictReader(handle) if r["kind"].startswith("nwc_")]
