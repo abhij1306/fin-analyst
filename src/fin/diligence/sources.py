@@ -295,15 +295,8 @@ def ingest_source(
             run,
             con,
             engagement,
-            kind=kind,
-            name=name,
-            sha256=sha256,
-            archive=archive,
-            period=period,
-            start=start,
-            end=end,
-            basis=basis,
-            profile=profile_name,
+            (kind, name, sha256, archive),
+            (period, basis, start, end, profile_name),
         )
         masker.file_id = file["file_id"]
         if kind == "trial_balance":

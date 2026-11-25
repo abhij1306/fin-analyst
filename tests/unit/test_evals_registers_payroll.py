@@ -10,17 +10,15 @@ import pytest
 
 from fin.audit.errors import GoldenSetInvalid
 from fin.audit.logger import Run
-from fin.config import load_config, write_default_config
-from fin.db.conn import connect, utcnow
-from fin.db.schema import ensure_database
+from fin.config import load_config
 from fin.diligence.payroll import confirm_unit
 from fin.diligence.sources import ingest_source
 from fin.evals.bundle import make_bundle
 from fin.evals.golden import COLUMNS, golden_path, read_golden
 from fin.evals.scaffold import init_golden
 from fin.evals.score import run_eval
-from fin.map.dictionary import load_accounts, load_seed
-from fin.paths import audit_db_path, company_db_path, dictionary_db_path
+from fin.map.dictionary import load_accounts
+from tests.engagement_root import engagement_root
 from tests.payroll_fixtures import write_payroll
 from tests.register_fixtures import write_registers
 
@@ -30,20 +28,7 @@ GROSS, CTC = 1200000 + 1800000 + 720000 + 2400000, 1380000 + 2040000 + 828000 + 
 
 @pytest.fixture
 def root(tmp_path: Path) -> Path:
-    root = tmp_path / "data"
-    root.mkdir()
-    write_default_config(root)
-    ensure_database(audit_db_path(root), "audit")
-    ensure_database(dictionary_db_path(root), "dictionary")
-    load_seed(root, Run("init", {}, root))
-    path = company_db_path(root, "acme")
-    ensure_database(path, "company")
-    with connect(path, write=True) as con:
-        con.execute(
-            "INSERT INTO engagement (periods, query_threshold, status, opened_run_id, opened_at) "
-            "VALUES ('FY25', 100000, 'open', 'r0', ?)",
-            [utcnow()],
-        )
+    root = engagement_root(tmp_path)
     config = load_config(root)
     for kind, path in (
         ("registers", write_registers(tmp_path / "reg.xlsx")),

@@ -8,36 +8,20 @@ from pathlib import Path
 import pytest
 
 from fin.audit.logger import Run
-from fin.config import load_config, write_default_config
-from fin.db.conn import connect, utcnow
-from fin.db.schema import ensure_database
+from fin.config import load_config
 from fin.diligence.bank import ingest_bank
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.scaffold import init_golden
 from fin.evals.score import run_eval
-from fin.map.dictionary import load_seed
-from fin.paths import audit_db_path, company_db_path, dictionary_db_path
 from tests.bank_fixtures import CLOSING, write_statement
+from tests.engagement_root import engagement_root
 
 ACCOUNT = "123456789012"
 
 
 @pytest.fixture
 def root(tmp_path: Path) -> Path:
-    root = tmp_path / "data"
-    root.mkdir()
-    write_default_config(root)
-    ensure_database(audit_db_path(root), "audit")
-    ensure_database(dictionary_db_path(root), "dictionary")
-    load_seed(root, Run("init", {}, root))
-    path = company_db_path(root, "acme")
-    ensure_database(path, "company")
-    with connect(path, write=True) as con:
-        con.execute(
-            "INSERT INTO engagement (periods, query_threshold, status, opened_run_id, opened_at) "
-            "VALUES ('FY25', 100000, 'open', 'r0', ?)",
-            [utcnow()],
-        )
+    root = engagement_root(tmp_path)
     config = dataclasses.replace(load_config(root), pdf_parser="none")
     ingest_bank(Run("t", {}, root), config, "acme", write_statement(tmp_path / "s.xlsx"), None)
     return root

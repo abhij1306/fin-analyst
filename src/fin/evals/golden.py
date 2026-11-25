@@ -119,6 +119,17 @@ def unit_name(text: str) -> str:
     return word
 
 
+def _unit_problems(check: Check, accounts: Mapping[str, Account]) -> list[str]:
+    try:
+        unit = unit_name(check.unit)
+    except KeyError:
+        return [f"unit {check.unit!r} is not one of {', '.join(RUPEES_PER_UNIT)}"]
+    account = accounts.get(check.account)
+    if account is not None and account.unit != "rupees" and unit != "rupees":
+        return [f"{check.account} is stored as printed ({account.unit}): use unit rupees"]
+    return []
+
+
 def _problems(check: Check, accounts: Mapping[str, Account]) -> list[str]:
     out = [f"{name} is empty" for name in NEEDS[check.kind] if not getattr(check, name)]
     if check.ledger and check.kind in LEDGERS and check.ledger not in LEDGERS[check.kind]:
@@ -130,16 +141,7 @@ def _problems(check: Check, accounts: Mapping[str, Account]) -> list[str]:
     if check.expected.strip() and parse_figure(check.expected) is None:
         out.append(f"expected {check.expected!r} is not a figure")
     if check.unit.strip():
-        try:
-            unit = unit_name(check.unit)
-        except KeyError:
-            out.append(f"unit {check.unit!r} is not one of {', '.join(RUPEES_PER_UNIT)}")
-        else:
-            account = accounts.get(check.account)
-            if account is not None and account.unit != "rupees" and unit != "rupees":
-                out.append(
-                    f"{check.account} is stored as printed ({account.unit}): use unit rupees"
-                )
+        out += _unit_problems(check, accounts)
     if check.checked:
         out += [
             f"checked, but {n} is empty"

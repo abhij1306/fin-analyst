@@ -291,15 +291,8 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
             run,
             con,
             engagement,
-            kind=KIND,
-            name=name,
-            sha256=sha256,
-            archive=archive,
-            period=period,
-            start=st.start,
-            end=st.end,
-            basis=basis,
-            profile=st.profile.name,
+            (KIND, name, sha256, archive),
+            (period, basis, st.start, st.end, st.profile.name),
         )
         file_id = masker.file_id = file["file_id"]
         _insert(run, con, st, file_id, masker, raw)

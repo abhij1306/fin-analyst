@@ -70,18 +70,13 @@ def add_file(
     run: Run,
     con: duckdb.DuckDBPyConnection,
     engagement: dict[str, Any],
-    *,
-    kind: str,
-    name: str,
-    sha256: str,
-    archive: str,
-    period: str,
-    start: date,
-    end: date,
-    basis: str,
-    profile: str,
+    source: tuple[str, str, str, str],
+    covers: tuple[str, str, date, date, str],
 ) -> dict[str, Any]:
-    """Insert the `source_files` row of a file being loaded; the row (with its file_id)."""
+    """Insert the `source_files` row of a file being loaded; the row (with its file_id).
+    `source`: (kind, file name, sha256, archive path); `covers`: (period, basis, first date, last
+    date, profile name)."""
+    (kind, name, sha256, archive), (period, basis, start, end, profile) = source, covers
     file: dict[str, Any] = {
         "engagement_id": engagement["engagement_id"],
         "kind": kind,
