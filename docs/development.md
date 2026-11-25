@@ -64,7 +64,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   `RECONCILIATIONS` (gate G3 reads it, not G2): `recast.py` (compute), `recast_run.py` (`fin recast run`, proposes the
   adjustment), `recast_checks.py` (G3's lines), `contracts.py` (`fin recast contracts`), `contract_terms.py` (the term columns of a
   contract reading), `contract_coverage.py` (`fin contracts coverage`). `walkthrough.py` is in `RECONCILIATIONS`: the exceptions Claude recorded
-  for sampled lines.
+  for sampled lines. F7 (orderbook): `orderbook_vs_register.py` (in `RECONCILIATIONS`) and `visibility.py` (`fin visibility`; views in
+  `db/schema/fdd_orderbook.sql`); the orderbook loads through `diligence/orderbook.py` (`fin ingest --kind orderbook`, profile
+  `templates/profiles/orderbook.toml`); CLI `cli/orderbook.py`; golden kinds `evals/fdd_orderbook.py`.
 - `sampling/`: FDD F1 samples and walkthroughs: `draw.py` (`fin sample`), `walkthrough.py` (`fin walkthrough`); CLI `cli/fdd_contracts.py`
   (also `fin contracts coverage`); schema `db/schema/fdd_contracts.sql`; golden kinds `evals/fdd_contracts.py`.
   F2's inquiries: `diligence/inquiries.py` (a query with a topic; `collect` for the FDD report), `diligence/inquiry_cli.py` (`fin query checklist`),
@@ -279,7 +281,7 @@ Each database is created from its schema files in `src/fin/db/schema/`, run in t
 `src/fin/db/schema.py` lists them: `audit.sql`, `dictionary.sql`, `analytics.sql`, and for a company `company.sql`
 (tables), `company_views.sql` and the `company_metric_*.sql` / `company_metrics.sql` files (metric macros and
 views), `diligence.sql` (diligence tables), `diligence_views.sql` (EBITDA bridge and walk views), `sources.sql` and
-`sources_views.sql` (source tables and their views) and the other diligence view files, then the FDD files (`fdd_bsheet.sql`: F3's provision ledgers and views). `fin init` creates the
+`sources_views.sql` (source tables and their views) and the other diligence view files, then the FDD files (`fdd_bsheet.sql`: F3's provision ledgers and views; `fdd_orderbook.sql`: F7's orderbook table and visibility views). `fin init` creates the
 shared databases, and a company database is created the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
 numbers.
 

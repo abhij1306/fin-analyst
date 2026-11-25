@@ -153,15 +153,20 @@ Decisions: [decisions/fdd-f3.md](decisions/fdd-f3.md). Schema: `db/schema/fdd_bs
   deferred tax asset or liability movement per year; MAT credit where mapped.
 - Notices and assessments come in through F5's `tax_matter` rows.
 
-### F7: Orderbook and revenue visibility (gap 9)
+### F7: Orderbook and revenue visibility (gap 9) — built
 
-- `fin ingest <co> <file> --kind orderbook` (profile `orderbook`): customer, order number and date, value,
-  currency, start, end, billed to date, as at a date; file + sheet!row; customers masked.
-- Contracted backlog: unbilled orderbook value; revenue billed but not yet earned at the period end (from the
-  service-period recast, D6); contract value remaining after the period end (F1 contracts).
-- `revenue_visibility`: for the year after the last period end, revenue covered by each backlog source (spread
-  straight-line over the remaining term), against the last year's core revenue; `fin visibility <co> [--json]`.
-- `fin reconcile <co> orderbook_vs_register`: orders with no billing, billing with no order.
+Choices in [decisions/fdd-f7.md](decisions/fdd-f7.md); behaviour in `docs/product.md` ("FDD orderbook and revenue visibility").
+Schema `db/schema/fdd_orderbook.sql`; errors E960–E961. Commands: `fin ingest <co> <file> --kind orderbook` (profile
+`orderbook`), `fin visibility <co> [--json]`, `fin reconcile <co> orderbook_vs_register`. Views: `orderbook_current`,
+`visibility_basis`, `backlog_lines`, `revenue_visibility`. Data function for F8: `fin.reconcile.visibility.visibility`. Golden kinds
+`backlog_remaining`, `visibility_covered`.
+
+- Orderbook rows: customer (token), order number and date, value, currency, start, end, billed to date, as at a date; file + sheet!row.
+- Contracted backlog, per source and never added: unbilled orderbook value; revenue billed but not yet earned at the period end (service-period
+  recast, D6); customer contract value remaining after the period end (F1).
+- `revenue_visibility`: for the year after the last period end, the part of each source falling in it (straight-line over the remaining term),
+  against the last year's core revenue.
+- `orderbook_vs_register`: orders with no billing, billing with no order (matched by customer: the register has no order number).
 
 ### F8: FDD findings report (gap 10)
 

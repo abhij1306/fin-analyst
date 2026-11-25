@@ -35,6 +35,8 @@ a command returns when the error ends it:
   no loaded sales register has) stop the command: exit 2.
 - E873-E874 (the diligence report, fin.report.dd_render: the company has no engagement; a narrative
   reference to a figure or period the report does not have) stop the command: exit 2.
+- E960-E961 (FDD orderbook: an orderbook row that cannot be read; `fin visibility` with no backlog
+  source loaded) stop the command: exit 2.
 - E901-E903 (FDD walkthroughs, fin.sampling: a sample that cannot be drawn, a walkthrough file that
   cannot be used, an unknown sample id) stop the command: exit 2.
 - E910 (FDD inquiries, fin.diligence.inquiries: an unknown topic or an unusable checklist template)
@@ -310,7 +312,7 @@ class DiligenceTableWrite(FinError):
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
     recon_items, passthrough_customers, recon_match_lines, match_proposals, contracts, samples,
-    sample_lines, walkthroughs, provision_ledgers, inquiries): those change
+    sample_lines, walkthroughs, provision_ledgers, inquiries, orderbook_lines): those change
     only through `fin engagement`, `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`,
     `fin map ledgers` with `fin review --ledgers`, `fin reconcile` (with `fin review --matches`) and
     `fin recast`, `fin sample` and `fin walkthrough`. Nothing was run."""
@@ -662,3 +664,21 @@ class ProvisionsUnavailable(FinError):
     the latest engagement's annual periods. Nothing shown."""
 
     code = "E923"
+
+
+# E960-E969: FDD F7, orderbook and revenue visibility (fin.diligence.orderbook,
+# fin.reconcile.visibility).
+
+
+class OrderbookRowInvalid(FinError):
+    """E960. `fin ingest --kind orderbook`: a row with other cells but no customer or order number,
+    no order value, or a date or amount that cannot be read. Nothing loaded."""
+
+    code = "E960"
+
+
+class VisibilityUnavailable(FinError):
+    """E961. `fin visibility`: no orderbook, no billed-not-earned line and no customer contract
+    is loaded for the latest engagement. Nothing shown."""
+
+    code = "E961"

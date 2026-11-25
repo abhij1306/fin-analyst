@@ -15,7 +15,7 @@ import duckdb
 from fin.audit.logger import Run
 from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
-from fin.evals import fdd_contracts, provisions, qoe
+from fin.evals import fdd_contracts, fdd_orderbook, provisions, qoe
 from fin.evals.counts import counts, related_codes
 from fin.evals.golden import EXPORTED, LATEST_ENGAGEMENT, RECON_KINDS, Check, read_golden
 from fin.map.dictionary import load_accounts
@@ -164,6 +164,7 @@ _FIN_VALUE = {
 
 _FIN_VALUE.update(qoe.FIN_VALUE)
 _FIN_VALUE.update(fdd_contracts.FIN_VALUE)
+_FIN_VALUE.update(fdd_orderbook.FIN_VALUE)
 _FIN_VALUE.update(provisions.FIN_VALUE)
 _FIN_VALUE.update(
     {

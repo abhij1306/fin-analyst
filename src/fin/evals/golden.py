@@ -67,6 +67,9 @@ One line per check, the value a person read in the company's document and checke
 - `contract_value`, `sample_exception_amount`: a contract's value as Claude read it (`ledger` the
   contract id), and the Amount in Rs of a walkthrough sample's lines with an exception (`ledger`
   the sample id; fin.evals.fdd_contracts).
+- `backlog_remaining`, `visibility_covered` (F7): what a backlog source (`ledger`: orderbook,
+  billed_not_earned or contract) still has to come after the last period, and the part of it in
+  the next 12 months (fin.evals.fdd_orderbook).
 
 `expected` is the figure as printed (brackets or a minus for negative) in `unit`; `source` is where
 it is printed (file + sheet!cell, sheet!row or page). Only a line whose `checked` is `yes` is
@@ -82,7 +85,7 @@ from pathlib import Path
 
 from fin.audit.errors import GoldenSetInvalid, GoldenSetMissing
 from fin.config import SCOPES
-from fin.evals import fdd_contracts, provisions, qoe
+from fin.evals import fdd_contracts, fdd_orderbook, provisions, qoe
 from fin.extract.units import RUPEES_PER_UNIT, parse_figure, to_rupees
 from fin.map.dictionary import Account
 from fin.paths import evals_dir
@@ -140,6 +143,7 @@ KINDS = (
     *RECAST_KINDS,
     *qoe.KINDS,
     *fdd_contracts.KINDS,
+    *fdd_orderbook.KINDS,
     *provisions.KINDS,
 )
 NEEDS = {
@@ -152,6 +156,7 @@ NEEDS = {
     **{kind: ("period",) for kind in RECAST_KINDS},
     **{kind: ("period", "ledger") for kind in qoe.KINDS},
     **fdd_contracts.NEEDS,
+    **fdd_orderbook.NEEDS,
     **provisions.NEEDS,
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),

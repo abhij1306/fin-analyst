@@ -3,15 +3,16 @@
 A profile says how to read one export layout, so the loader (`fin.extract.ledger`) needs no layout
 special cases:
 
-- `kind`: the source file kind it reads (`trial_balance`, `ledger_vouchers`, `payroll`, `bank`).
+- `kind`: the source file kind it reads (`trial_balance`, `ledger_vouchers`, `payroll`, `bank`,
+  `orderbook`).
 - `header_rows`: how many rows the column header spans. A column's header text is its cells in those
   rows joined by spaces (a merged cell counts in every column it spans), so "Closing Balance" over
   "Debit" reads "Closing Balance Debit".
 - `[columns]`: header text -> field. Matching ignores case and repeated spaces.
 - `date_format`: `strptime` format of dates written as text (Excel dates are read as they are).
 - `period`: a regular expression with groups `start` and `end` that finds the period covered in
-  the export's header lines (the rows above the column header). A payroll snapshot has one date,
-  the group `date` ("Employee master as on 31-Mar-2025").
+  the export's header lines (the rows above the column header). A payroll snapshot or an orderbook
+  has one date, the group `date` ("Employee master as on 31-Mar-2025", "Orderbook as at ...").
 - `unit`: rupees per unit of the amounts (default 1).
 - `[rows]`: `skip` (names of rows that are not data: totals, opening and closing balances);
   for a trial balance `group` ("bold": group rows are bold) and `level` ("indent": nesting from
@@ -42,12 +43,14 @@ from typing import Any
 from fin.audit.errors import LayoutUnknown
 
 PROFILES_DIR = Path(__file__).resolve().parents[3] / "templates" / "profiles"
-KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll", "bank")  # D3
+KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll", "bank", "orderbook")  # D3, F7
 FIELDS = {
     "trial_balance": {"name", "debit", "credit"},
     "ledger_vouchers": {"date", "particulars", "voucher_type", "voucher_no", "debit", "credit"},
     "payroll": {"employee_name", "employee_code", "gross_salary", "ctc"},
     "bank": {"date", "remarks", "debit", "credit", "balance"},  # reference is optional
+    # F7: order_date, currency, start_date and end_date are optional
+    "orderbook": {"customer", "order_no", "value", "billed"},
 }
 REGISTER_PARTS = ("sales", "purchase")
 REGISTER_FIELDS = {
@@ -165,7 +168,7 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
         )
     except (KeyError, ValueError, TypeError, re.error) as exc:
         raise _invalid(name, f"{type(exc).__name__}: {exc}") from exc
-    needs = ("date",) if kind == "payroll" else ("start", "end")
+    needs = ("date",) if kind in ("payroll", "orderbook") else ("start", "end")
     if not set(needs) <= set(period.groupindex):
         raise _invalid(name, f"period needs the named groups {' and '.join(needs)}")
     if profile.group != "bold" or profile.level not in ("indent", "none"):

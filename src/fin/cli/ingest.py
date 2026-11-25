@@ -130,7 +130,7 @@ def ingest(
 ) -> None:
     """Load Excel and PDF documents for one company. Files already loaded are skipped (E105).
     With --kind, load one diligence source file (trial balance, Ledger Vouchers, registers, bank
-    statement, payroll)
+    statement, payroll, orderbook)
     instead."""
 
     _check_usage(path, force, reading, kind, profile)
