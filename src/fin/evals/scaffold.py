@@ -16,8 +16,8 @@ from fin.diligence.recon import NAME as RECON
 from fin.evals.golden import (
     COLUMNS,
     LATEST_ENGAGEMENT,
-    RECON_KINDS,
     OPTIONAL,
+    RECON_KINDS,
     golden_path,
     read_golden,
     write_golden,

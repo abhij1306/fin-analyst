@@ -220,7 +220,11 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   ledgers waiting; Claude proposes accounts with `fin map ledgers <company> <file.json>`; you confirm or reject
   them with `fin review list|confirm|reject <company> ... --ledgers` (`--account` to choose another). fin never
   confirms one itself.
-- `fin reconcile <company> [tb_vs_statements] [--period FY25] [--json]`: each year's trial balance, rolled up by
+- `fin reconcile <company> [name] [--period FY25] [--json]` (name: `tb_vs_statements`, `sales_register_vs_gl`,
+  `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`; none: every one whose inputs are loaded). The last four compare
+  the registers, Ledger Vouchers, trial balance and payroll; fin drafts no query for them: Claude groups the lines
+  at or above the threshold into issues with `fin query raise <company> --items 12,13 --question "..."` and you approve
+  them; foreign-currency rate differences are `fx` lines, listed, never queried (E840-E842). `tb_vs_statements`: each year's trial balance, rolled up by
   confirmed ledger mapping, against the audited standalone statement figures, one line per account (the year's
   profit from the income and expense ledgers rolls into other equity, as the balance sheet shows it). A line whose
   difference is at or above the threshold becomes a draft query (origin `recon`; you approve and send it); a line
