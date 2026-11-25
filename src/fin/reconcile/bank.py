@@ -116,8 +116,8 @@ def _end(engagement: dict[str, Any], period: str) -> Any:
 def applies_tb(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], period: str) -> bool:
     """A trial balance for the period and INR statements ending on its last day."""
     return (
-        period in bank_lines.period_bounds(engagement)
-        and _books(con, engagement, period) is not None
+        _books(con, engagement, period) is not None
+        and period in bank_lines.period_bounds(engagement)
         and bool(_statements(con, engagement, _end(engagement, period))[0])
     )
 
