@@ -89,6 +89,8 @@ def _check_usage(
             raise typer.BadParameter(f"--kind takes {' or '.join(KINDS)} and PATH as one file")
         if force or reading is not None:
             raise typer.BadParameter("--kind does not take --force or --reading")
+        if kind == "gst" and profile is None:
+            raise typer.BadParameter("--kind gst needs --profile gstr1 or gstr3b (or your own)")
     elif profile is not None:
         raise typer.BadParameter("--profile needs --kind")
 
@@ -130,7 +132,7 @@ def ingest(
 ) -> None:
     """Load Excel and PDF documents for one company. Files already loaded are skipped (E105).
     With --kind, load one diligence source file (trial balance, Ledger Vouchers, registers, bank
-    statement, payroll, orderbook)
+    statement, payroll, orderbook, GST return summary: --kind gst --profile gstr1|gstr3b)
     instead."""
 
     _check_usage(path, force, reading, kind, profile)

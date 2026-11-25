@@ -1,0 +1,22 @@
+# GSTR-1 return summary for a year (docs/fdd.md F6): one row per return month, exported to Excel.
+# One header row: Month | Taxable Value | IGST | CGST | SGST | Cess, under a title line such as
+# "GSTR-1 summary for 01-Apr-2024 to 31-Mar-2025". Amounts in rupees as filed.
+# How profiles work: src/fin/extract/profiles.py and docs/development.md.
+kind = "gst"
+gst_return = "gstr1"
+header_rows = 1
+date_format = "%d-%b-%Y"
+month_format = "%b-%Y"
+period = '(?P<start>\d{1,2}-[A-Za-z]{3}-\d{4})\s+to\s+(?P<end>\d{1,2}-[A-Za-z]{3}-\d{4})'
+unit = 1
+
+[columns]
+"Month" = "month"
+"Taxable Value" = "taxable_value"
+"IGST" = "igst"
+"CGST" = "cgst"
+"SGST" = "sgst"
+"Cess" = "cess"
+
+[rows]
+skip = ["Total", "Grand Total"]

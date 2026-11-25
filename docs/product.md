@@ -820,3 +820,25 @@ the register with no order on the orderbook (right_only, the billing); the regis
 or above the threshold is grouped into a query (`fin query raise --items`, level `order`), below it is listed. Golden eval kinds
 `backlog_remaining` and `visibility_covered` (period, ledger = the source: `orderbook`, `billed_not_earned` or `contract`). The FDD
 report (F8) reads F7 through `fin.reconcile.visibility.visibility(con, engagement_id)`.
+
+GST and income tax (FDD F6, `docs/fdd.md`; decisions in `docs/decisions/fdd-f6.md`): `fin ingest <co> <file> --kind gst
+--profile gstr1|gstr3b` (`fin/fdd/gst.py`, through `fin/diligence/sources.py`) loads a GSTR-1 or GSTR-3B summary for an
+engagement year or the stub (period line as for a trial balance, E808): one row per return month into `gst_returns`
+(taxable value, IGST, CGST, SGST, cess; GSTR-3B also ITC, RCM liability, tax paid in cash and through credit) with
+sheet!row. The file is stored as its return (`source_files.kind` `gstr1` or `gstr3b`), so a later file of the same
+return and period supersedes it; `--profile` is required (a GSTR-3B layout has every GSTR-1 column). Profiles
+`templates/profiles/gstr1.toml` and `gstr3b.toml` (kind `gst`, `gst_return`, `month_format`). A bad, out-of-period or
+repeated month is E950 (nothing loaded); months with no row are listed. Tax ledgers: Claude proposes a class for trial
+balance ledgers (`fin map tax <co> <file.json>`: `{ledger, class, confidence, reason}`, class one of `gst_output`,
+`gst_input`, `rcm`, `tds`, `income_tax`, `mat_credit`; `fin map tax <co>` lists the classes and the ledgers with
+none); the user confirms (`fin review confirm <co> <ids> --tax [--tax-class]`) or rejects them (E951); decisions go to
+`mapping_decisions` (scope `tax`). Reconciliations (`fin/reconcile/gst.py`, in `fin reconcile` and gate G2 once their
+inputs are loaded): `gstr1_vs_sales_register` (GSTR-1 taxable value vs the sales register's Amount in Rs by invoice
+month), `gstr3b_vs_gstr1` (taxable value and output tax), `gstr3b_vs_books` (GSTR-3B output tax vs credits on the
+output ledgers; ITC vs debits on the input ledgers; by Ledger Vouchers month) and `rcm` (RCM liability vs credits on
+the RCM ledgers): one line per month and measure (level `gst`), a line at or above the threshold for a query
+(`fin query raise --items`). Views: `tax_charge` (per annual period and scope from the statements: PBT, current,
+deferred and total tax, effective tax rate, net deferred tax asset and its movement, MAT credit from the confirmed
+ledgers) and `tax_ledger_balances`. `fin sql --write` refuses `gst_returns` and `tax_ledgers` (E806). Golden eval
+kinds `gst_return` (`ledger` `gstr3b 2024-05 itc`) and the four reconciliation names. The FDD report's tax section
+reads `fin.fdd.tax_data.collect`.

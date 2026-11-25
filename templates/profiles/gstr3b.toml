@@ -1,0 +1,28 @@
+# GSTR-3B return summary for a year (docs/fdd.md F6): one row per return month, exported to Excel.
+# One header row: Month | Taxable Value | IGST | CGST | SGST | Cess | ITC Claimed | RCM Liability |
+# Paid in Cash | Paid through Credit, under a title line such as "GSTR-3B summary for 01-Apr-2024 to
+# 31-Mar-2025". Taxable value and tax are the outward taxable supplies (table 3.1(a)); ITC is the net
+# input tax credit (table 4); RCM liability the tax on inward supplies under reverse charge
+# (table 3.1(d)); tax paid in cash and through credit (table 6.1). Amounts in rupees as filed.
+kind = "gst"
+gst_return = "gstr3b"
+header_rows = 1
+date_format = "%d-%b-%Y"
+month_format = "%b-%Y"
+period = '(?P<start>\d{1,2}-[A-Za-z]{3}-\d{4})\s+to\s+(?P<end>\d{1,2}-[A-Za-z]{3}-\d{4})'
+unit = 1
+
+[columns]
+"Month" = "month"
+"Taxable Value" = "taxable_value"
+"IGST" = "igst"
+"CGST" = "cgst"
+"SGST" = "sgst"
+"Cess" = "cess"
+"ITC Claimed" = "itc"
+"RCM Liability" = "rcm_liability"
+"Paid in Cash" = "paid_cash"
+"Paid through Credit" = "paid_credit"
+
+[rows]
+skip = ["Total", "Grand Total"]

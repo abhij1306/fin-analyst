@@ -8,7 +8,8 @@
 CREATE SEQUENCE source_files_seq START 1;
 
 -- One row per source file loaded with `fin ingest <co> <file> --kind <kind>`.
--- kind: 'trial_balance', 'ledger_vouchers', 'registers', 'payroll', 'bank' or 'orderbook' (F7, fdd_orderbook.sql). period: the period of the engagement
+-- kind: 'trial_balance', 'ledger_vouchers', 'registers', 'payroll', 'bank', 'orderbook' (F7, fdd_orderbook.sql), or a
+-- GST return summary 'gstr1' or 'gstr3b' (F6, fdd_gst.sql). period: the period of the engagement
 -- the export covers, read from its header lines (period_start, period_end): an annual period, or the stub (a bank
 -- statement covers part of one: the period that holds all its dates). A registers
 -- file has no period header: period_start and period_end are its first and last invoice date, period names the fiscal
@@ -20,7 +21,8 @@ CREATE SEQUENCE source_files_seq START 1;
 CREATE TABLE source_files (
     file_id INTEGER PRIMARY KEY DEFAULT nextval('source_files_seq'),
     engagement_id INTEGER NOT NULL,
-    kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers', 'registers', 'payroll', 'bank', 'orderbook')),
+    kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers', 'registers', 'payroll', 'bank', 'orderbook',
+        'gstr1', 'gstr3b')),
     file_name VARCHAR NOT NULL,
     sha256 VARCHAR NOT NULL,
     archive_path VARCHAR NOT NULL,  -- archive/<company>/<sha256>.<ext>, relative to the data folder
@@ -259,7 +261,8 @@ CREATE TABLE recon_runs (
     engagement_id INTEGER NOT NULL,
     name VARCHAR NOT NULL CHECK (name IN ('tb_vs_statements', 'sales_register_vs_gl',
         'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl', 'bank_vs_invoices', 'bank_vs_tb', 'service_recast', 'walkthrough',
-        'sales_cutoff', 'purchase_cutoff', 'orderbook_vs_register')),
+        'sales_cutoff', 'purchase_cutoff', 'orderbook_vs_register',
+        'gstr1_vs_sales_register', 'gstr3b_vs_gstr1', 'gstr3b_vs_books', 'rcm')),
     period VARCHAR NOT NULL,
     scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
     left_file_id INTEGER NOT NULL,
@@ -297,8 +300,8 @@ CREATE TABLE recon_runs (
 -- at or above the threshold; the month and party lines are roll-ups, listed. Differences are queried, never fixed.
 -- sources: file + sheet!row (trial balance) and file + sheet!cell or page.
 -- item_id: a number for the line across runs (`fin query raise --items`). level and key: what a D4 line compares
--- ('month' 2024-05, 'party' CUST-0001, 'invoice' INV-1001, 'ledger' a ledger name, 'payroll' the period); note: how it
--- was matched, or the fx rates.
+-- ('month' 2024-05, 'party' CUST-0001, 'invoice' INV-1001, 'ledger' a ledger name, 'payroll' the period, 'gst' a return
+-- month and measure, 2024-05 taxable_value, fin.reconcile.gst); note: how it was matched, or the fx rates.
 -- bank_vs_invoices (level 'match' a receipt group and its invoices, 'receipt' an unmatched receipt, 'invoice' an unmatched
 -- invoice; key the invoice numbers, the bank line or the invoice number): match_pass 'reference', 'party_amount_date',
 -- 'amount_date' (fixed passes, fin.reconcile.bank_match) or 'confirmed' (a match Claude proposed and the user confirmed);

@@ -141,6 +141,14 @@ Decisions: [decisions/fdd-f3.md](decisions/fdd-f3.md). Schema: `db/schema/fdd_bs
 
 ### F6: GST and income tax (gap 6)
 
+**Built.** Commands: `fin ingest <co> <file> --kind gst --profile gstr1|gstr3b` (stored as `gstr1`/`gstr3b` source
+files, table `gst_returns`), `fin map tax <co> [file.json]` and `fin review list|confirm|reject <co> ... --tax
+[--tax-class]` (table `tax_ledgers`), `fin reconcile <co> gstr1_vs_sales_register|gstr3b_vs_gstr1|gstr3b_vs_books|rcm`
+(`recon_runs`/`recon_items`, level `gst`, required by G2 once their inputs are loaded). Views: `tax_charge`,
+`tax_ledger_balances` (db/schema/fdd_gst.sql). Golden eval kinds: `gst_return` and the four reconciliations. F8 data
+function: `fin.fdd.tax_data.collect(con)`. Errors E950-E951. Decisions: [decisions/fdd-f6.md](decisions/fdd-f6.md).
+Plan as written:
+
 - `fin ingest <co> <file> --kind gst --profile gstr1|gstr3b`: monthly return summaries (taxable value, IGST, CGST,
   SGST, cess; for GSTR-3B also input tax credit, reverse-charge liability and tax paid in cash and credit), with file +
   sheet!row. Synthetic profiles in `templates/profiles/`.

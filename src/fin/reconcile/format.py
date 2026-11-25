@@ -9,7 +9,7 @@ only those that differ are listed. Coverage lines (the cut-off tests, F3) say wh
 from typing import Any
 
 from fin.diligence.engagement import rupees
-from fin.reconcile import bank
+from fin.reconcile import bank, gst
 from fin.reconcile.base import DETAIL_LEVELS
 
 LEFT = {
@@ -21,6 +21,7 @@ LEFT = {
     "sales_cutoff": ("register", "not compared"),
     "purchase_cutoff": ("register", "not compared"),
     "orderbook_vs_register": ("orderbook", "register"),
+    **gst.LEFT,
 }
 
 

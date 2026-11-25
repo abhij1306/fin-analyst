@@ -14,6 +14,12 @@ One line per check, the value a person read in the company's document and checke
   stored, or the period for payroll. `sales_cutoff`, `purchase_cutoff` (F3): the Amount in Rs of
   one invoice flagged by the cut-off test at the period's year end; `ledger` its invoice number.
 - `receivable_ageing`, `doubtful_debt_provision`, `gratuity_provision` (F3): fin.evals.provisions.
+  stored, or the period for payroll.
+- `gstr1_vs_sales_register`, `gstr3b_vs_gstr1`, `gstr3b_vs_books`, `rcm` (F6): the difference on one
+  line of the period's latest run, the return less the other side; `ledger` is the line's key, the
+  month and measure (`2024-05 taxable_value`, `2024-05 output_tax`, `2024-05 itc`,
+  `2024-05 rcm_liability`);
+- `gst_return`: a GST return month's figure as filed (`fin.evals.gst`);
 - `query_issue`: an exported issue's amount at issue (the lines' differences added without their
   signs) for a query that is approved or later; `ledger` is the query id.
 - `query_difference`: the value of one kind of difference in an issue, as the export shows it
@@ -85,7 +91,7 @@ from pathlib import Path
 
 from fin.audit.errors import GoldenSetInvalid, GoldenSetMissing
 from fin.config import SCOPES
-from fin.evals import fdd_contracts, fdd_orderbook, provisions, qoe
+from fin.evals import fdd_contracts, fdd_orderbook, gst, provisions, qoe
 from fin.extract.units import RUPEES_PER_UNIT, parse_figure, to_rupees
 from fin.map.dictionary import Account
 from fin.paths import evals_dir
@@ -99,6 +105,10 @@ RECON_KINDS = (
     "payroll_vs_gl",
     "sales_cutoff",
     "purchase_cutoff",
+    "gstr1_vs_sales_register",
+    "gstr3b_vs_gstr1",
+    "gstr3b_vs_books",
+    "rcm",
 )
 QUERY_KINDS = ("query_issue", "query_difference")
 RECAST_KINDS = ("recast_revenue", "recast_difference", "recast_undated")
@@ -145,6 +155,7 @@ KINDS = (
     *fdd_contracts.KINDS,
     *fdd_orderbook.KINDS,
     *provisions.KINDS,
+    *gst.KINDS,
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -158,6 +169,7 @@ NEEDS = {
     **fdd_contracts.NEEDS,
     **fdd_orderbook.NEEDS,
     **provisions.NEEDS,
+    **{kind: ("period", "ledger") for kind in gst.KINDS},
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),
     "linked_purchase_cost": ("period",),

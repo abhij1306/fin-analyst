@@ -144,7 +144,7 @@ def _recon_lines(con: duckdb.DuckDBPyConnection) -> dict[str, Any]:
         "count(*) FROM recon_items i JOIN recon_runs r USING (recon_id) WHERE r.recon_id IN "
         f"(SELECT max(recon_id) FROM recon_runs WHERE engagement_id = {LATEST_ENGAGEMENT} "
         f"GROUP BY name, period) AND r.name IN ({names}) AND i.level IN ('invoice', 'ledger', "
-        "'payroll') GROUP BY ALL ORDER BY ALL"
+        "'payroll', 'gst') GROUP BY ALL ORDER BY ALL"
     ).fetchall():
         entry = out.setdefault(name, {"kinds": {}, "not_in_a_query": 0})
         entry["kinds"][kind] = entry["kinds"].get(kind, 0) + n

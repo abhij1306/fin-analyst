@@ -25,6 +25,11 @@ special cases:
   its period is read from its invoice dates.
 - `[mask]`: `groups` (group name -> masked kind: the ledgers under it are tokenised, as
   `fin.diligence.mask`) and `fields` (fields in which known masked names are replaced by tokens).
+- GST return summaries (`kind = "gst"`, docs/fdd.md F6): one row per return month. `gst_return` is
+  `gstr1` or `gstr3b` (what the file is stored as); `month_format` is the `strptime` format of a
+  month written as text ("Apr-2024": "%b-%Y"); `period` gives the period covered as for a trial
+  balance. A GSTR-3B profile also maps `GST3B_FIELDS`. `[rows] skip`: month cells that are not
+  months (totals).
 - Bank statements (`kind = "bank"`, Excel and PDF alike): `bank` (the bank's name), `currency` (the
   account's currency when the header does not say) and `[header]`: regular expressions with a group
   `value` that find `account`, `currency`, `opening` and `closing` in the lines around the table
@@ -43,7 +48,8 @@ from typing import Any
 from fin.audit.errors import LayoutUnknown
 
 PROFILES_DIR = Path(__file__).resolve().parents[3] / "templates" / "profiles"
-KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll", "bank", "orderbook")  # D3, F7
+# D3; F6 gst, F7 orderbook
+KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll", "bank", "orderbook", "gst")
 FIELDS = {
     "trial_balance": {"name", "debit", "credit"},
     "ledger_vouchers": {"date", "particulars", "voucher_type", "voucher_no", "debit", "credit"},
@@ -51,7 +57,10 @@ FIELDS = {
     "bank": {"date", "remarks", "debit", "credit", "balance"},  # reference is optional
     # F7: order_date, currency, start_date and end_date are optional
     "orderbook": {"customer", "order_no", "value", "billed"},
+    "gst": {"month", "taxable_value", "igst", "cgst", "sgst", "cess"},
 }
+GST_RETURNS = ("gstr1", "gstr3b")
+GST3B_FIELDS = {"itc", "rcm_liability", "paid_cash", "paid_credit"}  # and GSTR-3B
 REGISTER_PARTS = ("sales", "purchase")
 REGISTER_FIELDS = {
     "bill_id", "purchase_id", "customer_id", "customer", "vendor_id", "vendor", "location",
@@ -94,6 +103,8 @@ class Profile:
     bank: str = ""  # bank profiles: the bank's name
     currency: str = "INR"  # bank profiles: the currency when the header gives none
     header: dict[str, re.Pattern[str]] = field(default_factory=dict)  # bank profiles
+    gst_return: str = ""  # gst profiles: gstr1 or gstr3b
+    month_format: str = ""  # gst profiles: a month written as text
 
 
 def _invalid(name: str, why: str) -> LayoutUnknown:
@@ -165,6 +176,8 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
             header={
                 k: re.compile(str(v), re.IGNORECASE) for k, v in (data.get("header") or {}).items()
             },
+            gst_return=str(data.get("gst_return", "")),
+            month_format=str(data.get("month_format", "")),
         )
     except (KeyError, ValueError, TypeError, re.error) as exc:
         raise _invalid(name, f"{type(exc).__name__}: {exc}") from exc
@@ -173,9 +186,26 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
         raise _invalid(name, f"period needs the named groups {' and '.join(needs)}")
     if profile.group != "bold" or profile.level not in ("indent", "none"):
         raise _invalid(name, 'rows.group must be "bold" and rows.level "indent" or "none"')
-    if kind == "bank":
-        _check_bank(name, profile)
+    _check_kind(name, profile)
     return profile
+
+
+def _check_kind(name: str, profile: Profile) -> None:
+    """The checks only bank and gst profiles have."""
+    if profile.kind == "bank":
+        _check_bank(name, profile)
+    if profile.kind == "gst":
+        _check_gst(name, profile)
+
+
+def _check_gst(name: str, profile: Profile) -> None:
+    if profile.gst_return not in GST_RETURNS or not profile.month_format:
+        raise _invalid(
+            name, 'a gst profile needs gst_return = "gstr1" or "gstr3b" and month_format'
+        )
+    missing = GST3B_FIELDS - set(profile.columns.values()) if profile.gst_return == "gstr3b" else ()
+    if missing:
+        raise _invalid(name, f"[columns] has no header for {', '.join(sorted(missing))}")
 
 
 def _check_bank(name: str, profile: Profile) -> None:
