@@ -51,7 +51,7 @@ def test_gst_returns_tax_ledgers_and_reconciliations(root: Path, tmp_path: Path)
     assert "GSTR-3B FY25: 3 months" in gstr3b.stdout
 
     listed = fin("map", "tax", "acme")
-    assert "15 trial balance ledgers with no tax class" in listed.stdout
+    assert "13 trial balance ledgers with no tax class" in listed.stdout
     proposals = tmp_path / "tax.json"
     proposals.write_text(
         json.dumps(

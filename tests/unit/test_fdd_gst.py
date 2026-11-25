@@ -208,7 +208,10 @@ def test_tax_ledger_proposals_need_review(loaded: Path) -> None:
 @pytest.mark.parametrize(
     ("proposal", "message"),
     [
-        ({"ledger": "Nope", "class": "tds", "confidence": 1, "reason": ""}, "not a ledger of a"),
+        (
+            {"ledger": "Nope", "class": "tds", "confidence": 1, "reason": ""},
+            "not a trial balance ledger",
+        ),
         ({"ledger": "TDS Payable", "class": "vat", "confidence": 1, "reason": ""}, "class 'vat'"),
         ({"ledger": "TDS Payable", "class": "tds", "confidence": 2, "reason": ""}, "from 0 to 1"),
         ({"ledger": "TDS Payable"}, "expected an object"),

@@ -375,12 +375,12 @@ def review_confirm(
     ids are tax ledger ids: their proposed classes (or --tax-class) are confirmed."""
 
     def body(run: Run) -> None:
+        if tax_items:
+            others = any((ledger_items, match_items, customer_items, account, sector, name, parent))
+            _confirm_tax(run, company, ids, tax_class, others)
+            return
         if match_items:
             _confirm_matches(run, company, ids)
-            return
-        if tax_items:
-            others = any((ledger_items, customer_items, account, sector, name, parent))
-            _confirm_tax(run, company, ids, tax_class, others)
             return
         if tax_class is not None:
             raise typer.BadParameter("--tax-class applies to --tax")
@@ -426,6 +426,13 @@ def _reject_customers(run: Run, company: str, ids: list[int]) -> None:
         typer.echo(f"customer #{crow['customer_id']} {crow['customer']} rejected")
 
 
+def _reject_tax(run: Run, company: str, ids: list[int], other_options: bool) -> None:
+    if other_options:
+        raise typer.BadParameter("--tax does not combine with --ledgers, --matches or --customers")
+    for row in tax_ledgers.reject(run, company, ids):
+        typer.echo(f"tax ledger #{row['tax_ledger_id']} {row['ledger']!r} rejected")
+
+
 def _reject_ledgers(run: Run, company: str, ids: list[int]) -> None:
     for row in ledgers.reject(run, company, ids):
         typer.echo(f"ledger #{row['ledger_id']} {row['ledger']!r} rejected")
@@ -452,13 +459,12 @@ def review_reject(
     ledger ids: the ledgers have no tax class."""
 
     def body(run: Run) -> None:
-        if match_items:
+        if tax_items:
+            _reject_tax(run, company, ids, any((ledger_items, match_items, customer_items)))
+        elif match_items:
             _reject_matches(run, company, ids)
         elif customer_items:
             _reject_customers(run, company, ids)
-        elif tax_items:
-            for row in tax_ledgers.reject(run, company, ids):
-                typer.echo(f"tax ledger #{row['tax_ledger_id']} {row['ledger']!r} rejected")
         elif ledger_items:
             _reject_ledgers(run, company, ids)
         else:

@@ -37,7 +37,7 @@ def map_tax(
             return
         try:
             proposals = json.loads(file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise TaxLedgerInvalid(f"cannot read proposals from {file}: {exc}") from exc
         if not isinstance(proposals, list):
             raise TaxLedgerInvalid(f"{file}: expected a JSON list of proposals")

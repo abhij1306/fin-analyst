@@ -91,7 +91,7 @@ def _check(number: int, proposal: Any, ledgers: set[str], rows: dict[str, Any]) 
     ledger = proposal["ledger"]
     if not isinstance(ledger, str) or ledger not in ledgers:
         raise TaxLedgerInvalid(
-            f"{what}: {ledger!r} is not a ledger of a loaded trial balance (`fin map tax "
+            f"{what}: {ledger!r} is not a trial balance ledger fin has loaded (`fin map tax "
             "<company>` lists them; a party ledger goes by its token)"
         )
     row = rows.get(ledger)
@@ -159,7 +159,7 @@ def confirm(
     with company_database(run, company, write=True) as con, transaction(con):
         rows = _by_ids(con, ids)
         for row in rows:
-            chosen = tax_class or (row["tax_class"] if row["status"] != "rejected" else None)
+            chosen = tax_class if tax_class is not None else row["tax_class"]
             if chosen is None:
                 raise TaxLedgerInvalid(
                     f"tax ledger #{row['tax_ledger_id']} has no proposed class; give one with "
@@ -184,8 +184,8 @@ def reject(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
     with company_database(run, company, write=True) as con, transaction(con):
         for row in _by_ids(con, ids):
             con.execute(
-                "UPDATE tax_ledgers SET status = 'rejected', run_id = ?, changed_at = ? "
-                "WHERE tax_ledger_id = ?",
+                "UPDATE tax_ledgers SET status = 'rejected', tax_class = NULL, run_id = ?, "
+                "changed_at = ? WHERE tax_ledger_id = ?",
                 [run.run_id, utcnow(), row["tax_ledger_id"]],
             )
             _decide(run, company, row, "rejected")
@@ -194,7 +194,7 @@ def reject(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
 
 def format_row(row: dict[str, Any]) -> str:
     line = f"tax ledger #{row['tax_ledger_id']} [{row['status']}] {row['ledger']!r}"
-    line += f" ({row['group_name'] or 'no group'}) -> {row['tax_class']}"
+    line += f" ({row['group_name'] or 'no group'}) -> {row['tax_class'] or 'no class'}"
     if row["status"] == "proposed" and row["confidence"] is not None:
         line += f" (confidence {row['confidence']}): {row['reason']}"
     return line

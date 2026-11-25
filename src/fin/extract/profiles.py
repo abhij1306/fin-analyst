@@ -48,7 +48,8 @@ from typing import Any
 from fin.audit.errors import LayoutUnknown
 
 PROFILES_DIR = Path(__file__).resolve().parents[3] / "templates" / "profiles"
-KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll", "bank", "orderbook", "gst")  # D3, F6-7
+# D3; F6 gst, F7 orderbook
+KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll", "bank", "orderbook", "gst")
 FIELDS = {
     "trial_balance": {"name", "debit", "credit"},
     "ledger_vouchers": {"date", "particulars", "voucher_type", "voucher_no", "debit", "credit"},
