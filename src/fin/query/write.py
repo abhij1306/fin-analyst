@@ -50,7 +50,8 @@ DILIGENCE_TABLE = re.compile(
     r"|query_items|payroll_lines|payroll_units|bank_statements|bank_lines|passthrough_customers"
     r"|recon_match_lines|match_proposals|customers|contracts|samples|sample_lines|walkthroughs"
     r"|provision_ledgers|inquiries|orderbook_lines|gst_returns|tax_ledgers"
-    r"|disclosure_files|disclosures|related_party_links)\b"
+    r"|disclosure_files|disclosures|related_party_links"
+    r"|netdebt_classes|netdebt_items)\b"
 )
 
 # Statements that would end the wrapping transaction or reach past the company database.

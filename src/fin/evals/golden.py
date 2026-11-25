@@ -22,6 +22,7 @@ One line per check, the value a person read in the company's document and checke
 - `gst_return`: a GST return month's figure as filed (`fin.evals.gst`);
 - `rpt_vs_books` (F5): a related party transaction the notes disclose less the books; `ledger` is
   the line's key (`PRTY-0001 sales`, or `PRTY-0001 debit <ledger>`).
+- `net_debt` (F4): fin.evals.netdebt.
 - `query_issue`: an exported issue's amount at issue (the lines' differences added without their
   signs) for a query that is approved or later; `ledger` is the query id.
 - `query_difference`: the value of one kind of difference in an issue, as the export shows it
@@ -93,7 +94,7 @@ from pathlib import Path
 
 from fin.audit.errors import GoldenSetInvalid, GoldenSetMissing
 from fin.config import SCOPES
-from fin.evals import fdd_contracts, fdd_orderbook, gst, provisions, qoe
+from fin.evals import fdd_contracts, fdd_orderbook, gst, netdebt, provisions, qoe
 from fin.extract.units import RUPEES_PER_UNIT, parse_figure, to_rupees
 from fin.map.dictionary import Account
 from fin.paths import evals_dir
@@ -159,6 +160,7 @@ KINDS = (
     *fdd_orderbook.KINDS,
     *provisions.KINDS,
     *gst.KINDS,
+    *netdebt.KINDS,
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -173,6 +175,7 @@ NEEDS = {
     **fdd_orderbook.NEEDS,
     **provisions.NEEDS,
     **{kind: ("period", "ledger") for kind in gst.KINDS},
+    **netdebt.NEEDS,
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),
     "linked_purchase_cost": ("period",),
@@ -194,6 +197,7 @@ LEDGERS = {
     "payroll_total": ("gross_salary", "ctc"),
     **{kind: qoe.COMPONENTS for kind in qoe.KINDS},
     **provisions.LEDGERS,
+    **netdebt.LEDGERS,
 }
 YES, NO = "yes", ("", "no")
 # Diligence checks read the latest engagement's files and runs: a closed engagement's trial balance
