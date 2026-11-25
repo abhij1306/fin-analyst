@@ -6,7 +6,9 @@ audited statements, and gates G1, G2 and G4. **D3's payroll part is built** (the
 `fin payroll confirm-unit`, G1's unit line); registers and bank are separate workstreams. **D2's first half is built**: source files (trial balance, Ledger
 Vouchers) with column profiles, and masking. The rest of D2 (ledger mapping, `tb_vs_statements`, the stub, G1's
 trial balance checks) and D3–D9 are planned, revised to the diligence user's answers in §9.
-No questions are open. Each phase moves into `PLAN.md` as it is built.
+No questions are open. Each phase moves into `PLAN.md` as it is built. The golden evaluation (`docs/EVAL.md`, `fin eval`)
+scores D2's outputs (trial balance ledgers, `tb_vs_statements` differences, stub figures) against values a person
+checked; each later phase adds its own check kinds (`docs/CUSTOMISING.md`, "Eval checks").
 
 Purpose: a way to manage and analyse a company's financial documents efficiently, from the audited statements down
 to the transactions behind them. The requirements started from a review of fin-analyst against a quality-of-earnings

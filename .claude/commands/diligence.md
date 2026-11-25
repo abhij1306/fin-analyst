@@ -51,6 +51,8 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      every ledger is mapped. A difference is queried, never fixed; a wrong mapping (fin's own error) is fixed in
      review and the reconciliation run again. E812: the period has no trial balance or statement figures, or is the
      stub (which has no audited statement).
+   - **Golden evaluation.** The trial balance ledgers, `tb_vs_statements` differences and stub figures can be scored
+     against values a person checked (`/eval`, `docs/EVAL.md`). Never mark a golden line checked yourself.
 2. **Queries from findings.** Run `uv run fin findings list <company> --json`. For each open or accepted finding in
    a period of the engagement, with a difference at or above the engagement's query threshold, draft a short,
    neutral question for the company's accountant: what the two figures are, where each is (file + sheet!cell or

@@ -110,6 +110,7 @@ Plain requests work; these are shortcuts. Each one runs `fin` (see `uv run fin -
 | `/audit <company> [metric year]` | Trace a figure back to its source, or show the company's history. |
 | `/verify <company> <file>` | Have Claude read a loaded or held document again and compare that reading with what is stored, whenever you want; each run is recorded. |
 | `/diligence <company>` | A diligence engagement: queries for the company's accountant and adjustments to EBITDA, with evidence, and the gates you approve. |
+| `/eval [company]` | Golden evaluation: values you checked in your documents, fin scored against them, and a results file with no names to send back ([docs/EVAL.md](docs/EVAL.md)). |
 
 ## Findings
 
@@ -226,6 +227,14 @@ loads that reading through the same checks. Figures read by the add-on or Claude
 trust them is your call. Whenever you want, `/verify` has Claude read a document again and fin compare that reading
 with what is stored.
 
+## Golden evaluation
+
+To see how well fin reads your own documents, and to help improve it, follow [docs/EVAL.md](docs/EVAL.md) (written
+for your Claude agent). `uv run fin eval init <company>` lists the figures to check with where each is printed; you
+check the values against the documents; `uv run fin eval run <company>` scores fin against them (pass, fail, missing
+in fin; lines you have not checked are not scored); `uv run fin eval bundle` writes a results file to send back. The
+bundle has no company, party or file names and, unless you add `--with-figures`, no figures.
+
 ## Your data
 
 Everything lives in `~/FinAnalysis` (or `FIN_DATA_DIR`), outside this folder; updating or uninstalling never touches
@@ -240,6 +249,7 @@ it.
   shared/               # chart of accounts, audit log, dashboard data
   reports/<company>/    # health reports and Excel exports
   review/<company>/     # files fin could not load, with the reason
+  evals/                # golden sets, eval reports and results bundles (docs/EVAL.md)
   archive/  evidence/  notes/  logs/  backups/
   cache/llamaparse/     # LlamaParse's saved answers, when that add-on is used
 ```
@@ -313,5 +323,9 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E813 | `fin ingest --kind registers`: a register row is not an invoice line: no invoice number, date, party or Amount in Rs, a date not in the profile's date format, or a row the profile does not skip (a total) | Nothing loaded. The message names the file, sheet!row and what is missing: fix the cell, or add the row's name to `[rows] skip` in the profile |
 | E820 | `fin payroll confirm-unit` names no loaded payroll file of the open engagement (unknown name or id, not a payroll file, or superseded by a later snapshot, or several loaded files with that name) | Nothing recorded. The message lists the loaded payroll files: use one's file name or file_id |
 | E821 | A payroll snapshot row has no employee name or code, or a joining or resign date that is not a date in the profile's format | Nothing loaded. Ask the company for a corrected file, or fix the profile's `date_format`, and ingest again |
+| E830 | `fin eval run`: the company has no golden set | Make one with `uv run fin eval init <company>` ([docs/EVAL.md](docs/EVAL.md)) |
+| E831 | The golden set cannot be read: a missing column, an unknown kind, scope, account or unit, a figure that is not a number, a checked line with no value or source, or the same check twice | Nothing scored or changed. Fix the lines the message lists in `evals/<company>/golden.csv` |
+| E832 | `fin eval bundle`: no company database to evaluate, or none for the company named | Nothing written. Load the company's documents first |
+| E833 | `fin eval bundle`: the results would contain a real name (a masked party, a company or a file name) | Nothing written; the name is not printed. Report the run id: a bundle must never carry names |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

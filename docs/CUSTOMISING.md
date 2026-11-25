@@ -6,9 +6,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 ## Module map (`src/fin/`)
 
-- `cli/`: the `fin` commands (Typer), one module per group: `core.py` (the root `app`, `--version`, shared argument checks), `init.py` (init, doctor), `ingest.py` (ingest, ingest-batch, verify), `findings.py` (findings, status), `statements.py` (statements, export), `data.py` (sql, dashboard, audit, delete, update, report). Each command runs through the audit logger. To add a command group, make a module that does `from fin.cli.core import app` and decorates its commands, then add it to the import line in `cli/__init__.py` (the order is the order in `fin --help`).
+- `cli/`: the `fin` commands (Typer), one module per group: `core.py` (the root `app`, `--version`, shared argument checks), `init.py` (init, doctor), `ingest.py` (ingest, ingest-batch, verify), `findings.py` (findings, status), `statements.py` (statements, export), `data.py` (sql, dashboard, audit, delete, update, report), `evals.py` (eval init, run, bundle). Each command runs through the audit logger. To add a command group, make a module that does `from fin.cli.core import app` and decorates its commands, then add it to the import line in `cli/__init__.py` (the order is the order in `fin --help`).
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
-- `audit/errors.py`: error classes and codes (E001 to E812). `audit/logger.py`: run records and logging.
+- `audit/errors.py`: error classes and codes (E001 to E833). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
   database from its schema file.
@@ -61,6 +61,10 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
   Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule), `render.py` (narrative stub, sections, Quarto).
+- `evals/`: the golden evaluation (`docs/EVAL.md`): `golden.py` (the golden set format, `evals/<company>/golden.csv`,
+  E830/E831), `scaffold.py` (`fin eval init`), `score.py` (`fin eval run` and its report), `counts.py` (error codes,
+  findings, unread pages, Claude-read figures, unmapped labels and ledgers), `bundle.py` (`fin eval bundle`: no names,
+  no figures by default, E832/E833). CLI: `cli/evals.py`.
 - `delete.py`, `update.py`, `doctor.py`, `parser.py`: `fin delete`, `fin update`, `fin doctor`, `fin parser show|use`
   (the PDF add-on: uv extra, models, `[pdf] parser`).
 - Outside `src/`: `templates/dictionary/` (seed CSVs), `templates/report/health.qmd`, `.claude/commands/` (slash
@@ -244,6 +248,24 @@ To change a schema, edit its file. Then either re-create the data folder (move `
 ingest again), or make the same change to the existing databases with `fin sql --write` (it backs up and logs). A database
 that lacks a table, view or column its schema files create (made by an older fin) is detected (E002) and has to be
 re-created or changed to match.
+
+## Eval checks
+
+The golden evaluation (`docs/EVAL.md`, `src/fin/evals/`) scores fin's outputs against values a person checked in real
+documents. A feature that produces a figure the user relies on (a later diligence phase's registers, bank and
+reconciliation lines, adjusted EBITDA) adds a check kind so the client's golden sets cover it:
+
+1. `evals/golden.py`: add the kind to `KINDS`, the columns it needs to `NEEDS` (`period`, `scope`, `account`,
+   `ledger`), and a line on what its value is to the module docstring. Reuse the columns: a key is kind, period,
+   scope, account and ledger.
+2. `evals/score.py`: add its query to `_FIN_VALUE` (fin's value now, in rupees, or NULL when fin has none).
+3. `evals/scaffold.py`: add a query to `candidates` listing every output of the kind with its `source` (file +
+   sheet!cell, sheet!row or page). Leave `expected` and `checked` empty: only a person fills them.
+4. `evals/counts.py`: if the feature has its own failure markers, add them to `related_codes`; if it adds a count
+   worth watching, add it to `counts`. The bundle carries whatever these return, so return only accounts, periods,
+   codes, tokens and counts: never names, file names, labels or figures.
+5. `docs/EVAL.md`: the kind in the column table of step 4, with what its value is.
+6. Test in `tests/unit/test_evals.py`: a correct golden line for the kind passes and a planted wrong one fails.
 
 ## Tests and fixtures
 
