@@ -13,6 +13,7 @@ import duckdb
 from fin.audit.logger import Run
 from fin.diligence.engagement import company_database
 from fin.diligence.recon import NAME as RECON
+from fin.evals import qoe
 from fin.evals.golden import (
     COLUMNS,
     EXPORTED,
@@ -294,6 +295,7 @@ def candidates(
         ):
             if kind != "linked_purchase_cost" or passthrough_lines:
                 rows.append(_row(kind, period, files or "", unit="rupees", note=note))
+    rows += qoe.candidates(con, _row)
     for period, files in con.execute(_RECAST).fetchall():
         for kind, note in (
             ("recast_revenue", "revenue recognised over the service periods (sales register)"),

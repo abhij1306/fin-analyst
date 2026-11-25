@@ -21,6 +21,7 @@ from fin.dashboard import serve as serve_dashboard
 from fin.delete import delete_company
 from fin.query.run import query
 from fin.query.write import write_sql
+from fin.report.dd_render import make_diligence_report
 from fin.report.render import make_report
 from fin.update import update as run_update
 
@@ -187,6 +188,15 @@ def report_command(
             "table of key metrics for the latest fiscal year all of them have.",
         ),
     ] = None,
+    diligence: Annotated[
+        bool,
+        typer.Option(
+            "--diligence",
+            help="The diligence report of the latest engagement (adjusted EBITDA, working "
+            "capital, reconciliations, collections, customers, the recast; the narrative is "
+            "diligence_narrative.md, with {{figure:name:period}} references).",
+        ),
+    ] = False,
 ) -> None:
     """Health report. The first run writes reports/<company>/<scope>/narrative.md (fill it with
     /report); the next run lints it (E602 on hand-typed numbers) and renders HTML, docx and PDF.
@@ -194,8 +204,17 @@ def report_command(
     peer_list = [check_company(p.strip()) for p in peers.split(",") if p.strip()] if peers else None
 
     def body(run: Run) -> None:
-        result = make_report(run, company, scope, render, peer_list)
+        if diligence:
+            result = make_diligence_report(run, company, scope, render)
+        else:
+            result = make_report(run, company, scope, render, peer_list)
         typer.echo(json.dumps(result, indent=2))
 
-    args = {"company": company, "scope": scope, "render": render, "peers": peer_list}
+    args = {
+        "company": company,
+        "scope": scope,
+        "render": render,
+        "peers": peer_list,
+        "diligence": diligence,
+    }
     execute("report", args, body)

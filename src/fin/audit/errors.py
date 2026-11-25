@@ -33,6 +33,8 @@ a command returns when the error ends it:
 - E863-E865 (service-period recast: it cannot run for lack of a loaded sales register or a period of
   the engagement; a contract reading that cannot be used; a contract naming a customer or invoice
   no loaded sales register has) stop the command: exit 2.
+- E873-E874 (the diligence report, fin.report.dd_render: the company has no engagement; a narrative
+  reference to a figure or period the report does not have) stop the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
 - E858-E861 (the query export, fin.diligence.export: no approved query, a file that cannot be read
@@ -545,3 +547,20 @@ class ContractNotOnRegister(FinError):
     loaded sales register has (the name is not printed). Nothing recorded."""
 
     code = "E865"
+
+
+# E873-E874: the diligence report (fin.report.dd_render). Stop the command.
+
+
+class DiligenceReportUnavailable(FinError):
+    """E873. `fin report --diligence`: the company has no engagement, so there is nothing to
+    report. Nothing written."""
+
+    code = "E873"
+
+
+class FigureReferenceUnknown(FinError):
+    """E874. `fin report --diligence`: the narrative has a `{{figure:name:period}}` reference to a
+    figure the report does not have, or in a period outside the engagement. Nothing rendered."""
+
+    code = "E874"

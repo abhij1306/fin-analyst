@@ -209,6 +209,16 @@ up is for the user to see and decide.
    `tests/integration/test_validate.py` that ingests it and asserts that the document is held with a finding carrying
    the code.
 
+## The diligence report
+
+`fin report <co> --diligence` is built like the health report, in `src/fin/report/`: `dd_data.py` reads the latest engagement
+(`collect`; `FIGURES` lists the numbers a narrative may refer to as `{{figure:<name>:<period>}}`), `dd_tables.py` formats the
+tables and sections, `dd_render.py` fills `templates/report/diligence.qmd` and renders. To add a table: read it in `collect`, write
+its function in `dd_tables.py`, add it to `tables` in `dd_render.build` and put `{{table:<key>}}` in the template. To add a
+narrative section: add it to `SECTIONS` in `dd_render.py` and `{{narrative:<key>}}` to the template. To add a referable number:
+add it to `FIGURES` (and to `_figures` if it comes from a new view). The working capital accounts are the `nwc_accounts` view in
+`db/schema/diligence_nwc.sql`. Golden checks for the working capital are `fin/evals/qoe.py`.
+
 ## Add a report section
 
 The report is built in `src/fin/report/`: `data.py` reads the data (`collect`), `tables.py` turns it into Markdown tables;

@@ -20,14 +20,18 @@ from fin.audit.errors import NarrativeHasTypedNumbers
 
 PERIOD = r"FY\d{2}(?:-(?:Q[1-4]|H[12]|9M))?"
 REFERENCE = re.compile(r"\{\{(metric|fact):([a-z][a-z0-9_]*):(" + PERIOD + r")\}\}")
+# The diligence report's references (fin.report.dd_render): a named figure of the engagement in a
+# period, which may be the stub (FY26-YTD-SEP).
+STUB = r"FY\d{2}-YTD-[A-Z]{3}"
+FIGURE = re.compile(r"\{\{(figure):([a-z][a-z0-9_]*):(" + PERIOD + "|" + STUB + r")\}\}")
 FISCAL_YEAR = re.compile(r"\b" + PERIOD + r"\b")
 DIGIT = re.compile(r"\d")  # any Unicode digit
 HEADING = re.compile(r"^## (.+)$")
 
 
-def references(text: str) -> set[tuple[str, str, str]]:
+def references(text: str, pattern: re.Pattern[str] = REFERENCE) -> set[tuple[str, str, str]]:
     """The references in `text` outside HTML comments, as (kind, name, period)."""
-    return {match.groups() for match in REFERENCE.finditer(strip_comments(text))}
+    return {match.groups() for match in pattern.finditer(strip_comments(text))}
 
 
 def strip_comments(text: str) -> str:
@@ -45,18 +49,19 @@ def strip_comments(text: str) -> str:
     return "".join(parts)
 
 
-def typed_number_lines(text: str) -> list[tuple[int, str]]:
-    """(line number, line) for every line with a digit outside references and FYnn labels."""
+def typed_number_lines(text: str, pattern: re.Pattern[str] = REFERENCE) -> list[tuple[int, str]]:
+    """(line number, line) for every line with a digit outside references (of `pattern`) and FYnn
+    labels."""
     found = []
     for number, line in enumerate(strip_comments(text).splitlines(), start=1):
-        if DIGIT.search(FISCAL_YEAR.sub("", REFERENCE.sub("", line))):
+        if DIGIT.search(FISCAL_YEAR.sub("", pattern.sub("", line))):
             found.append((number, line.strip()))
     return found
 
 
-def lint(text: str, name: str) -> None:
+def lint(text: str, name: str, pattern: re.Pattern[str] = REFERENCE) -> None:
     """Raise E602 listing every line of the narrative `name` with a hand-typed number."""
-    lines = typed_number_lines(text)
+    lines = typed_number_lines(text, pattern)
     if lines:
         listing = "\n".join(f"  line {number}: {line}" for number, line in lines)
         raise NarrativeHasTypedNumbers(

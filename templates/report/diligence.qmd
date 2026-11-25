@@ -1,0 +1,137 @@
+---
+title: "{{title}}"
+subtitle: "{{subtitle}}"
+format:
+  html:
+    embed-resources: true
+    toc: true
+  docx:
+    toc: true
+  typst:
+    toc: true
+---
+
+<!--
+fin-analyst diligence report template (fin.report.dd_render fills it; no code runs in Quarto).
+Placeholders:
+  {{title}}, {{subtitle}}
+  {{narrative:<section>}}  the narrative under that section's heading in diligence_narrative.md
+  {{table:<name>}}         basis, gates, ebitda, bridge, adjustments, other_income, revenue, walk,
+                           nwc_year_end, nwc_monthly, nwc_excluded, recon, queries, collections,
+                           collections_customers, stub, findings, mappings, sources
+  {{section:customers}}    customers, sectors and pricing (as the health report; empty without a sales register)
+  {{section:recast}}       the service-period recast (empty until `fin recast run` has run)
+Every value comes from SQL on the company database (docs/CUSTOMISING.md "Add a report section").
+-->
+
+Analysis only: this report describes the figures of a diligence engagement. It makes no
+recommendation or rating. Names are tokens.
+
+## Basis and gates
+
+{{narrative:basis}}
+
+{{table:basis}}
+
+The gates as they stood when this report was rendered:
+
+{{table:gates}}
+
+## Summary
+
+{{narrative:summary}}
+
+## Adjusted EBITDA
+
+{{narrative:ebitda}}
+
+{{table:ebitda}}
+
+### Bridge from reported to adjusted EBITDA
+
+{{table:bridge}}
+
+### Adjustments and their evidence
+
+Only accepted adjustments are in adjusted EBITDA. Proposed ones are shown, not applied.
+
+{{table:adjustments}}
+
+### Other income
+
+Printed below EBITDA in the statements; not in reported or adjusted EBITDA.
+
+{{table:other_income}}
+
+## Revenue: core and project revenue
+
+{{narrative:revenue}}
+
+Pass-through revenue is shown as project revenue. Growth is on core revenue only.
+
+{{table:revenue}}
+
+{{section:recast}}
+
+## EBITDA to cash
+
+{{narrative:cash}}
+
+{{table:walk}}
+
+## Working capital
+
+{{narrative:nwc}}
+
+### At year-end and the stub's end
+
+From the trial balances through the confirmed ledger mappings. The stub is unaudited management accounts.
+
+{{table:nwc_year_end}}
+
+### By month
+
+From the Ledger Vouchers on the previous year-end's closing balances, for working capital ledgers whose
+movements tie to the trial balance. A month with ledgers left out is not the complete working capital.
+
+{{table:nwc_monthly}}
+
+{{table:nwc_excluded}}
+
+## Reconciliations and queries
+
+{{narrative:recon}}
+
+{{table:recon}}
+
+### Queries to the company's accountant
+
+{{table:queries}}
+
+## Collections and ageing
+
+{{narrative:collections}}
+
+Receipts in the bank statements matched to sales invoices; open invoices aged at the period's last day.
+
+{{table:collections}}
+
+{{table:collections_customers}}
+
+{{section:customers}}
+
+## Stub: unaudited management accounts
+
+{{narrative:stub}}
+
+{{table:stub}}
+
+## Findings and mappings
+
+{{table:findings}}
+
+{{table:mappings}}
+
+## Appendix: sources of the figures
+
+{{table:sources}}
