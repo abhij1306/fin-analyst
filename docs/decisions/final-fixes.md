@@ -47,7 +47,7 @@ FIX items of the verified audit plan; client-level choices go to the client list
 
 - **Decision:** `fin delete` removes (after the backup) the company's `exports/<company>/`, `evals/<company>/` and
   the saved PDF parses of its files (`cache/<engine>/<sha256>*`, found through the sha256 of its documents and source
-  files). Company-scope label mappings stay in the shared dictionary; the output says how many.
+  files; a parse of a file another company has loaded too stays, because it is keyed by content alone). Company-scope label mappings stay in the shared dictionary; the output says how many.
 - **Why:** The exports and evals hold masked figures and queries of the company; a parse is the company's page text
   (a LlamaParse response costs money to make again, so it is in the backup).
 - **How to change it:** `src/fin/delete.py: company_paths, _cache_files`.

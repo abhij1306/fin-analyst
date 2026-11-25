@@ -189,7 +189,7 @@ Every `fin` command:
   when its args name it or an audit row names it (events about `<company>/<file>`, mapping decisions, validation
   results, findings, queries, reports, deletions, diligence events), so a batch ingest stays after the company is
   deleted.
-- `fin delete <company>` backs up, then removes the company's database, inbox, archive, review, notes, reports, exports and evals folders, the evidence pages of its queries and the saved PDF parses of its files (`cache/<engine>/<sha256>...`); it prints how many company-scope label mappings stay in the shared dictionary.
+- `fin delete <company>` backs up, then removes the company's database, inbox, archive, review, notes, reports, exports and evals folders, the evidence pages of its queries and the saved PDF parses of its files (`cache/<engine>/<sha256>...`, except those of a file another company loaded too); it prints how many company-scope label mappings stay in the shared dictionary.
 - Lineage of a summed value: `current_facts.fact_ids` (and `standard_statements.fact_ids`) list every printed line
   behind it. `fin sql` with a `fact_ids` column gives every line's source ("sum of N sources: ..."), confirmed only
   when every line is; the evidence page shows each line. Traces show a per-share fact in rupees per

@@ -120,3 +120,15 @@ def test_delete_removes_exports_evals_and_cached_parses_and_backs_them_up(
     backup = root / payload["backup_path"]
     assert all((backup / path.relative_to(root)).is_file() for path in kept)
     assert "label mappings stay in shared/dictionary.duckdb" in str(payload["note"])
+
+
+def test_delete_keeps_a_saved_parse_another_company_still_uses(root: Path) -> None:
+    for company in ("kestrel", "kestrel2"):
+        assert runner.invoke(app, ["ingest", company, str(KESTREL)]).exit_code == 0
+    shared = root / f"cache/bank/{sha256_of(KESTREL)}.json"
+    shared.parent.mkdir(parents=True, exist_ok=True)
+    shared.write_text("x", encoding="utf-8")
+
+    delete_company(Run("delete", {}, root), "kestrel")
+
+    assert shared.exists()

@@ -147,7 +147,7 @@ def test_reading_with_nothing_fin_did_not_read_is_e205(root: Path, tmp_path: Pat
 
     assert result.exit_code == 1
     assert "E205" in result.stdout
-    assert query(root, "SELECT count(*) FROM facts") == [(0,)]
+    assert not company_db_path(root, "acme").exists()  # nothing loaded: no empty company
 
 
 def verify(*args: str) -> Any:
