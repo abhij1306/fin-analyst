@@ -173,6 +173,23 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    - a line shown as `-`: its input is missing (named in "missing: ..."); say which, never treat it as zero or fill
      it in;
    - open or accepted findings and unconfirmed mappings in those periods, as for any answer.
+   - **Working capital.** `fin sql` on `nwc_year_end` (each year-end and the stub's end, from the trial balances;
+     `nwc_year_end_lines` has each ledger's trial balance row) and `nwc_monthly` (month ends from the Ledger Vouchers on the
+     previous year-end's closing). The monthly view has only the working capital ledgers whose movements tie to the trial
+     balance (`gl_vs_tb`); `nwc_monthly_ledgers` lists each ledger as included or excluded with the reason, and a month with
+     `ledgers_excluded` above zero is not the complete working capital: say so. A period with no previous trial balance has
+     no monthly view; never infer an opening. The stub is unaudited management accounts.
+   - **Diligence report.** `uv run fin report <company> --diligence [--scope standalone|consolidated]`. The first run
+     writes `reports/<company>/<scope>/diligence_narrative.md` with one `## ` heading per section (basis and gates, summary,
+     adjusted EBITDA, revenue, EBITDA to cash, working capital, reconciliations and queries, collections, stub); the next run
+     lints it and renders HTML, Word and PDF (`diligence_data.json` has every value and the gate states it was rendered
+     with). Read the figures with `fin sql` and the views above, then write each section describing what the tables show:
+     no recommendation, rating or verdict; proposed adjustments are "not applied"; the stub is unaudited management accounts;
+     tokens for names. Never type a number: write `{{figure:<name>:<period>}}` (names are listed in the stub, e.g.
+     `{{figure:adjusted_ebitda:FY25}}`, `{{figure:net_working_capital:FY26-YTD-SEP}}`); any other digit is E602, an unknown figure or
+     period is E874, no engagement is E873. The report also has the recast (once `fin recast run` has run), the collections and
+     ageing, the customers section and a sources appendix; they need no narrative. The report renders at any gate state and
+     prints each gate's state; tell the user which gates were not approved.
 9. **Gates.** Gates are approved in order, by the user only: G1 Ingestion (every period in scope has mapped figures
    from a loaded document, no held documents, no mappings waiting for review; once there is a trial balance or a
    stub, also a trial balance and Ledger Vouchers per period and the stub, every ledger in both, every ledger

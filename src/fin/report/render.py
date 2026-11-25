@@ -311,7 +311,7 @@ def template_commit() -> str | None:
     return (result.stdout.strip() or None) if result.returncode == 0 else None
 
 
-def quarto_render(qmd: Path) -> None:
+def quarto_render(qmd: Path, outputs: tuple[str, ...] = OUTPUTS) -> None:
     """Render `qmd` to every format in its front matter, next to it. Raises E001 without Quarto
     and E601 when the render fails."""
     quarto = shutil.which("quarto")
@@ -333,12 +333,20 @@ def quarto_render(qmd: Path) -> None:
     if result.returncode != 0:
         tail = "\n".join((result.stderr or result.stdout).strip().splitlines()[-20:])
         raise ReportRenderFailed(f"quarto render exited with {result.returncode}:\n{tail}")
-    missing = [name for name in OUTPUTS if not (qmd.parent / name).is_file()]
+    missing = [name for name in outputs if not (qmd.parent / name).is_file()]
     if missing:
         raise ReportRenderFailed(f"quarto render did not produce {', '.join(missing)}")
 
 
-def _render_files(folder: Path, temp_name: str, built: Built, report_data: str) -> list[str]:
+def _render_files(
+    folder: Path,
+    temp_name: str,
+    built: Built,
+    report_data: str,
+    qmd_file: str = QMD_FILE,
+    names: tuple[str, ...] = OUTPUTS,
+    data_file: str = DATA_FILE,
+) -> list[str]:
     """Render in `folder/temp_name`, then move the outputs and `report_data` into `folder`; the
     temporary folder is removed either way. Raises E003 when a file cannot be written, moved or
     removed, and E001 or E601 from Quarto."""
@@ -347,14 +355,14 @@ def _render_files(folder: Path, temp_name: str, built: Built, report_data: str) 
     try:
         try:
             temp.mkdir(parents=True)
-            (temp / QMD_FILE).write_text(built.qmd, encoding="utf-8")
+            (temp / qmd_file).write_text(built.qmd, encoding="utf-8")
             for name, svg in built.charts.items():
                 (temp / name).write_text(svg, encoding="utf-8")
-            (temp / DATA_FILE).write_text(report_data, encoding="utf-8")
+            (temp / data_file).write_text(report_data, encoding="utf-8")
         except OSError as exc:
             raise DataFolderNotWritable(f"cannot write the report files in {temp}: {exc}") from exc
-        quarto_render(temp / QMD_FILE)
-        for name in (*OUTPUTS, DATA_FILE):
+        quarto_render(temp / qmd_file, names)
+        for name in (*names, data_file):
             try:
                 (temp / name).replace(folder / name)
             except OSError as exc:

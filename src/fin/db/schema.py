@@ -1,6 +1,6 @@
 """Creating the databases from their schema files (PLAN.md §10).
 
-Each database kind has one schema file (seven for `company`: tables, metric views, diligence
+Each database kind has one schema file (eight for `company`: tables, metric views, diligence
 tables, diligence views, diligence source files, views on the registers) in `schema/`, holding
 its final tables and views: `audit` for
 `shared/audit.duckdb`, `dictionary` for `shared/dictionary.duckdb`, `analytics` for
@@ -33,6 +33,7 @@ SCHEMA_FILES = {
         "sources.sql",
         "diligence_split_views.sql",
         "diligence_analytics.sql",
+        "diligence_nwc.sql",
     ],
 }
 

@@ -257,6 +257,13 @@ becomes a query, not a fix. Claude drafts; you decide. fin never sends anything.
   `product_revenue`, `product_pvm`; the dashboard has a "Customers and sectors" page and the health report a "Customers,
   sectors and pricing" section when the company has an engagement with a sales register. Decisions:
   `docs/decisions/d9-analytics.md`.
+- Diligence report (D7): `fin report <company> --diligence [--scope] [--render]` writes `diligence_narrative.md` (Claude fills it with
+  `/diligence`, numbers only as `{{figure:<name>:<period>}}` references), then renders `diligence.html|docx|pdf` in `reports/<company>/<scope>/`:
+  adjusted EBITDA and the bridge, adjustments with evidence (proposed ones not applied), other income, core and project revenue,
+  the recast, the EBITDA-to-cash walk, working capital (year-end and stub from the trial balances; monthly from the Ledger Vouchers
+  for ledgers that tie, E873-E874), reconciliations and queries, collections and ageing, customers and sectors, the stub as unaudited
+  management accounts, the gate states it was rendered with and a sources appendix. The dashboard has a "Diligence figures" page.
+  Decisions: `docs/decisions/d7-qoe.md`.
 - `fin reconcile <company> [name] [--period FY25] [--json]` (name: `tb_vs_statements`, `sales_register_vs_gl`,
   `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`; none: every one whose inputs are loaded). The last four compare
   the registers, Ledger Vouchers, trial balance and payroll; fin drafts no query for them: Claude groups the lines
@@ -410,6 +417,8 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E845 | `fin engagement passthrough`: a customer token that is not on a loaded sales register, or no sales register is loaded | Nothing changed. Load the registers (`fin ingest <company> <file> --kind registers`) and use a token from `SELECT DISTINCT customer FROM register_lines WHERE kind = 'sales'` |
 | E854 | `fin reconcile <co> match --propose`: the file is not a JSON list of matches, a match has no bank lines or invoices, names a line that is not a loaded bank credit or sales invoice line, has no reason, or a confidence outside 0 to 1 | Nothing stored. Fix the file; take the `[file_id, sheet, row]` of each line from `fin sql` on `bank_lines` and `register_lines` |
 | E855 | `fin review confirm|reject --matches`: no match proposal with that id, or it is no longer waiting | Nothing changed. List them with `fin review list <co> --matches --all` |
+| E873 | `fin report <co> --diligence`: the company has no engagement | Nothing written. Open an engagement and load its files (`/diligence`), then run it again |
+| E874 | `fin report <co> --diligence`: the narrative has a `{{figure:<name>:<period>}}` reference to a figure the report does not have (or one that needs a stub or a period the engagement has not), or a period outside the engagement | Nothing rendered. The message lists each reference; the narrative stub names the figures the report has |
 | E868 | `fin map customers` or `fin review ... --customers`: a proposal that is not an object with customer, sector, confidence and reason, a customer that is on no loaded sales register, an empty sector or the sector `unmapped`, a confirmation with no sector, a confirmed customer proposed again, or an unknown customer id | Nothing changed. List the customers with `fin map customers <company>` and fix the proposal |
 | E869 | `fin analytics`: the company has no engagement, or no sales register line in an engagement period | Nothing shown. Open an engagement and load the registers (`fin ingest <company> <file> --kind registers`) |
 | E863 | `fin recast run`: a period that is not an annual period of the open engagement, or no loaded sales register line to recast | Nothing recorded. Load the sales register (`fin ingest <company> <file> --kind registers`) and use a period of the engagement |

@@ -37,7 +37,7 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Reconciliation: bank ↔ receipts ↔ invoices, with FX lines for USD | **Built**: matching passes, `fx` lines, collections view, Claude's proposals; the stub's bank cross-check | D5 |
 
 | Service-period revenue recast from the sales register | **Built** | D6 |
-| Normalised working capital, diligence report and dashboard | Planned | D7 |
+| Normalised working capital, diligence report and dashboard | **Built** (choices: `docs/decisions/d7-qoe.md`) | D7 |
 | Query export: marked-up workbook and draft email, or a brief per issue | **Built** (`fin query export`, `answer --file`; choices: `docs/decisions/d8-query-export.md`) | D8 |
 | Customer, product, sector, pricing, retention analytics | **Built** | D9 |
 
@@ -163,9 +163,9 @@ Planned views:
 - `revenue_split` (D4, **built**, `diligence_split_views.sql`): revenue per period as core and pass-through (project revenue), with the
   Purchase Id link to the OEM purchase (`passthrough_lines` has each link); growth on core revenue only.
 - `adjusted_ebitda` (changed, D4, **built**): adds adjusted revenue, and margins on adjusted revenue.
-- `nwc_year_end` (D7): working capital at each year-end (and the stub end) from TB closing balances mapped to
+- `nwc_year_end` (D7, **built**, `diligence_nwc.sql`; also `nwc_year_end_lines`, `nwc_monthly_ledgers`, `nwc_monthly_lines`, `nwc_series`): working capital at each year-end (and the stub end) from TB closing balances mapped to
   working capital accounts.
-- `nwc_monthly` (D7): monthly balances from Ledger Vouchers: the prior year-end TB closing as the opening, plus
+- `nwc_monthly` (D7, **built**): monthly balances from Ledger Vouchers: the prior year-end TB closing as the opening, plus
   cumulative movements to each month end, for working capital ledgers whose movements tie to the TB (`gl_vs_tb`,
   D4). The first year in scope needs the prior year's TB as its opening; without it that year has no monthly view
   (an opening inferred from the same movements would make the check circular). There are no monthly trial
@@ -222,7 +222,7 @@ that writes to a diligence table.
 | `fin query raise <co> --items <recon item ids>` (one issue, many lines) | D4 |
 | `fin adjust propose ... --revenue N --cost N` | D4 |
 | `fin recast run <co> [--period]`, `fin recast contracts <co> [<file> --reading <csv>]` | D6 (**built**) |
-| `fin report <co> --diligence` | D7 |
+| `fin report <co> --diligence` | D7 (**built**) |
 | `fin query export <co> [--brief]` | D8 |
 
 Built in D2: E807 no column profile for the layout (unknown, invalid, or none matches; lists the header lines found),
@@ -369,6 +369,10 @@ Status: **built** (`fin recast run|contracts`, `fin/reconcile/recast*.py`, `fin/
 the adjustment; a line without service dates is listed.
 
 ### D7: QoE outputs
+Status: **built** (`db/schema/diligence_nwc.sql`, `fin/report/dd_*.py`, `templates/report/diligence.qmd`, `dashboards/pages/diligence.md`,
+`fin report <co> --diligence`; E873–E874; choices: `docs/decisions/d7-qoe.md`). The report also has the bank collections and
+ageing (D5), the customers, sectors and pricing section (D9), the service-period recast (D6), the reconciliation and
+query status, the NWC tables and the sources appendix. Golden checks: `nwc_year_end`, `nwc_monthly`.
 - Normalised working capital from year-end trial balances (`nwc_year_end`), and monthly from Ledger Vouchers
   movements (`nwc_monthly`, §4). The EBITDA bridge and EBITDA-to-cash walk are built (D1).
 - A diligence report template (`templates/report/diligence.qmd`) and a dashboard page, with the same narrative

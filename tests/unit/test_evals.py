@@ -179,7 +179,14 @@ def test_init_lists_what_to_check_and_never_changes_a_persons_lines(root: Path) 
     revenue = next(r for r in rows if r["kind"] == "statement" and r["account"] == "revenue")
     assert (revenue["source"], revenue["expected"], revenue["checked"]) == ("fs.xlsx BS!C8", "", "")
     kinds = {r["kind"] for r in rows}
-    assert kinds == {"statement", "tb_ledger", "tb_vs_statements", "stub", "adjusted_revenue"}
+    assert kinds == {
+        "statement",
+        "tb_ledger",
+        "tb_vs_statements",
+        "stub",
+        "adjusted_revenue",
+        "nwc_year_end",
+    }
     assert not any(name in first["path"].read_text(encoding="utf-8") for name in CUSTOMERS)
 
     revenue.update(expected="10.00", unit="lakh", checked="yes")

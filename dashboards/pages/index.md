@@ -16,4 +16,6 @@ select company, documents, facts, last_ingested_at from analytics.companies orde
 - [Companies side by side](/compare): one metric, picked by category, across companies
 - [Customers and sectors](/customers): concentration, retention, sector mix and price/volume/mix from a diligence
   engagement's registers
+- [Diligence figures](/diligence): adjusted EBITDA, core and pass-through revenue, the EBITDA-to-cash walk and working
+  capital from a diligence engagement
 - [Data quality](/quality): findings, held documents, coverage, unread pages

@@ -24,6 +24,10 @@ One line per check, the value a person read in the company's document and checke
   GST) of customers not on, and on, the engagement's pass-through list (`revenue_split`), and
   `linked_purchase_cost`: the purchase register lines whose Purchase Id is on a pass-through
   line of the period, each Purchase Id once;
+- `nwc_year_end`, `nwc_monthly`: working capital in rupees (`ledger` is `net_working_capital` or
+  one of its components; period is the period, or the month end YYYY-MM-DD), from the trial
+  balances, or monthly from the Ledger Vouchers on the previous year-end's closing
+  (fin.evals.qoe);
 - `recast_revenue`, `recast_difference`, `recast_undated`: the period's latest service-period
   recast (`service_recast`): the sales register's revenue recognised over service periods, the
   difference from revenue booked by invoice date (the revenue effect), and the value of sales
@@ -70,6 +74,7 @@ from pathlib import Path
 
 from fin.audit.errors import GoldenSetInvalid, GoldenSetMissing
 from fin.config import SCOPES
+from fin.evals import qoe
 from fin.extract.units import RUPEES_PER_UNIT, parse_figure, to_rupees
 from fin.map.dictionary import Account
 from fin.paths import evals_dir
@@ -111,6 +116,7 @@ KINDS = (
     *BANK_KINDS,
     *ANALYTICS_KINDS,
     *RECAST_KINDS,
+    *qoe.KINDS,
 )
 NEEDS = {
     "statement": ("period", "scope", "account"),
@@ -120,6 +126,7 @@ NEEDS = {
     "bank_closing": ("period", "ledger"),
     **{kind: ("period", "ledger") for kind in (*RECON_KINDS, *QUERY_KINDS)},
     **{kind: ("period",) for kind in RECAST_KINDS},
+    **{kind: ("period", "ledger") for kind in qoe.KINDS},
     "core_revenue": ("period",),
     "passthrough_revenue": ("period",),
     "linked_purchase_cost": ("period",),
@@ -135,7 +142,11 @@ NEEDS = {
     **{kind: ("period", "ledger") for kind in ANALYTICS_KINDS[:4]},
     **{kind: ("period",) for kind in ANALYTICS_KINDS[4:]},
 }
-LEDGERS = {"register_total": ("sales", "purchase"), "payroll_total": ("gross_salary", "ctc")}
+LEDGERS = {
+    "register_total": ("sales", "purchase"),
+    "payroll_total": ("gross_salary", "ctc"),
+    **{kind: qoe.COMPONENTS for kind in qoe.KINDS},
+}
 YES, NO = "yes", ("", "no")
 # Diligence checks read the latest engagement's files and runs: a closed engagement's trial balance
 # for the same period is not added to the current one.

@@ -157,3 +157,63 @@ CREATE TABLE price_volume_mix (
     discontinued_revenue DECIMAL(38, 2),
     change DECIMAL(38, 2)
 );
+
+-- QoE outputs (the company views adjusted_ebitda, revenue_split, ebitda_to_cash and nwc_series, docs/DILIGENCE_PLAN.md
+-- D7): money in rupees, ratios as fractions. Rows only for a company with an engagement.
+CREATE TABLE qoe_ebitda (
+    company VARCHAR NOT NULL,
+    period VARCHAR,
+    scope VARCHAR,
+    revenue DECIMAL(38, 2),
+    adjusted_revenue DECIMAL(38, 2),
+    reported_ebitda DECIMAL(38, 2),
+    accepted_adjustments DECIMAL(38, 2),
+    adjusted_ebitda DECIMAL(38, 2),
+    reported_ebitda_margin DECIMAL(38, 6),
+    adjusted_ebitda_margin DECIMAL(38, 6),
+    proposed_adjustments DECIMAL(38, 2)
+);
+
+CREATE TABLE qoe_revenue (
+    company VARCHAR NOT NULL,
+    period VARCHAR,
+    basis VARCHAR,
+    core_revenue DECIMAL(38, 2),
+    passthrough_revenue DECIMAL(38, 2),
+    passthrough_share DECIMAL(38, 6),
+    core_revenue_growth DECIMAL(38, 6)
+);
+
+CREATE TABLE qoe_walk (
+    company VARCHAR NOT NULL,
+    period VARCHAR,
+    scope VARCHAR,
+    ebitda DECIMAL(38, 2),
+    adjustments DECIMAL(38, 2),
+    adjusted_ebitda DECIMAL(38, 2),
+    non_cash_and_other DECIMAL(38, 2),
+    working_capital_change DECIMAL(38, 2),
+    taxes_paid DECIMAL(38, 2),
+    other_operating DECIMAL(38, 2),
+    cfo DECIMAL(38, 2),
+    capex DECIMAL(38, 2),
+    free_cash_flow DECIMAL(38, 2),
+    cash_conversion DECIMAL(38, 6)
+);
+
+CREATE TABLE qoe_nwc (
+    company VARCHAR NOT NULL,
+    period VARCHAR,
+    granularity VARCHAR,
+    as_of DATE,
+    basis VARCHAR,
+    trade_receivables DECIMAL(38, 2),
+    inventories DECIMAL(38, 2),
+    other_current_assets DECIMAL(38, 2),
+    trade_payables DECIMAL(38, 2),
+    other_current_liabilities DECIMAL(38, 2),
+    net_working_capital DECIMAL(38, 2),
+    unmapped_ledgers BIGINT,
+    ledgers_included BIGINT,
+    ledgers_excluded BIGINT
+);

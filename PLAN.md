@@ -301,6 +301,30 @@ prints the views. Export: tables `customer_concentration`, `customer_retention`,
 Eval kinds: `customer_revenue`, `sector_revenue`, `product_revenue`, `top_customers_revenue`, `retained_revenue`,
 `pvm_price_effect`, `pvm_volume_effect`, `pvm_mix_effect`.
 
+QoE outputs (D7, decisions in `docs/decisions/d7-qoe.md`): `db/schema/diligence_nwc.sql` (last of the company schema files).
+`nwc_accounts` lists the working capital accounts (receivables, inventories, other current assets incl. current loans and other
+financial assets, trade payables, other current liabilities incl. other financial liabilities and short-term provisions; cash,
+investments, borrowings, leases and tax are not in it). `nwc_year_end` (and `nwc_year_end_lines`, each ledger with its trial
+balance row) is one row per loaded trial balance of the latest engagement, the stub included (basis unaudited), balances as the
+statements show them and net = assets - liabilities, with the count of unmapped ledgers. `nwc_monthly_ledgers` says, per working
+capital ledger of each Ledger Vouchers period, whether it is `included` in the monthly view: the previous period's trial balance
+is loaded (else "no previous trial balance": an opening is never inferred) and the latest `gl_vs_tb` run has its movement equal to
+the trial balance (else excluded with the reason); `nwc_monthly_lines` / `nwc_monthly` are the included ledgers' opening plus
+cumulative movement at each month end, with the counts included and excluded; `nwc_series` joins year-end and month-end rows for
+the dashboard (tables `qoe_ebitda`, `qoe_revenue`, `qoe_walk`, `qoe_nwc` in `shared/analytics.duckdb`, page
+`dashboards/pages/diligence.md`). `fin report <co> --diligence [--scope] [--render]` (`fin/report/dd_data.py`, `dd_tables.py`,
+`dd_render.py`; `templates/report/diligence.qmd`; E873 no engagement, E874 a bad reference; E602 typed numbers) writes
+`reports/<co>/<scope>/diligence_narrative.md` on its first run, then lints it and renders `diligence.html|docx|pdf` and
+`diligence_data.json` (every value, the references, the gate states, the data hash). The narrative's numbers are
+`{{figure:<name>:<period>}}` references (`dd_data.FIGURES`: adjusted EBITDA and its margins, other income, core and pass-through
+revenue, the walk, net working capital and its components, the recast's revenue effect; the period is an annual period or the
+stub). The report: basis and gate states, adjusted EBITDA with the bridge, adjustments and evidence (proposed ones marked not
+applied), other income, revenue as core and project revenue, the recast, the EBITDA-to-cash walk, working capital (year-end and
+monthly, with the ledgers left out), reconciliation summary and queries, collections and ageing (bank_vs_invoices), the customers
+section (D9, as in the health report), the stub as unaudited management accounts, findings and unconfirmed mappings, and a sources
+appendix (statement cells, register sheets and lines, pass-through lines, trial balance rows). Eval kinds: `nwc_year_end`,
+`nwc_monthly` (`fin/evals/qoe.py`).
+
 Service-period recast (D6, decisions in `docs/decisions/d6-recast.md`): `fin recast run <co> [--period FY25]` spreads each sales
 register line's Amount in Rs (before GST) over its service start and end dates by month (by service day, the last month takes the
 rounding remainder) and compares each annual period's recast with the register's amount by invoice date. It is a reconciliation

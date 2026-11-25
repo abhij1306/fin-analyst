@@ -57,6 +57,10 @@ def test_snapshot_copies_the_analytics_tables(data_root: Path) -> None:
             "customer_retention",
             "sector_mix",
             "price_volume_mix",
+            "qoe_ebitda",
+            "qoe_revenue",
+            "qoe_walk",
+            "qoe_nwc",
         }
     # The live file is not held after the snapshot: a writer opens it at once.
     with connect(analytics_db_path(data_root), write=True):
