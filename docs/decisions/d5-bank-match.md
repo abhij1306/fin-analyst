@@ -65,8 +65,10 @@ Only decisions that affect the analysis or what the user sees. Plan: docs/dilige
 - **Decision:** collection days = average days from invoice to receipt over a customer's matched invoices, weighted by
   Amount in Rs (a group of several lines uses its latest dates). Open invoices are aged at the period's last day: not
   due (up to the due days), then overdue 1–30, 31–60, 61–90 and over 90 days past the due days.
-- **Partial payments:** an invoice matched with a difference (a short payment, tax deducted) counts as received in full
-  in the view; the shortfall is its own `difference` line, queried like any other, not an open invoice.
+- **Partial payments:** an invoice matched with a difference (a short payment, tax deducted) is not counted as
+  received: the view shows its invoice amount as `partly_paid_inr`, and collection days use matched invoices only
+  (changed by the final audit, [final-fixes.md](final-fixes.md)); the shortfall is its own `difference` line, queried
+  like any other, not an open invoice.
 - **Change:** `db/schema/sources_views.sql` view `customer_collections`.
 
 ## 9. Claude's proposals

@@ -35,7 +35,7 @@ from fin.audit.errors import (
     SqlFailed,
 )
 from fin.audit.logger import Run
-from fin.db.conn import connect, lock_files
+from fin.db.conn import connect, lock_files, no_company_message
 from fin.findings import recheck_held
 from fin.metrics.export import refresh_analytics
 from fin.paths import backups_dir, company_db_path
@@ -144,7 +144,7 @@ def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> 
     refuses (E504, E806) is logged before anything runs."""
     path = company_db_path(run.root, company)
     if not path.is_file():
-        raise DependencyMissing(f"no database for company {company!r} ({path}); ingest first")
+        raise DependencyMissing(no_company_message(company))
     with connect(path) as con:
         try:
             check_write_sql(con, sql)

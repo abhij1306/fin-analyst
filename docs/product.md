@@ -77,7 +77,7 @@ fin-analyst/
   src/fin/
     cli/  config.py  paths.py  ingest.py  statements.py  workbook.py
     audit/     logger.py  errors.py
-    db/        conn.py  schema.py  schema/{audit,dictionary,analytics,company,company_views}.sql
+    db/        conn.py  schema.py  schema/*.sql (SCHEMA_FILES in schema.py)
     extract/   excel.py  pdf.py  pdf_model.py  pdf_lines.py  pdf_columns.py  pdf_reader.py  pdf_tables.py  addon.py  fallback.py  docling_run.py  liteparse_run.py
                llamaparse_run.py  text.py  units.py  periods.py  reading.py
     map/       dictionary.py  normalize.py  review.py

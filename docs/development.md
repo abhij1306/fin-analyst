@@ -267,11 +267,12 @@ The fix for an oversized file is to split it along its seams (pure moves), never
 
 ## Schema
 
-Each database has one schema file with its final tables and views, in `src/fin/db/schema/`: `audit.sql`,
-`dictionary.sql`, `analytics.sql`, `company.sql` (tables), `company_views.sql` and the `company_metric_*.sql` / `company_metrics.sql` files (metric macros and views; `sources_views.sql` has the views over the source tables) and
-`diligence.sql` (diligence tables) and `diligence_views.sql` (EBITDA bridge and walk views). `fin init` creates the
-shared databases from them, and a company database is created from `company.sql`, `company_views.sql`,
-`diligence.sql` and `diligence_views.sql` the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
+Each database is created from its schema files in `src/fin/db/schema/`, run in the order `SCHEMA_FILES` in
+`src/fin/db/schema.py` lists them: `audit.sql`, `dictionary.sql`, `analytics.sql`, and for a company `company.sql`
+(tables), `company_views.sql` and the `company_metric_*.sql` / `company_metrics.sql` files (metric macros and
+views), `diligence.sql` (diligence tables), `diligence_views.sql` (EBITDA bridge and walk views), `sources.sql` and
+`sources_views.sql` (source tables and their views) and the other diligence view files. `fin init` creates the
+shared databases, and a company database is created the first time that company is used. Nothing alters a database that exists; there are no migrations and no version
 numbers.
 
 To change a schema, edit its file. Then either re-create the data folder (move `~/FinAnalysis` away, run `fin init` and

@@ -53,6 +53,33 @@ FIX items of the verified audit plan; client-level choices go to the client list
 - **How to change it:** `src/fin/delete.py: company_paths, _cache_files`.
 
 
+## Ledger names are not masked again when a later file learns a name
+
+- **Decision:** `remask` covers free text only. A trial balance or Ledger Vouchers ledger name that holds a name
+  fin learns later (a ledger "Loan - <employee>" loaded before payroll) stays as it was stored.
+- **Why:** Ledger names are join keys: ledger mappings the user confirmed, reconciliation lines and gate input hashes
+  name them. Rewriting them after the fact would orphan confirmed mappings and reopen gates. Load the payroll and
+  registers before the trial balance when the ledger names hold people's names, or see D-7 and D-10.
+- **How to change it:** `src/fin/diligence/mask.py: FREE_TEXT_COLUMNS` (with the ledger mapping and recon tables
+  rewritten in the same transaction).
+
+## A withdrawn query no longer covers a trial balance difference (G1)
+
+- **Decision:** In G1's checklist, a `tb_vs_statements` difference at or above the threshold counts as queried only
+  while its query is not withdrawn. Withdrawing the query reopens the line, and the withdrawn flag is part of G1's
+  inputs, so an approved G1 reopens.
+- **Why:** A withdrawn query is not a question to the company; the difference is unexplained again.
+- **How to change it:** `src/fin/diligence/tb_checks.py: _recon_line, inputs`.
+
+## A partly paid invoice is not counted as received
+
+- **Decision:** `customer_collections.received_inr` and `collection_days` use invoices matched in full only; an
+  invoice in a `difference` group shows its invoice amount as `partly_paid_inr` (invoiced = received + partly paid
+  + open). The diligence report's collections tables show the new column. This replaces "counts as received in full"
+  in [d5-bank-match.md](d5-bank-match.md) 8.
+- **Why:** A short payment counted as received overstated collections and shortened collection days.
+- **How to change it:** `src/fin/db/schema/sources_views.sql` view `customer_collections`.
+
 # Client decisions (NEEDS CLIENT CONFIRMATION)
 
 Product-level choices the audit found where fin does something the client may not expect. Each is marked NEEDS CLIENT

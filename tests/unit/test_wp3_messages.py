@@ -25,6 +25,7 @@ def root(data_root: Path) -> Path:
     "args",
     [
         ["sql", "ghost", "--sql", "SELECT 1"],
+        ["sql", "ghost", "--write", "--sql", "DELETE FROM facts"],
         ["statements", "ghost"],
         ["report", "ghost"],
         ["review", "list", "ghost"],
