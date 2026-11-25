@@ -1,4 +1,4 @@
-"""`fin ingest <co> <file> --kind trial_balance|ledger_vouchers|payroll`: load a source file.
+"""`fin ingest <co> <file> --kind trial_balance|ledger_vouchers|registers|payroll`: load a file.
 
 For one file, `ingest_source`:
 
@@ -9,7 +9,8 @@ For one file, `ingest_source`:
    its stub (basis unaudited: unaudited management accounts) (E808). A payroll snapshot has one
    date, which must fall in an annual period or the stub (`fin.diligence.payroll`).
    Ledger Vouchers need their period's trial balance loaded first (E811): it says which ledgers
-   are parties.
+   are parties. A registers workbook has no period header: its period comes from its invoice dates
+   (`fin.diligence.registers`), and a later registers file replaces the earlier whatever its period.
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
 4. In ONE transaction: adds the `source_files` row, the rows (`fin.diligence.tally`) with sheet and
    row, names masked (`fin.diligence.mask`), the trial balance's group findings, and marks an
@@ -38,12 +39,13 @@ from fin.audit.errors import (
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, transaction, utcnow
-from fin.diligence import ledgers, payroll, tally
+from fin.diligence import ledgers, payroll, registers, tally
 from fin.diligence.engagement import require_open
 from fin.diligence.mask import Masker
 from fin.diligence.stub import UNAUDITED
 from fin.extract.ledger import Table, read_table
 from fin.extract.periods import fiscal_year_of
+from fin.extract.registers import read_registers
 from fin.findings import record, set_status
 from fin.ingest import sha256_of
 from fin.paths import archive_dir, company_db_path
@@ -270,8 +272,8 @@ def _supersede(
         file_id
         for (file_id,) in con.execute(
             "UPDATE source_files SET status = 'superseded', superseded_by = ? WHERE status = "
-            "'loaded' AND kind = ? AND period = ? AND engagement_id = ? AND file_id <> ? "
-            "RETURNING file_id",
+            "'loaded' AND kind = ? AND (period = ? OR kind = 'registers') AND engagement_id = ? "
+            "AND file_id <> ? RETURNING file_id",
             [file["file_id"], file["kind"], file["period"], file["engagement_id"], file["file_id"]],
         ).fetchall()
     ]
@@ -301,13 +303,23 @@ def ingest_source(
                 f"{name}: already loaded as source file_id {earlier[0]} (same sha256)"
             )
         masker = Masker(con, run.run_id)
-        table = read_table(path, kind, profile, hide=lambda text: masker.text(text) or text)
-        if kind == "payroll":
-            period, basis = payroll.snapshot_period(
-                table, engagement, config.fiscal_year_start_month, name
-            )
+        month = config.fiscal_year_start_month
+
+        def hide(text: str) -> str:
+            return masker.text(text) or text
+
+        if kind == "registers":
+            reg_table = read_registers(path, profile, hide)
+            parsed = registers.parse(reg_table, name)
+            period, basis, start, end = registers.file_period(parsed, engagement, month)
+            profile_name = reg_table.profile.name
         else:
-            period, basis = period_of_file(table, engagement, config.fiscal_year_start_month, name)
+            table = read_table(path, kind, profile, hide=hide)
+            if kind == "payroll":
+                period, basis = payroll.snapshot_period(table, engagement, month, name)
+            else:
+                period, basis = period_of_file(table, engagement, month, name)
+            start, end, profile_name = table.start, table.end, table.profile.name
         tb = _tb_ledgers(con, engagement["engagement_id"], period)
         if kind == "ledger_vouchers" and not tb:
             raise TrialBalanceNeeded(
@@ -323,10 +335,10 @@ def ingest_source(
             "sha256": sha256,
             "archive_path": archive,
             "period": period,
-            "period_start": table.start,
-            "period_end": table.end,
+            "period_start": start,
+            "period_end": end,
             "basis": basis,
-            "profile": table.profile.name,
+            "profile": profile_name,
             "status": "loaded",
             "run_id": run.run_id,
             "ingested_at": utcnow(),
@@ -347,13 +359,12 @@ def ingest_source(
                 )
         elif kind == "payroll":
             lines = _load_payroll(run, company, con, table, file, masker)
+        elif kind == "registers":
+            lines = registers.load(run, company, con, parsed, file, masker, engagement, month)
         else:
             lines = _load_lv(run, con, table, file, tb, masker)
         replaced = _supersede(run, company, con, file)
-    head = (
-        f"loaded as source file_id {file['file_id']} ({kind} {period}, profile "
-        f"{table.profile.name})"
-    )
+    head = f"loaded as source file_id {file['file_id']} ({kind} {period}, profile {profile_name})"
     if basis == "unaudited":
         head += f"; {period} is the stub: {UNAUDITED}"
     if replaced:

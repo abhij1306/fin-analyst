@@ -30,6 +30,12 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      `--monthly`) only when the user says which; never decide the unit yourself. `--monthly` keeps G1 failing: fin does
      not convert, so ask the company for an annual snapshot. E820: no loaded payroll file of that name or id; E821: a
      row with no employee name or code, or a bad date (a corrected file is the company's to send).
+   - **Registers.** The billing system's workbook (a sales sheet and a purchase sheet) loads with
+     `uv run fin ingest <company> <file> --kind registers`: it needs no trial balance and has no period header (the
+     period comes from its invoice dates). Report the outcome lines as printed: lines per sheet, names masked, lines
+     outside the engagement. A repeated invoice number is a finding (`register_duplicate_invoice`, both rows kept):
+     show it with `fin findings list` and ask the user, then draft a query from it as in step 2. E813: a row is not
+     an invoice line (the message names sheet!row); E807: no profile reads the layout (write one).
    - **Names are tokens** (`CUST-0001`, `VEND-0001`, `LEDG-0001`, `EMP-0001`, `ECODE-0001`). Use them as they are in queries and answers;
      never try to read `mask_values` (`fin sql` refuses, E810) or guess a name.
    - **Ledger mapping.** `uv run fin map ledgers <company>` lists the trial balance ledgers waiting for an account.

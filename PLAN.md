@@ -225,7 +225,7 @@ exit 2; nothing is run, the refusal is logged in `queries`). Every diligence com
 up the company database to `backups/<run_id>/`.
 
 Diligence source files (D2, first half; docs/DILIGENCE_PLAN.md §7): `fin ingest <co> <file> --kind
-trial_balance|ledger_vouchers [--profile <name>]` loads one Tally export (one file, no `--force` or `--reading`) for
+trial_balance|ledger_vouchers|registers [--profile <name>]` loads one Tally export or one registers workbook (one file, no `--force` or `--reading`) for
 the open engagement (E803 without one). Tables in `db/schema/sources.sql` (run after `diligence_views.sql`):
 `source_files` (kind, file name, sha256, archive path, period from the export's header lines, basis `audited`,
 profile, loaded or superseded), `trial_balance` (group and ledger rows with group, parent group, closing debit and
@@ -245,9 +245,21 @@ Creditors: vendor) are stored as tokens (`CUST-0001`, `VEND-0001`; the same valu
 file, whatever kind it is found as later); known names in other ledger names and in masked fields (Ledger Vouchers
 particulars) are replaced as whole words; a Ledger Vouchers ledger not in its trial balance is masked as
 `LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql --write` refuses to
-write `source_files`, `trial_balance`, `ledger_entries` and `ledger_blocks` (E806). One transaction per file; a later file of the
+write `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks` and `register_lines` (E806). One transaction per file; a later file of the
 same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
 period or refusal error stops the command and loads nothing.
+
+Registers (D3, `--kind registers`; decisions in `docs/decisions/d3-registers.md`): one billing-system workbook with a
+sales sheet and a purchase sheet, read by a `registers` profile (`templates/profiles/billing_registers.toml`: a
+`[sales.columns]` and a `[purchase.columns]` table, found by header, whatever the sheet names) in
+`fin/extract/registers.py`; meaning is `fin/diligence/registers.py`. Each invoice line is a row of `register_lines` (kind
+sales or purchase, sheet + row, ids as filed, customer or vendor, handler and submitted-by as `CUST-`, `VEND-`, `USER-`
+tokens, known names in the free-text columns replaced, Amount in Rs before GST as filed). The register has no period
+header: `source_files.period` names the fiscal years of its first and last invoice date, basis is `unaudited` when any date
+is in the stub, lines outside the engagement are loaded and counted, and a later registers file supersedes the earlier
+whatever its period. The same invoice number twice (sales: by number; purchases: by vendor and number) is a finding
+(`check_name` `register_duplicate_invoice`, the later row against the first, the repeated line's Amount in Rs as the
+difference), both rows kept; `fin query raise --finding` then drafts the query. A row that is not an invoice line is E813.
 
 Ledger mapping, `tb_vs_statements`, the stub and G1's trial balance checks (D2, second half). `ledger_accounts`
 (`fin/diligence/ledgers.py`): a trial balance load adds its new ledgers as pending; `fin map ledgers <co>` lists
@@ -414,7 +426,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - Diligence: `engagement`, `accountant_queries`, `adjustments` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash` (views on the latest engagement)
-- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
+- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
 
 **Shared**
 
@@ -537,7 +549,7 @@ claude
 | `fin init`, `fin doctor` | — | Human |
 | `fin ingest <co> [path] [--force]` | `/ingest` | Either |
 | `fin ingest <co> <file> --reading <csv>` | `/ingest` (offered after a failure or skipped page) | Claude, when the user asks |
-| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|payroll [--profile]` | `/diligence` | Either |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|payroll [--profile]` | `/diligence` | Either |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` | `/diligence` | Either (only when the user says which) |
 | `fin ingest-batch [folder]` (default `inbox/`) | `/ingest-batch` | Either |
 | `fin verify <co> <file> --reading <csv>` | `/verify` | Either (when the user asks) |

@@ -17,6 +17,11 @@ special cases:
   for a trial balance `group` ("bold": group rows are bold) and `level` ("indent": nesting from
   the name cell's indent, or "none"); for Ledger Vouchers `block` (the field whose cell holds the
   ledger name at the head of each ledger block) and `block_prefix` (text before the name, removed).
+- `registers` profiles describe a billing-system workbook (a sales and a purchase sheet).
+  Instead of `[columns]` they have `[sales.columns]` and `[purchase.columns]` (header text -> field,
+  see `REGISTER_FIELDS`; `REGISTER_REQUIRED` fields must be mapped), `header_rows`, `date_format`,
+  `unit` and `[rows] skip` (total rows). They have no `period`: a register has no period header,
+  its period is read from its invoice dates.
 - `[mask]`: `groups` (group name -> masked kind: the ledgers under it are tokenised, as
   `fin.diligence.mask`) and `fields` (fields in which known masked names are replaced by tokens).
 
@@ -32,11 +37,22 @@ from typing import Any
 from fin.audit.errors import LayoutUnknown
 
 PROFILES_DIR = Path(__file__).resolve().parents[3] / "templates" / "profiles"
-KINDS = ("trial_balance", "ledger_vouchers", "payroll")  # D3 siblings add registers, bank
+KINDS = ("trial_balance", "ledger_vouchers", "registers", "payroll")  # D3: bank
 FIELDS = {
     "trial_balance": {"name", "debit", "credit"},
     "ledger_vouchers": {"date", "particulars", "voucher_type", "voucher_no", "debit", "credit"},
     "payroll": {"employee_name", "employee_code", "gross_salary", "ctc"},
+}
+REGISTER_PARTS = ("sales", "purchase")
+REGISTER_FIELDS = {
+    "bill_id", "purchase_id", "customer_id", "customer", "vendor_id", "vendor", "location",
+    "invoice_no", "contract_start", "contract_end", "invoice_date", "order_type", "product",
+    "service_start", "service_end", "quantity", "rate", "amount", "currency", "currency_rate",
+    "amount_inr", "service_type", "handler", "submitted_by",
+}  # fmt: skip
+REGISTER_REQUIRED = {
+    "sales": {"invoice_no", "invoice_date", "customer", "amount_inr"},
+    "purchase": {"invoice_no", "invoice_date", "vendor", "amount_inr"},
 }
 MASK_KINDS = ("customer", "vendor", "user", "employee_name", "employee_code", "ledger")
 
@@ -53,7 +69,7 @@ class Profile:
     columns: dict[str, str]  # normalised header text -> field
     header_rows: int
     date_format: str
-    period: re.Pattern[str]
+    period: re.Pattern[str] | None = None  # not for registers
     unit: int = 1
     skip: frozenset[str] = frozenset()  # normalised row names that are not data
     group: str = "bold"
@@ -62,6 +78,9 @@ class Profile:
     block_prefix: str = ""
     mask_groups: dict[str, str] = field(default_factory=dict)  # normalised group -> kind
     mask_fields: tuple[str, ...] = ()
+    parts: dict[str, dict[str, str]] = field(
+        default_factory=dict
+    )  # registers: sheet kind -> columns
 
 
 def _invalid(name: str, why: str) -> LayoutUnknown:
@@ -70,10 +89,38 @@ def _invalid(name: str, why: str) -> LayoutUnknown:
     )
 
 
+def _parse_registers(name: str, data: dict[str, Any]) -> Profile:
+    parts = {}
+    for part in REGISTER_PARTS:
+        columns = {norm(k): v for k, v in ((data.get(part) or {}).get("columns") or {}).items()}
+        unknown = sorted(set(columns.values()) - REGISTER_FIELDS)
+        if unknown:
+            raise _invalid(name, f"[{part}.columns] fields {', '.join(unknown)} are not known")
+        missing = REGISTER_REQUIRED[part] - set(columns.values())
+        if missing:
+            raise _invalid(name, f"[{part}.columns] has no header for {', '.join(sorted(missing))}")
+        parts[part] = columns
+    try:
+        return Profile(
+            name=name,
+            kind="registers",
+            columns={},
+            header_rows=int(data.get("header_rows", 1)),
+            date_format=str(data["date_format"]),
+            unit=int(data.get("unit", 1)),
+            skip=frozenset(norm(s) for s in (data.get("rows") or {}).get("skip", [])),
+            parts=parts,
+        )
+    except (KeyError, ValueError, TypeError) as exc:
+        raise _invalid(name, f"{type(exc).__name__}: {exc}") from exc
+
+
 def _parse(name: str, data: dict[str, Any]) -> Profile:
     kind = data.get("kind")
     if kind not in KINDS:
         raise _invalid(name, f"kind {kind!r} is not one of {', '.join(KINDS)}")
+    if kind == "registers":
+        return _parse_registers(name, data)
     columns = {norm(k): v for k, v in (data.get("columns") or {}).items()}
     missing = FIELDS[kind] - set(columns.values())
     if missing:

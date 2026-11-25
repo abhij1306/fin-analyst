@@ -13,6 +13,7 @@ from typer.testing import CliRunner, Result
 from fin.cli import app
 from fin.db.schema import ensure_database
 from fin.paths import company_db_path
+from tests.register_fixtures import HANDLERS, write_registers
 from tests.tally_fixtures import CUSTOMERS, VENDORS, write_ledger_vouchers, write_trial_balance
 
 runner = CliRunner()
@@ -114,3 +115,27 @@ def test_kind_usage_errors(root: Path, tmp_path: Path, args: list[str], message:
 
     assert result.exit_code == 2
     assert message in plain(result.output)
+
+
+def test_registers_load_through_the_cli_and_a_duplicate_invoice_becomes_a_query(
+    root: Path, tmp_path: Path, audit_query: Any
+) -> None:
+    reg = write_registers(tmp_path / "reg.xlsx", duplicate=True)
+
+    loaded = fin("ingest", "acme", str(reg), "--kind", "registers")
+    findings = fin("findings", "list", "acme")
+    query = fin(
+        "query", "raise", "acme", "--finding", "1", "--question", "Is INV-1002 one invoice?"
+    )
+
+    assert loaded.exit_code == 0, loaded.output
+    assert "(registers FY25, profile billing_registers)" in loaded.stdout
+    assert "4 sales lines, 3 purchase lines" in loaded.stdout
+    assert "register_duplicate_invoice" in findings.stdout
+    assert query.exit_code == 0, query.output
+    printed = loaded.output + findings.output + query.output
+    logged = " ".join(str(row) for row in audit_query("SELECT message, context FROM events"))
+    logged += " ".join(str(row) for row in audit_query("SELECT * FROM findings"))
+    for name in (*NAMES, *HANDLERS):
+        assert name not in printed
+        assert name not in logged

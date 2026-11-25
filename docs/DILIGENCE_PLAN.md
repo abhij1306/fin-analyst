@@ -25,7 +25,7 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Accountant queries (Rs 1 lakh per line, drafted for approval) | **Built**, except grouping lines into issues and the export | D1; D4, D8 |
 | Gates that stop the build for review | **Built**: G1, G2, G4; G3 planned | D1; D2, D4, D6 |
 | Adjusted EBITDA, EBITDA bridge, EBITDA-to-cash walk | **Built** on the audited statements | D1 |
-| Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: trial balance and Ledger Vouchers; the rest planned | D2, D3 |
+| Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: trial balance, Ledger Vouchers and registers; bank and payroll planned | D2, D3 |
 | Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers; the export planned | D2 on; D8 |
 | Current-year stub from unaudited management data | Planned | D2 on |
 | Reconciliation: register ↔ ledger ↔ accounts; pass-through revenue | Planned | D4 |
@@ -139,7 +139,7 @@ and every gate approval.
 | `trial_balance` (**built**) | file_id, sheet, row, period, row type (group or ledger), group, ledger, closing debit, closing credit. No opening or movement columns: the export has none | D2 |
 | `ledger_entries` (**built**) | file_id, sheet, row, ledger (from the block header), date, particulars, voucher type, voucher no, debit, credit | D2 |
 | `ledger_blocks` (**built**) | file_id, sheet, row, ledger: one per ledger block in a Ledger Vouchers export, with or without voucher lines; G1's "every ledger is in the Ledger Vouchers" reads it | D2 |
-| `register_lines` | file_id, sheet, row, kind (sales/purchase), bill id, purchase id, customer id, customer (token), location, invoice no, contract start, contract end, invoice date, order type, product, service start, service end, quantity, rate, amount, currency, currency rate, amount in Rs (before GST), service type, handler and submitted-by (tokens) | D3 |
+| `register_lines` (**built**) | file_id, sheet, row, kind (sales/purchase), bill id, purchase id, customer id, customer (token, sales), vendor id, vendor (token, purchase), location, invoice no, contract start, contract end, invoice date, order type, product, service start, service end, quantity, rate, amount, currency, currency rate, amount in Rs (before GST), service type, handler and submitted-by (tokens) | D3 |
 | `bank_lines` | file_id, sheet or page, row, bank, account, currency, date, remarks (names as tokens), reference, debit, credit, balance | D3 |
 | `payroll_lines` (**built**) | file_id, sheet, row, snapshot date, employee name and code (tokens), designation, department, vertical, sub-vertical, joining date, resign date, gross salary and CTC (annual, unit confirmed by the user). No month column | D3 |
 | `recon_runs`, `recon_items` (**built** for `tb_vs_statements`) | each reconciliation run (name, period, scope, left file, threshold, hash of its inputs, unmapped count) and its lines (`matched`, `difference`, `left_only`, `right_only`, `unmapped`; D5 adds `fx`), each with both sources, both amounts, the difference and its query | D2, D4, D5 |
@@ -205,7 +205,7 @@ that writes to a diligence table.
 | CLI | Phase |
 |---|---|
 | `fin engagement open <co> --periods ... [--stub FY27-YTD-SEP]` | D2 (**built**) |
-| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 (**built**: `payroll`) |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 (**built**: `registers`, `payroll`) |
 | `fin map ledgers <co> [file.json]` (Tally ledger → account; the user confirms with `fin review confirm <co> <ids> --ledgers`) | D2 (**built**) |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 (**built**) |
 | `fin engagement passthrough <co> --customers <file>` (the user's SI/reseller list; fin prints the tokens it matched) | D4 |
@@ -276,9 +276,14 @@ is refused; a planted account difference at or above the threshold becomes a dra
 a synthetic stub loads and is labelled unaudited.
 
 ### D3: Registers, bank, payroll
+Status: **registers built** (`--kind registers`, `fin/extract/registers.py`, `fin/diligence/registers.py`,
+`templates/profiles/billing_registers.toml`, duplicate-invoice finding; `PLAN.md` "Registers"; every design choice and how
+to change it: `docs/decisions/d3-registers.md`); bank and payroll are built by their own workstreams.
 - **Registers**: one workbook from the billing system, a sales sheet and a purchase sheet, headers as in §9
   (`register_lines`, §4). Amount in Rs is before GST; there are no GST or tax columns. Customer, vendor, handler and
-  submitted-by are masked.
+  submitted-by are masked. Built: the headers of `billing_registers.toml` are synthetic (the real export's headers were
+  not in §9 as columns): replace them when the real export is seen. The same invoice number twice is a finding (sales
+  by number, purchases by vendor and number), both rows kept.
 - **Bank**: Excel profiles for ICICI, SBI and Axis (INR and USD accounts). Remarks keep their text with known names
   replaced by tokens.
 - **PDF bank statements: the chosen PDF parser** (owner decision, 2026-11-24). fin reads a bank PDF's tables with

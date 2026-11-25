@@ -269,9 +269,9 @@ class DiligenceChangeRefused(FinError):
 class DiligenceTableWrite(FinError):
     """E806. `fin sql --write` was given a statement that writes to a diligence table (engagement,
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
-    ledger_blocks, payroll_lines, payroll_units, ledger_accounts, recon_runs, recon_items): those
-    change only through `fin engagement`, `fin query`, `fin adjust`, `fin gate`,
-    `fin ingest --kind`,
+    ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
+    recon_items): those change only through `fin engagement`, `fin query`, `fin adjust`,
+    `fin gate`, `fin ingest --kind`,
     `fin map ledgers` with `fin review --ledgers`, and `fin reconcile`. Nothing was run."""
 
     code = "E806"
@@ -322,6 +322,15 @@ class ReconNotPossible(FinError):
     figures. Nothing recorded."""
 
     code = "E812"
+
+
+class RegisterLineInvalid(FinError):
+    """E813. A registers workbook row cannot be loaded as an invoice line: no invoice number, date,
+    party or Amount in Rs, a date that is not in the profile's date format, or a row that is not a
+    `skip` row (a total). Nothing loaded: fix the cell, or add the row's name to [rows] skip in the
+    profile."""
+
+    code = "E813"
 
 
 class PayrollFileNotFound(FinError):

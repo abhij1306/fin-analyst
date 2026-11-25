@@ -28,9 +28,27 @@ def test_the_shipped_profiles_load() -> None:
     )  # fmt: skip
 
 
+def test_the_shipped_registers_profile_has_a_sheet_part_each() -> None:
+    reg = profiles.load_profile("billing_registers")
+
+    assert (reg.kind, reg.columns, reg.period, sorted(reg.parts)) == (
+        "registers", {}, None, ["purchase", "sales"]
+    )  # fmt: skip
+    assert reg.parts["sales"]["amount in rs"] == "amount_inr"
+    assert reg.skip == {"total", "grand total"}
+
+
 @pytest.mark.parametrize(
     ("text", "why"),
     [
+        (
+            'kind = "registers"\ndate_format = "%d"\n[sales.columns]\nA = "invoice_no"',
+            "[sales.columns] has no header for amount_inr, customer, invoice_date",
+        ),
+        (
+            'kind = "registers"\ndate_format = "%d"\n[sales.columns]\nA = "nope"',
+            "[sales.columns] fields nope are not known",
+        ),
         ('kind = "bank"', "kind 'bank' is not one of"),
         ('kind = "trial_balance"\n[columns]\nParticulars = "name"', "no header for credit, debit"),
         (
