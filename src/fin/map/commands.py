@@ -375,7 +375,7 @@ def _confirm_items(
 
 
 def _check_unused(tax_class: str | None = None, sector: str | None = None) -> None:
-    """E-free usage errors for options that belong to another kind of item."""
+    """Usage errors for options that belong to another kind of item."""
     if tax_class is not None:
         raise typer.BadParameter("--tax-class applies to --tax")
     if sector is not None:

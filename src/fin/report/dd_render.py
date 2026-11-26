@@ -179,7 +179,7 @@ def diligence_parts(data: dict[str, Any], u: str) -> tuple[dict[str, str], dict[
     return tables, sections
 
 
-def _read_template(kind: "Kind") -> str:
+def _read_template(kind: Kind) -> str:
     try:
         return kind.template.read_text(encoding="utf-8")
     except OSError as exc:
