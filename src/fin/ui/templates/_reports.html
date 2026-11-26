@@ -2,9 +2,9 @@
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
-{{ head("Reports", "Written by fin into " ~ data.folder ~ ". HTML opens in a new tab; Word, PDF and Excel download.") }}
+{{ head("Reports") }}
 <div class="card">
-  <header><h2>Files</h2><p>Reports and exports for this company.</p></header>
+  <header><h2>Files</h2></header>
   <section class="flush">
     {% if data.files %}
     <div class="table-container"><table class="table">
@@ -19,7 +19,7 @@
       </tbody>
     </table></div>
     {% else %}
-    <div class="pad">{{ empty("No report yet.", "Ask Claude to write one in the chat.") }}</div>
+    <div class="pad">{{ empty("No report yet.") }}</div>
     {% endif %}
   </section>
 </div>

@@ -80,12 +80,9 @@ details.clip summary { display: block; overflow: hidden; text-overflow: ellipsis
 details.clip[open] summary { white-space: normal; }
 details.problems ul { margin-top: 0.5rem; width: 22rem; white-space: normal; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; }
 
-/* upload drop zone */
-.dropzone { border: 1.5px dashed var(--ring); box-shadow: none; }
-.dropzone-body { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center; }
-.dropzone-body svg { width: 2rem; height: 2rem; color: var(--muted-foreground); }
-.dropzone-body .input { max-width: 26rem; margin-top: 0.5rem; }
-.dropzone-foot { justify-content: center; }
+/* upload row */
+.upload { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.upload .input { flex: 0 1 26rem; }
 
 /* gates */
 .checks { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; list-style: none; }

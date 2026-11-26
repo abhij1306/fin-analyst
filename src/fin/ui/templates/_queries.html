@@ -4,12 +4,12 @@
 {% if data.empty %}
 {{ no_company() }}
 {% elif data.no_engagement %}
-{{ head("Queries", "Questions for the company and adjustments to EBITDA.") }}
+{{ head("Queries") }}
 {{ no_engagement(data.no_engagement) }}
 {% else %}
-{{ head("Queries and adjustments", "Claude drafts; you approve. fin never sends anything: mark a query sent when you have sent it.") }}
+{{ head("Queries and adjustments") }}
 <div class="card">
-  <header><h2>Queries</h2><p>Questions for the company's accountant.</p></header>
+  <header><h2>Queries</h2></header>
   <section class="flush">
     {% if data.queries %}
     <div class="table-container"><table class="table">
@@ -34,7 +34,7 @@
   </section>
 </div>
 <div class="card">
-  <header><h2>Adjustments</h2><p>Proposed EBITDA adjustments, each with its evidence.</p></header>
+  <header><h2>Adjustments</h2></header>
   <section class="flush">
     {% if data.adjustments %}
     <div class="table-container"><table class="table">

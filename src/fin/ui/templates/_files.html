@@ -3,21 +3,15 @@
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
-{{ head("Files", "Upload documents, see what is loaded and what does not add up.") }}
-<form class="card dropzone" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
+{{ head("Files") }}
+<form class="upload" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
   <input type="hidden" name="company" value="{{ company }}">
-  <section>
-    <div class="dropzone-body">
-      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-      <label class="label" for="upload">Choose Excel or PDF files to upload</label>
-      <p class="muted">.xlsx, .xlsm, .pdf · saved to {{ data.inbox_folder }} · uploading only saves the files; ask Claude in the chat to ingest them.</p>
-      <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.pdf">
-    </div>
-  </section>
-  <footer class="dropzone-foot"><button type="submit" class="btn">Upload</button></footer>
+  <label class="label" for="upload">Upload Excel or PDF</label>
+  <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.pdf">
+  <button type="submit" class="btn">Upload</button>
 </form>
 <div class="card">
-  <header><h2>Loaded documents</h2><p>What fin has read from the files.</p></header>
+  <header><h2>Loaded documents</h2></header>
   <section class="flush">
     {% if data.documents %}
     <div class="table-container"><table class="table">
@@ -31,12 +25,12 @@
       </tbody>
     </table></div>
     {% else %}
-    <div class="pad">{{ empty("Nothing is loaded yet.", "Upload files above, then ask Claude to ingest them.") }}</div>
+    <div class="pad">{{ empty("Nothing is loaded yet.") }}</div>
     {% endif %}
   </section>
 </div>
 <div class="card">
-  <header><h2>In the inbox, not loaded</h2><p>Files waiting in {{ data.inbox_folder }}</p></header>
+  <header><h2>In the inbox, not loaded</h2></header>
   <section class="flush">
     {% if data.inbox %}
     <div class="table-container"><table class="table">
@@ -44,12 +38,12 @@
       {% for name in data.inbox %}<tr><td class="fname">{{ name }}</td><td class="num">{{ badge("pending", "not loaded") }}</td></tr>{% endfor %}
     </tbody></table></div>
     {% else %}
-    <div class="pad">{{ empty("Nothing waiting", "Every file in the inbox is loaded.") }}</div>
+    <div class="pad">{{ empty("Nothing waiting") }}</div>
     {% endif %}
   </section>
 </div>
 <div class="card">
-  <header><h2>Findings on filed data</h2><p>What the company filed that does not add up. Save it as filed, or ask Claude to fix it.</p></header>
+  <header><h2>Findings on filed data</h2></header>
   <section class="flush">
     {% if data.findings %}
     <div class="table-container"><table class="table">

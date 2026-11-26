@@ -33,7 +33,7 @@
     <div class="chat-log" role="log" aria-label="Messages">
       <div>
         {% for i in chat.log %}{{ item(i, chat.conv.id) }}{% else %}
-        <p class="muted">Ask about {{ company or "a company" }}, or start with a skill below. Claude runs on your own Claude Code login.</p>
+        
         {% endfor %}
         <div id="chat-turn"></div>
       </div>

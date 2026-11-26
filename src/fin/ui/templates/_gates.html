@@ -3,10 +3,10 @@
 {% if data.empty %}
 {{ no_company() }}
 {% elif data.no_engagement %}
-{{ head("Gates", "A gate stops the build until you approve it.") }}
+{{ head("Gates") }}
 {{ no_engagement(data.no_engagement) }}
 {% else %}
-{{ head("Gates", "Engagement #" ~ data.engagement_id ~ ". Only you approve a gate. A gate reopens by itself when the data under it changes.") }}
+{{ head("Gates", "Engagement #" ~ data.engagement_id ~ ". Only you approve a gate.") }}
 {% for g in data.gates %}
 <div class="card">
   <header>
@@ -21,7 +21,7 @@
     <p class="muted">Unlocks: {{ g.unlocks }}</p>
   </section>
   {% if g.state != "approved" %}
-  <footer>{{ act("gate-approve", g.gate, "Approve " ~ g.gate, company, ask="Approve " ~ g.gate ~ " " ~ g.title ~ "? Later steps unlock on it, and it reopens by itself if the data under it changes. fin refuses while its checklist fails or an earlier gate is not approved.", variant="primary") }}<span class="muted">Only you can press this. Claude cannot approve gates.</span></footer>
+  <footer>{{ act("gate-approve", g.gate, "Approve " ~ g.gate, company, ask="Approve " ~ g.gate ~ " " ~ g.title ~ "? Later steps unlock on it, and it reopens by itself if the data under it changes. fin refuses while its checklist fails or an earlier gate is not approved.", variant="primary") }}</footer>
   {% endif %}
 </div>
 {% endfor %}
