@@ -1,6 +1,6 @@
 """Bank statements (fin.diligence.bank): synthetic Excel statements for ICICI, SBI and Axis (INR and
 USD) and a synthetic Axis PDF (recorded parser output) load with sheet or page + row lineage and
-masked names; a statement that does not tie, a balance gap and overlapping periods are findings;
+remarks as filed; a statement that does not tie, a balance gap and overlapping periods are findings;
 a PDF is parsed once per sha256, and LlamaParse is never called."""
 
 import dataclasses
@@ -50,7 +50,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "bank"
 
 @pytest.fixture(scope="module")
 def template(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """A data folder with company acme, an open FY25 engagement and two known masked names."""
+    """A data folder with company acme, an open FY25 engagement and two known register names."""
     root = tmp_path_factory.mktemp("template") / "data"
     root.mkdir()
     write_default_config(root)
@@ -113,7 +113,7 @@ def findings(root: Path) -> list[tuple[Any, ...]]:
         ("axis", "USD"),
     ],
 )
-def test_excel_statements_load_with_lineage_and_masked_remarks(
+def test_excel_statements_load_with_lineage_and_remarks_as_filed(
     root: Path, tmp_path: Path, bank: str, currency: str
 ) -> None:
     lines = load(root, write_statement(tmp_path / "s.xlsx", bank, currency=currency))
@@ -152,15 +152,16 @@ def test_excel_statements_load_with_lineage_and_masked_remarks(
         None,
         8,
         "2024-04-03",
-        "NEFT-CUST-0001-INV101",
+        f"NEFT-{CUSTOMER}-INV101",
         Decimal("0.00"),
         Decimal("250000.00"),
         Decimal("350000.00"),
     )
-    assert lines_[1][4] == "IMPS to VEND-0001 rent"
+    # bank text is not masked (docs/decisions/masking.md): known names stay as filed
+    assert lines_[1][4] == f"IMPS to {VENDOR} rent"
     stored = " ".join(str(r) for r in rows(root, "SELECT * FROM bank_lines"))
-    assert CUSTOMER not in stored
-    assert VENDOR not in stored
+    assert "CUST-0001" not in stored
+    assert "VEND-0001" not in stored
     assert rows(root, "SELECT kind, period, basis FROM source_files") == [
         ("bank", "FY25", "audited")
     ]
@@ -339,8 +340,8 @@ def test_a_pdf_statement_loads_from_its_saved_parse_with_page_lineage(
         'SELECT sheet, page, "row", txn_date::VARCHAR, remarks FROM bank_lines '
         'ORDER BY page, "row"',
     ) == [
-        ("page 1", 1, 2, "2024-04-02", "NEFT-CUST-0001-INV202"),
-        ("page 1", 1, 3, "2024-04-09", "RTGS to VEND-0001"),
+        ("page 1", 1, 2, "2024-04-02", f"NEFT-{CUSTOMER}-INV202"),
+        ("page 1", 1, 3, "2024-04-09", f"RTGS to {VENDOR}"),
         ("page 2", 2, 1, "2024-04-17", "Cheque deposit"),
         ("page 2", 2, 2, "2024-04-25", "Bank charges"),
     ]

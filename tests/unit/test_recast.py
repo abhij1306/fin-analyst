@@ -395,7 +395,7 @@ def test_a_rejected_residual_stands_and_other_scopes_do_not_count(root: Path) ->
     ] == ["standalone"]
 
 
-def test_billing_terms_are_masked_and_a_token_of_any_kind_is_found(
+def test_billing_terms_stay_as_read_and_a_token_of_any_kind_is_found(
     root: Path, tmp_path: Path
 ) -> None:
     document = tmp_path / "contract.pdf"
@@ -406,8 +406,8 @@ def test_billing_terms_are_masked_and_a_token_of_any_kind_is_found(
 
     [stored] = contracts.load(run(root), "acme", document, reading)
 
-    assert CUSTOMERS[0] not in stored["billing_terms"]
-    assert stored["billing_terms"].startswith("invoiced to CUST-")
+    assert stored["billing_terms"] == f"invoiced to {CUSTOMERS[0]} yearly"
+    assert stored["counterparty"].startswith("CUST-")  # the name meets its register token
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute("UPDATE mask_values SET kind = 'vendor' WHERE real_value = ?", [CUSTOMERS[0]])
     assert len(contracts.load(run(root), "acme", document, reading)) == 1

@@ -1,5 +1,5 @@
 """`fin ingest --kind` end to end: a synthetic Tally trial balance and Ledger Vouchers load through
-the CLI; fin's output, its findings and its audit log carry tokens, never the real names; `fin sql`
+the CLI with ledger names as filed (the books are not masked: docs/decisions/masking.md); `fin sql`
 refuses `mask_values` (E810)."""
 
 import json
@@ -17,7 +17,6 @@ from tests.register_fixtures import HANDLERS, write_registers
 from tests.tally_fixtures import CUSTOMERS, VENDORS, write_ledger_vouchers, write_trial_balance
 
 runner = CliRunner()
-NAMES = (*CUSTOMERS, *VENDORS, "Neem Consulting")
 
 
 def fin(*args: str) -> Result:
@@ -40,9 +39,7 @@ def root(data_root: Path) -> Path:
     return data_root
 
 
-def test_source_files_load_and_print_only_tokens(
-    root: Path, tmp_path: Path, audit_query: Any
-) -> None:
+def test_source_files_load_with_ledgers_as_filed(root: Path, tmp_path: Path) -> None:
     tb = write_trial_balance(tmp_path / "tb.xlsx", plant=True)
     lv = write_ledger_vouchers(
         tmp_path / "lv.xlsx", [CUSTOMERS[0], "Software Sales", "Neem Consulting"]
@@ -57,26 +54,21 @@ def test_source_files_load_and_print_only_tokens(
     assert loaded.exit_code == 0, loaded.output
     assert loaded.stdout.startswith(
         "acme/tb.xlsx: loaded as source file_id 1 (trial_balance FY25, profile "
-        "tally_trial_balance)\n  trial balance FY25: 10 ledgers in 9 groups, 4 names newly "
-        "masked, 1 findings\n"
+        "tally_trial_balance)\n  trial balance FY25: 10 ledgers in 9 groups, 1 findings\n"
     )
     assert vouchers.exit_code == 0, vouchers.output
-    assert "ledgers not in the FY25 trial balance, masked because" in vouchers.stdout
+    assert "1 ledgers not in the FY25 trial balance: Neem Consulting" in vouchers.stdout
     assert "trial balance ledgers are missing from it" in vouchers.stdout
     assert findings.stdout.startswith(
         "#1 open tb_group_sum acme/tb.xlsx (source file_id 1): trial balance FY25: group "
         "'Sundry Debtors' net closing balance"
     )
     assert json.loads(entries.stdout)["rows"][:2] == [
-        {"ledger": "CUST-0001", "particulars": "Software Sales"},
-        {"ledger": "CUST-0001", "particulars": "Axis Bank Current Account"},
+        {"ledger": CUSTOMERS[0], "particulars": "Software Sales"},
+        {"ledger": CUSTOMERS[0], "particulars": "Axis Bank Current Account"},
     ]
     printed = loaded.output + vouchers.output + findings.output + entries.output
-    logged = " ".join(str(row) for row in audit_query("SELECT message, context FROM events"))
-    logged += " ".join(str(row) for row in audit_query("SELECT * FROM findings"))
-    for name in NAMES:
-        assert name not in printed
-        assert name not in logged
+    assert "CUST-0001" not in printed and "LEDG-" not in printed  # no token from the books
 
 
 def test_fin_sql_refuses_mask_values(root: Path, audit_query: Any) -> None:
@@ -136,6 +128,6 @@ def test_registers_load_through_the_cli_and_a_duplicate_invoice_becomes_a_query(
     printed = loaded.output + findings.output + query.output
     logged = " ".join(str(row) for row in audit_query("SELECT message, context FROM events"))
     logged += " ".join(str(row) for row in audit_query("SELECT * FROM findings"))
-    for name in (*NAMES, *HANDLERS):
+    for name in (*CUSTOMERS, *VENDORS, *HANDLERS):  # the client's starred fields stay tokens
         assert name not in printed
         assert name not in logged

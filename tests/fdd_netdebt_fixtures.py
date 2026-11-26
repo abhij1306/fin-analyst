@@ -16,7 +16,7 @@ LEDGERS = [
     ("Lease Liability", "lease_liabilities_current", (0, 50000), (0, 50000)),
     ("Gratuity Provision", "lt_provisions", (0, 100000), (0, 120000)),
     ("TDS Payable", "other_current_liabilities", None, (0, 30000)),
-    ("CUST-0001", "trade_receivables", None, (400000, 0)),
+    ("Acme Traders", "trade_receivables", None, (400000, 0)),  # a customer's ledger, by name
     ("Sales", "revenue", (0, 4000000), (0, 5000000)),
     ("Suspense", None, None, (5000, 0)),
 ]

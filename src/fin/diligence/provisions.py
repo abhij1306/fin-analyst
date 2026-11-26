@@ -23,7 +23,6 @@ from fin.config import load_config
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database
-from fin.diligence.mask import Masker
 
 KINDS = ("doubtful_debts", "gratuity")
 LABEL = "indicative, undiscounted, not an actuarial valuation"
@@ -40,7 +39,7 @@ def _check(number: int, proposal: Any, ledgers: set[str], confirmed: set[str]) -
     if proposal["ledger"] not in ledgers:
         raise ProvisionLedgerInvalid(
             f"{what}: {proposal['ledger']!r} is not a ledger of a loaded trial balance of the "
-            "latest engagement (`fin map ledgers <company>`; party ledgers go by their token)"
+            "latest engagement (`fin map ledgers <company>`)"
         )
     if proposal["ledger"] in confirmed:
         raise ProvisionLedgerInvalid(
@@ -75,9 +74,8 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
         if len(set(named)) != len(named):
             raise ProvisionLedgerInvalid("a ledger is proposed twice in the file; none stored")
         ids = []
-        masker = Masker(con, run.run_id)
         for p in proposals:
-            values = [p["kind"], masker.text(p["reason"].strip()), run.run_id, utcnow()]
+            values = [p["kind"], p["reason"].strip(), run.run_id, utcnow()]
             (provision_id,) = con.execute(
                 "INSERT INTO provision_ledgers (ledger, kind, status, reason, run_id, changed_at) "
                 "VALUES (?, ?, 'proposed', ?, ?, ?) ON CONFLICT (ledger) DO UPDATE SET "

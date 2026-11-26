@@ -305,7 +305,7 @@ verify and update.
 ## 12. Testing and CI
 
 - **Synthetic fixtures** (`tests/fixtures/sample-financials/`): three fake companies (Kestrel Forgings: Excel with formulas; Bluepeak Polymers: Excel per year, crores, older wording, standalone + consolidated; Tarang Industrial Services: text PDF with notes), known values in `answer_key.json`, plus deliberately broken files. The set is committed, so CI needs no LibreOffice.
-- **Golden evaluation** (`fin.evals`, runbook `docs/client-handoff.md`): per company, `evals/<company>/golden.csv` in the data folder (never committed) holds values a person checked in the real documents, with their source. `fin eval init <co>` lists what to check (statement figures in current figures, trial balance ledgers, `tb_vs_statements` lines, stub figures, bank closing balances, register totals per sheet and payroll totals) with source and unit and leaves the value and `checked` empty; only lines marked `checked` are scored. `fin eval run <co>` compares each exactly in rupees after unit conversion (pass, fail, missing in fin, unchecked; the relative difference to six significant digits, so a misread digit in a large figure never shows as 0) and writes a report to `evals/<co>/`, with counts: error codes in the company's runs, findings by code, unread pages, Claude-read figures by document status and latest verify outcome, unmapped labels, mapping items waiting, ledgers by status, bank statements by reader and tie, register lines by kind and payroll files by confirmed unit. `fin eval bundle [co] [--with-figures]` writes a shareable Markdown and JSON file (fin version and commit, doctor summary, scores, lines not passing with their source kind and related codes, counts): companies as `company-N`, ledgers only as mask tokens, no file names, labels or sources, no absolute figures without `--with-figures`; E833 refuses one that would contain a masked, company or file name. Errors E830-E833. Decisions: `docs/decisions/eval-kit.md`.
+- **Golden evaluation** (`fin.evals`, runbook `docs/client-handoff.md`): per company, `evals/<company>/golden.csv` in the data folder (never committed) holds values a person checked in the real documents, with their source. `fin eval init <co>` lists what to check (statement figures in current figures, trial balance ledgers, `tb_vs_statements` lines, stub figures, bank closing balances, register totals per sheet and payroll totals) with source and unit and leaves the value and `checked` empty; only lines marked `checked` are scored. `fin eval run <co>` compares each exactly in rupees after unit conversion (pass, fail, missing in fin, unchecked; the relative difference to six significant digits, so a misread digit in a large figure never shows as 0) and writes a report to `evals/<co>/`, with counts: error codes in the company's runs, findings by code, unread pages, Claude-read figures by document status and latest verify outcome, unmapped labels, mapping items waiting, ledgers by status, bank statements by reader and tie, register lines by kind and payroll files by confirmed unit. `fin eval bundle [co] [--with-figures]` writes a shareable Markdown and JSON file (fin version and commit, doctor summary, scores, lines not passing with their source kind and related codes, counts): companies as `company-N`, ledgers as `ledger-N` (or a token), no file names, labels or sources, no absolute figures without `--with-figures`; E833 refuses one that would contain a masked name, a ledger name, a related party name, a company or a file name (the bundle goes to the fin developers, whom the client's zero-data-retention terms do not cover). Errors E830-E833. Decisions: `docs/decisions/eval-kit.md`.
 - **CI** (`.github/workflows/ci.yml`, Linux, every PR and main push): ruff, the file-size check (`tools/check_file_size.mjs`: source files under 6,000 tokens), pytest, `shellcheck install.sh`; one job ingests the synthetic companies once, renders a report (Quarto) and builds the Evidence dashboard (node 24). A `pdf-addon` job per engine syncs its extra: Docling and LiteParse restore their model caches and
 run the tests marked `docling` / `liteparse` (the real engine on synthetic PDFs); LlamaParse checks its fixture's
 shape against the SDK and never calls the API (its live test skips without `LLAMA_CLOUD_API_KEY`); the other jobs run
@@ -535,19 +535,23 @@ profile, loaded or superseded), `trial_balance` (group and ledger rows with grou
 credit), `ledger_entries` (one per voucher line, the ledger from its block header), `ledger_blocks` (one per ledger block the export has, even with no voucher lines) and `mask_values`; every row
 keeps file_id and sheet + row. Reading is `fin/extract/ledger.py` with a column profile (`fin/extract/profiles.py`,
 `templates/profiles/*.toml`: header text to field over `header_rows` rows, date format, period pattern, unit, which
-rows to skip, group rows (bold) and nesting (indent), the Ledger Vouchers block field, party groups and masked
-fields); the first profile of the kind whose header is found is used, and none is E807 (listing the title and column
-header lines, never data rows, known masked names replaced). The period must be one full fiscal year of the
+rows to skip, group rows (bold) and nesting (indent), the Ledger Vouchers block field); the first profile of the kind whose header is found is used, and none is E807 (listing the title and column
+header lines, never data rows). The period must be one full fiscal year of the
 engagement (E808). Meaning is `fin/diligence/tally.py`: a trial balance with no ledger rows is E809 (asks for the
 Detailed export); a group whose net closing balance is not the net of the ledgers under it is a finding
 (`check_name` `tb_group_sum`, `findings.file_id` set, doc_id NULL), rows kept as filed; Ledger Vouchers need their
-period's trial balance loaded first (E811); an undated row with amounts that the profile does not skip is E204 (a
-date in another format is never dropped); and the outcome lists the trial balance ledgers missing from them. Masking
-(`fin/diligence/mask.py`): ledgers and sub-groups under the profile's party groups (Sundry Debtors: customer, Sundry
-Creditors: vendor) are stored as tokens (`CUST-0001`, `VEND-0001`; the same value keeps its first token in every
-file, whatever kind it is found as later); known names in other ledger names and in masked fields (Ledger Vouchers
-particulars) are replaced as whole words (an employee code is never searched for in free text: a code such as 101 would rewrite amounts); a load that learns new names masks them in the free text already stored (bank remarks and reference, Ledger Vouchers particulars, register text fields, contract terms, the FDD free text and the reasons stored with proposals: `FREE_TEXT_COLUMNS` in `fin/diligence/mask.py`) in the same transaction and says how many earlier values changed, so the result does not depend on load order; the trial balance load lists the groups it treated as party groups (masked) and the other groups, with ledger counts; a Ledger Vouchers ledger not in its trial balance is masked as
-`LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql` runs with file access closed (no `read_csv`, `read_blob`, `glob`, `COPY` of a file: it cannot read the original files, the logs or the exports), and `fin sql --write` also refuses schema changes (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) and refuses to
+period's trial balance loaded first (E811: its ledgers are checked against it); an undated row with amounts that the profile does not skip is E204 (a
+date in another format is never dropped); and the outcome lists the trial balance ledgers missing from them and the Ledger
+Vouchers ledgers not in the trial balance. Masking (`fin/diligence/mask.py`, `docs/decisions/masking.md`): only the
+client's fields are tokens: the registers' customer, vendor, handler and submitted-by and the orderbook's customer
+(`CUST-0001`, `VEND-0001`, `USER-0001`; the same value keeps its first token in every file, whatever kind it is
+found as later) and payroll's employee name and code (`EMP-0001`, `ECODE-0001`). The trial balance and Ledger
+Vouchers (ledgers, party ledgers too, and particulars), bank remarks and reference, the other register columns and
+all free text (contract terms, FDD text, query answers, the reasons stored with proposals) are stored as filed or
+written. Party matching: a ledger, a Ledger Vouchers particulars or a bank line that names a register customer or
+vendor is matched to its token through `mask_values` (case and spaces ignored; in bank text, as whole words):
+`mask.Parties`, used by the register vs ledger and bank reconciliations, and the view `related_party_matches`.
+`fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql` runs with file access closed (no `read_csv`, `read_blob`, `glob`, `COPY` of a file: it cannot read the original files, the logs or the exports), and `fin sql --write` also refuses schema changes (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) and refuses to
 write `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements` and `bank_lines` (E806). One transaction per file; a later file of the
 same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
 period or refusal error stops the command and loads nothing.
@@ -557,7 +561,7 @@ sales sheet and a purchase sheet, read by a `registers` profile (`templates/prof
 `[sales.columns]` and a `[purchase.columns]` table, found by header, whatever the sheet names) in
 `fin/extract/registers.py`; meaning is `fin/diligence/registers.py`. Each invoice line is a row of `register_lines` (kind
 sales or purchase, sheet + row, ids as filed, customer or vendor, handler and submitted-by as `CUST-`, `VEND-`, `USER-`
-tokens, known names in the free-text columns replaced, Amount in Rs before GST as filed). The register has no period
+tokens (the client's starred fields), the other columns and Amount in Rs before GST as filed). The register has no period
 header: `source_files.period` names the fiscal years of its first and last invoice date, basis is `unaudited` when any date
 is in the stub, lines outside the engagement are loaded and counted, and a later registers file supersedes the earlier
 whatever its period. The same invoice number twice (sales: by number; purchases: by vendor and number) is a finding
@@ -639,8 +643,8 @@ Golden eval kinds `recast_revenue`, `recast_difference`, `recast_undated` (perio
 
 FDD contracts and walkthroughs (F1, `docs/fdd.md`, decisions in `docs/decisions/fdd-f1.md`). `fin recast contracts` also loads vendor
 contracts and contract terms: the reading adds `party_kind` (customer or vendor), `counterparty` (`customer` is still read as it),
-`lock_in_months`, `notice_days`, `escalation_pct`, the free-text `sla_terms`, `penalty_terms`, `escalation_terms`, `renewal_terms` (known
-names masked) and the yes/no clauses `auto_renew`, `termination_convenience`, `change_of_control`, `exclusivity`; an empty cell is "not read"
+`lock_in_months`, `notice_days`, `escalation_pct`, the free-text `sla_terms`, `penalty_terms`, `escalation_terms`, `renewal_terms` (as
+read) and the yes/no clauses `auto_renew`, `termination_convenience`, `change_of_control`, `exclusivity`; an empty cell is "not read"
 (NULL), not "no clause". A vendor is checked against the purchase register, a customer against the sales register (E865).
 View `contract_coverage` (`db/schema/fdd_contracts.sql`): the customers (core revenue, pass-through customers left out) and vendors
 (purchases) of the engagement's last annual period, ranked by Amount in Rs, each with its contract that ends last: on file or not,
@@ -702,11 +706,10 @@ eval kinds: `sales_register_vs_gl`, `purchase_register_vs_gl`, `gl_vs_tb`, `payr
 `exports/<company>/<run_id>/`: `queries.xlsx` (Summary; `Q<id>` per issue with its lines and the count and value of
 each kind of difference from `query_items`; `S<n> <sheet>` copies of the cited source sheets from the archive with the
 lines' rows highlighted and the query named beside them) and `email.txt` (a draft covering email), or `query-<id>.docx`
-(a 1-2 page brief per issue) with `--brief`. The export is the only reader of `mask_values`: tokens in the wording
-and lines become real names (a token with no real value is E861); fin prints only the paths, and nothing else it prints,
-logs or stores (except `mask_values`) holds a name. The database does not change: the user sends the files, then
+(a 1-2 page brief per issue) with `--brief`. The export is the only reader of the real values in `mask_values`:
+tokens in the wording and lines become real names (a token with no real value is E861); fin prints only the paths. The database does not change: the user sends the files, then
 `fin query sent`. `fin query answer <co> <id> --file reply [--text ...]` archives the reply like a source
-(`answer_source` names it); a .txt/.eml/.md reply is read with known names masked and is the answer unless `--text` is
+(`answer_source` names it); a .txt/.eml/.md reply is read as written and is the answer unless `--text` is
 given, any other file needs `--text` (E860). Errors E858-E861; choices `docs/decisions/d8-query-export.md`. Golden eval
 kinds: `query_issue` (the issue's amount) and `query_difference` (one kind of difference, ledger `<id> <kind>`); both are
 in rupees, a foreign-currency line at its rupee value (`fin.reconcile.items.line_rupees`), the same figure the query's
@@ -758,7 +761,7 @@ never calls the parser; `bank_statements.parse_path` and the rows' page + row tr
 the saved parse (a table with the profile's header starts the transactions, a headerless table of the same width
 continues them). Tables `bank_statements` (one per file: bank, account, currency, period, opening and closing
 balance with where each came from, totals, `ties`, reader, parse path) and `bank_lines` (sheet or page, row, date,
-remarks and reference with known masked names replaced, debit, credit, balance), money in the account's own
+remarks and reference as filed, debit, credit, balance), money in the account's own
 currency. The period of `source_files` is the engagement period (or the stub) holding all the statement's dates
 (E808 across a year end); bank files are never superseded (the same bytes again are E105). A statement whose opening
 + credits − debits is not its closing balance is a finding (`bank_tie`, rows kept as filed); `diligence/bank_checks.py`
@@ -867,10 +870,11 @@ reading of notes to accounts and legal and tax notices for the open engagement i
 `disclosure_files`: file name, sha256, reading; the same document again replaces its rows), one row per item with
 kind, period (a period of the engagement or its stub), counterparty, nature, amount in rupees (the reading's `unit`
 applied), forum, stage, assessment year, demand, paid under protest, relationship and page, read_by `claude`. A
-counterparty is masked on load: a name fin already masked keeps its token, a new one gets `PRTY-0001`; nature and
-relationship have known names replaced (and are masked again when a later load learns a name). E940 for a reading
+counterparty that is a register customer or vendor gets its token on load; one that is a loaded ledger's name (case and
+spaces ignored) becomes that ledger; any other is stored as read, as are nature and relationship. E940 for a reading
 that cannot be used. `fin disclosures list <co> [--kind]` prints the schedules. Related parties are matched to the
-books by token (view `related_party_matches`); Claude proposes the other links (`fin disclosures related <co>
+registers by token and to the ledgers by name, a ledger meeting a token through `mask_values` (view
+`related_party_matches`); Claude proposes the other links (`fin disclosures related <co>
 <file.json>`, E941) and the user confirms or rejects them (`fin review list|confirm|reject <co> --related`; logged in
 `mapping_decisions`, scope `related_party`). Views `related_party_transactions`, `related_party_pricing`,
 `related_party_loans`. `fin reconcile <co> rpt_vs_books` compares each disclosed transaction (per party and
@@ -884,13 +888,13 @@ end. fin defaults it from the ledger's confirmed account (view `netdebt_default_
 securities, subordinated liabilities and lease liabilities are debt; cash and cash and bank balances are cash; a
 profit and loss account is none) and leaves the rest unclassified, other bank balances (deposits, margin money,
 lien-marked balances) included, for the user to confirm. A proposal (classes here, provision ledgers too) must name a
-ledger of the latest engagement's loaded trial balances; its reason is stored masked. Claude proposes classes with a
+ledger of the latest engagement's loaded trial balances; its reason is stored as written. Claude proposes classes with a
 reason (`fin netdebt propose <co> <file.json>`, a JSON list of `{ledger, class, reason}`, E930; without a file it
 lists the unclassified ledgers) and the user confirms or rejects them (`fin review list|confirm|reject <co> [ids]
 --netdebt`, E931). A confirmed class wins over the default; a rejected one leaves the default. Debt-like items not in a
 ledger (an indicative gratuity shortfall, a probable contingency, a cut-off item) are proposed with
 `fin netdebt item propose <co> --period P --amount N --description ... --evidence <ref>` (signed rupees, positive
-raises net debt; a year of the open engagement or its stub; known names replaced by tokens; E932) and accepted or
+raises net debt; a year of the open engagement or its stub; E932) and accepted or
 rejected by the user (`fin netdebt item accept <co> <ids>`, `fin netdebt item reject <co> <ids> --reason`, E933;
 `fin netdebt item list <co>`). Tables `netdebt_classes` and `netdebt_items` (`db/schema/fdd_netdebt.sql`), refused by
 `fin sql --write` (E806); each change is a run event. `fin netdebt show <co> [--period P] [--json]` (E934 without an

@@ -182,9 +182,9 @@ def rows_of(pages: Pages, profile: Profile) -> tuple[list[RawRow], list[str]] | 
     return (rows, lines) if mapping is not None else None
 
 
-def _top_lines(pages: Pages, hide: Any) -> list[str]:
+def _top_lines(pages: Pages) -> list[str]:
     """Title and header lines to list when no profile matches: each table's rows above its first
-    row with a number or a date, and the page text lines (known masked names replaced)."""
+    row with a number or a date, and the page text lines."""
     out = []
     for key in sorted(pages, key=int):
         for grid in pages[key]["tables"]:
@@ -193,8 +193,8 @@ def _top_lines(pages: Pages, hide: Any) -> list[str]:
                 if any(is_data(c) for c in cells):
                     break
                 if cells:
-                    out.append(f"page {key}: " + " | ".join(hide(c) for c in cells))
-        out.extend(f"page {key}: {hide(' '.join(t.split()))}" for t in pages[key]["texts"][:3])
+                    out.append(f"page {key}: " + " | ".join(cells))
+        out.extend(f"page {key}: {' '.join(t.split())}" for t in pages[key]["texts"][:3])
     return out[:SHOWN_ROWS]
 
 
@@ -208,9 +208,7 @@ def _period(lines: list[str], profile: Profile) -> tuple[Any, Any] | None:
     return None
 
 
-def read_pdf(
-    run: Run, config: Config, path: Path, sha256: str, profile_name: str | None, hide: Any
-) -> Raw:
+def read_pdf(run: Run, config: Config, path: Path, sha256: str, profile_name: str | None) -> Raw:
     """A PDF statement as a `Raw`. See the module docstring; E807 when no profile of the kind
     reads the tables, E808 when no line gives the period."""
     data, rel = read_parse(run, config, path, sha256)
@@ -239,7 +237,7 @@ def read_pdf(
     names = ", ".join(p.name for p in candidates) or "none"
     raise LayoutUnknown(
         f"{path.name}: no bank column profile matches the tables {data['engine']} read (tried: "
-        f"{names}). Title and header lines: {' / '.join(_top_lines(pages, hide)) or 'none'}. "
+        f"{names}). Title and header lines: {' / '.join(_top_lines(pages)) or 'none'}. "
         "Write a profile in templates/profiles/ (docs/development.md) and ingest again with "
         "--profile"
     )

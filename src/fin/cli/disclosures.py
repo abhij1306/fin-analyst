@@ -39,11 +39,11 @@ def load_command(
     ],
     json_output: JsonOption = False,
 ) -> None:
-    """Load Claude's reading of notes to accounts or a legal or tax notice: one row per item
-    (kind, period, nature, page; counterparty, amount, unit, forum, stage, assessment_year,
-    demand, paid_under_protest, relationship, books, ledger). Names are masked on load. Loading the
-    same document again replaces its rows. Whether a Claude-read item is trusted is the user's
-    decision."""
+    """Load Claude's reading of notes to accounts or a legal or tax notice: one row per item (kind,
+    period, nature, page; counterparty, amount, unit, forum, stage, assessment_year, demand,
+    paid_under_protest, relationship, books, ledger). A customer or vendor name becomes its register
+    token. Loading the same document again replaces its rows. Whether a Claude-read item is trusted
+    is the user's decision."""
     if not file.is_file() or not reading.is_file():
         raise typer.BadParameter("the document and the reading must be files that exist")
 
@@ -84,7 +84,7 @@ def related_command(
     ] = None,
     json_output: JsonOption = False,
 ) -> None:
-    """Related parties (tokens) and what each is in the books: fin's matches by token and the links
+    """Related parties and what each is in the books: fin's matches and the links
     the user confirmed. With FILE: store Claude's link proposals (kind customer, vendor or ledger);
     nothing is confirmed (the user confirms them: `fin review confirm <co> <ids> --related`)."""
 

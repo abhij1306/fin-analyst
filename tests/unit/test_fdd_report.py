@@ -17,7 +17,7 @@ from fin.audit.errors import (
     NarrativeJudges,
 )
 from fin.db.conn import connect
-from fin.diligence.mask import FREE_TEXT_COLUMNS, PREFIX
+from fin.diligence.mask import PREFIX
 from fin.fdd import findings
 from fin.paths import company_db_path
 from fin.report import dd_render
@@ -236,10 +236,9 @@ def test_stored_text_is_escaped_in_the_report() -> None:
 
 
 def test_tokens_are_names_not_typed_numbers(root: Path) -> None:
-    row = propose(root, observation="CUST-0001 and LEDG-0012 have no contract on file.")
+    row = propose(root, observation="CUST-0001 and VEND-0012 have no contract on file.")
     assert row["observation"].startswith("CUST-0001")
     lint_fdd("## Revenue, contracts and visibility\n\nVEND-0002 has no contract.\n", "n")
-    assert ("fdd_findings", "observation") in FREE_TEXT_COLUMNS
     assert set(PREFIX.values()) <= set(TOKEN[TOKEN.index("(?:") + 3 : TOKEN.index(")")].split("|"))
 
 
@@ -311,7 +310,7 @@ def test_collected_data_that_was_not_shown_is_in_the_tables() -> None:
              "pricing": [{"party": "CUST-0001", "kind": "sales", "period": "FY25",
                           "product": "<b>Widget</b>", "party_rate": 10.5, "others_rate": 12.25,
                           "difference_pct": -16.67}],
-             "loans": [{"party": "CUST-0001", "ledger": "LEDG-0001", "period": "FY25",
+             "loans": [{"party": "CUST-0001", "ledger": "Director Loan", "period": "FY25",
                         "opening": 1, "closing": 2, "interest": 1, "implied_rate_pct": 9.0,
                         "average_basis": "opening and closing"}]}  # fmt: skip
     text = related_table({"disclosures": found}, "rupees")

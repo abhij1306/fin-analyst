@@ -20,7 +20,7 @@ fin-analyst analyses **published statements** (P&L, balance sheet, cash flow). T
 | Gates that stop the build for review | **Built**: G1, G2, G3, G4 | D1; D2, D4, D6 |
 | Adjusted EBITDA, EBITDA bridge, EBITDA-to-cash walk | **Built** on the audited statements | D1 |
 | Trial balance, Tally Ledger Vouchers, registers, bank, payroll, with source file + sheet!row lineage | **Built**: all five (D2: trial balance, Ledger Vouchers; D3: registers, bank Excel and PDF, payroll) | D2, D3 |
-| Names masked in everything fin prints; real values only in the accountant export | **Built** for Tally party ledgers and the other sources; the export is built | D2 on; D8 |
+| The client's fields masked in everything fin prints; real values only in the accountant export | **Built** for the client's fields (registers' starred fields, payroll name and code; `docs/decisions/masking.md`); the export is built | D2 on; D8 |
 | Current-year stub from unaudited management data | **Built** (`stub_figures`, `bank_vs_tb`, the register and ledger reconciliations) | D2 on |
 | Pass-through revenue split out of core revenue and growth | **Built** | D4 |
 | Reconciliation: register ↔ ledger ↔ accounts | **Built** | D4 |
@@ -93,11 +93,11 @@ They are in `CLAUDE.md`, "Diligence".
   registers, anchored to the last audited year. It is named by its fiscal year and end month, e.g. `FY27-YTD-SEP`,
   and labelled "unaudited management accounts" in every output. It is cross-checked against bank and registers and
   never annualised: base figures and growth use the audited years only.
-- **Masking** (built in D2 for Tally party ledgers; `fin/diligence/mask.py`): the masked fields are customer and vendor names, handler and submitted-by, employee
-  name and code, and party names in Tally ledgers (ledgers under Sundry Debtors and Sundry Creditors). On load, fin
+- **Masking** (`fin/diligence/mask.py`, scope in `docs/decisions/masking.md`): the masked fields are the registers' customer and vendor names, handler and submitted-by, and employee
+  name and code. Tally ledgers and bank text are stored as filed (the owner, 2026-11-26: the client has ZDR). On load, fin
   stores each real value once in `mask_values` and writes a stable token in the data tables (`CUST-0042`,
-  `VEND-0007`, `EMP-0113`, `USER-0003`). The same name gets the same token across files. In bank remarks, every
-  known masked name is replaced by its token. fin never prints `mask_values`.
+  `VEND-0007`, `EMP-0113`, `USER-0003`). The same name gets the same token across files. fin matches a ledger or bank line that names a
+  register party to its token through `mask_values` (`mask.Parties`). fin never prints `mask_values`.
 - **Gate**: a checkpoint with a checklist fin evaluates. Approving it records the hash of its inputs; when those
   inputs change, the gate reopens on its own and the user approves it again. Gates are approved in order.
 - Planned (D2 on): **source ledgers** (transaction-level data, each row with its file sha256 and sheet!row) and
@@ -130,8 +130,8 @@ and every gate approval.
 |---|---|---|
 | `engagement` (changed, **built**) | adds stub: period name (e.g. `FY27-YTD-SEP`), start and end date | D2 |
 | `source_files` (**built**) | file_id, kind (`trial_balance`, `ledger_vouchers`, `registers`, `bank`, `payroll`, `contract`), file name, sha256, archive path, period covered (from the export header), basis (audited year or unaudited stub), profile, status | D2 |
-| `mask_values` (**built**) | field kind (customer, vendor, user, employee name, employee code, or ledger: a Ledger Vouchers ledger not in its trial balance), token, real value, first file_id. Never printed; read only by `fin query export` | D2 |
-| `ledger_accounts` (**built**) | Tally ledger (token for party ledgers), group, parent group, status (pending, proposed, confirmed, rejected), mapped Schedule III account with its statement and side (proposed by Claude, confirmed by the user in review, `fin review ... --ledgers`), confidence, reason. Present in TB / in Ledger Vouchers is read from those tables (`fin map ledgers` shows it) | D2 |
+| `mask_values` (**built**) | field kind (customer, vendor, user, employee name, employee code), token, match key (the name, case and spaces ignored), real value, first file_id. Never printed; read only by `fin query export` | D2 |
+| `ledger_accounts` (**built**) | Tally ledger (as filed), group, parent group, status (pending, proposed, confirmed, rejected), mapped Schedule III account with its statement and side (proposed by Claude, confirmed by the user in review, `fin review ... --ledgers`), confidence, reason. Present in TB / in Ledger Vouchers is read from those tables (`fin map ledgers` shows it) | D2 |
 | `trial_balance` (**built**) | file_id, sheet, row, period, row type (group or ledger), group, ledger, closing debit, closing credit. No opening or movement columns: the export has none | D2 |
 | `ledger_entries` (**built**) | file_id, sheet, row, ledger (from the block header), date, particulars, voucher type, voucher no, debit, credit | D2 |
 | `ledger_blocks` (**built**) | file_id, sheet, row, ledger: one per ledger block in a Ledger Vouchers export, with or without voucher lines; G1's "every ledger is in the Ledger Vouchers" reads it | D2 |
@@ -245,8 +245,8 @@ adjusted facts). D4 adds revenue and cost effects, which is enough for adjusted 
 Status: **built** (first half: source files, the tabular loader and profiles, `trial_balance`, `ledger_entries`,
 masking; second half: `ledger_accounts` and `fin map ledgers`, `tb_vs_statements` with `fin reconcile`, the stub
 and `stub_figures`, G1's trial balance checks; `docs/product.md` "Diligence source files"). Ledger Vouchers need their
-period's trial balance loaded first (E811), so party ledgers are known before they are masked; a Ledger Vouchers
-ledger not in its trial balance is masked as `LEDG-0001`. While any trial balance ledger is unmapped,
+period's trial balance loaded first (E811), so their ledgers are checked against it; a Ledger Vouchers
+ledger not in its trial balance is listed (names as filed since 2026-11-26). While any trial balance ledger is unmapped,
 `tb_vs_statements` drafts no query (the difference may be fin's own mapping gap). The profit and loss ledgers' net
 also rolls into `other_equity`, since Tally lists the year's income and expenses beside the opening Profit & Loss
 A/c. G1's trial balance checks apply once the engagement has a source file or a stub, so an engagement on statements
@@ -263,8 +263,8 @@ only keeps its D1 checklist.
 - **Ledger Vouchers**: one export of all ledgers, in ledger-name blocks (Date, Particulars, Vch Type, Vch No.,
   Debit, Credit), balance-sheet ledgers included. Each row takes its ledger from the block header. fin reports the
   ledgers present and lists TB ledgers missing from it, so Claude asks the user for the export with all ledgers.
-- **Masking** (§3): party ledgers are tokenised on load; `mask_values` holds the real names; `fin sql` refuses to
-  read it.
+- **Masking** (§3): ledgers are stored as filed since 2026-11-26 (`docs/decisions/masking.md`); `mask_values` holds
+  the register and payroll names; `fin sql` refuses to read it.
 - TB ledgers map to Schedule III accounts (`ledger_accounts`), proposed by Claude and confirmed in review.
 - Built-in reconciliation `tb_vs_statements`: TB closing balances rolled up by account vs the audited statement
   facts, per audited period; one line per account. The stub has no statement: `stub_figures` gives its figures,
@@ -287,8 +287,8 @@ duplicate-invoice finding), bank statements (Excel and PDF), payroll. Product-le
   submitted-by are masked. Built: the headers of `billing_registers.toml` are synthetic (the real export's headers were
   not in §9 as columns): replace them when the real export is seen. The same invoice number twice is a finding (sales
   by number, purchases by vendor and number), both rows kept.
-- **Bank**: Excel profiles for ICICI, SBI and Axis (INR and USD accounts). Remarks keep their text with known names
-  replaced by tokens.
+- **Bank**: Excel profiles for ICICI, SBI and Axis (INR and USD accounts). Remarks and reference are stored as
+  filed.
 - **PDF bank statements: the chosen PDF parser** (owner decision, 2026-11-24). fin reads a bank PDF's tables with
   the parser in `config.toml` (`[pdf] parser`: Docling, LiteParse or LlamaParse; the setting is built in a separate
   PR) and maps them to `bank_lines` with the same profiles as the Excel statements, keeping file + page lineage.
@@ -307,7 +307,7 @@ duplicate-invoice finding), bank statements (Excel and PDF), payroll. Product-le
 - Duplicate and overlap checks: the same invoice number twice, overlapping bank periods, a gap in bank balances
   (closing ≠ next opening). These are findings, then queries.
 
-**Done when:** each synthetic file loads with names masked; the planted duplicate invoice, bank balance gap and a
+**Done when:** each synthetic file loads with the client's fields masked; the planted duplicate invoice, bank balance gap and a
 parse that does not tie are found; a payroll file whose amounts look monthly is warned about.
 
 ### D4: Register ↔ ledger ↔ accounts reconciliation; pass-through; adjustment effects
@@ -402,7 +402,7 @@ export holds real names while fin's output holds only tokens.
   reconciliation ids too (planned).
 - Conventions: run records, error codes, `db/conn.py`, one transaction per change, synthetic fixtures only.
 - Claude does the judgement: proposing ledger mappings, unmatched matches, query wording, adjustments, reading
-  contracts. Code does only the repeatable parts. Claude sees masked names only (§2, rule 4).
+  contracts. Code does only the repeatable parts. Claude sees the client's masked fields as tokens only (§2, rule 4; `docs/decisions/masking.md`).
 
 ## 9. Questions for the diligence user
 
@@ -499,7 +499,7 @@ this file.
   `--amount N --period P --source "file sheet!cell" --question "..."` (P a year of the engagement or its stub, else E881).
   A token in the wording that is not one of the company's masked names is refused at raise and edit (E861).
   A query starts as a draft (`fin query edit` changes its wording), then `fin query approve`, `sent` (when you have
-  sent it), `answer --text` (or `--file reply`: archived like a source; a .txt, .eml or .md reply is read with known names masked, any other file needs `--text`), `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
+  sent it), `answer --text` (or `--file reply`: archived like a source; a .txt, .eml or .md reply is read as written, any other file needs `--text`), `close`; `withdraw --reason` any time before it is closed; `list [--status]`.
   `fin query export <company> [--brief]` writes the approved queries for the accountant to `exports/<company>/<run_id>/`
   of the data folder: `queries.xlsx` (summary, a sheet per query with the count and value per kind of difference, and the
   cited source sheets with the lines highlighted) and `email.txt` (a draft; you send it from your own email, then `fin query
@@ -585,8 +585,8 @@ this file.
   (E813 only when a row is not an invoice line: no number, date, party or Amount in Rs, or a date in another format).
 - Bank statements: `fin ingest <company> <file> --kind bank [--profile <name>]` loads an Excel or PDF statement (ICICI,
   SBI or Axis; INR or USD accounts, the profiles `templates/profiles/bank_*.toml`) into `bank_statements` and
-  `bank_lines`, each row with its file and sheet!row (Excel) or page and row (PDF). Remarks keep their text with
-  known masked names replaced by tokens. A statement covers part of one period of the engagement (it must not cross
+  `bank_lines`, each row with its file and sheet!row (Excel) or page and row (PDF). Remarks and reference are stored
+  as filed. A statement covers part of one period of the engagement (it must not cross
   a year end, E808). A PDF is read by the PDF add-on you chose (`fin parser use`; E816 when there is none): its
   tables are saved in the data folder as `cache/bank/<sha256>.json`, so the same file is never parsed twice and
   every row traces to that parse. LlamaParse uploads the pages to its cloud and needs `LLAMA_CLOUD_API_KEY` in
@@ -595,11 +595,10 @@ this file.
   finding (`bank_tie`), as are statements of one account that overlap (`bank_overlap`) or whose balances do not
   join (`bank_balance_gap`: a statement or transaction may be missing). Findings, not failures: the rows stay as
   filed and you decide (`fin findings accept`, or a query to the accountant).
-- Names: party ledgers (under Sundry Debtors and Sundry Creditors) are stored and printed as tokens (`CUST-0001`,
-  `VEND-0001`), the same name the same token in every file; register customers, vendors, handlers and submitted-by
-  are tokens too (`CUST-`, `VEND-`, `USER-`); known names in Ledger Vouchers particulars are
-  replaced too. A Ledger Vouchers ledger not in its trial balance is masked as `LEDG-0001`, since fin cannot tell
-  whether it is a party. The real names stay on your Mac in `mask_values`, which `fin sql` refuses to read (E810).
+- Names: register customers, vendors, handlers and submitted-by are stored and printed as tokens (`CUST-0001`,
+  `VEND-0001`, `USER-0001`), the same name the same token in every file; payroll names and codes too. Trial balance
+  and Ledger Vouchers ledgers and particulars are stored as filed; fin matches a ledger that names a register party
+  to its token through `mask_values` (`docs/decisions/masking.md`). The real names stay on your Mac in `mask_values`, which `fin sql` refuses to read (E810).
 - Payroll: `--kind payroll` loads the Sparsh snapshot (one row per employee, profile `sparsh_payroll`) into
   `payroll_lines`; the snapshot date in its header ("Employee Master as on 31-Mar-2025") must fall in a year of the
   engagement or its stub (E808). Employee name and code are tokens (`EMP-0001`, `ECODE-0001`). Gross salary and CTC are

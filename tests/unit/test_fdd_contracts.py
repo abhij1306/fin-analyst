@@ -23,7 +23,6 @@ from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
-from fin.diligence.mask import Masker
 from fin.diligence.sources import ingest_source
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.score import run_eval
@@ -134,15 +133,15 @@ def test_a_customer_and_a_vendor_contract_load_with_their_terms(root: Path) -> N
     assert "termination convenience" not in contracts.format_contract(first)
 
 
-def test_the_old_customer_column_still_loads_and_names_are_masked_in_terms(root: Path) -> None:
+def test_the_old_customer_column_still_loads_by_name_and_terms_stay_as_read(root: Path) -> None:
     token = party(root, "INV-1001")
     real = str(rows(root, "SELECT real_value FROM mask_values WHERE token = ?", token)[0][0])
     old = {"customer": real, "start": "2024-04-01", "end": "2025-03-31", "page": "1",
            "penalty_terms": f"{real} pays 2% a month late"}  # fmt: skip
     [stored] = load_contracts(root, old)
 
-    assert stored["counterparty"] == token
-    assert stored["penalty_terms"] == f"{token} pays 2% a month late"
+    assert stored["counterparty"] == token  # the name meets its register token
+    assert stored["penalty_terms"] == f"{real} pays 2% a month late"
 
 
 def test_a_vendor_that_is_not_on_the_purchase_register_is_refused(root: Path) -> None:
@@ -334,7 +333,8 @@ def test_a_walkthrough_is_summarised_and_a_large_exception_becomes_a_line_for_a_
     assert big["needs_query"] and big["difference"] == Decimal("160000.00")
     assert "contract_covers: rate 900" in big["note"] and "contract.pdf p.3" in big["right_source"]
     assert not small["needs_query"]  # below the threshold: listed
-    assert party(root, "INV-1002") in small["note"] and real not in small["note"]  # masked
+    assert party(root, "INV-1002") in small["note"]  # the register's party stays a token
+    assert f"{real} posting missing" in small["note"]  # the evidence as written
 
     query, _ = items.raise_from_items(run(root), "acme", [big["item_id"]], "Contract rate?")
     assert query["amount"] == Decimal("160000.00")
@@ -436,26 +436,3 @@ def test_a_different_failure_on_the_same_line_does_not_inherit_the_earlier_query
 
     [moved] = second["recon"]["lines"]
     assert moved["needs_query"] and moved["query_id"] is None  # a new failure needs its own query
-
-
-def test_a_name_learned_later_is_masked_in_the_reconciliation_note_too(root: Path) -> None:
-    drawn(root, n=3)
-    walkthrough.record(
-        run(root),
-        "acme",
-        1,
-        results(
-            root / "w.json", result(1, "ledger_posting", "exception", evidence="Zed Corp short")
-        ),
-    )
-    with connect(company_db_path(root, "acme"), write=True) as con:
-        con.execute(
-            "INSERT INTO mask_values VALUES "
-            "('CUST-0099', 'customer', 'Zed Corp', 'zed corp', 1, 'r0')"
-        )
-        masker = Masker(con, "r1")
-        masker.added = 1
-        masker.remask()
-
-    [(note,)] = rows(root, "SELECT note FROM recon_items WHERE level = 'invoice'")
-    assert "CUST-0099 short" in note and "Zed Corp" not in note

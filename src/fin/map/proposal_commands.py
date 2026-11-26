@@ -25,7 +25,7 @@ def map_ledgers(
 ) -> None:
     """Tally ledgers -> Schedule III accounts. Without FILE: list the ledgers waiting for an
     account. With FILE: store Claude's proposals; nothing is confirmed (the user confirms them:
-    `fin review confirm <co> <ids> --ledgers`). Party ledgers go by their token."""
+    `fin review confirm <co> <ids> --ledgers`)."""
 
     def body(run: Run) -> None:
         if file is None:

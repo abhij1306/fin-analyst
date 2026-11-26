@@ -5,6 +5,8 @@ FIX items of the verified audit plan; client-level choices go to the client list
 
 ## Names learned from a later file are masked in the free text already stored
 
+- **Superseded 2026-11-26** by [masking.md](masking.md): free text is no longer masked, so nothing is masked again.
+
 - **Decision:** When a load adds names to `mask_values`, the same transaction masks those names in the free text
   already stored: bank remarks and reference, Ledger Vouchers particulars, register text fields (location, order
   type, product, service type) and contract billing terms. Only values that change are updated. The load summary
@@ -15,6 +17,8 @@ FIX items of the verified audit plan; client-level choices go to the client list
   `diligence/bank.py: ingest_bank` and `diligence/sources.py: ingest_source`.
 
 ## An employee code is never searched for in free text
+
+- **Superseded 2026-11-26** by [masking.md](masking.md): free text is no longer searched for names at all.
 
 - **Decision:** Free text is searched for known names (customers, vendors, users, employee names, ledgers), not for
   employee codes. Payroll still stores each code as a token (`ECODE-0001`), and a cell that is exactly a known code
@@ -54,6 +58,8 @@ FIX items of the verified audit plan; client-level choices go to the client list
 
 
 ## Ledger names are not masked again when a later file learns a name
+
+- **Superseded 2026-11-26** by [masking.md](masking.md): ledger names are stored as filed.
 
 - **Decision:** `remask` covers free text only. A trial balance or Ledger Vouchers ledger name that holds a name
   fin learns later (a ledger "Loan - <employee>" loaded before payroll) stays as it was stored.
@@ -140,6 +146,8 @@ answers, fin keeps the behaviour in "Currently".
 
 ## D-7 Masking matches exact full names only (NEEDS CLIENT CONFIRMATION)
 
+- **Superseded 2026-11-26** by [masking.md](masking.md): free text is no longer masked; no longer a client question.
+
 - **Decision:** A known name is replaced only when it appears in full (ignoring case and repeated spaces), as whole
   words. "Rao Asha" for "Asha Rao", "ASHA" alone, or "Acme Pvt Ltd" against "Acme Pvt. Ltd." pass through. Currently:
   exact only. Options: match name parts of 4+ letters in any order; normalise legal-form words; mask UPI and NEFT
@@ -148,6 +156,8 @@ answers, fin keeps the behaviour in "Currently".
 - **How to change it:** `src/fin/diligence/mask.py: Masker.text`.
 
 ## D-8 Typed free text in query answers, reasons and .eml files is stored unmasked (NEEDS CLIENT CONFIRMATION)
+
+- **Superseded 2026-11-26** by [masking.md](masking.md): all free text, reply files too, is stored as written; no longer a client question.
 
 - **Decision:** Query wording is checked for tokens, but answers, reasons, notes typed by the user and the text of a
   reply .eml are stored, printed and logged as typed (a .txt, .eml or .md reply file is read with known names masked).
@@ -163,6 +173,8 @@ answers, fin keeps the behaviour in "Currently".
 - **How to change it:** `src/fin/diligence/bank.py` (`Statement.label` and the finding labels).
 
 ## D-10 Only "Sundry Debtors" and "Sundry Creditors" are party groups (NEEDS CLIENT CONFIRMATION)
+
+- **Superseded 2026-11-26** by [masking.md](masking.md): Tally party ledgers are no longer masked, so fin has no party groups; no longer a client question.
 
 - **Decision:** Ledgers under these two groups (exact name) are masked as customers and vendors. Variants such as
   "Sundry Debtors (Export)" or "Trade Receivables", and person-named ledgers in other groups (director loan, staff

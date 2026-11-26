@@ -6,16 +6,16 @@ Planted:
 - Orchid Systems Pvt Ltd (a customer, CUST-0001) is a related party; the notes disclose sales of
   10 lakh, the sales register has 8,60,000 for it: a difference of 1,40,000 (at or above the
   1,00,000 threshold);
-- Ravi Menon (a director, PRTY-0001: in no loaded file) took a loan: the notes disclose 1.5 lakh
-  taken; the Loan from Director ledger has 2,10,000 of credits in FY25 (50,000 interest, 1,50,000
-  received and a 10,000 accrual reversed by a 10,000 debit): a difference of -60,000 (below the
-  threshold); disclosed sales of 1 lakh to him have no
-  customer linked until a link to CUST-0002 (2,50,000 of sales) is confirmed;
+- Ravi Menon (a director, in no loaded file: stored as read) took a loan: the notes disclose
+  1.5 lakh taken; the Loan from Director ledger has 2,10,000 of credits in FY25 (50,000 interest,
+  1,50,000 received and a 10,000 accrual reversed by a 10,000 debit): a difference of -60,000
+  (below the threshold); disclosed sales of 1 lakh to him have no customer linked until a link to
+  CUST-0002 (2,50,000 of sales) is confirmed;
 - the loan: 4,00,000 owed at the end of FY24, 6,00,000 at the end of FY25, 50,000 interest net of
   the reversal: an implied rate of 10% on the 5,00,000 average; FY24 has no Ledger Vouchers, so its
   interest is not known (NULL);
 - a tax demand (AY 2021-22, 12.5 lakh, 2.5 lakh paid under protest) and a guarantee given to Orchid
-  (its name masked in the nature).
+  (its name as read in the nature).
 """
 
 import csv

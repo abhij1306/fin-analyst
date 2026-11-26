@@ -31,14 +31,24 @@ D = Decimal
 BANK, USD = 1, 2  # bank source files (INR and USD accounts)
 REG, LV = 3, 4
 
+# The register carries customer tokens (the client's masked field); bank remarks and ledgers carry
+# the names as filed, matched to the tokens through mask_values (made-up names).
+NAMES = {
+    "CUST-0001": "Orchid Systems Pvt Ltd",
+    "CUST-0002": "Lotus Infotech LLP",
+    "CUST-0003": "Banyan Traders",
+    "CUST-0004": "Teak Hardware Supplies",
+    "CUST-0005": "Neem Software Inc",
+    "CUST-0006": "Peepal Labs",
+}
 # (file, row, date, remarks, credit): INR account 111, USD account 222
 RECEIPTS = [
-    (BANK, 2, date(2024, 5, 20), "NEFT INV-1001 CUST-0001", 120000),
-    (BANK, 3, date(2024, 5, 25), "NEFT CUST-0002", 80000),
+    (BANK, 2, date(2024, 5, 20), "NEFT INV-1001 ORCHID SYSTEMS PVT LTD", 120000),
+    (BANK, 3, date(2024, 5, 25), "NEFT Lotus  Infotech LLP", 80000),
     (BANK, 4, date(2024, 6, 10), "RTGS 55000", 55000),
-    (BANK, 5, date(2024, 7, 1), "INV-1005 CUST-0004", 95000),
+    (BANK, 5, date(2024, 7, 1), "INV-1005 Teak Hardware Supplies", 95000),
     (BANK, 6, date(2024, 8, 1), "UNKNOWN PAYER", 250000),
-    (USD, 2, date(2024, 6, 20), "CUST-0005 wire", 2000),
+    (USD, 2, date(2024, 6, 20), "Neem Software Inc wire", 2000),
 ]
 # (row, customer, invoice no, date, currency, amount, amount in Rs)
 INVOICES = [
@@ -100,6 +110,12 @@ def root(tmp_path: Path) -> Path:
                     credit,
                 ],
             )
+        for token, name in NAMES.items():
+            con.execute(
+                "INSERT INTO mask_values (token, kind, real_value, match_key, first_file_id, "
+                "run_id) VALUES (?, 'customer', ?, ?, ?, 'r0')",
+                [token, name, name.lower(), REG],
+            )
         for row, cust, number, day, cur, amount, inr in INVOICES:
             con.execute(
                 'INSERT INTO register_lines (file_id, sheet, "row", kind, customer, invoice_no, '
@@ -109,8 +125,8 @@ def root(tmp_path: Path) -> Path:
             )
         con.execute(
             'INSERT INTO ledger_entries (file_id, sheet, "row", ledger, entry_date, particulars, '
-            "voucher_type, voucher_no, debit, credit, run_id) VALUES (?, 'L', 5, 'CUST-0005', "
-            "DATE '2024-06-21', 'Axis USD', 'Receipt', '9', 0, 163000, 'r0')",
+            "voucher_type, voucher_no, debit, credit, run_id) VALUES (?, 'L', 5, "
+            "'Neem Software Inc', DATE '2024-06-21', 'Axis USD', 'Receipt', '9', 0, 163000, 'r0')",
             [LV],
         )
     return root
@@ -202,8 +218,8 @@ def test_a_booked_receipt_at_another_receipts_amount_is_not_taken_as_the_rupee_v
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute(
             'INSERT INTO ledger_entries (file_id, sheet, "row", ledger, entry_date, particulars, '
-            "voucher_type, voucher_no, debit, credit, run_id) VALUES (?, 'L', 6, 'CUST-0005', "
-            "DATE '2024-06-25', 'Axis USD', 'Receipt', '10', 0, 158000, 'r0')",
+            "voucher_type, voucher_no, debit, credit, run_id) VALUES (?, 'L', 6, "
+            "'Neem Software Inc', DATE '2024-06-25', 'Axis USD', 'Receipt', '10', 0, 158000, 'r0')",
             [LV],
         )
     fx = by_kind(go(root))[("fx", D(-2000))]

@@ -1,8 +1,11 @@
 """bank_vs_invoices: the lines of the bank receipts <-> sales invoices reconciliation (D5).
 
-`load` reads the engagement's loaded bank statements (credits are receipts), sales register
-lines and Ledger Vouchers receipts; `build` matches them (`fin.reconcile.bank_match`) and returns
-each period's lines (`fin.reconcile.base` lines, with `match_lines`: the `recon_match_lines` rows):
+`load` reads the engagement's loaded bank statements (credits are receipts), sales register lines
+and Ledger Vouchers receipts (a receipt's party: the first sales register customer its reference or
+remarks name; a Ledger Vouchers receipt's: its ledger, both matched to the register's customer token
+by name, `fin.diligence.mask.Parties`); `build` matches them (`fin.reconcile.bank_match`) and
+returns each period's lines (`fin.reconcile.base` lines, with `match_lines`: the `recon_match_lines`
+rows):
 
 - a matched group is `matched` (both sides equal in the receipt's currency) or `difference`;
 - a foreign-currency group whose amounts agree is compared in rupees: the receipt's booked value
@@ -18,7 +21,6 @@ that have a bank statement; a matched group in its receipts' period.
 """
 
 import json
-import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -26,11 +28,11 @@ from typing import Any
 
 import duckdb
 
+from fin.diligence.mask import Parties
 from fin.diligence.stub import fiscal_start
 from fin.reconcile.bank_match import Group, Invoice, Key, Receipt, match
 from fin.reconcile.base import QUERIED_KINDS, SHOWN_ROWS, ZERO
 
-TOKEN = re.compile(r"CUST-\d+")
 CENT = Decimal("0.01")
 # a booked receipt is the foreign receipt's rupee value only when its rate is within this share of
 # the invoice's rate; further off it is another receipt (docs/decisions/test-run.md)
@@ -69,6 +71,8 @@ def period_bounds(engagement: dict[str, Any]) -> dict[str, tuple[date, date]]:
 def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
     eid = engagement["engagement_id"]
     bounds = period_bounds(engagement)
+    # bank text and ledgers carry names as filed; the sales register carries customer tokens
+    parties = Parties(con, ("customer",))
     receipts, receipt_period = [], {}
     for fid, sheet, row, day, cur, ref, remarks, credit, period in con.execute(
         'SELECT b.file_id, b.sheet, b."row", b.txn_date, b.currency, b.reference, b.remarks, '
@@ -81,9 +85,8 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
         [eid],
     ).fetchall():
         text = f"{ref or ''} {remarks or ''}"
-        found = TOKEN.search(text)
         key = (fid, sheet, row)
-        receipts.append(Receipt(key, day, cur, credit, found[0] if found else None, text))
+        receipts.append(Receipt(key, day, cur, credit, parties.find(text), text))
         receipt_period[key] = period
     first = min(a for a, _ in bounds.values())
     last = max(b for _, b in bounds.values())  # invoices of the engagement's periods only
@@ -102,7 +105,7 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
         if first <= day <= last:
             invoices.append(Invoice((fid, sheet, row), day, cur, own, inr, party, number))
     booked = [
-        Booked((fid, sheet, row), day, ledger, credit)
+        Booked((fid, sheet, row), day, parties.party(ledger) or ledger, credit)
         for fid, sheet, row, day, ledger, credit in con.execute(
             'SELECT e.file_id, e.sheet, e."row", e.entry_date, e.ledger, e.credit '
             "FROM ledger_entries e "

@@ -5,14 +5,14 @@ Claude reads a contract document and writes a reading CSV, one row per contract 
 header row; columns in any order):
 
 - `counterparty` (required; `customer` is read as the same column): the party's token (CUST-0001,
-  VEND-0001) or name as printed; a name is masked to its token (`mask_values`, whichever kind first
-  masked it); one no loaded register has (sales for a customer, purchase for a vendor) is E865;
+  VEND-0001) or name as printed; a name is matched to its register token (`mask_values`, whichever
+  kind first masked it); one no loaded register has (sales for a customer, purchase for a vendor) is
+  E865;
 - `party_kind`: customer (default) or vendor;
 - `invoice_no`: the sales (customer) or purchase (vendor) invoice the contract supports; one no
   register has is E865;
 - `start`, `end` (required): the contract's dates, YYYY-MM-DD;
-- `value`: the contract value as printed (`12,00,000.00`), in rupees; `billing_terms`: as read,
-  with known names replaced by their tokens;
+- `value`: the contract value as printed (`12,00,000.00`), in rupees; `billing_terms`: as read;
 - the terms in `contract_terms.py` (lock-in, notice, SLA, penalty, escalation, renewal and the
   yes/no clauses), each optional;
 - `page` (required): the page of the document it was read from, from 1.
@@ -36,13 +36,11 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
-from fin.diligence.mask import Masker
 from fin.extract.profiles import norm
 from fin.extract.units import parse_figure
 from fin.reconcile.contract_terms import (
     OPTIONAL,
     TERM_COLUMNS,
-    TEXT_TERMS,
     parse_terms,
     terms_text,
 )
@@ -117,7 +115,7 @@ def read_rows(path: Path) -> list[dict[str, Any]]:
 
 
 def _token(con: duckdb.DuckDBPyConnection, party: str) -> str | None:
-    """The token the reading's counterparty is (a token as given, or a name masked to one)."""
+    """The token the reading's counterparty is (a token as given, or a masked name's token)."""
     found = con.execute(
         "SELECT token FROM mask_values WHERE token = ? OR match_key = ?",
         [party, norm(party)],
@@ -148,11 +146,8 @@ def load(run: Run, company: str, path: Path, reading: Path) -> list[dict[str, An
         engagement = require_open(con, company)
         engagement_id = engagement["engagement_id"]
         on_register = _on_register(con, engagement_id)
-        masker = Masker(con, run.run_id)
         unknown = []
         for row in rows:
-            for name in TEXT_TERMS:
-                row[name] = masker.text(row[name])
             row["counterparty"] = _token(con, row["counterparty"])
             kind = row["party_kind"]
             if row["counterparty"] not in on_register[kind] or (

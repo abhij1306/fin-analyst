@@ -10,8 +10,8 @@ result:
   its rate, dates and value agree), service_in_contract (the service period sits inside the
   contract), bank_matched (a bank receipt or payment is matched, D5), ledger_posting (the ledger
   posting is found, D2);
-- `result`: pass, exception or not_available; `evidence` (required): what was seen, with known
-  names replaced by tokens on load; `file` and `page`: where, when it is a document.
+- `result`: pass, exception or not_available; `evidence` (required): what was seen, as
+  written; `file` and `page`: where, when it is a document.
 
 Results are stored in `walkthroughs` (read_by claude); a result for a line and check already
 recorded replaces it. fin does not check the reading: trusting it is the user's decision. E902 for a
@@ -30,7 +30,6 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
-from fin.diligence.mask import Masker
 from fin.reconcile import store
 from fin.reconcile import walkthrough as recon_module
 from fin.reconcile.format import format_result
@@ -101,7 +100,6 @@ def record(run: Run, company: str, sample_id: int, path: Path) -> dict[str, Any]
         engagement_id = require_open(con, company)["engagement_id"]
         sample = load_sample(con, engagement_id, sample_id)
         results = read_results(path, len(sample["lines"]))
-        masker = Masker(con, run.run_id)
         now = utcnow()
         for result in results:
             con.execute(
@@ -114,7 +112,7 @@ def record(run: Run, company: str, sample_id: int, path: Path) -> dict[str, Any]
                 "VALUES (?, ?, ?, ?, ?, ?, ?, 'claude', ?, ?)",
                 [
                     sample_id, result["line_no"], result["check"], result["result"],
-                    masker.text(result["evidence"]), result["file"], result["page"],
+                    result["evidence"], result["file"], result["page"],
                     run.run_id, now,
                 ],
             )  # fmt: skip

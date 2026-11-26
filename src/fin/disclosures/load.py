@@ -1,10 +1,11 @@
 """`fin disclosures load|list`: Claude's reading of notes to accounts and notices, stored in
 `disclosures` and shown as one schedule per kind.
 
-Loading the same document again replaces its rows. Each counterparty is masked on load: a name fin
-already masked (a customer, vendor or party ledger) gets that token, which is how a related party is
-matched to the books (view `related_party_matches`); a new name gets a PRTY- token. Known names in
-nature and relationship are replaced by their tokens. A `ledger` must be a ledger of the
+Loading the same document again replaces its rows. Each counterparty is matched on load: a register
+customer or vendor gets its token (the registers carry tokens: docs/decisions/masking.md), a loaded
+ledger's name (ignoring case and spaces) becomes that ledger, anything else stays as read. The view
+`related_party_matches` then matches it to the customers, vendors and ledgers (a ledger through the
+token of its name). Nature and relationship are stored as read. A `ledger` must be a ledger of the
 engagement's loaded trial balance or Ledger Vouchers (E940). Whether a Claude-read figure is trusted
 is the user's decision: rows are stored with read_by 'claude' and printed as not verified.
 """
@@ -20,8 +21,9 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
-from fin.diligence.mask import Masker
+from fin.diligence.mask import Parties
 from fin.disclosures.reading import KINDS, read_rows
+from fin.extract.profiles import norm
 from fin.reconcile import periods_of
 
 COLUMNS = (
@@ -43,24 +45,22 @@ def _ledgers(con: duckdb.DuckDBPyConnection, engagement_id: int) -> set[str]:
     }
 
 
-def _mask(masker: Masker, rows: list[dict[str, Any]], ledgers: set[str]) -> None:
-    """Ledgers to the ledger as loaded (before any new token, so a ledger stored under its name
-    stays that ledger), then counterparties to tokens (new names first, so the free text masks
-    them too), then the free text. E940 for a ledger in no loaded file (its name is not printed)."""
+def _match(parties: Parties, rows: list[dict[str, Any]], ledgers: set[str]) -> None:
+    """Ledgers to the ledger as loaded (ignoring case and spaces), counterparties to a register
+    token or a loaded ledger, else as read. E940 for a ledger in no loaded file."""
+    by_key = {norm(ledger): ledger for ledger in ledgers}
     unknown = []
     for row in rows:
         ledger = row["ledger"]
-        if ledger is not None and ledger not in ledgers:
-            row["ledger"] = masker.known(ledger)
-            if row["ledger"] not in ledgers:
+        if ledger is not None:
+            row["ledger"] = by_key.get(norm(ledger))
+            if row["ledger"] is None:
                 unknown.append(f"line {row['line']}")
     for row in rows:
         value = row["counterparty"]
-        if value is not None and value not in masker.names:
-            row["counterparty"] = masker.known(value) or masker.token("party", value)
-    for row in rows:
-        row["nature"] = masker.text(row["nature"])
-        row["relationship"] = masker.text(row["relationship"])
+        if value is not None:
+            value = " ".join(value.split())
+            row["counterparty"] = parties.token(value) or by_key.get(norm(value)) or value
     if unknown:
         raise DisclosureReadingInvalid(
             f"{', '.join(unknown)}: the ledger is in no loaded trial balance or Ledger Vouchers of "
@@ -88,10 +88,7 @@ def load(run: Run, company: str, path: Path, reading: Path) -> list[dict[str, An
             [engagement_id, path.name, sha256, reading.name, run.run_id, utcnow()],
         ).fetchone()
         assert new is not None
-        masker = Masker(con, run.run_id)
-        masker.file_id = new[0]
-        _mask(masker, rows, _ledgers(con, engagement_id))
-        masker.remask()
+        _match(Parties(con), rows, _ledgers(con, engagement_id))
         marks = ", ".join("?" for _ in COLUMNS)
         now = utcnow()
         for row in rows:

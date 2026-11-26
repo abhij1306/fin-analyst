@@ -10,8 +10,9 @@ The rows come from `fin.extract.registers.read_registers`. Three steps, called b
    dates: first to last date, the fiscal years they fall in, and basis 'unaudited' when any date is
    in the engagement's stub. Lines outside the engagement are loaded and counted in the summary.
 3. `load`: the lines are stored in `register_lines` with sheet + row, customer and vendor names
-   masked (`customer` and `vendor` kinds), handler and submitted-by as `user` tokens, known masked
-   names inside the free-text columns replaced. The same invoice number twice is a finding
+   masked (`customer` and `vendor` kinds) and handler and submitted-by as `user` tokens: the
+   fields the client starred (docs/decisions/masking.md); the other columns as filed. The same
+   invoice number twice is a finding
    (`duplicate_findings`), not a failure: both rows stay.
 
 Amount in Rs is stored as filed (before GST); fin does not recompute it from amount and rate.
@@ -38,12 +39,6 @@ from fin.findings import record
 
 CHECK = "register_duplicate_invoice"
 MASKED = {"customer": "customer", "vendor": "vendor", "handler": "user", "submitted_by": "user"}
-FREE_TEXT = (
-    "location",
-    "order_type",
-    "product",
-    "service_type",
-)  # known names in them are replaced
 IDS = ("bill_id", "purchase_id", "customer_id", "vendor_id", "invoice_no", "currency")
 DATES = ("contract_start", "contract_end", "service_start", "service_end")
 NUMBERS = ("quantity", "rate", "amount", "currency_rate")
@@ -204,15 +199,11 @@ def load(
     """Insert the lines (names masked) and record the duplicate-invoice findings; the lines to
     show."""
     values = [dict(line.values) for line in lines]
-    for v in values:  # every name is tokenised before any free text is searched for names
+    rows, parties = [], []
+    for line, v in zip(lines, values, strict=True):
         for field, kind in MASKED.items():
             if v.get(field) is not None:
                 v[field] = masker.token(kind, v[field])
-    rows, parties = [], []
-    for line, v in zip(lines, values, strict=True):
-        for field in FREE_TEXT:
-            if v.get(field) is not None:
-                v[field] = masker.text(v[field])
         parties.append(v.get("customer") or v.get("vendor") or "")
         v["invoice_date"], v["amount_inr"] = line.invoice_date, line.amount_inr
         v["period"] = period_label(line.invoice_date, engagement, start_month)

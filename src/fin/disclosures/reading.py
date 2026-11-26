@@ -7,7 +7,7 @@ A UTF-8 CSV with a header row, one row per item, columns in any order:
 - `nature` (required): what it is, as read;
 - `page` (required): the page of the document it was read from, from 1;
 - `counterparty`: the party's name as printed, or a token (CUST-0001); required for the related
-  party kinds; masked on load;
+  party kinds; a register customer or vendor becomes its token on load;
 - `amount`: as printed (`12,00,000.00`, `(5.2)`), in `unit`; required for related party
   transactions and balances;
 - `unit`: rupees (default), thousand, lakh, crore or million: the unit the document prints;

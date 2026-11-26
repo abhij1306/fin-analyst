@@ -5,7 +5,7 @@ credit ledgers (`propose`: {ledger, class, confidence, reason}); nothing is appl
 confirms (`confirm`, `--tax-class` to choose another) or rejects (`reject`) them in review; fin
 never confirms one on its own. Only confirmed classes are read: by the GST reconciliations
 (`fin.reconcile.gst`) and the `tax_ledger_balances` and `tax_charge` views (db/schema/fdd_gst.sql).
-A ledger is one of the loaded trial balances' ledgers, as stored (a party ledger by its token).
+A ledger is one of the loaded trial balances' ledgers, as filed.
 
 Every proposal and decision is appended to the audit table `mapping_decisions` (scope 'tax').
 """
@@ -19,7 +19,6 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database
-from fin.diligence.mask import Masker
 from fin.map.review import LOW_CONFIDENCE, _current_actor
 
 CLASSES = ("gst_output", "gst_input", "rcm", "tds", "income_tax", "mat_credit")
@@ -93,7 +92,7 @@ def _check(number: int, proposal: Any, ledgers: set[str], rows: dict[str, Any]) 
     if not isinstance(ledger, str) or ledger not in ledgers:
         raise TaxLedgerInvalid(
             f"{what}: {ledger!r} is not a trial balance ledger fin has loaded (`fin map tax "
-            "<company>` lists them; a party ledger goes by its token)"
+            "<company>` lists them)"
         )
     row = rows.get(ledger)
     if row is not None and row["status"] == "confirmed":
@@ -111,9 +110,7 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
         rows = {r["ledger"]: r for r in read(con)}
         for number, proposal in enumerate(proposals, start=1):
             _check(number, proposal, ledgers, rows)
-        masker = Masker(con, run.run_id)
         for p in proposals:
-            p = {**p, "reason": masker.text(p["reason"])}
             values = [p["class"], float(p["confidence"]), p["reason"], run.run_id, utcnow()]
             con.execute(
                 "INSERT INTO tax_ledgers (ledger, status, tax_class, confidence, reason, run_id, "

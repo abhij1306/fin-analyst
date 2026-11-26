@@ -5,16 +5,14 @@ layout-specific is in the profile.
 
 - Trial balance: a bold row is a group (its closing balance is the group total), any other row a
   ledger. Nesting comes from the name cell's indent (profile `level = "indent"`): a row sits in the
-  nearest group above it with a smaller indent. A ledger (or sub-group) under a group the
-  profile's `[mask] groups` names (Sundry Debtors, Sundry Creditors) is a party: its name is
-  stored as a token. A TB with no ledger rows is refused (E809: export it in Detailed mode). A
-  group whose net balance (debit - credit) is not the net of the ledgers under it is a finding;
-  the rows stay as filed.
+  nearest group above it with a smaller indent. Names are stored as filed (party ledgers too:
+  docs/decisions/masking.md). A TB with no ledger rows is refused (E809: export it in Detailed
+  mode). A group whose net balance (debit - credit) is not the net of the ledgers under it is a
+  finding; the rows stay as filed.
 - Ledger Vouchers: a row with no date whose block field holds text and which has no amounts starts a
   ledger block (the ledger name, after `block_prefix`); each dated row below is a voucher line of
-  that ledger. Rows without a date (opening and closing balance, totals) are not loaded. A ledger
-  that is a known masked name gets its token; one not in the period's trial balance cannot be
-  classified, so it is masked too (`LEDG-0001`). Known names in the masked fields are replaced.
+  that ledger. Rows without a date (opening and closing balance, totals) are not loaded. Ledgers and
+  particulars are stored as filed.
 """
 
 from dataclasses import dataclass
@@ -22,7 +20,6 @@ from decimal import Decimal
 from typing import Any
 
 from fin.audit.errors import GroupsOnlyTrialBalance, ParseError
-from fin.diligence.mask import Masker
 from fin.extract.ledger import SheetRow, Table, amount, parse_date
 from fin.extract.profiles import Profile, norm
 
@@ -97,55 +94,11 @@ def ancestors(rows: list[TbRow], index: int) -> list[int]:
     return out
 
 
-def party_kind(rows: list[TbRow], index: int, groups: dict[str, str]) -> str | None:
-    """The masked kind of a ledger under a party group (the nearest one named), else None."""
-    return next(
-        (
-            groups[norm(rows[g].name)]
-            for g in ancestors(rows, index)
-            if norm(rows[g].name) in groups
-        ),
-        None,
-    )
-
-
-def group_summary(rows: list[TbRow], names: list[str], profile: Profile) -> str:
-    """Which groups the ledgers sit in, as the load shows it: "party groups: Sundry Debtors (12
-    ledgers), ...; other groups: Bank Accounts (3 ledgers), ..." (a ledger counts under its nearest
-    group; a party group's ledgers are masked). Group names and counts only, no ledger names."""
-    party: dict[str, int] = {}
-    other: dict[str, int] = {}
-    for i, r in enumerate(rows):
-        if r.row_type != "ledger":
-            continue
-        group = names[r.group] if r.group is not None else "(no group)"
-        bucket = party if party_kind(rows, i, profile.mask_groups) else other
-        bucket[group] = bucket.get(group, 0) + 1
-
-    def shown(counts: dict[str, int]) -> str:
-        ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-        return ", ".join(f"{name} ({n} ledgers)" for name, n in ordered) or "none"
-
-    return f"party groups (ledgers masked): {shown(party)}; other groups: {shown(other)}"
-
-
-def stored_names(rows: list[TbRow], profile: Profile, masker: Masker) -> list[str]:
-    """Each row's name as stored: a token for a row under a party group (a party ledger, or a
-    sub-group of parties), with known masked names replaced otherwise (when the profile masks
-    `name`). Parties are tokenised first, so a ledger above them that names one (an advance to a
-    customer) is masked too."""
-    kinds = [party_kind(rows, i, profile.mask_groups) for i in range(len(rows))]
-    tokens = [masker.token(k, r.name) if k else None for r, k in zip(rows, kinds, strict=True)]
-    if "name" in profile.mask_fields:
-        return [t or masker.text(r.name) or r.name for r, t in zip(rows, tokens, strict=True)]
-    return [t or r.name for r, t in zip(rows, tokens, strict=True)]
-
-
 def group_sum_findings(
     rows: list[TbRow], names: list[str], file_name: str, period: str
 ) -> list[dict[str, Any]]:
     """A finding (columns of the `findings` table) for each group whose net balance is not the net
-    of the ledgers under it. `names`: the rows' names as stored (`stored_names`)."""
+    of the ledgers under it. `names`: the rows' names."""
     sums: dict[int, Decimal] = {
         i: Decimal("0.00") for i, r in enumerate(rows) if r.row_type == "group"
     }

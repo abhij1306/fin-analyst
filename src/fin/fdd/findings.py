@@ -10,7 +10,7 @@ The amount is never typed: it comes from the linked evidence (an adjustment, a n
 reconciliation run, else a query; view `fdd_finding_rows`). The linked query's answer is the
 management response. Making a finding final snapshots its amount, source, link status and response
 (`_snapshot`); a final one shows the snapshot, and `flags` says when the live evidence changed
-since, or when its link is rejected or withdrawn. Text is masked and has no typed number and no
+since, or when its link is rejected or withdrawn. Text has no typed number and no
 valuation, investment-rating or buy/don't-buy language (E970). `collect` is what the FDD report
 reads.
 """
@@ -24,7 +24,6 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
-from fin.diligence.mask import Masker
 from fin.report.lint import FDD_ALLOWED, JUDGING, phrase, typed_number_lines
 
 AREAS = ("qoe", "working_capital", "net_debt", "revenue", "walkthroughs", "provisions", "tax",
@@ -86,11 +85,11 @@ def _check(con: duckdb.DuckDBPyConnection, engagement_id: int, fields: dict[str,
         raise FddFindingInvalid("; ".join(problems) + "; nothing stored")
 
 
-def _masked(masker: Masker, fields: dict[str, Any]) -> dict[str, Any]:
+def _cleaned(fields: dict[str, Any]) -> dict[str, Any]:
     out = dict(fields)
     for name in (*TEXTS, "evidence"):
         if out.get(name):
-            out[name] = masker.text(" ".join(out[name].split()))
+            out[name] = " ".join(out[name].split())
     return out
 
 
@@ -99,7 +98,7 @@ def propose(run: Run, company: str, fields: dict[str, Any]) -> dict[str, Any]:
     with company_database(run, company, write=True) as con, transaction(con):
         engagement_id = require_open(con, company)["engagement_id"]
         _check(con, engagement_id, dict.fromkeys(LINKS) | fields)
-        values = _masked(Masker(con, run.run_id), fields)
+        values = _cleaned(fields)
         columns = [*CHOICES, *TEXTS, "evidence", *LINKS]
         now = utcnow()
         (finding_id,) = con.execute(
@@ -120,7 +119,7 @@ def update(run: Run, company: str, finding_id: int, fields: dict[str, Any]) -> d
         if any(fields.get(name) is not None for name in AMOUNT_LINKS):
             fields = dict.fromkeys(AMOUNT_LINKS) | fields
         _check(con, engagement_id, {name: row[name] for name in LINKS} | fields)
-        values = _masked(Masker(con, run.run_id), fields)
+        values = _cleaned(fields)
         if values:
             sets = ", ".join(f"{name} = ?" for name in values)
             con.execute(

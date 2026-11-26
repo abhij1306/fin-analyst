@@ -18,7 +18,7 @@ The statement is checked, never fixed (the rows stay as filed):
 `ingest_bank` checks the engagement and the file first (before any PDF page is sent to a parser),
 reads the file, then in ONE transaction adds the `source_files` row (the period of the engagement
 that holds every date of the statement; E808 otherwise), the `bank_statements` row, the
-`bank_lines` (remarks and reference with known masked names replaced by their tokens) and the
+`bank_lines` (remarks and reference as filed) and the
 findings. Any error rolls it back. Raises E101-E105, E204, E206, E803, E807, E808, E816-E818.
 """
 
@@ -44,7 +44,6 @@ from fin.diligence.loading import (
     log_load,
     refuse_duplicate,
 )
-from fin.diligence.mask import Masker
 from fin.diligence.stub import UNAUDITED
 from fin.extract.ledger import amount, cell_text, parse_date, read_table
 from fin.extract.periods import fiscal_year_of
@@ -243,22 +242,17 @@ def bank_period(
     )
 
 
-def excel_raw(path: Path, profile: str | None, hide: Any) -> Raw:
+def excel_raw(path: Path, profile: str | None) -> Raw:
     """An Excel statement as a `Raw`. E101/E102, E807, E808; E204 when two sheets hold a table."""
-    table = read_table(path, KIND, profile, hide)
+    table = read_table(path, KIND, profile)
     if len({r.sheet for r in table.rows}) > 1:
         raise ParseError(f"{path.name}: one bank statement per file; its sheets each hold a table")
     rows = [RawRow(r.sheet, None, r.row, r.cells) for r in table.rows]
     return Raw(table.profile, table.start, table.end, list(table.lines), rows, "excel", None)
 
 
-def _insert(run: Run, con: Any, st: Statement, file_id: int, masker: Masker, raw: Raw) -> None:
+def _insert(run: Run, con: Any, st: Statement, file_id: int, raw: Raw) -> None:
     profile = st.profile
-    masked = set(profile.mask_fields)
-
-    def text(field: str, value: str) -> str | None:
-        return (masker.text(value) if field in masked else value) or None
-
     con.execute(
         "INSERT INTO bank_statements (file_id, bank, account, currency, period_start, period_end, "
         "opening_balance, opening_from, closing_balance, closing_from, total_debits, "
@@ -275,7 +269,7 @@ def _insert(run: Run, con: Any, st: Statement, file_id: int, masker: Masker, raw
         "debit, credit, balance, run_id",
         [
             [file_id, x.row.sheet, x.row.page, x.row.row, profile.bank, st.account, st.currency]
-            + [x.date, text("remarks", x.remarks), text("reference", x.reference)]
+            + [x.date, x.remarks or None, x.reference or None]
             + [x.debit, x.credit, x.balance, run.run_id]
             for x in st.lines
         ],
@@ -288,18 +282,15 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
     with connect(db) as con:  # before any page of a PDF is sent to a parser
         require_open(con, company)
         refuse_duplicate(con, name, sha256)
-        known = Masker(con, run.run_id)
-    hide = lambda text: known.text(text) or text  # noqa: E731
     if path.suffix.lower() == ".pdf":
-        raw = bank_pdf.read_pdf(run, config, path, sha256, profile, hide)
+        raw = bank_pdf.read_pdf(run, config, path, sha256, profile)
     else:
-        raw = excel_raw(path, profile, hide)
+        raw = excel_raw(path, profile)
     st = read_statement(raw, name)
     with connect(db, write=True) as con, transaction(con):
         engagement = require_open(con, company)
         refuse_duplicate(con, name, sha256)
         period, basis = bank_period(st, engagement, config.fiscal_year_start_month, name)
-        masker = Masker(con, run.run_id)
         archive = archive_copy(run, company, path, sha256)
         file = add_file(
             run,
@@ -308,9 +299,8 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
             (KIND, name, sha256, archive),
             (period, basis, st.start, st.end, st.profile.name),
         )
-        file_id = masker.file_id = file["file_id"]
-        _insert(run, con, st, file_id, masker, raw)
-        remasked = masker.remask()
+        file_id = file["file_id"]
+        _insert(run, con, st, file_id, raw)
         found = tie_findings(st, name)
         record(
             run, company, con, found, "file_id = ? AND check_name = 'bank_tie'", [file_id], file_id
@@ -325,11 +315,9 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
     summary = (
         f"bank statement {st.label}: {len(st.lines)} lines, {st.start} to {st.end}, opening "
         f"{st.opening} ({st.opening_from}), closing {st.closing} ({st.closing_from}), "
-        f"{'ties' if st.ties else 'DOES NOT TIE'}, {masker.added} names newly masked"
+        f"{'ties' if st.ties else 'DOES NOT TIE'}"
     )
     lines = [head, summary]
-    if remasked:
-        lines.append(f"{remasked} earlier free-text values masked with the new names")
     if found:
         lines.append(
             f"{found[0]['message']} (a finding, not a failure: `fin findings list {company}`)"

@@ -1,7 +1,7 @@
 """`fin disclosures` end to end (FDD F5): load a reading, list the schedules, propose a related
 party link and have the user confirm it in review, then `fin reconcile rpt_vs_books`; gate G2 asks
 for it.
-Nothing fin prints carries a real name."""
+A register customer shows as its token; its Tally ledger, by name, is matched to it."""
 
 import json
 from pathlib import Path
@@ -16,7 +16,7 @@ from fin.db.schema import ensure_database
 from fin.diligence import ledgers
 from fin.diligence.sources import ingest_source
 from fin.paths import company_db_path
-from tests.disclosure_fixtures import ACCOUNTS, LOAN, write_set
+from tests.disclosure_fixtures import ACCOUNTS, LOAN, RAVI, write_set
 from tests.tally_fixtures import CUSTOMERS
 
 runner = CliRunner()
@@ -59,7 +59,7 @@ def test_disclosures_load_link_and_reconcile(root: dict[str, Path], tmp_path: Pa
     proposals = tmp_path / "links.json"
     proposals.write_text(
         json.dumps(
-            [{"party": "PRTY-0001", "kind": "ledger", "target": LOAN, "confidence": 0.9,
+            [{"party": RAVI, "kind": "ledger", "target": LOAN, "confidence": 0.9,
               "reason": "the notes name the director's loan"}]
         ),
         encoding="utf-8",
@@ -75,14 +75,13 @@ def test_disclosures_load_link_and_reconcile(root: dict[str, Path], tmp_path: Pa
         assert result.exit_code == 0, result.output
     assert "tax_matter (1)" in listed.stdout and "AY 2021-22" in listed.stdout
     assert "CUST-0001: customer CUST-0001 (matched)" in parties.stdout
-    assert "PRTY-0001: not matched" in parties.stdout
+    assert f"ledger {CUSTOMERS[0]} (matched)" in parties.stdout  # its ledger, through mask_values
+    assert f"{RAVI}: not matched" in parties.stdout
     assert f"{LOAN} confirmed" in confirmed.stdout
     assert "rpt_vs_books FY25" in reconciled.stdout
     assert "related_party CUST-0001 sales" in reconciled.stdout
     assert "rpt_vs_books" in gate.output
-    printed = loaded.output + listed.output + parties.output + reconciled.output
-    for name in (*CUSTOMERS, "Ravi Menon"):
-        assert name not in printed
+    assert f"related_party {CUSTOMERS[0]} sales" not in reconciled.stdout  # the token, not the name
 
 
 def test_a_bad_reading_is_e940(root: dict[str, Path], tmp_path: Path) -> None:

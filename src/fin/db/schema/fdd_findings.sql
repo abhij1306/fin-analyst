@@ -5,7 +5,7 @@
 -- the user marks it final (`fin fdd finding final`) or returns it to draft (`--undo`). Dropped drafts stay, as
 -- 'dropped', for the audit trail. The amount is never typed: it comes from the linked evidence (view
 -- fdd_finding_rows), at most one of adj_id, netdebt_item_id, recon_id, else the linked query's amount. query_id also
--- gives the management response (the query's answer). Text is masked (tokens) and has no typed number.
+-- gives the management response (the query's answer). Text has no typed number.
 --   area:               the report section it belongs to;
 --   impact_type:        ebitda, net_debt, working_capital, revenue, disclosure or none;
 --   deal_consideration: price, spa_protection (SPA indemnity or warranty), condition_precedent, further_work, none.

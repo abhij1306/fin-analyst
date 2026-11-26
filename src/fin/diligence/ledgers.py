@@ -139,7 +139,7 @@ def _check_proposal(number: int, proposal: Any, known: dict[str, dict[str, Any]]
     if row is None:
         raise InvalidMapping(
             f"{what}: {proposal['ledger']!r} is not a ledger of a loaded trial balance "
-            "(`fin map ledgers <company>`; party ledgers go by their token)"
+            "(`fin map ledgers <company>`)"
         )
     if row["status"] == "confirmed":
         raise InvalidMapping(

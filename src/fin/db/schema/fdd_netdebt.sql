@@ -5,7 +5,7 @@
 -- The net debt class of a trial balance ledger, where it is not fin's default (netdebt_default_accounts): Claude
 -- proposes one with a reason (`fin netdebt propose`) and the user confirms or rejects it
 -- (`fin review confirm|reject <co> <ids> --netdebt`); only a confirmed class counts, and it wins over the default.
--- One row per ledger (the token for a party ledger), for every period end; a new proposal on a rejected ledger
+-- One row per ledger, for every period end; a new proposal on a rejected ledger
 -- replaces it.
 --   cash       cash and bank balances: lower net debt;
 --   debt       borrowings and lease liabilities;

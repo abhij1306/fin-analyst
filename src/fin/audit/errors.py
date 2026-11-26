@@ -406,8 +406,8 @@ class MaskedTableRead(FinError):
 
 
 class TrialBalanceNeeded(FinError):
-    """E811. Ledger Vouchers were ingested before the trial balance of their period: the trial
-    balance says which ledgers are parties, whose names are masked. Nothing loaded."""
+    """E811. Ledger Vouchers were ingested before the trial balance of their period: their
+    ledgers are checked against the trial balance's. Nothing loaded."""
 
     code = "E811"
 
@@ -520,8 +520,8 @@ class NothingToBundle(FinError):
 
 
 class BundleNotAnonymous(FinError):
-    """E833. `fin eval bundle`: the results would contain a real name (a masked party, a company
-    or a file name). The name is not printed. Nothing written."""
+    """E833. `fin eval bundle`: the results would contain a real name (a masked party, a ledger,
+    a related party, a company or a file name). The name is not printed. Nothing written."""
 
     code = "E833"
 

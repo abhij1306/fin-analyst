@@ -451,7 +451,7 @@ def query_answer(
         typer.Option(
             "--file",
             help="The reply file: archived like a source. A .txt, .eml or .md reply is read "
-            "(known names masked) and is the answer; any other file needs --text.",
+            "as written and is the answer; any other file needs --text.",
         ),
     ] = None,
 ) -> None:
