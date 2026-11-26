@@ -62,6 +62,7 @@ def parts(data: dict[str, Any], u: str) -> tuple[dict[str, str], dict[str, str]]
         "receivables": f.receivables_table(data, u),
         "gratuity": f.gratuity_table(data, u),
         "tax_charge": f.tax_table(data, u),
+        "gst_returns": f.gst_returns_table(data, u),
         "gst": f.gst_table(data, u),
         "contingencies": f.contingencies_table(data, u),
         "related": f.related_table(data, u),

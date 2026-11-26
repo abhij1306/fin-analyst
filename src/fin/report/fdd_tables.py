@@ -6,6 +6,7 @@ readings are labelled as such, not verified.
 """
 
 import html
+from decimal import Decimal
 from typing import Any
 
 from fin.report.dd_tables import _label, _m, _ratio
@@ -21,6 +22,7 @@ LABELS = {
     "qoe": "quality of earnings",
     "related_parties": "related parties",
 }
+NOT_READ = "not read"  # a term the reading left empty: not the same as no clause
 NOT_VERIFIED = "Read by Claude from the documents (file + page); not verified by fin."
 
 
@@ -32,11 +34,29 @@ def _t(text: str | None) -> str:
 
 def _known(value: bool | None) -> str:
     """A term Claude read, or did not: yes, no, or "not read" (never shown as absent)."""
-    return "not read" if value is None else ("yes" if value else "no")
+    return NOT_READ if value is None else ("yes" if value else "no")
 
 
 def _word(value: str) -> str:
     return LABELS.get(value, value.replace("_", " "))
+
+
+def _months(value: int | None) -> str:
+    return NOT_READ if value is None else f"{value} months"
+
+
+def _days(value: int | None) -> str:
+    return NOT_READ if value is None else f"{value} days"
+
+
+def _rate(value: Any) -> str:
+    """A rate per unit of quantity: in rupees whatever the report's display unit. SQL gives a
+    float when the quantity column is DOUBLE; money() needs a Decimal."""
+    return "n/a" if value is None else _m(Decimal(str(value)), "rupees")
+
+
+def _pct(value: Any) -> str:
+    return "n/a" if value is None else f"{value}%"
 
 
 def draft_note(data: dict[str, Any]) -> str:
@@ -113,14 +133,15 @@ def coverage_table(data: dict[str, Any], unit: str) -> str:
             r["party_kind"], str(r["rank"]), r["counterparty"], _m(r["amount_inr"], unit),
             "yes" if r["contract_on_file"] else "no",
             _known(r["expires_within_12m"]),
-            _known(r["change_of_control"]),
+            _known(r["change_of_control"]), _known(r["auto_renew"]),
+            _months(r["lock_in_left_months"]), _days(r["notice_days"]),
             f"{r['file_name']} p. {r['page']}" if r["file_name"] else "",
         ]
         for r in data["coverage"]
     ]  # fmt: skip
     return table(
         ["Party", "Rank", "Name", "Amount", "Contract on file", "Expires within a year",
-         "Change of control", "Contract"],
+         "Change of control", "Auto-renew", "Lock-in left", "Notice period", "Contract"],
         rows,
         "Not loaded: no sales or purchase register in the last period (`fin contracts coverage`).",
     )  # fmt: skip
@@ -157,16 +178,46 @@ def walkthroughs_table(data: dict[str, Any], unit: str) -> str:
         [
             f"#{r['sample_id']}", r["kind"], r["period"], str(r["lines"]), str(r["lines_walked"]),
             str(r["checks_passed"]), str(r["exceptions"]), str(r["not_available"]),
-            _m(r["exception_amount"], unit),
+            str(r["exception_lines"]), _m(r["exception_amount"], unit),
         ]
         for r in data["walkthroughs"]
     ]  # fmt: skip
-    return table(
+    text = table(
         ["Sample", "Kind", "Period", "Lines", "Walked", "Checks passed", "Exceptions",
-         "Not available", "Exception amount"],
+         "Not available", "Lines with an exception", "Exception amount"],
         rows,
         "Not loaded: no sample drawn or walked (`fin sample draw`, `fin walkthrough record`).",
     )  # fmt: skip
+    lines = [
+        [
+            f"#{r['sample_id']}.{r['line_no']}", _t(r["party"]), _t(r["invoice_no"]),
+            str(r["invoice_date"]), _m(r["amount_inr"], unit), _word(r["check_name"]),
+            _t(r["evidence"]),
+            _t(f"{r['evidence_file']} p. {r['evidence_page']}") if r["evidence_file"] else "",
+        ]
+        for r in data["walkthrough_exceptions"]
+    ]  # fmt: skip
+    if lines:
+        text += (
+            "\n\nExceptions Claude recorded ("
+            + NOT_VERIFIED.lower()
+            + "):\n\n"
+            + table(
+                [
+                    "Sample line",
+                    "Party",
+                    "Invoice",
+                    "Date",
+                    "Amount",
+                    "Check",
+                    "Evidence",
+                    "Source",
+                ],
+                lines,
+                "",
+            )
+        )
+    return text
 
 
 def receivables_table(data: dict[str, Any], unit: str) -> str:
@@ -218,15 +269,35 @@ def tax_table(data: dict[str, Any], unit: str) -> str:
         [
             r["period"], _m(r["pbt"], unit), _m(r["current_tax"], unit),
             _m(r["deferred_tax"], unit), _m(r["total_tax"], unit), _ratio(r["effective_tax_rate"]),
+            _m(r["net_deferred_tax"], unit), _m(r["deferred_tax_movement"], unit),
+            _m(r["mat_credit"], unit),
         ]
         for r in data["tax"]["tax_charge"]
         if r["scope"] == data["scope"]
     ]  # fmt: skip
     return table(
         ["Period", "Profit before tax", "Current tax", "Deferred tax", "Total tax",
-         "Effective tax rate"],
+         "Effective tax rate", "Net deferred tax asset (liability)", "Movement in the year",
+         "MAT credit"],
         rows,
         "Not loaded: no tax figures in the statements.",
+    )  # fmt: skip
+
+
+def gst_returns_table(data: dict[str, Any], unit: str) -> str:
+    rows = [
+        [
+            r["period"], r["return_type"], str(r["months"]), _m(r["taxable_value"], unit),
+            _m(r["output_tax"], unit), _m(r["itc"], unit), _m(r["rcm_liability"], unit),
+            _m(r["paid_cash"], unit), _m(r["paid_credit"], unit), _t(r["file_name"]),
+        ]
+        for r in data["tax"]["returns"]
+    ]  # fmt: skip
+    return table(
+        ["Period", "Return", "Months", "Taxable value", "Output tax", "Input tax credit",
+         "Reverse charge", "Paid in cash", "Paid from credit", "File"],
+        rows,
+        "Not loaded: no GST returns (`fin ingest <co> <file> --kind gst`).",
     )  # fmt: skip
 
 
@@ -286,6 +357,38 @@ def related_table(data: dict[str, Any], unit: str) -> str:
         text += "\n\nIn the books (linked customers, vendors and ledgers):\n\n" + table(
             ["Party", "Period", "Source", "Nature", "Amount"], books, ""
         )
+    pricing = [
+        [
+            _t(r["party"]), r["kind"], r["period"], _t(r["product"]), _rate(r["party_rate"]),
+            _rate(r["others_rate"]), _pct(r["difference_pct"]),
+        ]
+        for r in found["pricing"]
+    ]  # fmt: skip
+    if pricing:
+        text += "\n\nPricing against other customers and vendors (rate per unit):\n\n" + table(
+            ["Party", "Kind", "Period", "Product", "Party rate", "Others' rate", "Difference"],
+            pricing,
+            "",
+        )
+    loans = [
+        [
+            _t(r["party"]), _t(r["ledger"]), r["period"], _m(r["opening"], unit),
+            _m(r["closing"], unit), _m(r["interest"], unit), _pct(r["implied_rate_pct"]),
+            r["average_basis"],
+        ]
+        for r in found["loans"]
+    ]  # fmt: skip
+    if loans:
+        text += (
+            "\n\nLoans with related parties (closing: debit less credit, so a loan given is "
+            "positive and a borrowing negative):\n\n"
+            + table(
+                ["Party", "Ledger", "Period", "Opening", "Closing", "Interest", "Implied rate",
+                 "Average on"],
+                loans,
+                "",
+            )
+        )  # fmt: skip
     return text
 
 

@@ -22,7 +22,7 @@ from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
 from fin.diligence.mask import Masker
-from fin.report.lint import FDD_ALLOWED, JUDGING, typed_number_lines
+from fin.report.lint import FDD_ALLOWED, JUDGING, phrase, typed_number_lines
 
 AREAS = ("qoe", "working_capital", "net_debt", "revenue", "walkthroughs", "provisions", "tax",
          "contingencies", "related_parties", "inquiries", "other")  # fmt: skip
@@ -57,7 +57,10 @@ def _check(con: duckdb.DuckDBPyConnection, engagement_id: int, fields: dict[str,
         if typed_number_lines(text, FDD_ALLOWED):
             problems.append(f"the {name} has a typed number (amounts come from the evidence)")
         if JUDGING.search(text):
-            problems.append(f"the {name} has valuation, rating or buy/don't-buy language")
+            problems.append(
+                f"the {name} has valuation, rating or buy/don't-buy language "
+                f"(matched: '{phrase(text)}')"
+            )
     if sum(fields.get(name) is not None for name in AMOUNT_LINKS) > 1:
         problems.append("link at most one of --adjustment, --netdebt-item, --recon")
     for name, (table, column) in LINKS.items():

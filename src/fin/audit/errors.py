@@ -52,6 +52,13 @@ a command returns when the error ends it:
   a status change not allowed) stop the command: exit 2.
 - E940-E941 (FDD disclosures: a reading CSV that cannot be used; a related party link proposal or
   review that is not valid) stop the command: exit 2.
+- E920-E923 (FDD provisions and cut-off: a provision ledger proposal or review that is not valid; a
+  cut-off reconciliation that cannot run, which is a `ReconCannotRun` like E840; `fin provisions
+  show` with no engagement or a period not in it), E930-E934 (FDD net debt: a class proposal or
+  review, a debt-like item or its decision, `fin netdebt show` that is not valid) and E970-E972
+  (FDD findings and report: a finding that is not valid, an unknown finding or one not in the
+  state the command needs, a narrative with valuation, rating or buy/don't-buy language) stop the
+  command: exit 2.
 - E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
   to bundle, a bundle that would contain a real name) stop the command: exit 2.
 """
@@ -316,11 +323,13 @@ class DiligenceTableWrite(FinError):
     accountant_queries, adjustments, gate_approvals, source_files, trial_balance, ledger_entries,
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
     recon_items, passthrough_customers, recon_match_lines, match_proposals, contracts, samples,
-    sample_lines, walkthroughs, provision_ledgers, inquiries, orderbook_lines, disclosure_files,
-    disclosures, related_party_links): those change only through `fin engagement`, `fin query`,
-    `fin adjust`, `fin gate`, `fin ingest --kind`, `fin map ledgers` with `fin review --ledgers`,
-    `fin reconcile` (with `fin review --matches`), `fin recast`, `fin sample`, `fin walkthrough` and
-    `fin disclosures` (with `fin review --related`). Nothing was run."""
+    sample_lines, walkthroughs, provision_ledgers, inquiries, orderbook_lines, gst_returns,
+    tax_ledgers, disclosure_files, disclosures, related_party_links, netdebt_classes,
+    netdebt_items, fdd_findings): those change only through `fin engagement`, `fin query`,
+    `fin adjust`, `fin gate`, `fin ingest --kind`, `fin map ledgers|tax` with `fin review`,
+    `fin reconcile` (with `fin review --matches`), `fin recast`, `fin sample`, `fin walkthrough`,
+    `fin disclosures` (with `fin review --related`), `fin provisions`, `fin netdebt` and
+    `fin fdd finding`. Nothing was run."""
 
     code = "E806"
 

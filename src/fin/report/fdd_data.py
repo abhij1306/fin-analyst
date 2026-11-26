@@ -18,7 +18,7 @@ from fin.paths import company_db_path
 from fin.reconcile.contract_coverage import coverage
 from fin.reconcile.visibility import visibility
 from fin.report.dd_data import collect as diligence_data
-from fin.sampling.walkthrough import summaries
+from fin.sampling.walkthrough import exception_lines, summaries
 
 # The figures the FDD narrative may reference besides the diligence report's (fin.report.dd_data):
 # name -> (label, unit, view). Net debt per period end of the engagement and its stub.
@@ -48,6 +48,7 @@ def collect(root: Path, company: str, scope: str, drafts: bool = False) -> dict[
         data["disclosures"] = section_data(con, engagement_id)
         data["inquiries"] = inquiries.collect(con, engagement_id, tuple(fdd["inquiry_topics"]))
         data["walkthroughs"] = summaries(con, engagement_id)
+        data["walkthrough_exceptions"] = exception_lines(con, engagement_id)
         data["coverage"] = coverage(con, engagement_id, fdd["coverage_top_n"])
         try:
             data["visibility"] = visibility(con, engagement_id)

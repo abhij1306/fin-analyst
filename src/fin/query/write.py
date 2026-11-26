@@ -9,12 +9,13 @@ A statement other than a SELECT that names a diligence table (engagement, accoun
 adjustments, gate_approvals, the source file tables source_files, trial_balance,
 ledger_entries, ledger_blocks, register_lines, payroll_lines, payroll_units, bank_statements,
 bank_lines, passthrough_customers, contracts, samples, sample_lines, walkthroughs, gst_returns, the
-FDD disclosures disclosure_files, disclosures and related_party_links, the ledger mappings
+FDD tables provision_ledgers, inquiries, orderbook_lines, disclosure_files, disclosures,
+related_party_links, netdebt_classes, netdebt_items and fdd_findings, the ledger mappings
 ledger_accounts and tax_ledgers, and the reconciliations recon_runs, recon_items,
 query_items) is refused with E806 before the backup: those tables change only through
 `fin engagement|query|adjust|gate`, `fin ingest --kind`, `fin map ledgers` with `fin review
---ledgers`, `fin reconcile`, `fin recast`, `fin sample` and `fin walkthrough`, which check the
-gates and log every change. SQL naming
+--ledgers`, `fin reconcile`, `fin recast`, `fin sample`, `fin walkthrough` and the FDD commands,
+which check the gates and log every change. SQL naming
 mask_values is refused with E810 (fin.query.run.refuse_masked). A statement that would end the
 transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH, DETACH, COPY FROM
 DATABASE, LOAD/INSTALL) or change the schema (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) is
