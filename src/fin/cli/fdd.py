@@ -26,13 +26,17 @@ def _opt(flag: str, text: str) -> Any:
     return typer.Option(flag, help=text)
 
 
-Area = Annotated[str | None, _opt("--area", "One of " + ", ".join(findings.AREAS) + ".")]
+def _one_of(choices: tuple[str, ...]) -> str:
+    return "One of " + ", ".join(choices) + "."
+
+
+Area = Annotated[str | None, _opt("--area", _one_of(findings.AREAS))]
 Title = Annotated[str | None, _opt("--title", "A short title, no typed numbers.")]
 Observation = Annotated[str | None, _opt("--observation", "What was found, neutrally.")]
 Implication = Annotated[str | None, _opt("--implication", "What it means for the deal.")]
-Impact = Annotated[str | None, _opt("--impact", "One of " + ", ".join(findings.IMPACTS) + ".")]
+Impact = Annotated[str | None, _opt("--impact", _one_of(findings.IMPACTS))]
 Severity = Annotated[str | None, _opt("--severity", "high, medium or low.")]
-Deal = Annotated[str | None, _opt("--deal", "One of " + ", ".join(findings.DEALS) + ".")]
+Deal = Annotated[str | None, _opt("--deal", _one_of(findings.DEALS))]
 Evidence = Annotated[str | None, _opt("--evidence", "References: file + page, fin output, query.")]
 Adjustment = Annotated[int | None, _opt("--adjustment", "Amount from this adjustment.")]
 Item = Annotated[int | None, _opt("--netdebt-item", "Amount from this net debt item.")]

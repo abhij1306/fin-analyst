@@ -35,7 +35,9 @@ def show(run: Run, company: str) -> list[dict[str, Any]]:
 
 
 def _flag(value: bool | None, yes: str) -> str:
-    return "not read" if value is None else (yes if value else "no")
+    if value is None:
+        return "not read"
+    return yes if value else "no"
 
 
 def format_row(row: dict[str, Any]) -> str:

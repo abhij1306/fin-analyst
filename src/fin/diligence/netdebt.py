@@ -202,31 +202,7 @@ def format_class(row: dict[str, Any]) -> str:
 def format_show(data: dict[str, Any]) -> str:
     out = ["Net debt at each period end (trial balance ledgers by class, and debt-like items)"]
     for r in data["net_debt"]:
-        label = r["period"] + (
-            "" if r["basis"] == "audited" else " (unaudited management accounts)"
-        )
-        if r["trial_balance_file"] is None:
-            out.append(f"  {label}: no trial balance loaded; net debt not computed")
-            continue
-        out.append(
-            f"  {label} at {r['period_end']}: cash {rupees(r['cash'])}, debt {rupees(r['debt'])}, "
-            f"debt-like {rupees(r['debt_like'])} (ledgers {rupees(r['debt_like_ledgers'])}, "
-            f"accepted items {rupees(r['debt_like_items'])}), net debt {rupees(r['net_debt'])}"
-        )
-        if r["proposed_item_count"]:
-            out.append(
-                f"    proposed items, not applied: {r['proposed_item_count']} "
-                f"({rupees(r['proposed_items'])})"
-            )
-        if r["unclassified_ledgers"]:
-            out.append(
-                f"    {r['unclassified_ledgers']} ledgers unclassified: net debt may be incomplete"
-            )
-        if r["proposed_classes"]:
-            out.append(
-                f"    {r['proposed_classes']} class proposals wait for the user (not applied; "
-                "`fin review list <company> --netdebt`)"
-            )
+        out.extend(_period_lines(r))
     for line in data["lines"]:
         what = line["ledger"] if line["line_kind"] == "ledger" else f"item #{line['item_id']}"
         note = line["class_source"] or line["status"]
@@ -236,3 +212,30 @@ def format_show(data: dict[str, Any]) -> str:
             f"[{note}]{desc} ({line['source']})"
         )
     return "\n".join(out)
+
+
+def _period_lines(r: dict[str, Any]) -> list[str]:
+    """The lines for one period end of the net debt summary."""
+    label = r["period"] + ("" if r["basis"] == "audited" else " (unaudited management accounts)")
+    if r["trial_balance_file"] is None:
+        return [f"  {label}: no trial balance loaded; net debt not computed"]
+    out = [
+        f"  {label} at {r['period_end']}: cash {rupees(r['cash'])}, debt {rupees(r['debt'])}, "
+        f"debt-like {rupees(r['debt_like'])} (ledgers {rupees(r['debt_like_ledgers'])}, "
+        f"accepted items {rupees(r['debt_like_items'])}), net debt {rupees(r['net_debt'])}"
+    ]
+    if r["proposed_item_count"]:
+        out.append(
+            f"    proposed items, not applied: {r['proposed_item_count']} "
+            f"({rupees(r['proposed_items'])})"
+        )
+    if r["unclassified_ledgers"]:
+        out.append(
+            f"    {r['unclassified_ledgers']} ledgers unclassified: net debt may be incomplete"
+        )
+    if r["proposed_classes"]:
+        out.append(
+            f"    {r['proposed_classes']} class proposals wait for the user (not applied; "
+            "`fin review list <company> --netdebt`)"
+        )
+    return out

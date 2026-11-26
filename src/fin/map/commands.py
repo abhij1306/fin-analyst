@@ -247,6 +247,18 @@ def _echo_waiting(run: Run, company: str) -> None:
         )
 
 
+def _need_company(company: str | None, flag: str) -> str:
+    if company is None:
+        raise typer.BadParameter(f"{flag} needs a company")
+    return company
+
+
+def _list_related(run: Run, company: str | None, all_items: bool, json_output: bool) -> None:
+    rows = related.list_links(run, _need_company(company, "--related"), not all_items)
+    text = "\n".join(map(related.format_link, rows)) or "no related party links waiting"
+    typer.echo(json.dumps(rows, indent=2, default=str) if json_output else text)
+
+
 @review_app.command("list")
 def review_list(
     company: OptionalCompany = None,
@@ -267,28 +279,20 @@ def review_list(
     class proposals."""
 
     def body(run: Run) -> None:
+        kinds = (ledger_items, match_items, customer_items, tax_items, related_items)
         if netdebt_items:
             names = [company] if company else _ledger_companies(run)
-            modes = any((ledger_items, match_items, customer_items, tax_items, related_items))
-            review_netdebt.list_classes(run, names, all_items, json_output, modes)
+            review_netdebt.list_classes(run, names, all_items, json_output, any(kinds))
         elif related_items:
-            if company is None:
-                raise typer.BadParameter("--related needs a company")
-            rows = related.list_links(run, company, not all_items)
-            text = "\n".join(map(related.format_link, rows)) or "no related party links waiting"
-            typer.echo(json.dumps(rows, indent=2, default=str) if json_output else text)
+            _list_related(run, company, all_items, json_output)
         elif match_items:
-            if company is None:
-                raise typer.BadParameter("--matches needs a company")
-            _list_matches(run, company, all_items, json_output)
+            _list_matches(run, _need_company(company, "--matches"), all_items, json_output)
         elif customer_items:
-            rows = _rows_by_company(run, company, all_items, list_customers)
-            _echo_customers(rows, json_output)
+            _echo_customers(_rows_by_company(run, company, all_items, list_customers), json_output)
         elif tax_items:
             _echo_tax(_rows_by_company(run, company, all_items, tax_ledgers.list_rows), json_output)
         elif ledger_items:
-            rows = _rows_by_company(run, company, all_items, list_ledgers)
-            _echo_ledgers(rows, json_output)
+            _echo_ledgers(_rows_by_company(run, company, all_items, list_ledgers), json_output)
         else:
             _list_review_items(run, company, all_items, json_output)
 
@@ -370,6 +374,14 @@ def _confirm_items(
         refresh_analytics(run)
 
 
+def _check_unused(tax_class: str | None = None, sector: str | None = None) -> None:
+    """E-free usage errors for options that belong to another kind of item."""
+    if tax_class is not None:
+        raise typer.BadParameter("--tax-class applies to --tax")
+    if sector is not None:
+        raise typer.BadParameter("--sector applies to --customers")
+
+
 @review_app.command("confirm")
 def review_confirm(
     company: CompanyArg,
@@ -410,34 +422,27 @@ def review_confirm(
     ids; only the user confirms them."""
 
     def body(run: Run) -> None:
+        kinds = (ledger_items, match_items, customer_items, tax_items, related_items)
+        picked = (account, sector, tax_class, name, parent, scope != "company")
         if netdebt_items:
-            flags = (ledger_items, match_items, customer_items, tax_items, related_items)
-            options = (account, sector, tax_class, name, parent, scope != "company")
-            review_netdebt.decide(run, company, ids, "confirmed", any(flags + options))
-            return
-        if related_items:
+            review_netdebt.decide(run, company, ids, "confirmed", any(kinds + picked))
+        elif related_items:
             _decide_related(run, company, ids, "confirmed")
-            return
-        if tax_items:
+        elif tax_items:
             others = any((ledger_items, match_items, customer_items, account, sector, name, parent))
             _confirm_tax(run, company, ids, tax_class, others)
-            return
-        if match_items:
+        elif match_items:
             _confirm_matches(run, company, ids)
-            return
-        if tax_class is not None:
-            raise typer.BadParameter("--tax-class applies to --tax")
-        if customer_items:
+        elif customer_items:
+            _check_unused(tax_class=tax_class)
             others = bool(ledger_items or account or scope != "company" or name or parent)
             _confirm_customers(run, company, ids, sector, others)
-            return
-        if sector is not None:
-            raise typer.BadParameter("--sector applies to --customers")
-        if ledger_items:
-            others = bool(scope != "company" or name or parent)
-            _confirm_ledgers(run, company, ids, account, others)
-            return
-        _confirm_items(run, company, ids, account, scope, name, parent)
+        elif ledger_items:
+            _check_unused(tax_class=tax_class, sector=sector)
+            _confirm_ledgers(run, company, ids, account, bool(scope != "company" or name or parent))
+        else:
+            _check_unused(tax_class=tax_class, sector=sector)
+            _confirm_items(run, company, ids, account, scope, name, parent)
 
     execute(
         "review confirm",

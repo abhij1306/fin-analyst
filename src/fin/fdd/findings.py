@@ -46,8 +46,8 @@ CHOICES = {"area": AREAS, "impact_type": IMPACTS, "severity": SEVERITIES,
 ORDER = "list_position(['high', 'medium', 'low'], severity), finding_id"
 
 
-def _check(con: duckdb.DuckDBPyConnection, engagement_id: int, fields: dict[str, Any]) -> None:
-    """E970 for any field at fault, every problem listed."""
+def _field_problems(fields: dict[str, Any]) -> list[str]:
+    """Problems with the choice and text fields given."""
     problems = []
     for name, allowed in CHOICES.items():
         if name in fields and fields[name] not in allowed:
@@ -64,6 +64,12 @@ def _check(con: duckdb.DuckDBPyConnection, engagement_id: int, fields: dict[str,
                 f"the {name} has valuation, rating or buy/don't-buy language "
                 f"(matched: '{phrase(text)}')"
             )
+    return problems
+
+
+def _check(con: duckdb.DuckDBPyConnection, engagement_id: int, fields: dict[str, Any]) -> None:
+    """E970 for any field at fault, every problem listed."""
+    problems = _field_problems(fields)
     if sum(fields.get(name) is not None for name in AMOUNT_LINKS) > 1:
         problems.append("link at most one of --adjustment, --netdebt-item, --recon")
     for name, (table, column) in LINKS.items():
@@ -92,7 +98,7 @@ def propose(run: Run, company: str, fields: dict[str, Any]) -> dict[str, Any]:
     """Store a draft finding in the open engagement. E803 without one; E970 for a field at fault."""
     with company_database(run, company, write=True) as con, transaction(con):
         engagement_id = require_open(con, company)["engagement_id"]
-        _check(con, engagement_id, {name: None for name in LINKS} | fields)
+        _check(con, engagement_id, dict.fromkeys(LINKS) | fields)
         values = _masked(Masker(con, run.run_id), fields)
         columns = [*CHOICES, *TEXTS, "evidence", *LINKS]
         now = utcnow()
@@ -112,7 +118,7 @@ def update(run: Run, company: str, finding_id: int, fields: dict[str, Any]) -> d
         engagement_id = require_open(con, company)["engagement_id"]
         row = _one(con, engagement_id, finding_id, "draft", "updated", company)
         if any(fields.get(name) is not None for name in AMOUNT_LINKS):
-            fields = {name: None for name in AMOUNT_LINKS} | fields
+            fields = dict.fromkeys(AMOUNT_LINKS) | fields
         _check(con, engagement_id, {name: row[name] for name in LINKS} | fields)
         values = _masked(Masker(con, run.run_id), fields)
         if values:

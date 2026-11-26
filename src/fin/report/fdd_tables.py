@@ -36,7 +36,9 @@ def _t(text: str | None) -> str:
 
 def _known(value: bool | None) -> str:
     """A term Claude read, or did not: yes, no, or "not read" (never shown as absent)."""
-    return NOT_READ if value is None else ("yes" if value else "no")
+    if value is None:
+        return NOT_READ
+    return "yes" if value else "no"
 
 
 def _word(value: str) -> str:

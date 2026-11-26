@@ -179,6 +179,13 @@ def diligence_parts(data: dict[str, Any], u: str) -> tuple[dict[str, str], dict[
     return tables, sections
 
 
+def _read_template(kind: "Kind") -> str:
+    try:
+        return kind.template.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ReportRenderFailed(f"cannot read the template {kind.template}: {exc}") from exc
+
+
 def build(
     company: str,
     scope: str,
@@ -214,11 +221,7 @@ def build(
             return fields[place]
         raise ReportRenderFailed(f"{kind.template} has an unknown placeholder {match.group()}")
 
-    try:
-        template = kind.template.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise ReportRenderFailed(f"cannot read the template {kind.template}: {exc}") from exc
-    qmd = PLACEHOLDER.sub(fill, strip_comments(template))
+    qmd = PLACEHOLDER.sub(fill, strip_comments(_read_template(kind)))
     return Built(qmd, texts, refs, data, data_hash(data), {})
 
 
@@ -275,7 +278,7 @@ def make(
         "display_unit": config.display_unit,
         "data_hash": built.data_hash,
         "gates": data["gates"],
-        **{key: value for key, value in options.items()},
+        **options,
         "references": built.references,
         "data": built.data,
     }
