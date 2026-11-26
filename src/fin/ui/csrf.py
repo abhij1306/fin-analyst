@@ -18,11 +18,13 @@ SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
 def origin_guard(
     port: int,
 ) -> Callable[[Request, Callable[[Request], Awaitable[Response]]], Awaitable[Response]]:
-    origins = {f"http://{host}" for host in allowed_hosts(port)}  # NOSONAR: plain http on 127.0.0.1
+    hosts = allowed_hosts(port)
 
     async def middleware(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
+        # The Origin must be this server: its own scheme (plain http on 127.0.0.1) and host.
+        origins = {f"{request.url.scheme}://{host}" for host in hosts}
         if (
             request.method not in SAFE_METHODS
             and request.headers.get("origin", "").lower() not in origins
