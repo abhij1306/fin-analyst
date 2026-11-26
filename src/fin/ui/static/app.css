@@ -81,7 +81,7 @@ details.clip[open] summary { white-space: normal; }
 details.problems ul { margin-top: 0.5rem; width: 22rem; white-space: normal; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; }
 
 /* upload row */
-.upload { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.upload { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
 .upload .input { flex: 0 1 26rem; }
 
 /* gates */
