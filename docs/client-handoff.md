@@ -10,7 +10,7 @@ Read `CLAUDE.md` first. The rules that matter here:
   which come from the documents.
 - **Claude does not verify its own reading.** A golden value is scored only once a person has checked it against the
   document. You draft; only the person marks a line checked.
-- Data never leaves the Mac except the results report and bundle, and only when the person sends them. The data
+- Data never leaves the machine except the results report and bundle, and only when the person sends them. The data
   folder (`~/FinAnalysis`), golden sets and eval reports hold real figures and file names, and `mask_values` holds
   real names: never paste them into a message, an issue or a PR.
 - If a command fails, report its error code and run_id (the `summary:` line) and stop that step. Don't work around

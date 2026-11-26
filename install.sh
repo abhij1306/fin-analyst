@@ -133,23 +133,26 @@ install_macos_deps() {
 
 # version_ge FOUND MINIMUM: dotted numbers, FOUND >= MINIMUM
 version_ge() {
-  [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n 1)" == "$2" ]]
+  local found="$1" minimum="$2"
+  [[ "$(printf '%s\n%s\n' "$minimum" "$found" | sort -V | head -n 1)" == "$minimum" ]]
 }
 
 # tool_ok TOOL MINIMUM: TOOL is on PATH and its version is at least MINIMUM
 tool_ok() {
-  local found
-  command -v "$1" >/dev/null 2>&1 || return 1
-  found="$("$1" --version 2>/dev/null | grep -Eo '[0-9]+(\.[0-9]+)+' | head -n 1)" || return 1
-  [[ -n "$found" ]] && version_ge "$found" "$2"
+  local tool="$1" minimum="$2" found
+  command -v "$tool" >/dev/null 2>&1 || return 1
+  found="$("$tool" --version 2>/dev/null | grep -Eo '[0-9]+(\.[0-9]+)+' | head -n 1)" || return 1
+  [[ -n "$found" ]] && version_ge "$found" "$minimum"
 }
 
 fetch() { # fetch URL FILE
-  curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --retry-delay 10 -o "$2" "$1"
+  local url="$1" out="$2"
+  curl -fsSL --proto '=https' --tlsv1.2 --retry 3 --retry-delay 10 -o "$out" "$url"
 }
 
 check_sum() { # check_sum FILE EXPECTED_SHA256
-  [[ "$(sha256sum "$1" | cut -d ' ' -f 1)" == "$2" ]] || die "checksum mismatch for $1; run ./install.sh again"
+  local path="$1" expected="$2"
+  [[ "$(sha256sum "$path" | cut -d ' ' -f 1)" == "$expected" ]] || die "checksum mismatch for $path; run ./install.sh again"
 }
 
 install_linux_deps() {
@@ -163,14 +166,14 @@ install_linux_deps() {
     x86_64) deb_arch=amd64 uv_arch=x86_64 node_arch=x64 ;;
     *) deb_arch=arm64 uv_arch=aarch64 node_arch=arm64 ;;
   esac
-  export PATH="/usr/local/bin:$PATH"
 
   command -v pdftoppm >/dev/null 2>&1 || apt_pkgs+=(poppler-utils)
   command -v curl >/dev/null 2>&1 || apt_pkgs+=(curl)
   [[ -f /etc/ssl/certs/ca-certificates.crt ]] || apt_pkgs+=(ca-certificates)
   command -v xz >/dev/null 2>&1 || apt_pkgs+=(xz-utils)
   tool_ok uv "$MIN_UV" || missing+=(uv)
-  tool_ok node "$MIN_NODE" && command -v npm >/dev/null 2>&1 || missing+=(node)
+  # npm 7+ reads the dashboards' lockfile (version 3); Node 24 ships npm 11
+  { tool_ok node "$MIN_NODE" && tool_ok npm 7; } || missing+=(node)
   tool_ok quarto "$MIN_QUARTO" || missing+=(quarto)
 
   if [[ ${#apt_pkgs[@]} -eq 0 && ${#missing[@]} -eq 0 ]]; then
@@ -180,11 +183,11 @@ install_linux_deps() {
 
   apt_get() {
     # mirrors can fail for a minute or two; try the command again after a pause
-    local attempt
+    local subcommand="$1" attempt
     for attempt in 1 2 3; do
       "${sudo_cmd[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "$@" && return 0
-      [[ $attempt -lt 3 ]] || die "apt-get $1 failed 3 times; check the network and run ./install.sh again"
-      echo "apt-get $1 failed (attempt $attempt of 3); trying again in 30 seconds"
+      [[ $attempt -lt 3 ]] || die "apt-get $subcommand failed 3 times; check the network and run ./install.sh again"
+      echo "apt-get $subcommand failed (attempt $attempt of 3); trying again in 30 seconds"
       sleep 30
     done
   }
@@ -236,8 +239,12 @@ install_linux_deps() {
     apt_get install -y "$TMP_DIR/$file"
   fi
 
-  for file in uv node npm quarto pdftoppm; do
-    command -v "$file" >/dev/null 2>&1 || die "$file is still not on PATH after the install. $LINUX_MANUAL"
+  # Tools go to /usr/local/bin; an older copy earlier on PATH (~/.local/bin, nvm) would still win in this
+  # shell and in `uv run fin doctor`, so stop here instead of reporting success.
+  command -v pdftoppm >/dev/null 2>&1 || die "pdftoppm is still not on PATH after the install. $LINUX_MANUAL"
+  for file in "uv $MIN_UV" "node $MIN_NODE" "npm 7" "quarto $MIN_QUARTO"; do
+    # shellcheck disable=SC2086
+    tool_ok $file || die "${file%% *} on PATH ($(command -v "${file%% *}" || echo none)) is older than ${file##* } or missing; put /usr/local/bin first on PATH or remove the older copy, then run ./install.sh again. $LINUX_MANUAL"
   done
 }
 

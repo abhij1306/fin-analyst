@@ -149,11 +149,11 @@ jobs:
           grep -q "kept     config.toml (already present, not changed)" "$FIN_DATA_DIR/logs/install.log"
           grep -q "kept     shared/audit.duckdb" "$FIN_DATA_DIR/logs/install.log"
       - name: fin doctor passes
-        run: uv run --frozen fin doctor
+        run: .venv/bin/fin doctor
       - name: Smoke ingest and query
         run: |
-          uv run --frozen fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
-          uv run --frozen fin sql kestrel --sql "SELECT count(*) AS facts FROM facts" | grep -q '"facts": 162'
+          .venv/bin/fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
+          .venv/bin/fin sql kestrel --sql "SELECT count(*) AS facts FROM facts" | grep -q '"facts": 162'
 
   # Ingest the synthetic companies once, then render Kestrel's report (Quarto) and build the dashboard;
   # the quarto-marked tests render the health report and the diligence report for real.
