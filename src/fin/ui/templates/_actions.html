@@ -5,16 +5,16 @@
 {% set fields %}<input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ item }}">{% endset %}
 {% if ask or reason %}
 <button type="button" class="{{ variant }}" onclick="document.getElementById('d-{{ uid }}').showModal()">{{ label }}</button>
-<dialog id="d-{{ uid }}" class="dialog w-full sm:max-w-[425px]" aria-labelledby="t-{{ uid }}" onclick="if (event.target === this) this.close()">
+<dialog id="d-{{ uid }}" class="dialog" aria-labelledby="t-{{ uid }}">
   <div>
     <header>
       <h2 id="t-{{ uid }}">{{ label }}</h2>
       {% if ask %}<p>{{ ask }}</p>{% endif %}
     </header>
-    <form class="form grid gap-4" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
+    <form class="form" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
       {{ fields }}
       {% if reason %}
-      <div class="grid gap-2">
+      <div>
         <label class="label" for="r-{{ uid }}">{{ reason }}</label>
         <input class="input" id="r-{{ uid }}" name="reason" required>
       </div>

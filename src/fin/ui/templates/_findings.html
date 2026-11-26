@@ -7,7 +7,7 @@
 <h2>FDD findings</h2>
 <p class="text-muted-foreground">Claude proposes findings; only you mark one final.</p>
 <table class="table">
-  <thead><tr><th>#</th><th>Status</th><th>Severity</th><th>Area</th><th>Title</th><th>Amount</th><th>Observation</th><th>Flags</th><th></th></tr></thead>
+  <thead><tr><th>#</th><th>Status</th><th>Severity</th><th>Area</th><th>Title</th><th>Amount</th><th>Observation</th><th>Flags</th><th>Actions</th></tr></thead>
   <tbody>
     {% for f in data.findings %}
     <tr><td>{{ f.finding_id }}</td><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.severity }}</td><td>{{ f.area }}</td>

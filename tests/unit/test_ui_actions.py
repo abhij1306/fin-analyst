@@ -149,6 +149,8 @@ def test_an_unknown_item_is_refused_with_the_cli_error(
 def test_a_bad_action_or_id_is_e008(client: TestClient) -> None:
     assert "E008" in act(client, "no-such-action", "1").text
     assert "E008" in act(client, "query-approve", "1 OR 1=1").text
+    assert "E008" in act(client, "query-approve", "²").text  # a digit, but not 0-9
+    assert "E008" in act(client, "query-approve", "9" * 19).text  # past a BIGINT
     assert "E008" in act(client, "gate-approve", "G9").text
     assert "E008" in act(client, "adjust-reject", "1").text  # reason missing
 

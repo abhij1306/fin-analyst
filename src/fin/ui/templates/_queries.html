@@ -6,7 +6,7 @@
 {% from "_actions.html" import act %}
 <h2>Queries</h2>
 <table class="table">
-  <thead><tr><th>#</th><th>Status</th><th>Period</th><th>Amount</th><th>Question</th><th>Answer</th><th></th></tr></thead>
+  <thead><tr><th>#</th><th>Status</th><th>Period</th><th>Amount</th><th>Question</th><th>Answer</th><th>Actions</th></tr></thead>
   <tbody>
     {% for q in data.queries %}
     <tr><td>{{ q.query_id }}</td><td><span class="badge-outline">{{ q.status }}</span></td><td>{{ q.period or "" }} {{ q.scope or "" }}</td>
@@ -24,7 +24,7 @@
 </table>
 <h2>Adjustments</h2>
 <table class="table">
-  <thead><tr><th>#</th><th>Status</th><th>Period</th><th>Category</th><th>EBITDA effect</th><th>Description</th><th>Evidence</th><th></th></tr></thead>
+  <thead><tr><th>#</th><th>Status</th><th>Period</th><th>Category</th><th>EBITDA effect</th><th>Description</th><th>Evidence</th><th>Actions</th></tr></thead>
   <tbody>
     {% for a in data.adjustments %}
     <tr><td>{{ a.adj_id }}</td><td><span class="badge-outline">{{ a.status }}</span></td><td>{{ a.period }} {{ a.scope }}</td><td>{{ a.category }}</td>

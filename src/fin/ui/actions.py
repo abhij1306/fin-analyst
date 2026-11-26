@@ -4,6 +4,7 @@ Each decision calls the function the matching CLI command calls, inside a run wi
 name: same run record, audit log, backup, gate checks, masking and refusals. The UI never drafts or
 proposes. A refusal or error comes back as an Outcome with its code and run_id, not raised."""
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,8 @@ from fin.map import review
 from fin.metrics.export import refresh_analytics
 from fin.paths import inbox_dir
 from fin.ui.uploads import save_uploads
+
+ITEM_ID = re.compile(r"[0-9]{1,18}")  # a BIGINT id; ASCII digits only
 
 Body = Callable[[Run, str, str, str | None], list[str]]
 
@@ -147,7 +150,7 @@ def decide(root: Path, company: str, name: str, item: str, reason: str | None) -
         item = item.upper()
         if item not in gates.NAMES:
             raise UiActionInvalid(f"unknown gate {item!r}; use one of {', '.join(gates.NAMES)}")
-    elif not item.isdigit():
+    elif not ITEM_ID.fullmatch(item):
         raise UiActionInvalid(f"{item!r} is not an item id")
     args = {"company": company, "ids": [item], "reason": reason, "via": "ui"}
     return perform(root, action.command, args, lambda run: action.body(run, company, item, reason))

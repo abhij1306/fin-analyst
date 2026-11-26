@@ -51,7 +51,7 @@ def add_action_routes(
     @app.post("/upload", response_class=HTMLResponse)
     async def upload(request: Request) -> HTMLResponse:
         # A refusal before the company is known is shown as an error alert (E008, E001).
-        if int(request.headers.get("content-length", "-1")) not in range(MAX_REQUEST_BYTES):
+        if int(request.headers.get("content-length", "-1")) not in range(MAX_REQUEST_BYTES + 1):
             raise UiActionInvalid("the upload is empty, of unknown size or too large")
         form = await request.form()
         chosen = known(root, str(form.get("company", ""))) or ""

@@ -3,7 +3,7 @@
 {% else %}
 {% from "_actions.html" import act %}
 <h2>Files</h2>
-<form class="form grid gap-2" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
+<form class="form" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
   <input type="hidden" name="company" value="{{ company }}">
   <label class="label" for="upload">Upload files (.xlsx, .xlsm, .pdf) to {{ data.inbox_folder }}</label>
   <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.pdf">
@@ -31,7 +31,7 @@
 {% endif %}
 <h3>Findings on filed data</h3>
 <table class="table">
-  <thead><tr><th>Status</th><th>Document</th><th>Check</th><th>What does not add up</th><th>Source</th><th></th></tr></thead>
+  <thead><tr><th>Status</th><th>Document</th><th>Check</th><th>What does not add up</th><th>Source</th><th>Actions</th></tr></thead>
   <tbody>
     {% for f in data.findings %}
     <tr><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.file_name }}</td><td>{{ f.code or f.check_name }}</td>
