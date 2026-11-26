@@ -101,7 +101,11 @@ def _finding(r: dict[str, Any], unit: str, drafts: bool) -> str:
         lines.append(f"- Implication: {_t(r['implication'])}")
     lines.append(f"- Deal consideration: {_word(r['deal_consideration'])}")
     if r["query_id"] is not None:
-        response = _t(r["management_response"]) or f"no answer yet (query {r['query_status']})"
+        response = _t(r["management_response"]) or (
+            "no answer when made final"
+            if r["status"] == "final"
+            else f"no answer yet (query {r['query_status']})"
+        )
         source = f"; {_t(r['response_source'])}" if r["response_source"] else ""
         lines.append(f"- Management response (query #{r['query_id']}{source}): {response}")
     else:

@@ -182,7 +182,7 @@ def test_a_gate_reopens_when_its_data_changes(
     assert states(ctx(con))[0] == ("G1", "reopened", "changed since it was approved: documents")
 
 
-def test_g4_needs_the_fdd_proposals_decided_and_reopens_when_one_is_added(
+def test_g4_needs_the_fdd_proposals_decided_and_reopens_when_proposals_are_added(
     con: duckdb.DuckDBPyConnection, tmp_path: Path
 ) -> None:
     run = Run("gate approve", {}, tmp_path)

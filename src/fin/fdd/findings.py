@@ -235,10 +235,18 @@ def format_finding(row: dict[str, Any]) -> str:
     if row["implication"]:
         lines.insert(2, f"  implication: {row['implication']}")
     if row["query_id"] is not None:
-        answer = row["management_response"] or f"no answer yet ({row['query_status']})"
+        answer = row["management_response"] or _no_answer(row)
         lines.append(f"  management response (query #{row['query_id']}): {answer}")
     lines += [f"  FLAG: {flag}" for flag in flags(row)]
     return "\n".join(lines)
+
+
+def _no_answer(row: dict[str, Any]) -> str:
+    """No response: for a final finding, none when it was made final (its query may have been
+    answered since, which `flags` says); else none yet, with the query's status."""
+    if row["status"] == "final":
+        return "no answer when made final"
+    return f"no answer yet ({row['query_status']})"
 
 
 def flags(row: dict[str, Any]) -> list[str]:
