@@ -3,6 +3,7 @@
 {% elif data.no_engagement %}
 <p class="text-muted-foreground">{{ data.no_engagement }}</p>
 {% else %}
+{% from "_actions.html" import act %}
 <h2>Gates</h2>
 <p class="text-muted-foreground">Engagement #{{ data.engagement_id }}. Only you approve a gate.</p>
 {% for g in data.gates %}
@@ -13,6 +14,9 @@
     <ul>{% for line in g.checklist %}<li>{{ "pass" if line.ok else "FAIL" }}: {{ line.text }}</li>{% endfor %}</ul>
     <p class="text-muted-foreground">Unlocks: {{ g.unlocks }}</p>
   </section>
+  {% if g.state != "approved" %}
+  <footer>{{ act("gate-approve", g.gate, "Approve " ~ g.gate, company, ask="Approve " ~ g.gate ~ " " ~ g.title ~ "? Later steps unlock on it, and it reopens by itself if the data under it changes. fin refuses while its checklist fails or an earlier gate is not approved.", variant="btn") }}</footer>
+  {% endif %}
 </div>
 {% endfor %}
 {% endif %}

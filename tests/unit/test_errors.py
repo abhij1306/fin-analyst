@@ -16,7 +16,7 @@ def test_every_plan_code_has_one_error_class_and_its_exit_code() -> None:
     # pending user confirmation (3). E302 is a warning event and E401-E405 are finding codes
     # (fin.findings), not errors: they have no class.
     assert by_code == {
-        "E001": 2, "E002": 2, "E003": 2, "E005": 2, "E006": 2, "E007": 2,
+        "E001": 2, "E002": 2, "E003": 2, "E005": 2, "E006": 2, "E007": 2, "E008": 2,
         "E101": 1, "E102": 1, "E103": 1, "E104": 1, "E105": 1,
         "E201": 1, "E202": 1, "E203": 1, "E204": 1, "E205": 1, "E206": 1,
         "E301": 1, "E303": 1, "E304": 2, "E890": 1, "E891": 1,
