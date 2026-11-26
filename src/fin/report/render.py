@@ -25,6 +25,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from fin import installhint
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing, ReportRenderFailed
 from fin.audit.logger import Run
 from fin.config import load_config
@@ -317,7 +318,7 @@ def quarto_render(qmd: Path, outputs: tuple[str, ...] = OUTPUTS) -> None:
     and E601 when the render fails."""
     quarto = shutil.which("quarto")
     if quarto is None:
-        raise DependencyMissing("quarto is not on PATH; install it with `brew install quarto`")
+        raise DependencyMissing(installhint.quarto_missing())
     try:
         result = subprocess.run(
             [quarto, "render", qmd.name, "--to", "all"],

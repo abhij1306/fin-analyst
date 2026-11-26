@@ -185,6 +185,7 @@ def test_doctor_wrong_python_is_e002(data_root: Path, monkeypatch: pytest.Monkey
 def test_doctor_warns_without_failing_when_poppler_is_missing(
     data_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr("fin.installhint.is_macos", lambda: True)
     _all_tools_present(monkeypatch)
     monkeypatch.setattr(
         "fin.doctor.tool_version", {"uv": "uv 0.11.28", "node": "v24.11.1", "quarto": "1.8.25"}.get
