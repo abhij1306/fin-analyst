@@ -1,10 +1,12 @@
 {#- One decision button. With `ask` or `reason` it opens a Basecoat dialog first (a confirmation, or
-    the reason the CLI also needs); otherwise it posts at once. The answer replaces the screen. -#}
-{% macro act(action, item, label, company, ask=none, reason=none, variant="btn-sm-outline") %}
+    the reason the CLI also needs); otherwise it posts at once. The answer replaces the screen.
+    `variant` is the Basecoat button variant: the one main action of an area is "primary", the rest
+    are "outline" or "ghost". -#}
+{% macro act(action, item, label, company, ask=none, reason=none, variant="outline") %}
 {% set uid = action ~ "-" ~ item %}
 {% set fields %}<input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ item }}">{% endset %}
 {% if ask or reason %}
-<button type="button" class="{{ variant }}" onclick="document.getElementById('d-{{ uid }}').showModal()">{{ label }}</button>
+<button type="button" class="btn" data-size="sm" data-variant="{{ variant }}" onclick="document.getElementById('d-{{ uid }}').showModal()">{{ label }}</button>
 <dialog id="d-{{ uid }}" class="dialog" aria-labelledby="t-{{ uid }}">
   <div>
     <header>
@@ -14,13 +16,13 @@
     <form class="form" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
       {{ fields }}
       {% if reason %}
-      <div>
+      <div class="field">
         <label class="label" for="r-{{ uid }}">{{ reason }}</label>
         <input class="input" id="r-{{ uid }}" name="reason" required>
       </div>
       {% endif %}
       <footer>
-        <button type="button" class="btn-outline" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
         <button type="submit" class="btn">{{ label }}</button>
       </footer>
     </form>
@@ -29,7 +31,7 @@
 {% else %}
 <form class="inline" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
   {{ fields }}
-  <button type="submit" class="{{ variant }}">{{ label }}</button>
+  <button type="submit" class="btn" data-size="sm" data-variant="{{ variant }}">{{ label }}</button>
 </form>
 {% endif %}
 {% endmacro %}

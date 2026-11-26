@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Answers with an error status (400) are shown too: they carry the error code. -->
   <meta name="htmx-config" content='{"responseHandling":[{"code":".*","swap":true}]}'>
+  <link rel="preload" href="/static/vendor/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/vendor/basecoat.cdn.min.css">
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/vendor/htmx.min.js" defer></script>
@@ -14,8 +15,8 @@
 </head>
 <body>
   <header class="topbar">
-    <strong>fin</strong>
-    <label class="label" for="company">Company</label>
+    <span class="wordmark">fin</span>
+    <label class="visually-hidden" for="company">Company</label>
     <select class="select" id="company" name="company"
             hx-get="{{ '/' if screen == 'home' else '/' ~ screen }}" hx-trigger="change"
             hx-target="body" hx-select="body" hx-swap="outerHTML" hx-push-url="true">
@@ -25,16 +26,8 @@
       <option value="">No companies yet</option>
       {% endfor %}
     </select>
-    <div class="tabs">
-      <div role="tablist" aria-orientation="horizontal" aria-label="Screens">
-        {% for id, label in screens %}
-        <a role="tab" id="tab-{{ id }}" href="{{ '/' if id == 'home' else '/' ~ id }}{% if company %}?company={{ company | urlencode }}{% endif %}"
-           aria-controls="screen" aria-selected="{{ 'true' if id == screen else 'false' }}"
-           tabindex="{{ '0' if id == screen else '-1' }}">{{ label }}</a>
-        {% endfor %}
-      </div>
-    </div>
-    <span class="text-muted-foreground">local only · fin {{ version }}</span>
+    {% include "_tabs.html" %}
+    <span class="status"><span class="dot"></span>local only · fin {{ version }}</span>
   </header>
   <div class="split">
     <main id="screen" role="tabpanel" aria-labelledby="tab-{{ screen }}">{% block screen %}{% endblock %}</main>

@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from fin import __version__
 from fin.audit.errors import DependencyMissing, FinError, UiUnavailable
 from fin.status import companies
+from fin.ui import format as ui_format
 from fin.ui import screens
 from fin.ui.action_routes import add_action_routes
 from fin.ui.chat_routes import add_chat_routes
@@ -71,6 +72,8 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
     app.middleware("http")(protect(token, port))
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     templates = Jinja2Templates(directory=TEMPLATE_DIR)
+    ui_format.register(templates.env)
+    templates.env.globals["SCREENS"] = SCREENS
 
     @app.exception_handler(FinError)
     async def fin_error(request: Request, exc: FinError) -> HTMLResponse:
@@ -88,7 +91,7 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
             context = {
                 "companies": companies(root),
                 "company": chosen,
-                "screens": SCREENS,
+                "tab_counts": screens.tab_counts(root, chosen),
                 "screen": screen,
                 "version": __version__,
                 "data": screen_data(screen, chosen),

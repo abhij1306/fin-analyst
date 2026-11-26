@@ -1,0 +1,37 @@
+{#- Shared pieces, so every screen has the same anatomy: page header, status badge, clipped text,
+    empty state. Basecoat supplies the components; these only fill them. -#}
+{% macro head(title, desc=none) %}
+<div class="page-head">
+  <div>
+    <h1>{{ title }}</h1>
+    {% if desc %}<p class="muted">{{ desc }}</p>{% endif %}
+  </div>
+  {% if caller %}<div class="page-actions">{{ caller() }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro badge(value, label=none, as=none) %}{% set t = as or (value | tone) -%}
+<span class="badge" data-variant="{{ 'destructive' if t == 'bad' else 'secondary' if t in ('ok', 'warn') else 'outline' }}" data-tone="{{ t }}">{{ label if label is not none else value }}</span>
+{%- endmacro %}
+
+{% macro clip(text, limit=60) -%}
+{% if text and text | length > limit %}<details class="clip" title="Click to show all"><summary>{{ text }}</summary></details>{% else %}{{ text if text else "" }}{% endif %}
+{%- endmacro %}
+
+{% macro empty(title, text=none) %}
+<div class="empty">
+  <header>
+    <h3>{{ title }}</h3>
+    {% if text %}<p class="muted">{{ text }}</p>{% endif %}
+  </header>
+</div>
+{% endmacro %}
+
+{% macro no_company() %}
+{{ head("fin", "Local financial analysis.") }}
+<div class="card"><section>{{ empty("No companies yet", "Put files in inbox/<company>/ and ingest them.") }}</section></div>
+{% endmacro %}
+
+{% macro no_engagement(message) %}
+<div class="card"><section>{{ empty("No engagement", message | code) }}</section></div>
+{% endmacro %}

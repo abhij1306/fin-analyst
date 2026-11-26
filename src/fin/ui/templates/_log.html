@@ -1,18 +1,28 @@
+{% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
 {% if data.empty %}
-<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
+{{ no_company() }}
 {% else %}
-<h2>Log</h2>
-<p class="text-muted-foreground">The latest runs for this company, newest first.</p>
-<table class="table">
-  <thead><tr><th>Started</th><th>Command</th><th>Status</th><th>Loaded</th><th>Failed</th><th>Run</th><th>Problems</th></tr></thead>
-  <tbody>
-    {% for r in data.runs %}
-    <tr><td>{{ r.started_at }}</td><td>{{ r.command }}</td><td><span class="badge-outline">{{ r.status or "running" }}</span></td>
-      <td>{{ r.loaded if r.loaded is not none else "" }}</td><td>{{ r.failed if r.failed is not none else "" }}</td><td>{{ r.run_id }}</td>
-      <td>{% for p in r.problems %}{{ p.error_code or p.level }}: {{ p.message }}<br>{% endfor %}</td></tr>
+{{ head("Log", "The latest runs for this company, newest first.") }}
+<div class="card">
+  <header><h2>Runs</h2><p>Every fin command with its run id.</p></header>
+  <section class="flush">
+    {% if data.runs %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Started</th><th>Command</th><th>Status</th><th class="num">Loaded</th><th class="num">Failed</th><th>Problems</th><th>Run</th></tr></thead>
+      <tbody>
+        {% for r in data.runs %}
+        {% set pv = r.problems | problems_view %}
+        <tr><td>{{ r.started_at | when }}</td><td>{{ r.command }}</td><td>{{ badge(r.status or "running") }}</td>
+          <td class="num">{{ r.loaded if r.loaded is not none else "" }}</td><td class="num">{{ r.failed if r.failed is not none else "" }}</td>
+          <td>{% if pv %}<details class="problems"><summary><span class="badge" data-variant="{{ 'destructive' if pv.tone == 'bad' else 'secondary' }}" data-tone="{{ pv.tone }}">{{ pv.label }}</span></summary>
+            <ul>{% for g in pv.groups %}<li>{{ g.code }}: {{ g.message }}{% if g.count > 1 %} <span class="muted">× {{ g.count }}</span>{% endif %}</li>{% endfor %}</ul></details>{% endif %}</td>
+          <td><span class="run">{{ r.run_id }}</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
     {% else %}
-    <tr><td colspan="7" class="text-muted-foreground">No runs yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <div class="pad">{{ empty("No runs yet.") }}</div>
+    {% endif %}
+  </section>
+</div>
 {% endif %}

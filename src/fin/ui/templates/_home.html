@@ -1,27 +1,32 @@
+{% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
 {% if data.empty %}
-<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
+{{ no_company() }}
 {% else %}
-<h2>{{ data.status.company }}</h2>
-<p class="text-muted-foreground">
-  Periods loaded: {{ data.periods }}
-  {% if data.status.gaps %} · gaps: {{ data.status.gaps | join(", ") }}{% endif %}
-  {% if data.status.diligence %} · engagement #{{ data.status.diligence.engagement_id }} open{% endif %}
-</p>
-<div class="cards">
+{% set desc = "Periods loaded: " ~ data.periods ~ (" · gaps: " ~ (data.status.gaps | join(", ")) if data.status.gaps else "") ~ (" · engagement #" ~ data.status.diligence.engagement_id ~ " open" if data.status.diligence else "") %}
+{{ head(data.status.company, desc) }}
+<div class="stats">
   {% for value, label in data.cards %}
-  <div class="card">
-    <section><strong>{{ value }}</strong><br><span class="text-muted-foreground">{{ label }}</span></section>
+  <div class="card" data-size="sm">
+    <section><p class="stat">{{ value }}</p><p class="muted">{{ label }}</p></section>
   </div>
   {% endfor %}
 </div>
-<table class="table">
-  <thead><tr><th>Waiting for you</th><th>Where</th></tr></thead>
-  <tbody>
-    {% for row in data.waiting %}
-    <tr><td>{{ row.text }}</td><td><a href="/{{ row.where | lower }}?company={{ company | urlencode }}">{{ row.where }}</a></td></tr>
+<div class="card">
+  <header><h2>Waiting for you</h2><p>Decisions only you can make.</p></header>
+  <section class="flush">
+    {% if data.waiting %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>What waits</th><th class="num">Screen</th></tr></thead><tbody>
+      {% for row in data.waiting %}
+      <tr>
+        <td>{{ row.text }}</td>
+        <td class="num"><a class="btn" data-size="sm" data-variant="outline" href="/{{ row.where | lower }}?company={{ company | urlencode }}">Open {{ row.where }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody></table></div>
     {% else %}
-    <tr><td colspan="2" class="text-muted-foreground">Nothing is waiting for you.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <div class="pad">{{ empty("Nothing is waiting for you.") }}</div>
+    {% endif %}
+  </section>
+</div>
 {% endif %}

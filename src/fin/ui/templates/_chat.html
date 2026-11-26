@@ -14,7 +14,7 @@
       <option value="{{ c.id }}"{% if chat.conv and c.id == chat.conv.id %} selected{% endif %}>{{ c.title }}</option>
       {% endfor %}
     </select>
-    <button type="button" class="btn-sm-outline" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
+    <button type="button" class="btn" data-size="sm" data-variant="outline" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
             hx-vals='{{ {"company": company or "", "new": "1"} | tojson }}'>New chat</button>
   </header>
   <section>
@@ -33,7 +33,7 @@
     <div class="chat-log" role="log" aria-label="Messages">
       <div>
         {% for i in chat.log %}{{ item(i, chat.conv.id) }}{% else %}
-        <p class="text-muted-foreground">Ask about {{ company or "a company" }}, or start with a skill below. Claude runs on your own Claude Code login.</p>
+        <p class="muted">Ask about {{ company or "a company" }}, or start with a skill below. Claude runs on your own Claude Code login.</p>
         {% endfor %}
         <div id="chat-turn"></div>
       </div>
@@ -48,7 +48,7 @@
   </section>
   <footer>
     <div>
-      {% for skill in chat.skills %}{{ ask(company, "/" ~ skill ~ " " ~ (company or "") ~ " ", "/" ~ skill, "btn-sm-outline") }}{% endfor %}
+      {% for skill in chat.skills %}{{ ask(company, "/" ~ skill ~ " " ~ (company or "") ~ " ", "/" ~ skill, "outline") }}{% endfor %}
     </div>
     <form class="form" hx-post="/chat/send" hx-target="#chat" hx-swap="outerHTML">
       <input type="hidden" name="conv" value="{{ chat.conv.id if chat.conv else '' }}">
@@ -57,7 +57,7 @@
       <div>
         <button type="submit" class="btn"{% if chat.running %} disabled{% endif %}>Send</button>
         {% if chat.running %}
-        <button type="button" class="btn-outline" hx-post="/chat/stop" hx-swap="none"
+        <button type="button" class="btn" data-variant="outline" hx-post="/chat/stop" hx-swap="none"
                 hx-vals='{{ {"conv": chat.conv.id} | tojson }}'>Stop</button>
         {% endif %}
       </div>

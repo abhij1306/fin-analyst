@@ -1,45 +1,70 @@
-{% if data.empty %}
-<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
-{% else %}
+{% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
 {% from "_actions.html" import act %}
-<h2>Files</h2>
-<form class="form" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
-  <input type="hidden" name="company" value="{{ company }}">
-  <label class="label" for="upload">Upload files (.xlsx, .xlsm, .pdf) to {{ data.inbox_folder }}</label>
-  <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.pdf">
-  <div><button type="submit" class="btn">Upload</button></div>
-</form>
-<p class="text-muted-foreground">Uploading only saves the files. Ask Claude in the chat to ingest them.</p>
-<h3>Loaded documents</h3>
-<table class="table">
-  <thead><tr><th>Document</th><th>Version</th><th>Year</th><th>Scope</th><th>Status</th><th>Loaded</th><th>Read by Claude</th></tr></thead>
-  <tbody>
-    {% for d in data.documents %}
-    <tr><td>{{ d.file_name }}</td><td>{{ d.version }}</td><td>{{ d.fiscal_year }}</td><td>{{ d.scope }}</td>
-      <td><span class="badge-outline">{{ d.status }}</span></td><td>{{ d.ingested_at }}</td>
-      <td>{{ "yes" if d.reading_path else "" }}{% if d.unread_pages %} · pages fin could not read: {{ d.unread_pages }}{% endif %}</td></tr>
-    {% else %}
-    <tr><td colspan="7" class="text-muted-foreground">Nothing is loaded yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
-<h3>In the inbox, not loaded</h3>
-{% if data.inbox %}
-<ul>{% for name in data.inbox %}<li>{{ name }}</li>{% endfor %}</ul>
+{% if data.empty %}
+{{ no_company() }}
 {% else %}
-<p class="text-muted-foreground">Nothing waiting in {{ data.inbox_folder }}</p>
-{% endif %}
-<h3>Findings on filed data</h3>
-<table class="table">
-  <thead><tr><th>Status</th><th>Document</th><th>Check</th><th>What does not add up</th><th>Source</th><th>Actions</th></tr></thead>
-  <tbody>
-    {% for f in data.findings %}
-    <tr><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.file_name }}</td><td>{{ f.code or f.check_name }}</td>
-      <td>{{ f.finding }}</td><td>{{ f.fin_source or "" }}{% if f.other_source %} vs {{ f.other_source }}{% endif %}</td>
-      <td>{% if f.status == "open" %}{{ act("finding-accept", f.finding_id, "Save as is", company, ask="Accept this finding: the figure stays as the company filed it, and the finding stays attached as accepted.") }}{% endif %}</td></tr>
+{{ head("Files", "Upload documents, see what is loaded and what does not add up.") }}
+<form class="card dropzone" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
+  <input type="hidden" name="company" value="{{ company }}">
+  <section>
+    <div class="dropzone-body">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+      <label class="label" for="upload">Choose Excel or PDF files to upload</label>
+      <p class="muted">.xlsx, .xlsm, .pdf · saved to {{ data.inbox_folder }} · uploading only saves the files; ask Claude in the chat to ingest them.</p>
+      <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.pdf">
+    </div>
+  </section>
+  <footer class="dropzone-foot"><button type="submit" class="btn">Upload</button></footer>
+</form>
+<div class="card">
+  <header><h2>Loaded documents</h2><p>What fin has read from the files.</p></header>
+  <section class="flush">
+    {% if data.documents %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Document</th><th>Period</th><th>Status</th><th>Read by Claude</th></tr></thead>
+      <tbody>
+        {% for d in data.documents %}
+        <tr><td class="fname">{{ d.file_name }}<span class="v">v{{ d.version }}</span><div class="sub">Loaded {{ d.ingested_at | when }}</div></td><td>{{ d.fiscal_year }} · {{ d.scope }}</td>
+          <td>{{ badge(d.status) }}</td>
+          <td>{% if d.reading_path %}{{ badge("read", "read by Claude", "neutral") }}{% else %}<span class="muted">–</span>{% endif %}{% if d.unread_pages %} <span class="muted">pages fin could not read:</span> {{ clip(d.unread_pages | string) }}{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
     {% else %}
-    <tr><td colspan="6" class="text-muted-foreground">No findings.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <div class="pad">{{ empty("Nothing is loaded yet.", "Upload files above, then ask Claude to ingest them.") }}</div>
+    {% endif %}
+  </section>
+</div>
+<div class="card">
+  <header><h2>In the inbox, not loaded</h2><p>Files waiting in {{ data.inbox_folder }}</p></header>
+  <section class="flush">
+    {% if data.inbox %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>File</th><th class="num">Status</th></tr></thead><tbody>
+      {% for name in data.inbox %}<tr><td class="fname">{{ name }}</td><td class="num">{{ badge("pending", "not loaded") }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% else %}
+    <div class="pad">{{ empty("Nothing waiting", "Every file in the inbox is loaded.") }}</div>
+    {% endif %}
+  </section>
+</div>
+<div class="card">
+  <header><h2>Findings on filed data</h2><p>What the company filed that does not add up. Save it as filed, or ask Claude to fix it.</p></header>
+  <section class="flush">
+    {% if data.findings %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Status</th><th>Document and source</th><th>Check</th><th>What does not add up</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for f in data.findings %}
+        <tr><td>{{ badge(f.status) }}</td><td class="fname">{{ f.file_name }}<div class="sub">{{ clip((f.fin_source or "") ~ (" vs " ~ f.other_source if f.other_source else ""), 40) }}</div></td><td>{{ f.code or f.check_name }}</td>
+          <td>{{ clip(f.finding) }}</td>
+          <td class="num act">{% if f.status == "open" %}{{ act("finding-accept", f.finding_id, "Save as is", company, ask="Accept this finding: the figure stays as the company filed it, and the finding stays attached as accepted.") }}{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No findings.") }}</div>
+    {% endif %}
+  </section>
+</div>
 {% endif %}

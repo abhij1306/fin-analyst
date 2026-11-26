@@ -95,7 +95,7 @@ def test_gate_approve_refuses_what_the_cli_refuses_and_shows_code_and_run_id(
     assert "cannot be approved before" in page
     assert "run_id " in page
     assert ("gate approve", "blocked") in runs(root)
-    assert "<h2>Gates</h2>" in page  # the screen is shown again
+    assert "<h1>Gates</h1>" in page  # the screen is shown again
 
 
 def test_the_gates_screen_confirms_approval_in_a_dialog(client: TestClient) -> None:
