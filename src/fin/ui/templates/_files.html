@@ -1,0 +1,36 @@
+{% if data.empty %}
+<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
+{% else %}
+<h2>Files</h2>
+<h3>Loaded documents</h3>
+<table class="table">
+  <thead><tr><th>Document</th><th>Version</th><th>Year</th><th>Scope</th><th>Status</th><th>Loaded</th><th>Read by Claude</th></tr></thead>
+  <tbody>
+    {% for d in data.documents %}
+    <tr><td>{{ d.file_name }}</td><td>{{ d.version }}</td><td>{{ d.fiscal_year }}</td><td>{{ d.scope }}</td>
+      <td><span class="badge-outline">{{ d.status }}</span></td><td>{{ d.ingested_at }}</td>
+      <td>{{ "yes" if d.reading_path else "" }}{% if d.unread_pages %} · pages fin could not read: {{ d.unread_pages }}{% endif %}</td></tr>
+    {% else %}
+    <tr><td colspan="7" class="text-muted-foreground">Nothing is loaded yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<h3>In the inbox, not loaded</h3>
+{% if data.inbox %}
+<ul>{% for name in data.inbox %}<li>{{ name }}</li>{% endfor %}</ul>
+{% else %}
+<p class="text-muted-foreground">Nothing waiting in {{ data.inbox_folder }}</p>
+{% endif %}
+<h3>Findings on filed data</h3>
+<table class="table">
+  <thead><tr><th>Status</th><th>Document</th><th>Check</th><th>What does not add up</th><th>Source</th></tr></thead>
+  <tbody>
+    {% for f in data.findings %}
+    <tr><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.file_name }}</td><td>{{ f.code or f.check_name }}</td>
+      <td>{{ f.finding }}</td><td>{{ f.fin_source or "" }}{% if f.other_source %} vs {{ f.other_source }}{% endif %}</td></tr>
+    {% else %}
+    <tr><td colspan="5" class="text-muted-foreground">No findings.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

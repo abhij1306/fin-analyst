@@ -1,0 +1,16 @@
+{% if data.empty %}
+<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
+{% else %}
+<h2>Reports</h2>
+<p class="text-muted-foreground">Written by fin into {{ data.folder }}. HTML opens in a new tab; Word, PDF and Excel download.</p>
+<table class="table">
+  <thead><tr><th>File</th></tr></thead>
+  <tbody>
+    {% for name in data.files %}
+    <tr><td><a href="/report-file?company={{ company | urlencode }}&amp;name={{ name | urlencode }}"{% if name.endswith(".html") %} target="_blank" rel="noopener"{% endif %}>{{ name }}</a></td></tr>
+    {% else %}
+    <tr><td class="text-muted-foreground">No report yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

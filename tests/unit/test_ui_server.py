@@ -1,6 +1,7 @@
 """The optional web UI server: its local-only protections and its pages (docs/web-ui-plan.md).
 Needs the `ui` extra (CI's ui job syncs it); skipped without it."""
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -124,3 +125,101 @@ def test_the_page_says_so_when_there_are_no_companies(data_root: Path) -> None:
         create_app(data_root, TOKEN, PORT), base_url=f"http://{HOST}", follow_redirects=False
     )
     assert "No companies yet" in signed_in(client).get("/").text
+
+
+def test_the_top_bar_is_a_tab_list_and_keeps_the_chosen_company(client: TestClient) -> None:
+    page = signed_in(client).get("/files?company=acme")
+    assert 'role="tablist"' in page.text
+    assert 'role="tabpanel" aria-labelledby="tab-files"' in page.text
+    assert 'id="tab-files" href="/files?company=acme"' in page.text
+    assert 'aria-controls="screen" aria-selected="true"' in page.text
+    assert 'id="tab-home" href="/?company=acme"' in page.text
+    assert page.text.count('aria-selected="true"') == 1
+
+
+def test_every_screen_opens_for_a_company_with_no_data(client: TestClient) -> None:
+    signed_in(client)
+    for screen in ("files", "mappings", "queries", "gates", "findings", "reports"):
+        page = client.get(f"/{screen}?company=acme")
+        assert page.status_code == 200, screen
+        assert f'aria-labelledby="tab-{screen}"' in page.text
+        partial = client.get(f"/partials/{screen}?company=acme")
+        assert partial.status_code == 200, screen
+        assert "<html" not in partial.text, screen
+
+
+def test_the_files_screen_lists_what_waits_in_the_inbox(client: TestClient) -> None:
+    page = signed_in(client).get("/files?company=acme")
+    assert "waiting.xlsx" in page.text
+    assert "Nothing is loaded yet." in page.text
+
+
+def test_queries_gates_and_findings_say_so_when_there_is_no_engagement(
+    client: TestClient,
+) -> None:
+    signed_in(client)
+    for screen in ("queries", "gates", "findings"):
+        assert "no engagement" in client.get(f"/partials/{screen}?company=acme").text
+
+
+def test_a_report_is_listed_opened_and_a_path_outside_the_folder_is_refused(
+    client: TestClient, data_root: Path
+) -> None:
+    folder = data_root / "reports" / "acme" / "consolidated"
+    folder.mkdir(parents=True)
+    (folder / "health.html").write_text("<p>report</p>", encoding="utf-8")
+    (folder / "narrative.md").write_text("x", encoding="utf-8")
+    (data_root / "secret.txt").write_text("secret", encoding="utf-8")
+    signed_in(client)
+    listing = client.get("/partials/reports?company=acme").text
+    assert "consolidated/health.html" in listing
+    assert "narrative.md" not in listing
+    opened = client.get("/report-file?company=acme&name=consolidated/health.html")
+    assert opened.status_code == 200
+    assert "content-disposition" not in opened.headers
+    sandbox = opened.headers["content-security-policy"].split()
+    assert sandbox[0] == "sandbox"
+    assert "allow-same-origin" not in sandbox
+    for name in ("../../secret.txt", "consolidated/narrative.md"):
+        refused = client.get("/report-file", params={"company": "acme", "name": name})
+        assert refused.status_code == 400
+        assert "E001" in refused.text
+
+
+def test_a_report_download_is_an_attachment(client: TestClient, data_root: Path) -> None:
+    folder = data_root / "reports" / "acme"
+    folder.mkdir(parents=True)
+    (folder / "acme_financials.xlsx").write_bytes(b"xlsx")
+    response = signed_in(client).get("/report-file?company=acme&name=acme_financials.xlsx")
+    assert "attachment" in response.headers["content-disposition"]
+
+
+def test_the_files_and_log_screens_show_a_loaded_company(
+    clean_root: Callable[..., Path], data_root: Path
+) -> None:
+    clean_root("kestrel")
+    client = TestClient(
+        create_app(data_root, TOKEN, PORT), base_url=f"http://{HOST}", follow_redirects=False
+    )
+    signed_in(client)
+    files = client.get("/partials/files?company=kestrel").text
+    assert "loaded" in files
+    assert "Nothing is loaded yet." not in files
+    log = client.get("/partials/log?company=kestrel").text
+    assert "ingest" in log
+    assert "E803" in client.get("/partials/gates?company=kestrel").text
+
+
+def test_the_gates_queries_and_findings_screens_show_an_open_engagement(tmp_path: Path) -> None:
+    from tests.engagement_root import engagement_root
+
+    root = engagement_root(tmp_path)
+    client = TestClient(
+        create_app(root, TOKEN, PORT), base_url=f"http://{HOST}", follow_redirects=False
+    )
+    signed_in(client)
+    gates = client.get("/partials/gates?company=acme").text
+    assert "G1" in gates
+    assert "Only you approve a gate." in gates
+    assert "No queries." in client.get("/partials/queries?company=acme").text
+    assert "No FDD findings." in client.get("/partials/findings?company=acme").text

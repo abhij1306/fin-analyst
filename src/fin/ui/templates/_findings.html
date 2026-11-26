@@ -1,0 +1,19 @@
+{% if data.empty %}
+<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
+{% elif data.no_engagement %}
+<p class="text-muted-foreground">{{ data.no_engagement }}</p>
+{% else %}
+<h2>FDD findings</h2>
+<p class="text-muted-foreground">Claude proposes findings; only you mark one final.</p>
+<table class="table">
+  <thead><tr><th>#</th><th>Status</th><th>Severity</th><th>Area</th><th>Title</th><th>Amount</th><th>Observation</th><th>Flags</th></tr></thead>
+  <tbody>
+    {% for f in data.findings %}
+    <tr><td>{{ f.finding_id }}</td><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.severity }}</td><td>{{ f.area }}</td>
+      <td>{{ f.title }}</td><td>{{ f.amount }}</td><td>{{ f.observation }}</td><td>{{ f.flags | join("; ") }}</td></tr>
+    {% else %}
+    <tr><td colspan="8" class="text-muted-foreground">No FDD findings.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
