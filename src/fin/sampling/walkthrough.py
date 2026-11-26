@@ -40,7 +40,7 @@ CHECKS = ("in_register", "contract_covers", "service_in_contract", "bank_matched
 RESULTS = ("pass", "exception", "not_available")
 
 
-def _item(number: int, item: Any, lines: int) -> dict[str, Any]:
+def _item(item: Any, lines: int) -> dict[str, Any]:
     """One validated result; ValueError says what is wrong."""
     if not isinstance(item, dict):
         raise ValueError("not an object")
@@ -80,7 +80,7 @@ def read_results(path: Path, lines: int) -> list[dict[str, Any]]:
     results, problems, seen = [], [], set()
     for number, item in enumerate(data, start=1):
         try:
-            result = _item(number, item, lines)
+            result = _item(item, lines)
         except ValueError as exc:
             problems.append(f"result {number}: {exc}")
             continue

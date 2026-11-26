@@ -52,9 +52,11 @@ def rows(table: Table, file: dict[str, Any], run_id: str, masker: Masker) -> lis
         where = f"{file['file_name']} {r.sheet}!row {r.row}"
         value = money(cells.get("value"), profile, f"{where} value")
         if customer is None or order_no is None or value is None:
-            what = (
-                "customer" if customer is None else "order number" if order_no is None else "value"
-            )
+            what = "value"
+            if customer is None:
+                what = "customer"
+            elif order_no is None:
+                what = "order number"
             raise OrderbookRowInvalid(
                 f"{where}: no {what} on a row with other cells; fin cannot use it. Nothing loaded"
             )
