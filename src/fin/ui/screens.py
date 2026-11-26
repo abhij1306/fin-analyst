@@ -109,7 +109,7 @@ def report_files(root: Path, company: str) -> list[str]:
     return sorted(
         p.relative_to(base).as_posix()
         for p in base.rglob("*")
-        if p.is_file() and p.suffix in REPORT_SUFFIXES
+        if p.is_file() and not p.is_symlink() and p.suffix in REPORT_SUFFIXES
     )
 
 

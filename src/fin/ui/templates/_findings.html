@@ -12,7 +12,7 @@
     <tr><td>{{ f.finding_id }}</td><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.severity }}</td><td>{{ f.area }}</td>
       <td>{{ f.title }}</td><td>{{ f.amount }}</td><td>{{ f.observation }}</td><td>{{ f.flags | join("; ") }}</td></tr>
     {% else %}
-    <tr><td colspan="9" class="text-muted-foreground">No FDD findings.</td></tr>
+    <tr><td colspan="8" class="text-muted-foreground">No FDD findings.</td></tr>
     {% endfor %}
   </tbody>
 </table>

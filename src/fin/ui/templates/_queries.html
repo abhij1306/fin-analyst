@@ -11,7 +11,7 @@
     <tr><td>{{ q.query_id }}</td><td><span class="badge-outline">{{ q.status }}</span></td><td>{{ q.period or "" }} {{ q.scope or "" }}</td>
       <td>{{ q.amount }}</td><td>{{ q.question }}</td><td>{{ q.answer or "" }}</td></tr>
     {% else %}
-    <tr><td colspan="9" class="text-muted-foreground">No queries.</td></tr>
+    <tr><td colspan="6" class="text-muted-foreground">No queries.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -24,7 +24,7 @@
       <td>{{ a.amount }}</td><td>{{ a.description }}</td>
       <td>{% if a.query_id %}query {{ a.query_id }} {% endif %}{% if a.finding_id %}finding {{ a.finding_id }} {% endif %}{{ a.source_ref or "" }}</td></tr>
     {% else %}
-    <tr><td colspan="9" class="text-muted-foreground">No adjustments.</td></tr>
+    <tr><td colspan="7" class="text-muted-foreground">No adjustments.</td></tr>
     {% endfor %}
   </tbody>
 </table>

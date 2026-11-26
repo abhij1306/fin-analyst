@@ -21,10 +21,31 @@ from fin.ui.security import new_token, protect
 from fin.ui.setup import STATIC_DIR, TEMPLATE_DIR
 
 DEFAULT_PORT = 8765
+REPORT_CSP = "sandbox allow-scripts allow-popups allow-downloads"
 SCREENS = [
     (name.lower(), name)
     for name in ("Home", "Files", "Mappings", "Queries", "Gates", "Findings", "Reports", "Log")
 ]  # (id, label): the tabs of the top bar, in order
+
+
+def known(root: Path, company: str | None) -> str | None:
+    """The company, or the first one when none is chosen; E001 for one that does not exist."""
+    names = companies(root)
+    if not company:
+        return names[0] if names else None
+    if company not in names:
+        raise DependencyMissing(
+            f"no company {company!r}: put its files in inbox/{company}/ and ingest them"
+        )
+    return company
+
+
+def report_response(path: Path) -> FileResponse:
+    """HTML opens in the browser, the others download. A sandboxed page has an opaque origin: its
+    scripts run, but it cannot use the token cookie or read the server's answers."""
+    if path.suffix != ".html":
+        return FileResponse(path, filename=path.name)
+    return FileResponse(path, headers={"Content-Security-Policy": REPORT_CSP})
 
 
 def create_app(root: Path, token: str, port: int) -> FastAPI:
@@ -40,24 +61,13 @@ def create_app(root: Path, token: str, port: int) -> FastAPI:
             request, "_error.html", {"error": f"{exc.code}: {exc.message}"}, status_code=400
         )
 
-    def known(company: str | None) -> str | None:
-        """The company, or the first one when none is chosen; E001 for one that does not exist."""
-        names = companies(root)
-        if not company:
-            return names[0] if names else None
-        if company not in names:
-            raise DependencyMissing(
-                f"no company {company!r}: put its files in inbox/{company}/ and ingest them"
-            )
-        return company
-
     def screen_data(screen: str, company: str | None) -> dict[str, object]:
         return {"empty": True} if company is None else screens.LOADERS[screen](root, company)
 
     def add_routes(screen: str) -> None:
         @app.get("/" if screen == "home" else f"/{screen}", response_class=HTMLResponse)
         def page(request: Request, company: str | None = None) -> HTMLResponse:
-            chosen = known(company)
+            chosen = known(root, company)
             context = {
                 "companies": companies(root),
                 "company": chosen,
@@ -70,7 +80,7 @@ def create_app(root: Path, token: str, port: int) -> FastAPI:
 
         @app.get(f"/partials/{screen}", response_class=HTMLResponse)
         def partial(request: Request, company: str | None = None) -> HTMLResponse:
-            chosen = known(company)
+            chosen = known(root, company)
             context = {"company": chosen, "data": screen_data(screen, chosen)}
             return templates.TemplateResponse(request, f"_{screen}.html", context)
 
@@ -80,8 +90,7 @@ def create_app(root: Path, token: str, port: int) -> FastAPI:
     @app.get("/report-file")
     def report_file(company: str, name: str) -> FileResponse:
         """A report or export of the company: HTML opens in the browser, the others download."""
-        path = screens.report_file(root, known(company) or "", name)
-        return FileResponse(path, filename=None if path.suffix == ".html" else path.name)
+        return report_response(screens.report_file(root, known(root, company) or "", name))
 
     return app
 

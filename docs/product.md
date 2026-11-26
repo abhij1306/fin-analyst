@@ -953,6 +953,6 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Queries: the open engagement's accountant queries and adjustments with status and evidence.
   - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`).
   - Findings: the engagement's FDD findings (not dropped) with status, severity, amount and flags.
-  - Reports: the HTML, Word, PDF and Excel files under `reports/<company>/`; HTML opens in the browser, the others download. A name that is not one of the listed files is refused with E001.
+  - Reports: the HTML, Word, PDF and Excel files under `reports/<company>/`; HTML opens in the browser as a sandboxed page (it cannot use the UI's token), the others download. A name that is not one of the listed files is refused with E001.
   - Log: the company's latest 100 runs (newest first) with their problems.
   - Queries, Gates and Findings say so (E803, or nothing loaded) when the company has no open engagement. No screen changes data; the decision buttons and uploads come in step 3.

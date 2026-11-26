@@ -1,7 +1,5 @@
 {% if data.empty %}
 <p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
-{% elif data.no_engagement %}
-<p class="text-muted-foreground">{{ data.no_engagement }}</p>
 {% else %}
 <h2>Reports</h2>
 <p class="text-muted-foreground">Written by fin into {{ data.folder }}. HTML opens in a new tab; Word, PDF and Excel download.</p>

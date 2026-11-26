@@ -1,7 +1,5 @@
 {% if data.empty %}
 <p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
-{% elif data.no_engagement %}
-<p class="text-muted-foreground">{{ data.no_engagement }}</p>
 {% else %}
 <h2>Files</h2>
 <h3>Loaded documents</h3>
@@ -13,7 +11,7 @@
       <td><span class="badge-outline">{{ d.status }}</span></td><td>{{ d.ingested_at }}</td>
       <td>{{ "yes" if d.reading_path else "" }}{% if d.unread_pages %} · pages fin could not read: {{ d.unread_pages }}{% endif %}</td></tr>
     {% else %}
-    <tr><td colspan="9" class="text-muted-foreground">Nothing is loaded yet.</td></tr>
+    <tr><td colspan="7" class="text-muted-foreground">Nothing is loaded yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -31,7 +29,7 @@
     <tr><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.file_name }}</td><td>{{ f.code or f.check_name }}</td>
       <td>{{ f.finding }}</td><td>{{ f.fin_source or "" }}{% if f.other_source %} vs {{ f.other_source }}{% endif %}</td></tr>
     {% else %}
-    <tr><td colspan="9" class="text-muted-foreground">No findings.</td></tr>
+    <tr><td colspan="5" class="text-muted-foreground">No findings.</td></tr>
     {% endfor %}
   </tbody>
 </table>

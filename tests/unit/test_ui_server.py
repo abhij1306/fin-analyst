@@ -144,7 +144,8 @@ def test_every_screen_opens_for_a_company_with_no_data(client: TestClient) -> No
         assert page.status_code == 200, screen
         assert f'aria-labelledby="tab-{screen}"' in page.text
         partial = client.get(f"/partials/{screen}?company=acme")
-        assert partial.status_code == 200 and "<html" not in partial.text, screen
+        assert partial.status_code == 200, screen
+        assert "<html" not in partial.text, screen
 
 
 def test_the_files_screen_lists_what_waits_in_the_inbox(client: TestClient) -> None:
@@ -174,10 +175,15 @@ def test_a_report_is_listed_opened_and_a_path_outside_the_folder_is_refused(
     assert "consolidated/health.html" in listing
     assert "narrative.md" not in listing
     opened = client.get("/report-file?company=acme&name=consolidated/health.html")
-    assert opened.status_code == 200 and "content-disposition" not in opened.headers
+    assert opened.status_code == 200
+    assert "content-disposition" not in opened.headers
+    sandbox = opened.headers["content-security-policy"].split()
+    assert sandbox[0] == "sandbox"
+    assert "allow-same-origin" not in sandbox
     for name in ("../../secret.txt", "consolidated/narrative.md"):
         refused = client.get("/report-file", params={"company": "acme", "name": name})
-        assert refused.status_code == 400 and "E001" in refused.text
+        assert refused.status_code == 400
+        assert "E001" in refused.text
 
 
 def test_a_report_download_is_an_attachment(client: TestClient, data_root: Path) -> None:
@@ -197,7 +203,8 @@ def test_the_files_and_log_screens_show_a_loaded_company(
     )
     signed_in(client)
     files = client.get("/partials/files?company=kestrel").text
-    assert "loaded" in files and "Nothing is loaded yet." not in files
+    assert "loaded" in files
+    assert "Nothing is loaded yet." not in files
     log = client.get("/partials/log?company=kestrel").text
     assert "ingest" in log
     assert "E803" in client.get("/partials/gates?company=kestrel").text
@@ -212,6 +219,7 @@ def test_the_gates_queries_and_findings_screens_show_an_open_engagement(tmp_path
     )
     signed_in(client)
     gates = client.get("/partials/gates?company=acme").text
-    assert "G1" in gates and "Only you approve a gate." in gates
+    assert "G1" in gates
+    assert "Only you approve a gate." in gates
     assert "No queries." in client.get("/partials/queries?company=acme").text
     assert "No FDD findings." in client.get("/partials/findings?company=acme").text

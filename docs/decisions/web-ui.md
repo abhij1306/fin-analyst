@@ -40,6 +40,6 @@ Builder readings of the owner's 2026-11-26 decisions in [../web-ui-plan.md](../w
 
 ## 7. Reports lists files that exist; it does not build them
 
-- **Decision**: the Reports screen lists the .html, .docx, .pdf and .xlsx files under `reports/<company>/` (health, diligence and FDD reports, the Excel export). HTML opens in a new tab; the rest download. The file route serves only a name that is in that list, so a path can never leave the folder (E001 otherwise). Making a report (the narrative, `fin report`) stays with Claude and the CLI until chat (PR 4). The plan's "dashboard link" is left out: the Evidence dashboards are served by their own command (`fin dashboard`), and the plan puts replacing them out of scope.
+- **Decision**: the Reports screen lists the .html, .docx, .pdf and .xlsx files under `reports/<company>/` (health, diligence and FDD reports, the Excel export). HTML opens in a new tab as a sandboxed page (`Content-Security-Policy: sandbox` without `allow-same-origin`, so it cannot use the token cookie); the rest download. The file route serves only a name that is in that list, so a path can never leave the folder (E001 otherwise). Making a report (the narrative, `fin report`) stays with Claude and the CLI until chat (PR 4). The plan's "dashboard link" is left out: the Evidence dashboards are served by their own command (`fin dashboard`), and the plan puts replacing them out of scope.
 - **Why**: read-only screens; a report is Claude's work and its numbers come from fin.
 - **How to change it**: `src/fin/ui/screens.py` (`report_files`).
