@@ -20,12 +20,16 @@ def chat_dir(root: Path) -> Path:
     return root / "chat"
 
 
-def _path(root: Path, conv_id: str) -> Path:
+def clean_id(conv_id: str) -> str:
+    """The id as a canonical UUID (also the Claude session id); E008 for anything else."""
     try:
-        clean = str(uuid.UUID(conv_id))
+        return str(uuid.UUID(conv_id))
     except ValueError:
         raise UiActionInvalid(f"unknown conversation {conv_id!r}") from None
-    return chat_dir(root) / f"{clean}.json"
+
+
+def _path(root: Path, conv_id: str) -> Path:
+    return chat_dir(root) / f"{clean_id(conv_id)}.json"
 
 
 def create(root: Path, company: str) -> Conversation:

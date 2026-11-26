@@ -1,10 +1,10 @@
 {% from "_chat_items.html" import item, ask %}
 {% if not chat %}
-<aside class="chat" id="chat" hx-get="/chat/panel{% if company %}?company={{ company | urlencode }}{% endif %}" hx-trigger="load" hx-swap="outerHTML">
+<aside class="chat" id="chat" aria-label="Chat with Claude" hx-get="/chat/panel{% if company %}?company={{ company | urlencode }}{% endif %}" hx-trigger="load" hx-swap="outerHTML">
   <header><h2>Chat with Claude</h2></header>
 </aside>
 {% else %}
-<aside class="chat" id="chat">
+<aside class="chat" id="chat" aria-label="Chat with Claude">
   <header>
     <h2>Chat with Claude</h2>
     <select class="select" name="conv" aria-label="Conversation" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
@@ -30,7 +30,7 @@
     {% if chat.notice %}
     <div class="alert" data-variant="destructive" role="alert"><h2>{{ chat.notice.code }}</h2><section>{{ chat.notice.message }}</section></div>
     {% endif %}
-    <div class="chat-log">
+    <div class="chat-log" role="log" aria-label="Messages">
       <div>
         {% for i in chat.log %}{{ item(i, chat.conv.id) }}{% else %}
         <p class="text-muted-foreground">Ask about {{ company or "a company" }}, or start with a skill below. Claude runs on your own Claude Code login.</p>

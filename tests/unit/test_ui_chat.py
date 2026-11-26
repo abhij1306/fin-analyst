@@ -98,7 +98,7 @@ def test_argv_denies_the_users_decisions_and_never_bypasses_permissions() -> Non
     assert "--allow-dangerously-skip-permissions" not in argv
     assert "bypassPermissions" not in argv
     assert argv[argv.index("--permission-mode") + 1] == "default"
-    assert ["--output-format", "stream-json"] == argv[argv.index("--output-format") :][:2]
+    assert argv[argv.index("--output-format") :][:2] == ["--output-format", "stream-json"]
     assert "--include-partial-messages" in argv
     assert "--session-id" in argv and "--resume" not in argv
     assert "--resume" in chat_args.turn_argv(["claude"], "sid", started=True)

@@ -69,6 +69,8 @@ class Reader:
             message = json.loads(text)
         except ValueError:
             return  # not a stream message (a stray log line)
+        if not isinstance(message, dict):
+            return
         kind = message.get("type")
         if kind in ("system", "result"):
             self.session = True
@@ -172,7 +174,7 @@ class Chat:
 
     def start(self, conv: chat_store.Conversation, text: str, once: str | None = None) -> Turn:
         """Start a turn. E011 when one is running; E009 when `claude` cannot start."""
-        conv_id = str(conv["id"])
+        conv_id = chat_store.clean_id(str(conv["id"]))  # never an option, whatever the file holds
         argv = chat_args.turn_argv(self.locate(), conv_id, bool(conv["started"]), once)
         with self.lock:
             if self.running(conv_id):
@@ -231,5 +233,5 @@ class Chat:
                 turn.process.kill()
 
     def stop_all(self) -> None:
-        for conv_id in list(self.turns):
+        for conv_id in self.turns.copy():
             self.stop(conv_id)

@@ -60,8 +60,10 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        yield
-        chat.stop_all()  # a Claude process does not outlive the server
+        try:
+            yield
+        finally:
+            chat.stop_all()  # a Claude process does not outlive the server
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.chat = chat
