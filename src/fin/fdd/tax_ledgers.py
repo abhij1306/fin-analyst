@@ -19,6 +19,7 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database
+from fin.diligence.mask import Masker
 from fin.map.review import LOW_CONFIDENCE, _current_actor
 
 CLASSES = ("gst_output", "gst_input", "rcm", "tds", "income_tax", "mat_credit")
@@ -110,7 +111,9 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
         rows = {r["ledger"]: r for r in read(con)}
         for number, proposal in enumerate(proposals, start=1):
             _check(number, proposal, ledgers, rows)
+        masker = Masker(con, run.run_id)
         for p in proposals:
+            p = {**p, "reason": masker.text(p["reason"])}
             values = [p["class"], float(p["confidence"]), p["reason"], run.run_id, utcnow()]
             con.execute(
                 "INSERT INTO tax_ledgers (ledger, status, tax_class, confidence, reason, run_id, "

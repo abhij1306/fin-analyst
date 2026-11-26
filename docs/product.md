@@ -505,7 +505,9 @@ NULLs. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): 
 mapping items waiting for review; its inputs include the figures, every `current_facts` value by account, period and
 scope, so a changed figure reopens it), G2 Reconciliation (no query in draft, and once a bank statement is loaded `bank_vs_invoices` and `bank_vs_tb` have run on current data with every line at or above the threshold in a query; its inputs are each query's id, wording and whether it is a draft and the latest bank reconciliation runs, so a new or
 edited query reopens it and sending, answering or closing one does not; unlocks `fin adjust accept|reject`), G4 Adjustments (no
-proposed adjustment, every accepted one has evidence; unlocks `fin engagement close`); G3 Recast sits between them (once a sales register is loaded,
+proposed adjustment, every accepted one has evidence, no FDD proposal waiting for the user: proposed net debt items,
+draft FDD findings, proposed net debt classes, tax classes and related party links (`fin/fdd/gate_checks.py`); its
+inputs include those tables, so a change to them reopens it; unlocks `fin engagement close`); G3 Recast sits between them (once a sales register is loaded,
 for every annual period: the recast ran on the current data, every undated sales invoice at or above the threshold is in a query, the
 period's recast difference has a proposed or decided `recast` adjustment; unlocks approving G4; `fin/reconcile/recast_checks.py`).
 `fin gate approve <co> <gate>` appends a row to `gate_approvals` (company database) with the sha256 of the gate's
@@ -542,7 +544,7 @@ date in another format is never dropped); and the outcome lists the trial balanc
 (`fin/diligence/mask.py`): ledgers and sub-groups under the profile's party groups (Sundry Debtors: customer, Sundry
 Creditors: vendor) are stored as tokens (`CUST-0001`, `VEND-0001`; the same value keeps its first token in every
 file, whatever kind it is found as later); known names in other ledger names and in masked fields (Ledger Vouchers
-particulars) are replaced as whole words (an employee code is never searched for in free text: a code such as 101 would rewrite amounts); a load that learns new names masks them in the free text already stored (bank remarks and reference, Ledger Vouchers particulars, register text fields, contract billing terms) in the same transaction and says how many earlier values changed, so the result does not depend on load order; the trial balance load lists the groups it treated as party groups (masked) and the other groups, with ledger counts; a Ledger Vouchers ledger not in its trial balance is masked as
+particulars) are replaced as whole words (an employee code is never searched for in free text: a code such as 101 would rewrite amounts); a load that learns new names masks them in the free text already stored (bank remarks and reference, Ledger Vouchers particulars, register text fields, contract terms, the FDD free text and the reasons stored with proposals: `FREE_TEXT_COLUMNS` in `fin/diligence/mask.py`) in the same transaction and says how many earlier values changed, so the result does not depend on load order; the trial balance load lists the groups it treated as party groups (masked) and the other groups, with ledger counts; a Ledger Vouchers ledger not in its trial balance is masked as
 `LEDG-0001`. `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), and `fin sql` runs with file access closed (no `read_csv`, `read_blob`, `glob`, `COPY` of a file: it cannot read the original files, the logs or the exports), and `fin sql --write` also refuses schema changes (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) and refuses to
 write `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements` and `bank_lines` (E806). One transaction per file; a later file of the
 same kind and period supersedes the earlier one and its findings; the same file again is E105 (even when superseded). A duplicate, layout,
@@ -640,7 +642,7 @@ names masked) and the yes/no clauses `auto_renew`, `termination_convenience`, `c
 (NULL), not "no clause". A vendor is checked against the purchase register, a customer against the sales register (E865).
 View `contract_coverage` (`db/schema/fdd_contracts.sql`): the customers (core revenue, pass-through customers left out) and vendors
 (purchases) of the engagement's last annual period, ranked by Amount in Rs, each with its contract that ends last: on file or not,
-expired, expires within 12 months of the period end, auto-renew, change of control, lock-in months left. `fin contracts coverage <co>`
+expired, expires within 12 months of the period end, auto-renew, change of control, lock-in months left (whole months from the period end, so a lock-in ending the next day has 0). `fin contracts coverage <co>`
 shows the top `[fdd] coverage_top_n` (default 10, config.toml; a file without `[fdd]` uses the default) of each; the data function is
 `fin.reconcile.contract_coverage.coverage`. `fin sample draw <co> --kind sales|purchase --period P [--n 25] [--seed S]` (`fin/sampling/draw.py`)
 takes every register line at or above the engagement threshold (largest first, up to n), then draws the rest at random from the lines below
@@ -789,9 +791,13 @@ with kind `doubtful_debts` or `gratuity`; E920) and the user confirms or rejects
 (`FDD_DEFAULTS` in `fin/config.py`); an unknown key or a value out of range is E002. `cutoff_days` and
 `unrecorded_days` are copied onto the engagement when it opens (columns of `engagement`, like the bank matching
 settings). Cut-off is two more reconciliations (`fin/reconcile/cutoff.py`), run by `fin reconcile <co>` and required by gate G2 where the registers
-reach the window: `sales_cutoff` lists sales invoices within `cutoff_days` (15) of a year end whose service starts
-on the other side (billed ahead, or billed late); `purchase_cutoff` lists purchase invoices within `unrecorded_days`
-(60) after a year end whose service started on or before it (possible unrecorded liabilities). One line per invoice
+reach the window: `sales_cutoff` lists sales invoices within `cutoff_days` (15) of a year end whose service is
+on the other side (billed ahead: invoiced by the year end, service starting after it; billed late: invoiced after it,
+service ended by it); `purchase_cutoff` lists purchase invoices within `unrecorded_days` (60) after a year end for a
+service that ended by it (possible unrecorded liabilities). In both, an invoice dated after the year end for a service
+that started by it and ends after it straddles the year end: it is its own line, its amount the part for the service
+days up to the year end (by days, in SQL), its note "straddles the year end". An invoice dated after the year end
+for a service that started by it and has no service end is flagged in full, its note saying the end is not known. One line per invoice
 number (left_only, Amount in Rs); at or above the threshold it needs a query (`fin query raise --items`). Register
 lines in the window with no service start, and registers that end before the window does, are listed as not
 reconciled. E922 when the period is not an annual period or no register line is in the window. Golden kinds:
@@ -820,7 +826,8 @@ in a currency other than INR are loaded but have no rupee amount ("not converted
 shows for the 12 months after the last annual period's end, for each of three sources, the items, what is still to come and the part that falls in
 that year (straight-line by day over the remaining term), with that part as a percentage of the last period's core revenue: the unbilled
 orderbook (value less billed to date, from the later of the start date and the day after the as-at date to the end date; an order with no end date
-is in the backlog but not spread); revenue billed but not yet earned at the period end (core sales register lines invoiced by then whose service
+is in the backlog but not spread; an order whose term ended by the as-at date adds nothing, "term over"); the output and the FDD report give the
+orderbook's as-at date and file, and say when the as-at date is not the period end; revenue billed but not yet earned at the period end (core sales register lines invoiced by then whose service
 period runs past it, the service-period recast's share); customer contract value remaining (F1 contracts ending after the period end, core
 customers; a contract whose value was not read has no amount). The sources overlap and are not added together; a source not loaded says so. The
 reconciliation `orderbook_vs_register` (`fin/reconcile/orderbook_vs_register.py`, in `RECONCILIATIONS`, so `fin reconcile` and gate G2 see
@@ -872,8 +879,10 @@ threshold are for queries, gate G2 requires the run once a reading has one. Gold
 FDD net debt and debt-like items (F4, `docs/fdd.md`; decisions in `docs/decisions/fdd-f4.md`): each trial balance
 ledger of the latest engagement has a net debt class (cash, debt, debt_like or none), one per ledger for every period
 end. fin defaults it from the ledger's confirmed account (view `netdebt_default_accounts`: borrowings, debt
-securities, subordinated liabilities and lease liabilities are debt; cash, other bank balances and cash and bank
-balances are cash; a profit and loss account is none) and leaves the rest unclassified. Claude proposes classes with a
+securities, subordinated liabilities and lease liabilities are debt; cash and cash and bank balances are cash; a
+profit and loss account is none) and leaves the rest unclassified, other bank balances (deposits, margin money,
+lien-marked balances) included, for the user to confirm. A proposal (classes here, provision ledgers too) must name a
+ledger of the latest engagement's loaded trial balances; its reason is stored masked. Claude proposes classes with a
 reason (`fin netdebt propose <co> <file.json>`, a JSON list of `{ledger, class, reason}`, E930; without a file it
 lists the unclassified ledgers) and the user confirms or rejects them (`fin review list|confirm|reject <co> [ids]
 --netdebt`, E931). A confirmed class wins over the default; a rejected one leaves the default. Debt-like items not in a
@@ -901,7 +910,10 @@ proposes one with `fin fdd finding propose <co> --area --title --observation --s
 a draft (`fin fdd finding update <co> <id> ...`, `fin fdd finding drop <co> <ids>`; E971). The amount is never typed:
 it is the linked adjustment's or net debt item's amount, a reconciliation run's lines at or above the threshold (sum
 of their absolute differences), else the linked query's amount, shown with where it comes from; the linked query's
-answer is the management response. The text is masked and may not hold a typed number or valuation, investment-rating
+answer is the management response. Making a finding final snapshots its amount, amount source, link status and
+management response; a final finding then shows that snapshot in `fin fdd finding list` and the report, with a flag
+"changed since final" and the values now when the live evidence differs; any finding whose linked adjustment or net
+debt item is rejected, or whose query is withdrawn, is flagged too. Returning it to draft clears the snapshot. The text is masked and may not hold a typed number or valuation, investment-rating
 or buy/don't-buy language (E970). Only the user marks a finding final (`fin fdd finding final <co> <ids>`, or
 `--undo` to return it to draft); the gate-guard hook asks the user before any such command. `fin fdd finding list <co>
 [--all] [--json]` lists them by severity. Table `fdd_findings` (`db/schema/fdd_findings.sql`, view

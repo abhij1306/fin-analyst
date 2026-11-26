@@ -253,6 +253,39 @@ def test_purchase_cutoff_flags_possible_unrecorded_liabilities(root: Path) -> No
     assert "within 60 days after the year end 2024-03-31" in result["lines"][0]["note"]
 
 
+def set_service_end(root: Path, invoice: str, end: str) -> None:
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "UPDATE register_lines SET service_end = ?::DATE WHERE invoice_no = ?", [end, invoice]
+        )
+
+
+def test_billed_late_needs_the_service_to_have_ended_by_the_year_end(root: Path) -> None:
+    set_service_end(root, "INV-2", "2024-03-31")  # fully performed in FY24
+    [result] = run_new(run(root), "acme", cutoff.SALES, "FY24")
+    line = next(x for x in result["lines"] if x["key"] == "INV-2")
+    assert line["difference"] == D("200000")
+    assert "ended on 2024-03-31: billed late" in line["note"]
+
+
+def test_a_sale_across_the_year_end_is_flagged_apart_for_the_part_before_it(root: Path) -> None:
+    set_service_end(root, "INV-2", "2024-04-13")  # 17 of 30 service days up to 2024-03-31
+    [result] = run_new(run(root), "acme", cutoff.SALES, "FY24")
+    line = next(x for x in result["lines"] if x["key"] == "INV-2")
+    assert line["difference"] == D("113333.33")  # 200000 x 17 / 30, in SQL
+    assert "straddles the year end" in line["note"] and "billed late" not in line["note"]
+    assert "billed ahead" in next(x for x in result["lines"] if x["key"] == "INV-1")["note"]
+
+
+def test_a_purchase_across_the_year_end_is_flagged_apart_for_the_part_before_it(
+    root: Path,
+) -> None:
+    set_service_end(root, "P-1", "2024-04-30")  # 31 of 61 service days up to 2024-03-31
+    [result] = run_new(run(root), "acme", cutoff.PURCHASE, "FY24")
+    assert [(x["key"], x["difference"]) for x in result["lines"]] == [("P-1", D("76229.51"))]
+    assert "straddles the year end" in result["lines"][0]["note"]
+
+
 def test_a_purchase_number_two_vendors_use_is_two_lines(root: Path) -> None:
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute(

@@ -8,8 +8,11 @@ final one to draft (`--undo`):
 
 The amount is never typed: it comes from the linked evidence (an adjustment, a net debt item, a
 reconciliation run, else a query; view `fdd_finding_rows`). The linked query's answer is the
-management response. Text is masked and has no typed number and no valuation, investment-rating or
-buy/don't-buy language (E970). `collect` is what the FDD report reads.
+management response. Making a finding final snapshots its amount, source, link status and response
+(`_snapshot`); a final one shows the snapshot, and `flags` says when the live evidence changed
+since, or when its link is rejected or withdrawn. Text is masked and has no typed number and no
+valuation, investment-rating or buy/don't-buy language (E970). `collect` is what the FDD report
+reads.
 """
 
 from typing import Any
@@ -138,8 +141,29 @@ def set_status(run: Run, company: str, ids: list[int], status: str) -> list[dict
                 "WHERE finding_id = ?",
                 [status, run.run_id, utcnow(), finding_id],
             )
+            _snapshot(con, finding_id, keep=status == "final")
             _log(run, company, finding_id, f"{before} -> {status}")
         return _rows(con, engagement_id, ids)
+
+
+def _snapshot(con: duckdb.DuckDBPyConnection, finding_id: int, keep: bool) -> None:
+    """Copy the live amount, source, link status and response into the final_* columns (what
+    the user signed off), or clear them when the finding returns to draft."""
+    if keep:
+        con.execute(
+            "UPDATE fdd_findings f SET final_amount = v.live_amount, "
+            "final_amount_source = v.live_amount_source, final_link_status = v.link_status, "
+            "final_response = v.live_response, final_response_source = v.live_response_source "
+            "FROM fdd_finding_rows v WHERE v.finding_id = f.finding_id AND f.finding_id = ?",
+            [finding_id],
+        )
+        return
+    con.execute(
+        "UPDATE fdd_findings SET final_amount = NULL, final_amount_source = NULL, "
+        "final_link_status = NULL, final_response = NULL, final_response_source = NULL "
+        "WHERE finding_id = ?",
+        [finding_id],
+    )
 
 
 def _one(
@@ -211,6 +235,32 @@ def format_finding(row: dict[str, Any]) -> str:
     if row["implication"]:
         lines.insert(2, f"  implication: {row['implication']}")
     if row["query_id"] is not None:
-        answer = row["management_response"] or f"no answer yet ({row['query_status']})"
+        answer = row["management_response"] or _no_answer(row)
         lines.append(f"  management response (query #{row['query_id']}): {answer}")
+    lines += [f"  FLAG: {flag}" for flag in flags(row)]
     return "\n".join(lines)
+
+
+def _no_answer(row: dict[str, Any]) -> str:
+    """No response: for a final finding, none when it was made final (its query may have been
+    answered since, which `flags` says); else none yet, with the query's status."""
+    if row["status"] == "final":
+        return "no answer when made final"
+    return f"no answer yet ({row['query_status']})"
+
+
+def flags(row: dict[str, Any]) -> list[str]:
+    """What the user should look at again: a final finding whose live evidence changed since it
+    was made final (with the values now), and a link that was rejected or withdrawn."""
+    out = []
+    if row.get("changed_since_final"):
+        now = (
+            f"{rupees(row['live_amount'])} from {row['live_amount_source']}"
+            if row["live_amount"] is not None
+            else "no amount"
+        )
+        response = row["live_response"] or "no answer"
+        out.append(f"changed since final: now {now}; management response now: {response}")
+    if row.get("link_flag"):
+        out.append(row["link_flag"])
+    return out

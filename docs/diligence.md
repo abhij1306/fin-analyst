@@ -171,7 +171,7 @@ The gates follow that.
 | G1 Ingestion | Every annual period in scope has a loaded document with figures for it; no held documents; no mapping items waiting for review. Its inputs include the figures (`current_facts`), so a changed figure reopens it. D2 adds: a trial balance and Ledger Vouchers per period (and for the stub); every ledger mapped; every TB ledger present in Ledger Vouchers; each audited year's TB ties to its statements (each account difference at or above the threshold is in a query). The stub has no audited statement: its TB is checked against Ledger Vouchers only, and it is marked unaudited. D3 adds: payroll unit confirmed (**built**, only when a payroll file is loaded, `fin/diligence/payroll.py`); every bank parse ties (**built**, only when a bank statement is loaded, `fin/diligence/bank_checks.py`: an accepted `bank_tie` finding counts; overlaps and balance gaps are listed, not blocking) | approving G2 | **Built** as "Ingestion": statement checks, and D2's trial balance checks once the engagement has a source file or a stub (`fin/diligence/tb_checks.py`) |
 | G2 Reconciliation | No query in draft. A new or reworded query reopens it; sending, answering, closing or withdrawing one does not. D4–D5 add: every required reconciliation ran; every line at or above the threshold is in a query (`fx` lines are listed, not queried). **D5 built**: with a bank statement loaded, `bank_vs_invoices` and `bank_vs_tb` ran on current data and their lines are queried (`bank_checks_g2.py`) | `fin adjust accept\|reject` | **Built** as "Reconciliation" |
 | G3 Recast | Every sales line at or above the threshold has service start and end dates, or is in a query; the recast ran for every period; each period's recast difference has a proposed or decided `recast` adjustment. Contracts are optional evidence | approving G4 | **Built** (`fin/reconcile/recast_checks.py`; [decisions/d6-recast.md](decisions/d6-recast.md)) |
-| G4 Adjustments | No proposed adjustment; every accepted one has evidence | `fin engagement close` | **Built** |
+| G4 Adjustments | No proposed adjustment; every accepted one has evidence; no FDD proposal waiting for the user (net debt items and classes, draft FDD findings, tax classes, related party links) | `fin engagement close` | **Built** |
 
 There is no report gate: the planned G5 is dropped. The diligence report (D7) shows the gate states it was rendered
 with. G1 and G2 are named "Ingestion" and "Reconciliation" (#68).
@@ -554,13 +554,19 @@ this file.
     ran on current data and has its lines at or above the threshold in a query: besides the bank ones, the cut-off
     (`sales_cutoff`, `purchase_cutoff`), GST (`gstr1_vs_sales_register`, `gstr3b_vs_gstr1`, `gstr3b_vs_books`, `rcm`),
     `orderbook_vs_register`, `walkthrough` and `rpt_vs_books` runs. Inquiries are queries, so a draft inquiry also blocks it.
-    FDD data outside these runs (net debt classes and items, provision and tax ledger classes, contract terms, disclosures,
-    findings) is under no gate: changing it does not reopen one.
+    The FDD proposals are under G4 (below).
   - **G3 Recast:** once a sales register is loaded, for every year: `fin recast run` ran on the current data, every sales
     invoice at or above the threshold with no service dates is in a query, and the year's recast difference has a
     proposed or decided `recast` adjustment. Needed to approve G4.
-  - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence. Needed by
-    `fin engagement close`.
+  - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence; no FDD proposal waiting for the
+    user (proposed net debt items, draft FDD findings, proposed net debt classes, tax classes and related party
+    links). Those FDD tables are among its inputs (findings with their live evidence, the linked query's answer and the
+    final snapshot), so a change to them reopens it. Needed by `fin engagement close`, also for an engagement whose only
+    work is FDD proposals.
+  - **Other FDD data and the gates:** provision ledgers, contracts and their terms, disclosures, samples and
+    walkthroughs, the orderbook and GST returns sit outside G1 to G3 and have no checklist line. What of them feeds a
+    reconciliation in `RECONCILIATIONS` (cut-off, GST, orderbook, walkthrough, related parties against the books)
+    is under G2 through that reconciliation's inputs; the rest changes without reopening a gate.
 
   A command that needs a gate that is not approved refuses with E801; a gate that cannot be approved yet, E802.
   `fin status` shows an open engagement's queries, proposed adjustments and gates.

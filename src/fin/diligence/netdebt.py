@@ -2,8 +2,9 @@
 
 Each trial balance ledger has a net debt class: cash, debt, debt_like or none. fin defaults it from
 the ledger's confirmed account (`netdebt_default_accounts` in db/schema/fdd_netdebt.sql: borrowings
-and lease liabilities are debt, cash and bank balances cash, a profit and loss account none) and
-leaves the rest unclassified. Claude proposes a class for a ledger with a reason (`propose`); the
+and lease liabilities are debt, cash cash, a profit and loss account none) and leaves the rest
+unclassified: other bank balances (deposits, margin money, lien-marked balances) wait for the
+user. Claude proposes a class for a ledger with a reason (`propose`); the
 user confirms or rejects it (`decide`, `fin review confirm|reject <co> <ids> --netdebt`); fin never
 confirms one on its own. A confirmed class wins over the default. Every change is a run event.
 
@@ -21,6 +22,7 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, rupees
+from fin.diligence.mask import Masker
 
 CLASSES = ("cash", "debt", "debt_like", "none")
 
@@ -35,9 +37,9 @@ def _check(number: int, proposal: Any, ledgers: set[str], confirmed: set[str]) -
         raise NetDebtClassInvalid(f"{what}: give the reason as text")
     if proposal["ledger"] not in ledgers:
         raise NetDebtClassInvalid(
-            f"{what}: {proposal['ledger']!r} is not a ledger of a loaded trial balance "
-            "(`fin netdebt propose <company>` lists the unclassified ones; party ledgers go by "
-            "their token)"
+            f"{what}: {proposal['ledger']!r} is not a ledger of a loaded trial balance of the "
+            "latest engagement (`fin netdebt propose <company>` lists the unclassified ones; "
+            "party ledgers go by their token)"
         )
     if proposal["ledger"] in confirmed:
         raise NetDebtClassInvalid(
@@ -56,7 +58,8 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
             ledger
             for (ledger,) in con.execute(
                 "SELECT DISTINCT t.ledger FROM trial_balance t JOIN source_files s USING (file_id) "
-                "WHERE s.status = 'loaded' AND t.row_type = 'ledger'"
+                "WHERE s.status = 'loaded' AND t.row_type = 'ledger' "
+                "AND s.engagement_id = (SELECT max(engagement_id) FROM engagement)"
             ).fetchall()
         }
         confirmed = {
@@ -71,8 +74,10 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
         if len(set(named)) != len(named):
             raise NetDebtClassInvalid("a ledger is proposed twice in the file; none stored")
         ids = []
+        masker = Masker(con, run.run_id)
         for p in proposals:
-            values = [p["ledger"], p["class"], p["reason"].strip(), run.run_id, utcnow()]
+            reason = masker.text(p["reason"].strip())
+            values = [p["ledger"], p["class"], reason, run.run_id, utcnow()]
             (class_id,) = con.execute(
                 "INSERT INTO netdebt_classes (ledger, debt_class, status, reason, run_id, "
                 "changed_at) VALUES (?, ?, 'proposed', ?, ?, ?) ON CONFLICT (ledger) DO UPDATE "

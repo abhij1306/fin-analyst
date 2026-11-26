@@ -139,6 +139,37 @@ def test_only_the_user_s_final_findings_reach_the_report(root: Path) -> None:
     assert in_report(root) == []
 
 
+def test_a_final_finding_shows_what_was_signed_off_and_flags_later_changes(root: Path) -> None:
+    signed = propose(root, query_id=1)["finding_id"]
+    findings.set_status(run(root), "acme", [signed], "final")
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE adjustments SET status = 'rejected' WHERE adj_id = 1")
+        con.execute("UPDATE accountant_queries SET status = 'withdrawn' WHERE query_id = 1")
+
+    [row] = findings.list_findings(run(root), "acme")
+
+    assert (row["amount"], row["amount_source"]) == (100000, "adjustment #1 (accepted)")
+    assert row["changed_since_final"] and row["link_status"] == "rejected"
+    assert row["link_flag"] == "linked adjustment #1 is rejected"
+    text = findings.format_finding(row)
+    assert "FLAG: changed since final: now" in text and "adjustment #1 (rejected)" in text
+    assert "**Flag**: linked adjustment #1 is rejected" in key_findings(
+        {"fdd_findings": [row], "drafts": False}, "rupees"
+    )
+    [back] = findings.set_status(run(root), "acme", [signed], "draft")
+    assert back["amount_source"] == "adjustment #1 (rejected)" and back["final_amount"] is None
+    assert not back["changed_since_final"]
+
+
+def test_a_withdrawn_query_is_flagged(root: Path) -> None:
+    queried = propose(root, adj_id=None, query_id=1)["finding_id"]
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE accountant_queries SET status = 'withdrawn' WHERE query_id = 1")
+    [row] = findings.list_findings(run(root), "acme")
+    assert row["finding_id"] == queried
+    assert findings.flags(row) == ["linked query #1 is withdrawn"]
+
+
 @pytest.fixture(scope="module")
 def report_data(base: Path, tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     """One final and one draft finding, read once with --drafts (the report data takes long)."""

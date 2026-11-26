@@ -21,7 +21,7 @@ Builder readings of `docs/fdd.md` F7; the owner confirms or changes them. Format
 - **Decision**: three sources, never added together because an order can also be in a contract.
   - Unbilled orderbook: value less billed to date, never below 0 (an order billed above its value is flagged), spread straight-line by days
     from the later of its start date and the day after the as-at date to its end date. No end date: counted in the backlog, not spread.
-    End date before that start: backlog counted, 0 covered ("term over").
+    End date before that start: 0 still to come and 0 covered ("term over"; changed by [fdd-review-fixes.md](fdd-review-fixes.md)).
   - Billed, not yet earned: core sales register lines invoiced up to the last period end whose service period runs past it: the amount
     times the share of service days after the period end. It is the service-period recast (D6) share, computed by day in SQL; it can differ from
     the recast's monthly paise rounding by under a rupee. A line with no usable service dates is recognised on its invoice date and has none.

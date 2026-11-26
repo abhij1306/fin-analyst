@@ -195,9 +195,11 @@ def open_engagement(
 
 def close_engagement(run: Run, company: str) -> dict[str, Any]:
     """Close the open engagement. E803 when there is none; E801 unless gate G4 (and every gate
-    before it) is approved. An engagement with no queries and no adjustments closes without its
-    gates: there is nothing to lose (one opened for periods without data could never close)."""
+    before it) is approved. An engagement with no queries, no adjustments and no FDD proposal
+    waiting for the user closes without its gates: there is nothing to lose (one opened for periods
+    without data could never close)."""
     from fin.diligence import gates  # gates imports this module
+    from fin.fdd import gate_checks
 
     with company_database(run, company, write=True) as con, transaction(con):
         engagement_id = require_open(con, company)["engagement_id"]
@@ -207,8 +209,9 @@ def close_engagement(run: Run, company: str) -> dict[str, Any]:
             [engagement_id, engagement_id],
         ).fetchone()
         assert work is not None
-        if work[0]:
-            gates.require(gates.context(con, run.root, company), "G4", "fin engagement close")
+        ctx = gates.context(con, run.root, company)
+        if work[0] or not all(ok for ok, _ in gate_checks.checklist(ctx)):
+            gates.require(ctx, "G4", "fin engagement close")
         con.execute(
             "UPDATE engagement SET status = 'closed', closed_run_id = ?, closed_at = ? "
             "WHERE engagement_id = ?",

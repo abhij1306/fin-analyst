@@ -16,12 +16,13 @@ Builder's readings of [fdd.md](../fdd.md) F4, not owner decisions. Scope reading
 ## Default classes
 
 - **Decision**: a ledger confirmed to `lt_borrowings`, `st_borrowings`, `borrowings`, `debt_securities`,
-  `subordinated_liabilities` or a lease liability account defaults to debt; one confirmed to `cash`,
-  `other_bank_balances` or `cash_and_bank_balances` defaults to cash; one confirmed to a profit and loss account
+  `subordinated_liabilities` or a lease liability account defaults to debt; one confirmed to `cash` or
+  `cash_and_bank_balances` defaults to cash; one confirmed to a profit and loss account
   defaults to none. Every other ledger (other balance sheet accounts, and ledgers with no confirmed account) is
   unclassified until the user confirms a class. A confirmed class wins over the default; rejecting it restores the
-  default. Other bank balances (fixed deposits, earmarked or margin money) count as cash by default. NEEDS CLIENT
-  CONFIRMATION (whether restricted bank balances should default to cash).
+  default. Other bank balances (fixed deposits, earmarked or margin money) have no default: they stay unclassified
+  until the user confirms a class ([fdd-review-fixes.md](fdd-review-fixes.md), orchestrator's reading). NEEDS
+  CLIENT CONFIRMATION (whether restricted bank balances are cash).
 - **Why**: the plan names borrowings and leases as debt and cash and bank as cash. Profit and loss ledgers carry no
   period-end balance to classify, so leaving them unclassified would only add review noise. Every other balance sheet
   ledger may be debt-like (provisions, statutory dues, tax payable, capex creditors, advances), so it is left for
@@ -54,7 +55,8 @@ Builder's readings of [fdd.md](../fdd.md) F4, not owner decisions. Scope reading
 - **Decision**: a debt-like item is proposed with a period (a year of the open engagement or its stub), a non-zero
   amount, a description and an evidence reference (free text: a query id, a fin output, file + page), with known
   names replaced by their tokens. The user accepts or rejects it (a reason is required to reject). Unlike adjustments,
-  accepting or rejecting does not need gate G2, and no gate requires net debt. Net debt is not a comparison of two
+  accepting or rejecting does not need gate G2. Since the review fixes, G4 needs no proposed item and no proposed
+  class, and a change to them reopens it ([fdd-review-fixes.md](fdd-review-fixes.md)). Net debt is not a comparison of two
   sources, so it writes no `recon_runs` / `recon_items` and drafts no query; a difference Claude finds while
   classifying is raised as a query the usual way.
 - **Why**: the plan says items are accepted or rejected "as for adjustments" (Claude proposes, the user decides),

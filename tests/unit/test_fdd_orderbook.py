@@ -180,6 +180,33 @@ def visibility_data(root: Path) -> dict[str, Any]:
         return visibility.visibility(con, 1)
 
 
+def test_an_order_whose_term_is_over_adds_nothing_still_to_come(full: Path) -> None:
+    with connect(company_db_path(full, "acme"), write=True) as con:
+        con.execute(
+            "UPDATE orderbook_lines SET end_date = DATE '2025-03-31' WHERE order_no = 'O-1'"
+        )
+
+    ob = sources(full)["orderbook"]
+
+    # O-1 (900000 unbilled) ended on the as-at date: neither still to come nor in the next year
+    assert ob["remaining_amount"] == Decimal(500000 + 150000)
+    assert "term over" in {n["note"] for n in _notes(full)}
+
+
+def test_the_orderbook_date_is_shown_and_flagged_when_not_the_period_end(full: Path) -> None:
+    text = visibility.format_visibility(visibility_data(full))
+    assert "orderbook as at 2025-03-31 (ob.xlsx)" in text and "not the period end" not in text
+
+    with connect(company_db_path(full, "acme"), write=True) as con:
+        con.execute("UPDATE orderbook_lines SET as_at = DATE '2025-04-30'")
+    data = visibility_data(full)
+
+    assert data["orderbook"]["as_at"].isoformat() == "2025-04-30"
+    assert "orderbook as at 2025-04-30 (ob.xlsx): not the period end 2025-03-31" in (
+        visibility.format_visibility(data)
+    )
+
+
 # --- orderbook_vs_register --------------------------------------------------------------------
 
 
