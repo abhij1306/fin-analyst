@@ -127,6 +127,10 @@ Claude shows each finding with both figures and where each came from, then asks 
 
 For a quality-of-earnings style review of one company, fin keeps questions for the company's accountant and proposed EBITDA adjustments beside the reported figures, never changing them: a difference is the company's to explain, so it becomes a query, not a fix. Claude drafts; you decide; fin sends nothing. Checkpoints (gates) stop the build until you approve them. Start with `/diligence <company>`; the full reference is [docs/diligence.md](docs/diligence.md).
 
+## Web UI (optional)
+
+Prefer a browser to the terminal? `./install.sh --ui` (or `uv run fin ui setup`) installs an optional web UI; start it with `uv run fin ui`. It shows what is loaded and waiting, has a button for every decision that is yours, takes uploads, and has a chat with Claude on the right of every screen. The chat runs your own installed Claude Code with your own login (no API key; it warns if `ANTHROPIC_API_KEY` is set), for you alone on this machine: it listens on 127.0.0.1 only and is not for hosting or sharing. Claude cannot take your decisions in it; they stay buttons. The CLI works as before without it.
+
 ## Pages fin can't read
 
 fin reads Excel files and digital PDFs. When it can't read a statement page (an unusual layout, a scanned PDF)

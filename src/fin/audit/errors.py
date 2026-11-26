@@ -130,6 +130,25 @@ class UiActionInvalid(FinError):
     code = "E008"
 
 
+class ChatUnavailable(FinError):
+    """E009. The UI chat cannot run Claude Code: `claude` is not installed or cannot start, or it
+    stopped with an error."""
+
+    code = "E009"
+
+
+class ChatNotLoggedIn(FinError):
+    """E010. Claude Code is installed but not logged in (the chat uses the user's own login)."""
+
+    code = "E010"
+
+
+class ChatBusy(FinError):
+    """E011. A turn of this conversation is still running: wait for it or press Stop."""
+
+    code = "E011"
+
+
 # E1xx: file intake. The file is skipped and moved to review/; the command completes with failures.
 
 

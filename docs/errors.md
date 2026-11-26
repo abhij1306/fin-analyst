@@ -14,6 +14,9 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E006 | `fin ui`: the web UI add-on is not installed, or its port is in use | Run `uv run fin ui setup` (or `./install.sh --ui`); for a busy port use `--port` |
 | E007 | The UI server refused a request: a Host that is not localhost or 127.0.0.1, a missing or wrong token, or a state-changing request that does not come from the UI's own page (Origin) | Open the link `fin ui` printed (it carries the token); do not reach the server through another name |
 | E008 | The UI refused a request to change data before it ran: an unknown action, a missing reason, or an upload that is too large, has an unsafe or unsupported name, or exists already | Fix the request: give the reason, rename the file (.xlsx, .xlsm or .pdf, plain name), or send fewer or smaller files |
+| E009 | The UI chat cannot run Claude Code: `claude` is not installed or cannot start, or it stopped with an error (the message has what it said) | Install Claude Code (https://claude.com/claude-code) and make sure `claude` runs in a terminal; read the message |
+| E010 | The UI chat: Claude Code is installed but not logged in | Run `claude` in a terminal once and log in (`/login`) with your own account |
+| E011 | The UI chat: a turn of this conversation is still running | Wait for it, or press Stop |
 | E101 | File is unreadable or corrupt, or the path does not exist (the message says where a company's files go: `<data folder>/inbox/<company>/`, lower-case name) | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
 | E102 | File is password protected | Save an unprotected copy and ingest that |
 | E103 | Unsupported file format | Convert it to `.xlsx` or a text PDF |
