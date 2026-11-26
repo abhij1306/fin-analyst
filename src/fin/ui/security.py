@@ -56,7 +56,9 @@ def protect(
             rest = [(k, v) for k, v in request.query_params.multi_items() if k != TOKEN_PARAM]
             target = request.url.path + (f"?{urlencode(rest)}" if rest else "")
             response = RedirectResponse(target, status_code=303)
-            response.set_cookie(COOKIE, token, httponly=True, samesite="strict", path="/")
+            response.set_cookie(  # NOSONAR: plain http on 127.0.0.1; Safari drops Secure cookies
+                COOKIE, token, httponly=True, samesite="strict", path="/"
+            )
             return response
         if not secrets.compare_digest(request.cookies.get(COOKIE, "").encode(), token.encode()):
             return refusal("open the link `fin ui` printed (it carries the token)", 401)
