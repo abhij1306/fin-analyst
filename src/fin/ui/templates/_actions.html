@@ -1,0 +1,35 @@
+{#- One decision button. With `ask` or `reason` it opens a Basecoat dialog first (a confirmation, or
+    the reason the CLI also needs); otherwise it posts at once. The answer replaces the screen. -#}
+{% macro act(action, item, label, company, ask=none, reason=none, variant="btn-sm-outline") %}
+{% set uid = action ~ "-" ~ item %}
+{% set fields %}<input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ item }}">{% endset %}
+{% if ask or reason %}
+<button type="button" class="{{ variant }}" onclick="document.getElementById('d-{{ uid }}').showModal()">{{ label }}</button>
+<dialog id="d-{{ uid }}" class="dialog w-full sm:max-w-[425px]" aria-labelledby="t-{{ uid }}" onclick="if (event.target === this) this.close()">
+  <div>
+    <header>
+      <h2 id="t-{{ uid }}">{{ label }}</h2>
+      {% if ask %}<p>{{ ask }}</p>{% endif %}
+    </header>
+    <form class="form grid gap-4" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
+      {{ fields }}
+      {% if reason %}
+      <div class="grid gap-2">
+        <label class="label" for="r-{{ uid }}">{{ reason }}</label>
+        <input class="input" id="r-{{ uid }}" name="reason" required>
+      </div>
+      {% endif %}
+      <footer>
+        <button type="button" class="btn-outline" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="btn">{{ label }}</button>
+      </footer>
+    </form>
+  </div>
+</dialog>
+{% else %}
+<form class="inline" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
+  {{ fields }}
+  <button type="submit" class="{{ variant }}">{{ label }}</button>
+</form>
+{% endif %}
+{% endmacro %}

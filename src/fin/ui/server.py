@@ -1,6 +1,6 @@
 """The UI server: a small FastAPI app that renders HTML pages (Jinja2, htmx, Basecoat) over fin's
 own modules (docs/web-ui-plan.md). Needs the `ui` extra; `fin.cli.ui` imports this module only
-when it is there. Every screen is read-only: no route changes data."""
+when it is there. The screens are read-only; only the POST routes of `action_routes` change data."""
 
 import socket
 import webbrowser
@@ -17,6 +17,8 @@ from fin import __version__
 from fin.audit.errors import DependencyMissing, FinError, UiUnavailable
 from fin.status import companies
 from fin.ui import screens
+from fin.ui.action_routes import add_action_routes
+from fin.ui.csrf import origin_guard
 from fin.ui.security import new_token, protect
 from fin.ui.setup import STATIC_DIR, TEMPLATE_DIR
 
@@ -51,6 +53,7 @@ def report_response(path: Path) -> FileResponse:
 def create_app(root: Path, token: str, port: int) -> FastAPI:
     """The app for one data folder."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app.middleware("http")(origin_guard(port))
     app.middleware("http")(protect(token, port))
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     templates = Jinja2Templates(directory=TEMPLATE_DIR)
@@ -92,6 +95,7 @@ def create_app(root: Path, token: str, port: int) -> FastAPI:
         """A report or export of the company: HTML opens in the browser, the others download."""
         return report_response(screens.report_file(root, known(root, company) or "", name))
 
+    add_action_routes(app, root, templates, known)
     return app
 
 

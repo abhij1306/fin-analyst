@@ -3,7 +3,7 @@
 Every failure path raises a subclass of `FinError`. Each class carries its code and the exit code
 a command returns when the error ends it:
 
-- E0xx (setup, including E006-E007 of the web UI), E5xx (database), E601-E603 (outputs) and E406
+- E0xx (setup, including E006-E008 of the web UI), E5xx (database), E601-E603 (outputs) and E406
   (accepting a finding that is not open) stop the command: exit 2.
 - E1xx-E3xx are per-document failures and E604 is flagged in the evidence page. The command
   completes and reports them: exit 1.
@@ -117,10 +117,17 @@ class UiUnavailable(FinError):
 
 
 class UiRequestRefused(FinError):
-    """E007. The UI server refused a request: a Host that is not localhost or 127.0.0.1, or a
-    missing or wrong token."""
+    """E007. The UI server refused a request: a Host that is not localhost or 127.0.0.1, a missing
+    or wrong token, or a state-changing request that does not come from the UI's own page."""
 
     code = "E007"
+
+
+class UiActionInvalid(FinError):
+    """E008. The UI refused a request to change data before it ran: an unknown action, a missing
+    reason, or an upload that is too large, has an unsafe or unsupported name or exists already."""
+
+    code = "E008"
 
 
 # E1xx: file intake. The file is skipped and moved to review/; the command completes with failures.

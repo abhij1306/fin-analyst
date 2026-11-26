@@ -14,7 +14,7 @@ Builder readings of the owner's 2026-11-26 decisions in [../web-ui-plan.md](../w
 - **Why**: the review notes of #106 (tab semantics; keep the company between screens).
 - **How to change it**: `src/fin/ui/server.py` (`SCREENS`), `templates/base.html`.
 
-## 3. The UI is read-only in this release, and the chat is a placeholder
+## 3. The chat is a placeholder until PR 4 (the screens became actionable in PR 3, see 8)
 
 - **Decision**: no route changes data; the chat panel says it is not connected and points to the terminal.
 - **Why**: PR 3 adds decisions with their run records and confirmations; PR 4 adds the chat.
@@ -43,3 +43,12 @@ Builder readings of the owner's 2026-11-26 decisions in [../web-ui-plan.md](../w
 - **Decision**: the Reports screen lists the .html, .docx, .pdf and .xlsx files under `reports/<company>/` (health, diligence and FDD reports, the Excel export). HTML opens in a new tab as a sandboxed page (`Content-Security-Policy: sandbox` without `allow-same-origin`, so it cannot use the token cookie); the rest download. The file route serves only a name that is in that list, so a path can never leave the folder (E001 otherwise). Making a report (the narrative, `fin report`) stays with Claude and the CLI until chat (PR 4). The plan's "dashboard link" is left out: the Evidence dashboards are served by their own command (`fin dashboard`), and the plan puts replacing them out of scope.
 - **Why**: read-only screens; a report is Claude's work and its numbers come from fin.
 - **How to change it**: `src/fin/ui/screens.py` (`report_files`).
+
+## 8. Decisions and uploads (PR 3)
+
+- **Decision** (builder's reading): the buttons are Mappings Confirm/Reject, Files Save as is, Queries Approve/Mark sent/Close/Withdraw, Adjustments Accept/Reject, Gates Approve, Findings Mark final/Return to draft. Dialogs: Gate approve and Mark final (as the plan says), plus Mark sent and Close (a query that was not sent must not be marked sent) and any action that needs a reason (Withdraw, Reject adjustment), because the CLI needs `--reason`. Mapping Confirm uses the proposed account and company scope (the CLI's defaults); a different account, name or parent stays in the CLI or chat. Answering a query and the other review kinds (ledgers, customers, tax, related, net debt, matches) are not in the plan's list and stay with the CLI and Claude.
+- **Decision**: every action runs in a run named like the CLI command (`gate approve`, `review confirm`, ...) and calls the same function, so refusals are the CLI's (E801, E802, E805, E971, E406, E304). A refusal shows "Not done: <code>", the message and the run_id; its run ends "blocked" or "error" as in the CLI. A bad request (unknown action, missing reason, bad id) is a new code E008 and starts no run, as the CLI's usage errors do.
+- **Decision**: CSRF is an Origin check (every non-GET must carry `Origin: http://127.0.0.1:<port>` or `http://localhost:<port>`) on top of the SameSite=Strict token cookie, rather than a per-page token: no state to keep, and a browser always sends Origin on cross-site POSTs. Refusal is E007 (403).
+- **Decision**: uploads take .xlsx, .xlsm and .pdf (what `fin ingest` reads), 50 MB per file, 100 MB per request, plain names only, never overwrite (the user renames: a changed file is a new version by name, and silently replacing a file in the inbox would hide that). New dependency `python-multipart` in the `ui` extra: FastAPI needs it to read form posts.
+- **Why**: only the person decides; the UI adds no second way to change data, and cannot do what the CLI refuses.
+- **How to change it**: `src/fin/ui/actions.py` (the actions table), `uploads.py`, `csrf.py`, the `_actions.html` macro.

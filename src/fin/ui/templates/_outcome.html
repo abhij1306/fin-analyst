@@ -1,0 +1,9 @@
+{% if outcome %}
+<div class="alert"{% if not outcome.ok %} data-variant="destructive"{% endif %} role="{{ 'status' if outcome.ok else 'alert' }}">
+  <h2>{{ "Done" if outcome.ok else "Not done" }}{% if outcome.code %}: {{ outcome.code }}{% endif %}</h2>
+  <section>
+    {% for line in outcome.lines %}<p>{{ line }}</p>{% endfor %}
+    {% if outcome.run_id %}<p class="text-muted-foreground">run_id {{ outcome.run_id }}</p>{% endif %}
+  </section>
+</div>
+{% endif %}

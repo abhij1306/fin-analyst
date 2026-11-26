@@ -3,16 +3,19 @@
 {% elif data.no_engagement %}
 <p class="text-muted-foreground">{{ data.no_engagement }}</p>
 {% else %}
+{% from "_actions.html" import act %}
 <h2>FDD findings</h2>
 <p class="text-muted-foreground">Claude proposes findings; only you mark one final.</p>
 <table class="table">
-  <thead><tr><th>#</th><th>Status</th><th>Severity</th><th>Area</th><th>Title</th><th>Amount</th><th>Observation</th><th>Flags</th></tr></thead>
+  <thead><tr><th>#</th><th>Status</th><th>Severity</th><th>Area</th><th>Title</th><th>Amount</th><th>Observation</th><th>Flags</th><th></th></tr></thead>
   <tbody>
     {% for f in data.findings %}
     <tr><td>{{ f.finding_id }}</td><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.severity }}</td><td>{{ f.area }}</td>
-      <td>{{ f.title }}</td><td>{{ f.amount }}</td><td>{{ f.observation }}</td><td>{{ f.flags | join("; ") }}</td></tr>
+      <td>{{ f.title }}</td><td>{{ f.amount }}</td><td>{{ f.observation }}</td><td>{{ f.flags | join("; ") }}</td>
+      <td>{% if f.status == "draft" %}{{ act("fdd-final", f.finding_id, "Mark final", company, ask="Mark this finding final: it appears in the FDD report with the amount and sources as they are now.") }}
+        {% elif f.status == "final" %}{{ act("fdd-draft", f.finding_id, "Return to draft", company) }}{% endif %}</td></tr>
     {% else %}
-    <tr><td colspan="8" class="text-muted-foreground">No FDD findings.</td></tr>
+    <tr><td colspan="9" class="text-muted-foreground">No FDD findings.</td></tr>
     {% endfor %}
   </tbody>
 </table>

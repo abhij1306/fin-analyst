@@ -1,7 +1,15 @@
 {% if data.empty %}
 <p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
 {% else %}
+{% from "_actions.html" import act %}
 <h2>Files</h2>
+<form class="form grid gap-2" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
+  <input type="hidden" name="company" value="{{ company }}">
+  <label class="label" for="upload">Upload files (.xlsx, .xlsm, .pdf) to {{ data.inbox_folder }}</label>
+  <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.pdf">
+  <div><button type="submit" class="btn">Upload</button></div>
+</form>
+<p class="text-muted-foreground">Uploading only saves the files. Ask Claude in the chat to ingest them.</p>
 <h3>Loaded documents</h3>
 <table class="table">
   <thead><tr><th>Document</th><th>Version</th><th>Year</th><th>Scope</th><th>Status</th><th>Loaded</th><th>Read by Claude</th></tr></thead>
@@ -23,13 +31,14 @@
 {% endif %}
 <h3>Findings on filed data</h3>
 <table class="table">
-  <thead><tr><th>Status</th><th>Document</th><th>Check</th><th>What does not add up</th><th>Source</th></tr></thead>
+  <thead><tr><th>Status</th><th>Document</th><th>Check</th><th>What does not add up</th><th>Source</th><th></th></tr></thead>
   <tbody>
     {% for f in data.findings %}
     <tr><td><span class="badge-outline">{{ f.status }}</span></td><td>{{ f.file_name }}</td><td>{{ f.code or f.check_name }}</td>
-      <td>{{ f.finding }}</td><td>{{ f.fin_source or "" }}{% if f.other_source %} vs {{ f.other_source }}{% endif %}</td></tr>
+      <td>{{ f.finding }}</td><td>{{ f.fin_source or "" }}{% if f.other_source %} vs {{ f.other_source }}{% endif %}</td>
+      <td>{% if f.status == "open" %}{{ act("finding-accept", f.finding_id, "Save as is", company, ask="Accept this finding: the figure stays as the company filed it, and the finding stays attached as accepted.") }}{% endif %}</td></tr>
     {% else %}
-    <tr><td colspan="5" class="text-muted-foreground">No findings.</td></tr>
+    <tr><td colspan="6" class="text-muted-foreground">No findings.</td></tr>
     {% endfor %}
   </tbody>
 </table>
