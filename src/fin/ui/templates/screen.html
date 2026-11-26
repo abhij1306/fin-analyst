@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_chat_items.html" import ask %}
 {% block screen %}
-{% if company %}<p>{{ ask(company, "About " ~ company ~ ", " ~ screen ~ " screen: ") }}</p>{% endif %}
+{% if company %}<div class="screen-ask">{{ ask(company, "About " ~ company ~ ", " ~ screen ~ " screen: ", variant="outline") }}</div>{% endif %}
 {% include "_" ~ screen ~ ".html" %}
 {% endblock %}

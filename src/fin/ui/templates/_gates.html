@@ -1,21 +1,27 @@
-{% if data.empty %}
-<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
-{% elif data.no_engagement %}
-<p class="text-muted-foreground">{{ data.no_engagement }}</p>
-{% else %}
+{% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
 {% from "_actions.html" import act %}
-<h2>Gates</h2>
-<p class="text-muted-foreground">Engagement #{{ data.engagement_id }}. Only you approve a gate.</p>
+{% if data.empty %}
+{{ no_company() }}
+{% elif data.no_engagement %}
+{{ head("Gates", "A gate stops the build until you approve it.") }}
+{{ no_engagement(data.no_engagement) }}
+{% else %}
+{{ head("Gates", "Engagement #" ~ data.engagement_id ~ ". Only you approve a gate. A gate reopens by itself when the data under it changes.") }}
 {% for g in data.gates %}
 <div class="card">
-  <header><h3>{{ g.gate }} {{ g.title }} <span class="badge-outline">{{ g.state }}</span></h3>
-    {% if g.reason %}<p>{{ g.reason }}</p>{% endif %}</header>
+  <header>
+    <h2>{{ g.gate }} · {{ g.title }}</h2>
+    <div class="card-action">{{ badge(g.state) }}</div>
+    {% if g.reason %}<p>{{ g.reason }}</p>{% endif %}
+  </header>
   <section>
-    <ul>{% for line in g.checklist %}<li>{{ "pass" if line.ok else "FAIL" }}: {{ line.text }}</li>{% endfor %}</ul>
-    <p class="text-muted-foreground">Unlocks: {{ g.unlocks }}</p>
+    <ul class="checks">{% for line in g.checklist %}
+      <li data-ok="{{ 'true' if line.ok else 'false' }}"><span class="mark" aria-hidden="true">{{ "✓" if line.ok else "✗" }}</span><span class="visually-hidden">{{ "pass" if line.ok else "FAIL" }}: </span>{{ line.text }}</li>
+    {% endfor %}</ul>
+    <p class="muted">Unlocks: {{ g.unlocks }}</p>
   </section>
   {% if g.state != "approved" %}
-  <footer>{{ act("gate-approve", g.gate, "Approve " ~ g.gate, company, ask="Approve " ~ g.gate ~ " " ~ g.title ~ "? Later steps unlock on it, and it reopens by itself if the data under it changes. fin refuses while its checklist fails or an earlier gate is not approved.", variant="btn") }}</footer>
+  <footer>{{ act("gate-approve", g.gate, "Approve " ~ g.gate, company, ask="Approve " ~ g.gate ~ " " ~ g.title ~ "? Later steps unlock on it, and it reopens by itself if the data under it changes. fin refuses while its checklist fails or an earlier gate is not approved.", variant="primary") }}<span class="muted">Only you can press this. Claude cannot approve gates.</span></footer>
   {% endif %}
 </div>
 {% endfor %}

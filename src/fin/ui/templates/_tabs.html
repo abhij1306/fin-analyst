@@ -1,0 +1,10 @@
+{#- The tabs of the top bar. After a decision they are sent again out of band so the counts stay current.
+    Each tab is a link to its screen, so every tab stays in the Tab order (no arrow-key roving focus). -#}
+<div class="tabs" id="tabs"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div role="tablist" aria-orientation="horizontal" aria-label="Screens">
+    {% for id, label in SCREENS %}
+    <a role="tab" id="tab-{{ id }}" href="{{ '/' if id == 'home' else '/' ~ id }}{% if company %}?company={{ company | urlencode }}{% endif %}"
+       aria-controls="screen" aria-selected="{{ 'true' if id == screen else 'false' }}">{{ label }}{% if (tab_counts or {}).get(id) %}<span class="badge" data-variant="primary">{{ tab_counts[id] }}</span>{% endif %}</a>
+    {% endfor %}
+  </div>
+</div>

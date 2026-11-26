@@ -1,23 +1,30 @@
-{% if data.empty %}
-<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
-{% else %}
+{% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
 {% from "_actions.html" import act %}
 {% from "_chat_items.html" import ask %}
-<h2>Mappings</h2>
-<p class="text-muted-foreground">Labels fin could not map. Claude proposes; you review them.</p>
-<table class="table">
-  <thead><tr><th>#</th><th>Label</th><th>Statement</th><th>Section</th><th>Facts</th><th>Status</th><th>Proposed account</th><th>Confidence</th><th>Where</th><th>Actions</th></tr></thead>
-  <tbody>
-    {% for i in data.pending %}
-    <tr><td>{{ i.id }}</td><td>{{ i.label }}</td><td>{{ i.statement }}</td><td>{{ i.section }}</td><td>{{ i.facts }}</td>
-      <td><span class="badge-outline">{{ i.status }}</span></td><td>{{ i.account or "" }}</td>
-      <td>{{ i.confidence if i.confidence is not none else "" }}</td><td>{{ i.where | join("; ") }}</td>
-      <td>{% if i.account %}{{ act("mapping-confirm", i.id, "Confirm", company) }}{% endif %}
-        {{ act("mapping-reject", i.id, "Reject", company) }}
-        {{ ask(company, "About " ~ company ~ ", mapping item " ~ i.id ~ " (" ~ i.label ~ "): ") }}</td></tr>
+{% if data.empty %}
+{{ no_company() }}
+{% else %}
+{{ head("Mappings", "Labels fin could not map. Claude proposes; you review them.") }}
+<div class="card">
+  <header><h2>Waiting for review</h2><p>Confirm a proposal to map the label, or reject it.</p></header>
+  <section class="flush">
+    {% if data.pending %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>Label</th><th>Statement</th><th>Section</th><th class="num">Facts</th><th>Status</th><th>Proposed account</th><th class="num">Confidence</th><th>Where</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for i in data.pending %}
+        <tr><td class="num">{{ i.id }}</td><td>{{ clip(i.label, 40) }}</td><td>{{ i.statement }}</td><td>{{ i.section }}</td><td class="num">{{ i.facts }}</td>
+          <td>{{ badge(i.status) }}</td><td>{{ i.account or "" }}</td>
+          <td class="num">{{ i.confidence if i.confidence is not none else "" }}</td><td>{{ clip(i.where | join("; "), 40) }}</td>
+          <td class="act"><div class="actions">{% if i.account %}{{ act("mapping-confirm", i.id, "Confirm", company) }}{% endif %}
+            {{ act("mapping-reject", i.id, "Reject", company, variant="ghost") }}
+            {{ ask(company, "About " ~ company ~ ", mapping item " ~ i.id ~ " (" ~ i.label ~ "): ") }}</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
     {% else %}
-    <tr><td colspan="10" class="text-muted-foreground">No mapping waits for review.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <div class="pad">{{ empty("No mapping waits for review.") }}</div>
+    {% endif %}
+  </section>
+</div>
 {% endif %}

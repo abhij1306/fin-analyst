@@ -45,6 +45,13 @@ def home(root: Path, company: str) -> dict[str, Any]:
     return views.home(company_status(_run("home", root, company), company))
 
 
+def tab_counts(root: Path, company: str | None) -> dict[str, int]:
+    """The counts on the tabs of the top bar for the company."""
+    if company is None:
+        return {}
+    return views.tab_counts(company_status(_run("tabs", root, company), company))
+
+
 def files(root: Path, company: str) -> dict[str, Any]:
     documents: list[dict[str, Any]] = []
     path = company_db_path(root, company)

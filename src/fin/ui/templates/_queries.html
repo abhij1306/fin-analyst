@@ -1,42 +1,56 @@
-{% if data.empty %}
-<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
-{% elif data.no_engagement %}
-<p class="text-muted-foreground">{{ data.no_engagement }}</p>
-{% else %}
+{% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
 {% from "_actions.html" import act %}
 {% from "_chat_items.html" import ask %}
-<h2>Queries</h2>
-<table class="table">
-  <thead><tr><th>#</th><th>Status</th><th>Period</th><th>Amount</th><th>Question</th><th>Answer</th><th>Actions</th></tr></thead>
-  <tbody>
-    {% for q in data.queries %}
-    <tr><td>{{ q.query_id }}</td><td><span class="badge-outline">{{ q.status }}</span></td><td>{{ q.period or "" }} {{ q.scope or "" }}</td>
-      <td>{{ q.amount }}</td><td>{{ q.question }}</td><td>{{ q.answer or "" }}</td>
-      <td>
-        {% if q.status == "draft" %}{{ act("query-approve", q.query_id, "Approve", company) }}{% endif %}
-        {% if q.status == "approved" %}{{ act("query-sent", q.query_id, "Mark sent", company, ask="Only mark it sent if you sent it to the accountant. fin sends nothing.") }}{% endif %}
-        {% if q.status == "answered" %}{{ act("query-close", q.query_id, "Close", company, ask="Close the query: the answer settles it.") }}{% endif %}
-        {% if q.status in ("draft", "approved", "sent", "answered") %}{{ act("query-withdraw", q.query_id, "Withdraw", company, reason="Why is it dropped?") }}{% endif %}
-        {{ ask(company, "About " ~ company ~ ", query " ~ q.query_id ~ ": ") }}
-      </td></tr>
+{% if data.empty %}
+{{ no_company() }}
+{% elif data.no_engagement %}
+{{ head("Queries", "Questions for the company and adjustments to EBITDA.") }}
+{{ no_engagement(data.no_engagement) }}
+{% else %}
+{{ head("Queries and adjustments", "Claude drafts; you approve. fin never sends anything: mark a query sent when you have sent it.") }}
+<div class="card">
+  <header><h2>Queries</h2><p>Questions for the company's accountant.</p></header>
+  <section class="flush">
+    {% if data.queries %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>Status</th><th>Period</th><th class="num">Amount</th><th>Question</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for q in data.queries %}
+        <tr><td class="num">{{ q.query_id }}</td><td>{{ badge(q.status) }}</td><td>{{ q.period or "" }}<div class="sub">{{ q.scope or "" }}</div></td>
+          <td class="num">{{ q.amount }}</td><td>{{ clip(q.question, 40) }}{% if q.answer %}<div class="sub">Answer: {{ clip(q.answer, 40) }}</div>{% endif %}</td>
+          <td class="act"><div class="actions">
+            {% if q.status == "draft" %}{{ act("query-approve", q.query_id, "Approve", company) }}{% endif %}
+            {% if q.status == "approved" %}{{ act("query-sent", q.query_id, "Mark sent", company, ask="Only mark it sent if you sent it to the accountant. fin sends nothing.") }}{% endif %}
+            {% if q.status == "answered" %}{{ act("query-close", q.query_id, "Close", company, ask="Close the query: the answer settles it.") }}{% endif %}
+            {% if q.status in ("draft", "approved", "sent", "answered") %}{{ act("query-withdraw", q.query_id, "Withdraw", company, reason="Why is it dropped?", variant="ghost") }}{% endif %}
+            {{ ask(company, "About " ~ company ~ ", query " ~ q.query_id ~ ": ") }}
+          </div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
     {% else %}
-    <tr><td colspan="7" class="text-muted-foreground">No queries.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
-<h2>Adjustments</h2>
-<table class="table">
-  <thead><tr><th>#</th><th>Status</th><th>Period</th><th>Category</th><th>EBITDA effect</th><th>Description</th><th>Evidence</th><th>Actions</th></tr></thead>
-  <tbody>
-    {% for a in data.adjustments %}
-    <tr><td>{{ a.adj_id }}</td><td><span class="badge-outline">{{ a.status }}</span></td><td>{{ a.period }} {{ a.scope }}</td><td>{{ a.category }}</td>
-      <td>{{ a.amount }}</td><td>{{ a.description }}</td>
-      <td>{% if a.query_id %}query {{ a.query_id }} {% endif %}{% if a.finding_id %}finding {{ a.finding_id }} {% endif %}{{ a.source_ref or "" }}</td>
-      <td>{% if a.status == "proposed" %}{{ act("adjust-accept", a.adj_id, "Accept", company) }}
-        {{ act("adjust-reject", a.adj_id, "Reject", company, reason="Why is it rejected?") }}{% endif %}</td></tr>
+    <div class="pad">{{ empty("No queries.") }}</div>
+    {% endif %}
+  </section>
+</div>
+<div class="card">
+  <header><h2>Adjustments</h2><p>Proposed EBITDA adjustments, each with its evidence.</p></header>
+  <section class="flush">
+    {% if data.adjustments %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>Status</th><th>Period</th><th>Category</th><th class="num">EBITDA effect</th><th>Description</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for a in data.adjustments %}
+        <tr><td class="num">{{ a.adj_id }}</td><td>{{ badge(a.status) }}</td><td>{{ a.period }}<div class="sub">{{ a.scope }}</div></td><td>{{ a.category }}</td>
+          <td class="num">{{ a.amount }}</td><td>{{ clip(a.description, 40) }}<div class="sub">Evidence: {% if a.query_id %}query {{ a.query_id }} {% endif %}{% if a.finding_id %}finding {{ a.finding_id }} {% endif %}{{ a.source_ref or "" }}</div></td>
+          <td class="act"><div class="actions">{% if a.status == "proposed" %}{{ act("adjust-accept", a.adj_id, "Accept", company) }}
+            {{ act("adjust-reject", a.adj_id, "Reject", company, reason="Why is it rejected?", variant="ghost") }}{% endif %}</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
     {% else %}
-    <tr><td colspan="8" class="text-muted-foreground">No adjustments.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <div class="pad">{{ empty("No adjustments.") }}</div>
+    {% endif %}
+  </section>
+</div>
 {% endif %}

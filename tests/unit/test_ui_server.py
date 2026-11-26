@@ -104,7 +104,7 @@ def test_the_home_partial_is_the_screen_only(client: TestClient) -> None:
     partial = signed_in(client).get("/partials/home?company=acme")
     assert partial.status_code == 200
     assert "<html" not in partial.text
-    assert "<h2>acme</h2>" in partial.text
+    assert "<h1>acme</h1>" in partial.text
 
 
 def test_an_unknown_company_is_e001_shown_as_an_alert(client: TestClient) -> None:

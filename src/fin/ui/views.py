@@ -3,6 +3,10 @@ user. Plain data for the templates; every number comes from `fin.status`."""
 
 from typing import Any
 
+# Query statuses with a button for the user: approve a draft, mark an approved one sent,
+# close an answered one.
+QUERY_ACTIONABLE = ("draft", "approved", "answered")
+
 
 def periods_line(status: dict[str, Any]) -> str:
     periods = status["periods"]
@@ -27,6 +31,20 @@ def next_gate(status: dict[str, Any]) -> tuple[str, str] | None:
     """The first gate that is not approved, as (name, state)."""
     gates = (status["diligence"] or {}).get("gates", {})
     return next(((name, state) for name, state in gates.items() if state != "approved"), None)
+
+
+def tab_counts(status: dict[str, Any]) -> dict[str, int]:
+    """The number on a tab: what waits for the user there. Empty tabs are left out."""
+    diligence = status["diligence"] or {}
+    gates = diligence.get("gates", {})
+    counts = {
+        "files": status["open_findings"] + len(status["inbox_not_ingested"]),
+        "mappings": status["pending_mappings"],
+        "queries": sum(diligence.get("queries", {}).get(s, 0) for s in QUERY_ACTIONABLE)
+        + diligence.get("proposed_adjustments", 0),
+        "gates": sum(1 for state in gates.values() if state != "approved"),
+    }
+    return {screen: n for screen, n in counts.items() if n}
 
 
 def home(status: dict[str, Any]) -> dict[str, Any]:

@@ -26,6 +26,7 @@ def add_action_routes(
     ) -> HTMLResponse:
         context = {
             "company": company,
+            "tab_counts": screens.tab_counts(root, company or None),
             "data": screens.LOADERS[screen](root, company),
             "screen": screen,
             "outcome": outcome,

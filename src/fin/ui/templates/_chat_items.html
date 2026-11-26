@@ -1,9 +1,9 @@
 {#- One thing the chat shows. Used for the stored conversation, the live stream and the panel. -#}
 {% macro item(i, conv) %}
 {% if i.kind == "user" %}
-<div class="card"><section><span class="badge">You</span><p class="chat-text">{{ i.text }}</p></section></div>
+<div class="card"><section><span class="badge" data-variant="secondary">You</span><p class="chat-text">{{ i.text }}</p></section></div>
 {% elif i.kind == "text" %}
-<div class="card"><section><span class="badge-outline">Claude</span><p class="chat-text">{{ i.text }}</p></section></div>
+<div class="card"><section><span class="badge" data-variant="outline">Claude</span><p class="chat-text">{{ i.text }}</p></section></div>
 {% elif i.kind == "tool" %}
 <div class="card"><section class="accordion">
     <details class="group">
@@ -21,11 +21,11 @@
     {% elif i.state == "pending" %}
     <form class="inline" hx-post="/chat/allow" hx-target="#chat" hx-swap="outerHTML">
       <input type="hidden" name="conv" value="{{ conv }}"><input type="hidden" name="item" value="{{ i.id }}">
-      <button type="submit" class="btn-sm">Allow once</button>
+      <button type="submit" class="btn" data-size="sm">Allow once</button>
     </form>
     <form class="inline" hx-post="/chat/deny" hx-target="#chat" hx-swap="outerHTML">
       <input type="hidden" name="conv" value="{{ conv }}"><input type="hidden" name="item" value="{{ i.id }}">
-      <button type="submit" class="btn-sm-outline">Deny</button>
+      <button type="submit" class="btn" data-size="sm" data-variant="outline">Deny</button>
     </form>
     {% elif i.state == "allowed" %}<p>Allowed once.</p>
     {% elif i.state == "denied" %}<p>Denied.</p>
@@ -39,12 +39,12 @@
   <section>{{ i.message }}</section>
 </div>
 {% else %}
-<p class="text-muted-foreground">{{ i.text }}</p>
+<p class="muted">{{ i.text }}</p>
 {% endif %}
 {% endmacro %}
 
 {#- A button that opens the chat with some text ready to send (Ask Claude, skill chips). -#}
-{% macro ask(company, text, label="Ask Claude", variant="btn-sm-outline") %}
-<button type="button" class="{{ variant }}" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
+{% macro ask(company, text, label="Ask Claude", variant="ghost") %}
+<button type="button" class="btn" data-size="sm" data-variant="{{ variant }}" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
         hx-vals='{{ {"company": company or "", "prefill": text} | tojson }}'>{{ label }}</button>
 {% endmacro %}
