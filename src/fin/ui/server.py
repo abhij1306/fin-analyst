@@ -1,0 +1,94 @@
+"""The UI server: a small FastAPI app that renders HTML pages (Jinja2, htmx, Basecoat) over fin's
+own modules (docs/web-ui-plan.md). Needs the `ui` extra; `fin.cli.ui` imports this module only
+when it is there. This release only shows data: no route changes it."""
+
+import socket
+import webbrowser
+from collections.abc import Callable
+from pathlib import Path
+
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from fin import __version__
+from fin.audit.errors import DependencyMissing, FinError, UiUnavailable
+from fin.audit.logger import Run
+from fin.status import companies, company_status
+from fin.ui import views
+from fin.ui.security import new_token, protect
+from fin.ui.setup import STATIC_DIR, TEMPLATE_DIR
+
+DEFAULT_PORT = 8765
+SCREENS = [("home", "Home", True)] + [
+    (name.lower(), name, False)
+    for name in ("Files", "Mappings", "Queries", "Gates", "Findings", "Reports", "Log")
+]  # (id, label, built); the others arrive in later releases
+
+
+def create_app(root: Path, token: str, port: int) -> FastAPI:
+    """The app for one data folder."""
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app.middleware("http")(protect(token, port))
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    templates = Jinja2Templates(directory=TEMPLATE_DIR)
+
+    @app.exception_handler(FinError)
+    async def fin_error(request: Request, exc: FinError) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request, "_error.html", {"error": f"{exc.code}: {exc.message}"}, status_code=400
+        )
+
+    def home_context(company: str | None) -> dict[str, object]:
+        if company is None:
+            return {"empty": True}
+        if company not in companies(root):
+            raise DependencyMissing(
+                f"no company {company!r}: put its files in inbox/{company}/ and ingest them"
+            )
+        # company_status only reads the data folder; the run is not started (no run record).
+        status = company_status(Run("ui status", {"company": company}, root), company)
+        return views.home(status)
+
+    @app.get("/", response_class=HTMLResponse)
+    def page(request: Request, company: str | None = None) -> HTMLResponse:
+        names = companies(root)
+        chosen = company or (names[0] if names else None)
+        context = {
+            "companies": names,
+            "company": chosen,
+            "screens": SCREENS,
+            "screen": "home",
+            "version": __version__,
+            "home": home_context(chosen),
+        }
+        return templates.TemplateResponse(request, "home.html", context)
+
+    @app.get("/partials/home", response_class=HTMLResponse)
+    def home_partial(request: Request, company: str | None = None) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request, "_home.html", {"home": home_context(company or None)}
+        )
+
+    return app
+
+
+def check_port(port: int) -> None:
+    """Raises E006 when 127.0.0.1:port is taken."""
+    with socket.socket() as probe:
+        if probe.connect_ex(("127.0.0.1", port)) == 0:
+            raise UiUnavailable(f"port {port} is in use; choose another with --port")
+
+
+def serve(root: Path, port: int, open_browser: bool, announce: Callable[[str], None]) -> None:
+    """Run the server until Ctrl-C. `announce(url)` is told the link with the token."""
+    check_port(port)
+    token = new_token()
+    url = f"http://127.0.0.1:{port}/?token={token}"
+    app = create_app(root, token, port)
+    announce(url)
+    if open_browser:
+        webbrowser.open(url)
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", access_log=False)

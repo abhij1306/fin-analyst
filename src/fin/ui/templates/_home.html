@@ -1,0 +1,27 @@
+{% if home.empty %}
+<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
+{% else %}
+<h2>{{ home.status.company }}</h2>
+<p class="text-muted-foreground">
+  Periods loaded: {{ home.periods }}
+  {% if home.status.gaps %} · gaps: {{ home.status.gaps | join(", ") }}{% endif %}
+  {% if home.status.diligence %} · engagement #{{ home.status.diligence.engagement_id }} open{% endif %}
+</p>
+<div class="cards">
+  {% for value, label in home.cards %}
+  <div class="card">
+    <section><strong>{{ value }}</strong><br><span class="text-muted-foreground">{{ label }}</span></section>
+  </div>
+  {% endfor %}
+</div>
+<table class="table">
+  <thead><tr><th>Waiting for you</th><th>Where</th></tr></thead>
+  <tbody>
+    {% for row in home.waiting %}
+    <tr><td>{{ row.text }}</td><td>{{ row.where }}</td></tr>
+    {% else %}
+    <tr><td colspan="2" class="text-muted-foreground">Nothing is waiting for you.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

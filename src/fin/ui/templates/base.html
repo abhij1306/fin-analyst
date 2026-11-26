@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>fin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Answers with an error status (400) are shown too: they carry the error code. -->
+  <meta name="htmx-config" content='{"responseHandling":[{"code":".*","swap":true}]}'>
+  <link rel="stylesheet" href="/static/vendor/basecoat.cdn.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <script src="/static/vendor/basecoat-all.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <strong>fin</strong>
+    <select class="select" name="company" aria-label="Company"
+            hx-get="/partials/home" hx-trigger="change" hx-target="#screen">
+      {% for name in companies %}
+      <option value="{{ name }}"{% if name == company %} selected{% endif %}>{{ name }}</option>
+      {% else %}
+      <option value="">No companies yet</option>
+      {% endfor %}
+    </select>
+    <div class="tabs">
+      <div role="tablist" aria-orientation="horizontal">
+        {% for id, label, built in screens %}
+        {% if built %}
+        <a role="tab" href="/{% if id != 'home' %}{{ id }}{% endif %}" aria-selected="{{ 'true' if id == screen else 'false' }}">{{ label }}</a>
+        {% else %}
+        <button type="button" role="tab" aria-selected="false" disabled>{{ label }}</button>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    <span class="text-muted-foreground">local only · fin {{ version }}</span>
+  </header>
+  <div class="split">
+    <main id="screen">{% block screen %}{% endblock %}</main>
+    {% include "_chat.html" %}
+  </div>
+</body>
+</html>

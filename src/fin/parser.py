@@ -28,6 +28,7 @@ from fin.audit.logger import Run, execute
 from fin.config import PARSERS, load_config, set_parser
 from fin.extract import llamaparse_run
 from fin.extract.fallback import engine
+from fin.ui.extra import kept_extras
 
 REPO = Path(__file__).resolve().parents[2]
 # Module constants so tests can swap the slow steps for harmless ones.
@@ -73,7 +74,8 @@ def use(run: Run, name: str) -> list[str]:
     chosen = engine(name)
     if chosen is not None and (reason := chosen.unsupported()):
         raise DependencyMissing(f"{reason}; choose another add-on (`fin parser use liteparse`)")
-    sync = [*UV_SYNC, "--extra", name] if chosen is not None else UV_SYNC
+    # The UI add-on, if installed, stays: a sync without its extra would uninstall it.
+    sync = [*UV_SYNC, *(["--extra", name] if chosen is not None else []), *kept_extras()]
     step = f"uv sync --extra {name}" if chosen is not None else "uv sync"
     lines = [_step(run, step, sync, UpdateFailed)]
     if chosen is not None and chosen.NAME != llamaparse_run.NAME:

@@ -100,6 +100,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   E830/E831), `scaffold.py` (`fin eval init`), `score.py` (`fin eval run` and its report), `provisions.py` (F3's golden kinds), `netdebt.py` (F4's), `counts.py` (error codes,
   findings, unread pages, Claude-read figures, unmapped labels and ledgers), `bundle.py` (`fin eval bundle`: no names,
   no figures by default, E832/E833). CLI: `cli/evals.py`.
+- `ui/` (the optional web UI, `fin ui`; `cli/ui.py`): `server.py` (FastAPI routes), `views.py` (what a screen shows, from `fin.status`), `security.py` (Host and token checks), `setup.py`/`extra.py` (the `ui` extra), `templates/` (Jinja2 + htmx, Basecoat classes), `static/app.css` (page layout only), `static/vendor/` (htmx and Basecoat, third-party, see `VENDOR.md`). To add a screen: a view in `views.py`, a `_<screen>.html` partial, a route, and mark it built in `SCREENS`. Tests: `tests/unit/test_ui_*.py` (need `--extra ui`).
 - `delete.py`, `update.py`, `doctor.py`, `parser.py`: `fin delete`, `fin update`, `fin doctor`, `fin parser show|use`; `installhint.py` gives the fix text for a missing system tool per OS (brew on macOS, `./install.sh` and apt-get on Linux)
   (the PDF add-on: uv extra, models, `[pdf] parser`).
 - Outside `src/`: `templates/dictionary/` (seed CSVs), `templates/report/health.qmd`, `.claude/commands/` (slash

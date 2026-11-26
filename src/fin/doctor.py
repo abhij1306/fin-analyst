@@ -22,10 +22,12 @@ from fin.db.conn import connect
 from fin.db.schema import is_old_format
 from fin.extract.fallback import engine
 from fin.paths import audit_db_path, dictionary_db_path, probe_writable
+from fin.ui.extra import extra_installed
 
 PYTHON_VERSION = (3, 12)
 DATA_FOLDER = "data folder"  # the name of that check
 PDF_PARSER = "pdf parser"  # the name of the PDF add-on's check
+WEB_UI = "web ui"  # the name of the optional web UI's check
 RUN_INIT = "run `uv run fin init`"  # the fix when the data folder, config or a schema is missing
 
 # Homebrew and apt cannot pin exact versions, so system tools have minimums. install.sh checks the
@@ -184,6 +186,13 @@ def check_pdf_parser(root: Path) -> Check:
     return Check(PDF_PARSER, True, f"{name}: installed, {detail}", fix=fix, warning=fix is not None)
 
 
+def check_web_ui() -> Check:
+    """The optional web UI (`fin ui`): installed or not, never a failure."""
+    if not extra_installed():
+        return Check(WEB_UI, True, "not installed (optional; `uv run fin ui setup`)")
+    return Check(WEB_UI, True, "installed (`uv run fin ui`)")
+
+
 def check_data_folder(root: Path) -> Check:
     if not root.is_dir():
         return Check(
@@ -264,4 +273,5 @@ def run_checks(root: Path) -> list[Check]:
         check_audit_schema(root),
         check_schema(dictionary_db_path(root), "dictionary"),
         check_pdf_parser(root),
+        check_web_ui(),
     ]

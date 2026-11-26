@@ -3,12 +3,14 @@
 # Steps (docs/product.md §10): check the OS -> system tools (macOS: Homebrew and brew bundle; Linux: apt-get and
 # pinned downloads) -> uv sync -> npm ci -> fin init -> fin doctor.
 #
-# Usage: ./install.sh [--parser docling|liteparse|llamaparse|none]
+# Usage: ./install.sh [--parser docling|liteparse|llamaparse|none] [--ui]
 #   --parser NAME  install that optional PDF add-on, with its models (or none: remove it), and record
 #                  it in config.toml ([pdf] parser), through `fin parser use NAME`:
 #                  docling (local, about 1.4 GB, not on Intel Macs), liteparse (local, small),
 #                  llamaparse (cloud, needs LLAMA_CLOUD_API_KEY)
 #   no flag        keep what config.toml says (none for a new install)
+#   --ui           also install the optional web UI (the `ui` extra; start it with `uv run fin ui`). A
+#                  later run without the flag keeps it if it is already installed.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,8 +21,9 @@ die() {
   exit 1
 }
 
-USAGE="usage: ./install.sh [--parser docling|liteparse|llamaparse|none]"
+USAGE="usage: ./install.sh [--parser docling|liteparse|llamaparse|none] [--ui]"
 PARSER_FLAG=""
+UI_FLAG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --parser)
@@ -30,6 +33,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --parser=*)
       PARSER_FLAG="${1#--parser=}"
+      shift
+      ;;
+    --ui)
+      UI_FLAG=1
       shift
       ;;
     *) die "unknown option: $1 ($USAGE)" ;;
@@ -276,14 +283,17 @@ if [[ "$PARSER" == docling && "$OS" == Darwin && "$ARCH" == x86_64 ]]; then
 fi
 echo "PDF add-on: $PARSER"
 
-# 4. Python environment (exact versions from uv.lock)
-if [[ "$PARSER" == none ]]; then
-  step "Syncing Python environment (uv sync --frozen)"
-  uv sync --frozen
-else
-  step "Syncing Python environment with the $PARSER add-on (uv sync --frozen --extra $PARSER)"
-  uv sync --frozen --extra "$PARSER"
+# The optional web UI: the flag, or already installed (a plain sync would remove it).
+if [[ -z "$UI_FLAG" && -x .venv/bin/python ]] && .venv/bin/python -I -c 'import fastapi' >/dev/null 2>&1; then
+  UI_FLAG=1
 fi
+
+# 4. Python environment (exact versions from uv.lock)
+EXTRAS=()
+[[ "$PARSER" == none ]] || EXTRAS+=(--extra "$PARSER")
+[[ -z "$UI_FLAG" ]] || EXTRAS+=(--extra ui)
+step "Syncing Python environment (uv sync --frozen ${EXTRAS[*]:-})"
+uv sync --frozen ${EXTRAS[@]+"${EXTRAS[@]}"} # (bash 3.2 on macOS: an empty array needs this form)
 
 # 5. Dashboard packages (exact versions from dashboards/package-lock.json; npm ci is safe to repeat)
 step "Installing dashboard packages (npm ci --prefix dashboards)"
@@ -304,4 +314,5 @@ fi
 step "Checking installation (fin doctor)"
 uv run fin doctor
 
+[[ -z "$UI_FLAG" ]] || echo "Web UI installed: start it with `uv run fin ui`"
 step "Install complete. Log: $LOG_FILE"
