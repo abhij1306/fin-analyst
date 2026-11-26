@@ -59,7 +59,6 @@ FREE_TEXT_COLUMNS = (
     ("fdd_findings", "observation"),
     ("fdd_findings", "implication"),
     ("fdd_findings", "evidence"),
-    ("fdd_findings", "final_response"),
     ("netdebt_items", "description"),
     ("netdebt_items", "evidence"),
     ("netdebt_items", "reason"),
