@@ -1,8 +1,67 @@
-<aside class="chat">
+{% from "_chat_items.html" import item, ask %}
+{% if not chat %}
+<aside class="chat" id="chat" aria-label="Chat with Claude" hx-get="/chat/panel{% if company %}?company={{ company | urlencode }}{% endif %}" hx-trigger="load" hx-swap="outerHTML">
   <header><h2>Chat with Claude</h2></header>
-  <section>
-    <p class="text-muted-foreground">
-      Chat is not connected yet. For now, ask Claude in the terminal (<code>claude</code> in the fin folder).
-    </p>
-  </section>
 </aside>
+{% else %}
+<aside class="chat" id="chat" aria-label="Chat with Claude">
+  <header>
+    <h2>Chat with Claude</h2>
+    <select class="select" name="conv" aria-label="Conversation" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
+            hx-vals='{{ {"company": company or ""} | tojson }}'>
+      {% if not chat.conv %}<option value="">New chat</option>{% endif %}
+      {% for c in chat.convs %}
+      <option value="{{ c.id }}"{% if chat.conv and c.id == chat.conv.id %} selected{% endif %}>{{ c.title }}</option>
+      {% endfor %}
+    </select>
+    <button type="button" class="btn-sm-outline" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
+            hx-vals='{{ {"company": company or "", "new": "1"} | tojson }}'>New chat</button>
+  </header>
+  <section>
+    {% if chat.api_key %}
+    <div class="alert" data-variant="destructive" role="alert">
+      <h2>ANTHROPIC_API_KEY is set</h2>
+      <section>Claude Code will bill that API key instead of your own login. Unset it and restart <code>fin ui</code> to use your subscription.</section>
+    </div>
+    {% endif %}
+    {% if chat.missing %}
+    <div class="alert" data-variant="destructive" role="alert"><h2>E009</h2><section>{{ chat.missing }}</section></div>
+    {% endif %}
+    {% if chat.notice %}
+    <div class="alert" data-variant="destructive" role="alert"><h2>{{ chat.notice.code }}</h2><section>{{ chat.notice.message }}</section></div>
+    {% endif %}
+    <div class="chat-log" role="log" aria-label="Messages">
+      <div>
+        {% for i in chat.log %}{{ item(i, chat.conv.id) }}{% else %}
+        <p class="text-muted-foreground">Ask about {{ company or "a company" }}, or start with a skill below. Claude runs on your own Claude Code login.</p>
+        {% endfor %}
+        <div id="chat-turn"></div>
+      </div>
+    </div>
+    {% if chat.running %}
+    <div hx-ext="sse" sse-connect="/chat/stream?conv={{ chat.conv.id }}" sse-close="done">
+      <div sse-swap="block" hx-target="#chat-turn" hx-swap="beforeend"></div>
+      <div sse-swap="delta" hx-target="#chat-turn > :last-child .chat-text" hx-swap="beforeend"></div>
+      <div sse-swap="done" hx-target="#chat" hx-swap="outerHTML"></div>
+    </div>
+    {% endif %}
+  </section>
+  <footer>
+    <div>
+      {% for skill in chat.skills %}{{ ask(company, "/" ~ skill ~ " " ~ (company or "") ~ " ", "/" ~ skill, "btn-sm-outline") }}{% endfor %}
+    </div>
+    <form class="form" hx-post="/chat/send" hx-target="#chat" hx-swap="outerHTML">
+      <input type="hidden" name="conv" value="{{ chat.conv.id if chat.conv else '' }}">
+      <input type="hidden" name="company" value="{{ company or '' }}">
+      <textarea class="textarea" name="text" rows="3" aria-label="Message" placeholder="Ask Claude about {{ company or 'a company' }}"{% if chat.running %} disabled{% endif %}>{{ chat.prefill }}</textarea>
+      <div>
+        <button type="submit" class="btn"{% if chat.running %} disabled{% endif %}>Send</button>
+        {% if chat.running %}
+        <button type="button" class="btn-outline" hx-post="/chat/stop" hx-swap="none"
+                hx-vals='{{ {"conv": chat.conv.id} | tojson }}'>Stop</button>
+        {% endif %}
+      </div>
+    </form>
+  </footer>
+</aside>
+{% endif %}

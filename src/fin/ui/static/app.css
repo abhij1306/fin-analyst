@@ -9,5 +9,10 @@ body { display: flex; flex-direction: column; }
 td > form.inline { display: inline-block; margin-right: 0.25rem; }
 .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin: 1rem 0; }
 .chat { display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--muted); min-height: 0; }
-.chat > header { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--background); }
-.chat > section { flex: 1; padding: 1.5rem; overflow: auto; }
+.chat > header { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--background); display: flex; align-items: center; gap: 0.5rem; }
+.chat > section { flex: 1; padding: 1.5rem; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.chat > footer { padding: 0.75rem 1rem; border-top: 1px solid var(--border); background: var(--background); }
+.chat > header .select { flex: 1; min-width: 0; }
+.chat-log { flex: 1; overflow: auto; display: flex; flex-direction: column-reverse; min-height: 0; }
+.chat-log > div { display: flex; flex-direction: column; gap: 0.5rem; }
+.chat-text { white-space: pre-wrap; margin: 0.25rem 0 0; }

@@ -4,7 +4,8 @@ when it is there. The screens are read-only; only the POST routes of `action_rou
 
 import socket
 import webbrowser
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -18,6 +19,8 @@ from fin.audit.errors import DependencyMissing, FinError, UiUnavailable
 from fin.status import companies
 from fin.ui import screens
 from fin.ui.action_routes import add_action_routes
+from fin.ui.chat_routes import add_chat_routes
+from fin.ui.chat_run import Chat
 from fin.ui.csrf import origin_guard
 from fin.ui.security import new_token, protect
 from fin.ui.setup import STATIC_DIR, TEMPLATE_DIR
@@ -50,9 +53,20 @@ def report_response(path: Path) -> FileResponse:
     return FileResponse(path, headers={"Content-Security-Policy": REPORT_CSP})
 
 
-def create_app(root: Path, token: str, port: int) -> FastAPI:
-    """The app for one data folder."""
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+def create_app(root: Path, token: str, port: int, claude: list[str] | None = None) -> FastAPI:
+    """The app for one data folder. `claude` is the command that starts Claude Code (tests give a
+    fake one); by default the `claude` on the path."""
+    chat = Chat(root, claude)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            chat.stop_all()  # a Claude process does not outlive the server
+
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+    app.state.chat = chat
     app.middleware("http")(origin_guard(port))
     app.middleware("http")(protect(token, port))
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -96,6 +110,7 @@ def create_app(root: Path, token: str, port: int) -> FastAPI:
         return report_response(screens.report_file(root, known(root, company) or "", name))
 
     add_action_routes(app, root, templates, known)
+    add_chat_routes(app, root, templates, chat)
     return app
 
 

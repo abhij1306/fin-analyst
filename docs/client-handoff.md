@@ -34,6 +34,8 @@ cloud service, so only if the client says so. Keep the `fin doctor` result: the 
    **Ask; don't decide:** mappings are confirmed (`/review`), findings saved as is (`fin findings accept`) or fixed,
    only when the person says so. Pages fin could not read are read by Claude only when the person asks
    (`fin ingest --reading`).
+   The optional web UI (`uv run fin ui`) does the same in a browser, chat included: it runs the person's own Claude Code
+   login (it warns when `ANTHROPIC_API_KEY` is set, since Claude Code would bill that key), for one person on one machine, and Claude cannot press the person's decision buttons there.
 2. Diligence sources, when the client has them (`/diligence <company>`; skip for statements only): open an engagement
    (ask which years, and whether there is a current-year stub); per period the Tally trial balance (Detailed mode)
    first, then its Ledger Vouchers; then registers, bank statements (a PDF needs the add-on) and payroll (ask whether

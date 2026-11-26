@@ -4,6 +4,7 @@
 <p class="text-muted-foreground">{{ data.no_engagement }}</p>
 {% else %}
 {% from "_actions.html" import act %}
+{% from "_chat_items.html" import ask %}
 <h2>Queries</h2>
 <table class="table">
   <thead><tr><th>#</th><th>Status</th><th>Period</th><th>Amount</th><th>Question</th><th>Answer</th><th>Actions</th></tr></thead>
@@ -16,6 +17,7 @@
         {% if q.status == "approved" %}{{ act("query-sent", q.query_id, "Mark sent", company, ask="Only mark it sent if you sent it to the accountant. fin sends nothing.") }}{% endif %}
         {% if q.status == "answered" %}{{ act("query-close", q.query_id, "Close", company, ask="Close the query: the answer settles it.") }}{% endif %}
         {% if q.status in ("draft", "approved", "sent", "answered") %}{{ act("query-withdraw", q.query_id, "Withdraw", company, reason="Why is it dropped?") }}{% endif %}
+        {{ ask(company, "About " ~ company ~ ", query " ~ q.query_id ~ ": ") }}
       </td></tr>
     {% else %}
     <tr><td colspan="7" class="text-muted-foreground">No queries.</td></tr>

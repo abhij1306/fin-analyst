@@ -97,7 +97,7 @@ def test_the_home_page_shows_the_company_and_what_waits(client: TestClient) -> N
     assert "/static/vendor/htmx.min.js" in page.text
     assert "/static/vendor/basecoat-all.min.js" in page.text
     assert "1 files in the inbox not loaded yet" in page.text
-    assert "Chat is not connected yet" in page.text
+    assert 'hx-get="/chat/panel?company=acme"' in page.text  # the chat panel loads itself
 
 
 def test_the_home_partial_is_the_screen_only(client: TestClient) -> None:
