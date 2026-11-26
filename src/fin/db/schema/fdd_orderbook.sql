@@ -57,7 +57,8 @@ FROM p;
 -- could not be computed; note says why. Sources, never added together (an order can also be in a contract):
 --   orderbook          unbilled orderbook value (value less billed to date, never below 0) of the latest orderbook,
 --                      INR orders only, spread from the later of its start date and the day after the as-at date to
---                      its end date; no end date: not spread; term over: 0;
+--                      its end date; no end date: not spread; term over (it ended by the as-at date): 0, both
+--                      still to come and in the next year (the unbilled value of an ended order is not backlog);
 --   billed_not_earned  sales register lines (core customers) invoiced up to the period end whose service period runs
 --                      past it: the share of the amount for the service days after the period end (the service-period
 --                      recast, D6); lines without usable service dates are recognised on the invoice date and have none;
@@ -67,7 +68,9 @@ CREATE VIEW backlog_lines AS
 WITH b AS (SELECT * FROM visibility_basis)
 SELECT 'orderbook' AS source, o.file_name || ' ' || o.sheet || '!' || o."row" AS ref, o.customer AS counterparty,
     coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1)::DATE AS term_start, o.end_date AS term_end,
-    CASE WHEN o.currency = 'INR' THEN greatest(o.value - coalesce(o.billed, 0), 0) END AS remaining_amount,
+    CASE WHEN o.currency <> 'INR' THEN CAST(NULL AS DECIMAL(20, 2))
+         WHEN o.end_date < coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1) THEN 0
+         ELSE greatest(o.value - coalesce(o.billed, 0), 0) END AS remaining_amount,
     CASE WHEN o.currency <> 'INR' THEN CAST(NULL AS DECIMAL(20, 2))
          WHEN o.end_date IS NULL THEN NULL
          WHEN o.end_date < coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1) THEN 0

@@ -14,7 +14,8 @@ from fin.audit.logger import Run
 from fin.config import write_default_config
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
-from fin.diligence import netdebt, netdebt_items
+from fin.diligence import netdebt, netdebt_items, provisions
+from fin.diligence.mask import Masker
 from fin.evals import netdebt as netdebt_evals
 from fin.evals.golden import KINDS, LEDGERS, NEEDS, Check
 from fin.evals.score import fin_value
@@ -277,3 +278,75 @@ def test_golden_kind_net_debt(root: Path) -> None:
         "debt_like": D("120000"),
         "net_debt": D("980000"),
     }
+
+
+# --- review fixes: masking, engagement scope, other bank balances -----------------------------
+
+
+def test_a_reason_naming_a_party_is_stored_masked(root: Path) -> None:
+    netdebt.propose(
+        run(root),
+        "acme",
+        [{"ledger": "TDS Payable", "class": "debt_like", "reason": "due to Acme  Traders"}],
+    )
+    provisions.propose(
+        run(root),
+        "acme",
+        [{"ledger": "Gratuity Provision", "kind": "gratuity", "reason": "acme traders staff"}],
+    )
+
+    assert query(root, "SELECT reason FROM netdebt_classes") == [("due to CUST-0001",)]
+    assert query(root, "SELECT reason FROM provision_ledgers") == [("CUST-0001 staff",)]
+
+
+def test_a_name_learned_later_is_masked_in_the_stored_reasons_and_items(root: Path) -> None:
+    netdebt.propose(
+        run(root),
+        "acme",
+        [{"ledger": "TDS Payable", "class": "debt_like", "reason": "Beta Works dues"}],
+    )
+    netdebt_items.propose(
+        run(root), "acme", "FY25", D("1000"), "Beta Works claim", "Beta Works letter"
+    )
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        masker = Masker(con, "r1")
+        masker.file_id = 3
+        masker.token("vendor", "Beta Works")
+        masker.remask()
+
+    assert query(root, "SELECT reason FROM netdebt_classes") == [("VEND-0001 dues",)]
+    assert query(root, "SELECT description, evidence FROM netdebt_items") == [
+        ("VEND-0001 claim", "VEND-0001 letter")
+    ]
+
+
+def test_only_ledgers_of_the_latest_engagement_can_be_proposed(root: Path) -> None:
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE engagement SET status = 'closed'")
+        con.execute(
+            "INSERT INTO engagement (periods, query_threshold, status, opened_run_id, opened_at) "
+            "VALUES ('FY26', 100000, 'open', 'r0', now())"
+        )
+    with pytest.raises(FinError) as caught:
+        netdebt.propose(
+            run(root), "acme", [{"ledger": "TDS Payable", "class": "debt_like", "reason": "due"}]
+        )
+    assert code(caught) == "E930" and "latest engagement" in str(caught.value)
+    with pytest.raises(FinError) as caught:
+        provisions.propose(
+            run(root), "acme", [{"ledger": "Gratuity Provision", "kind": "gratuity", "reason": "x"}]
+        )
+    assert code(caught) == "E920"
+
+
+def test_other_bank_balances_wait_for_the_user(root: Path) -> None:
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "UPDATE ledger_accounts SET account = 'other_bank_balances' WHERE ledger = 'HDFC Bank'"
+        )
+
+    got = query(
+        root,
+        "SELECT debt_class, class_source FROM netdebt_ledger_classes WHERE ledger = 'HDFC Bank'",
+    )
+    assert got == [(None, None)]

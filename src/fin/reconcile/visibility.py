@@ -30,7 +30,8 @@ MISSING = {
 
 
 def visibility(con: duckdb.DuckDBPyConnection, engagement_id: int) -> dict[str, Any]:
-    """{"sources": the revenue_visibility rows, "notes": [{source, note, items}]} for the
+    """{"sources": the revenue_visibility rows, "notes": [{source, note, items}], "orderbook":
+    {as_at, file_name, period_end, at_period_end} of the orderbook used, or None} for the
     engagement.
     E961 when no source has an item."""
     rows = fetch_dicts(
@@ -45,7 +46,29 @@ def visibility(con: duckdb.DuckDBPyConnection, engagement_id: int) -> dict[str, 
         "SELECT source, note, count(*) AS items FROM backlog_lines WHERE note IS NOT NULL "
         "GROUP BY ALL ORDER BY ALL",
     )
-    return {"sources": rows, "notes": notes}
+    orderbook = fetch_dicts(
+        con,
+        "SELECT DISTINCT o.as_at, o.file_name, b.period_end, "
+        "o.as_at = b.period_end AS at_period_end "
+        "FROM orderbook_current o JOIN visibility_basis b USING (engagement_id) "
+        "WHERE o.engagement_id = ?",
+        [engagement_id],
+    )
+    return {"sources": rows, "notes": notes, "orderbook": orderbook[0] if orderbook else None}
+
+
+def orderbook_date_note(data: dict[str, Any]) -> str | None:
+    """The as-at line of the orderbook used, with a warning when it is not the period end."""
+    found = data.get("orderbook")
+    if found is None:
+        return None
+    text = f"orderbook as at {found['as_at']} ({found['file_name']})"
+    if not found["at_period_end"]:
+        text += (
+            f": not the period end {found['period_end']}; its unbilled value is what was still "
+            f"to come on {found['as_at']}, and the spread starts the day after it"
+        )
+    return text
 
 
 def show(run: Run, company: str) -> dict[str, Any]:
@@ -73,6 +96,8 @@ def format_visibility(data: dict[str, Any]) -> str:
             f"  {name}: {row['items']} items, still to come {rupees(row['remaining_amount'])}, "
             f"in the next 12 months {rupees(row['covered_next_year'])}{pct}{unusable}"
         )
+    if (dated := orderbook_date_note(data)) is not None:
+        out.append(f"  {dated}")
     out += [
         f"  note: {n['items']} {SOURCES[n['source']]} items: {n['note']}" for n in data["notes"]
     ]

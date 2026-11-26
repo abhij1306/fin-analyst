@@ -36,7 +36,8 @@ PREFIX = {
 
 
 # The stored free text that can hold a name (register_lines' FREE_TEXT fields, bank remarks, ledger
-# particulars, a contract's billing terms): masked again when a later load learns a name.
+# particulars, a contract's terms, the FDD text and the reasons Claude gives for a proposal):
+# masked again when a later load learns a name.
 FREE_TEXT_COLUMNS = (
     ("bank_lines", "remarks"),
     ("bank_lines", "reference"),
@@ -58,6 +59,16 @@ FREE_TEXT_COLUMNS = (
     ("fdd_findings", "observation"),
     ("fdd_findings", "implication"),
     ("fdd_findings", "evidence"),
+    ("fdd_findings", "final_response"),
+    ("netdebt_items", "description"),
+    ("netdebt_items", "evidence"),
+    ("netdebt_items", "reason"),
+    ("netdebt_classes", "reason"),
+    ("provision_ledgers", "reason"),
+    ("tax_ledgers", "reason"),
+    ("related_party_links", "reason"),
+    ("disclosures", "forum"),
+    ("disclosures", "stage"),
 )
 
 

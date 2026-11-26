@@ -36,10 +36,12 @@ Gates in this build (docs/diligence.md):
                     decided `recast` adjustment (`fin.reconcile.recast_checks`). Its inputs are each
                     period's run, the undated lines and their queries and the recast adjustments.
                     Unlocks approving G4;
-    G4 Adjustments  no proposed adjustment, and every accepted one has evidence. Its inputs are each
+    G4 Adjustments  no proposed adjustment, and every accepted one has evidence; no FDD proposal
+                    waiting for the user (`fin.fdd.gate_checks`). Its inputs are each
                     adjustment's status, effects (EBITDA, revenue, cost, the accounts of a
-                    reclassification and the amount moved), period and evidence. Unlocks
-                    `fin engagement close`.
+                    reclassification and the amount moved), period and evidence, and the FDD
+                    proposal tables (net debt items and classes, findings, tax classes, related
+                    party links). Unlocks `fin engagement close`.
 """
 
 import hashlib
@@ -57,6 +59,7 @@ from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence import bank_checks, payroll, tb_checks
 from fin.diligence.engagement import company_database, require_open
+from fin.fdd import gate_checks as fdd_gate_checks
 from fin.map.review import open_items, read_pending
 from fin.reconcile import checks as reconcile_checks
 from fin.reconcile import recast_checks
@@ -231,7 +234,7 @@ def _adjustments_checklist(ctx: Context) -> list[Line]:
         "ORDER BY adj_id",
         [engagement_id],
     )
-    return [
+    lines = [
         (True, "no proposed adjustments")
         if not proposed
         else (
@@ -243,6 +246,7 @@ def _adjustments_checklist(ctx: Context) -> list[Line]:
         if not bare
         else (False, f"accepted adjustments without evidence: {_ids(bare)}"),
     ]
+    return lines + fdd_gate_checks.checklist(ctx)
 
 
 def _adjustments_inputs(ctx: Context) -> dict[str, Any]:
@@ -253,7 +257,8 @@ def _adjustments_inputs(ctx: Context) -> dict[str, Any]:
             "from_account, moved_amount, period, scope, query_id, finding_id, source_ref "
             "FROM adjustments WHERE engagement_id = ? ORDER BY adj_id",
             [ctx.engagement["engagement_id"]],
-        )
+        ),
+        **fdd_gate_checks.inputs(ctx),
     }
 
 

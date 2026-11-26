@@ -131,6 +131,11 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
         "    FAIL: proposed adjustments: #2 (accept or reject them: "
         "`fin adjust list bluepeak --status proposed`)\n"
         "    pass: every accepted adjustment has evidence\n"
+        "    pass: no proposed net debt items\n"
+        "    pass: no draft FDD findings\n"
+        "    pass: no proposed net debt classes\n"
+        "    pass: no proposed tax classes\n"
+        "    pass: no proposed related party links\n"
         "    unlocks: `fin engagement close`\n"
     ) in gate_status.stdout
 

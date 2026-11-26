@@ -192,13 +192,22 @@ def test_coverage_ranks_parties_and_reads_the_contract_terms(root: Path) -> None
     assert top["contract_on_file"] and top["period_end"] == date(2025, 3, 31)
     assert top["expires_within_12m"] and not top["expired"]  # ends 2025-12-31
     assert (top["auto_renew"], top["change_of_control"]) == (True, True)
-    assert top["lock_in_left_months"] == 1  # the lock-in ends 2025-04-01
+    assert top["lock_in_left_months"] == 0  # the lock-in ends 2025-04-01: one day, no whole month
     assert not found[("customer", 2)]["contract_on_file"]
     assert not any(r["contract_on_file"] for k, r in found.items() if k[0] == "vendor")
     assert [r["amount_inr"] for k, r in found.items() if k[0] == "vendor"] == [
         Decimal("90000.00"),
         Decimal("40000.00"),
     ]
+
+
+@pytest.mark.parametrize(("lock_in", "left"), [("17", 5), ("18", 6)])
+def test_lock_in_months_left_counts_whole_months(root: Path, lock_in: str, left: int) -> None:
+    # Starts 2024-04-01: 17 months end 2025-09-01 (5 whole months after 2025-03-31, though six
+    # month boundaries are crossed), 18 months end 2025-10-01 (6 whole months).
+    load_contracts(root, customer_contract(root, lock_in_months=lock_in))
+
+    assert coverage(root)[("customer", 1)]["lock_in_left_months"] == left
 
 
 def test_coverage_counts_only_the_top_n_and_leaves_out_pass_through_customers(root: Path) -> None:

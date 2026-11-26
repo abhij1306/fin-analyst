@@ -1,11 +1,16 @@
 """sales_cutoff and purchase_cutoff (docs/fdd.md F3): cut-off tests on the registers at a year end.
 
 sales_cutoff: sales register lines invoiced within `[fdd] cutoff_days` of the year end whose
-service starts on the other side of it: invoiced on or before the year end for a service that starts
-after it (billed ahead), or invoiced after it for a service that started on or before it (billed
+service is on the other side of it: invoiced on or before the year end for a service that starts
+after it (billed ahead), or invoiced after it for a service that ended on or before it (billed
 late).
 purchase_cutoff: purchase register lines invoiced within `[fdd] unrecorded_days` after the year end
-whose service started on or before it (a possible unrecorded liability).
+for a service that ended on or before it (a possible unrecorded liability).
+In both, a line invoiced after the year end whose service started on or before it and ends after
+it straddles the year end: it is its own line (key suffix "(straddles)" when the invoice also has
+lines flagged in full), and its amount is the part for the service days up to the year end, by
+days, computed in SQL. A line with a service start and no service end is flagged in full, its note
+saying the end is not known.
 
 The windows are the engagement's `cutoff_days` and `unrecorded_days`, copied from config.toml [fdd]
 when it opens (like the bank matching settings), and the year end comes from its fiscal start month.
@@ -61,17 +66,32 @@ def _settings(
     return year_end, Window("purchase", 0, row[3], "unrecorded_days")
 
 
+# Columns: file_id, file_name, sheet, row, invoice_no, invoice_date, service_start, amount_inr,
+# party, service_end, and before_year_end: for a service that runs across the year end, the share
+# of the amount for its service days up to the year end (by days), else NULL.
+_SELECT = """
+WITH y AS (SELECT ?::DATE AS year_end)
+SELECT r.file_id, s.file_name, r.sheet, r."row", r.invoice_no, r.invoice_date, r.service_start,
+    r.amount_inr, CASE r.kind WHEN 'sales' THEN r.customer ELSE r.vendor END, r.service_end,
+    CASE WHEN r.service_start <= y.year_end AND r.service_end > y.year_end
+        THEN CAST(round(r.amount_inr * (date_diff('day', r.service_start, y.year_end) + 1)
+            / (date_diff('day', r.service_start, r.service_end) + 1), 2) AS DECIMAL(20, 2)) END
+FROM register_lines r JOIN source_files s USING (file_id), y
+WHERE s.engagement_id = ? AND s.status = 'loaded' AND r.kind = ?
+  AND r.invoice_date BETWEEN ? AND ?
+ORDER BY r.invoice_date, r.file_id, r.sheet, r."row"
+"""
+
+
 def _rows(
-    con: duckdb.DuckDBPyConnection, engagement_id: int, kind: str, start: date, end: date
+    con: duckdb.DuckDBPyConnection,
+    engagement_id: int,
+    kind: str,
+    year_end: date,
+    start: date,
+    end: date,
 ) -> list[Any]:
-    return con.execute(
-        'SELECT r.file_id, s.file_name, r.sheet, r."row", r.invoice_no, r.invoice_date, '
-        "r.service_start, r.amount_inr, CASE r.kind WHEN 'sales' THEN r.customer ELSE r.vendor END "
-        "FROM register_lines r JOIN source_files s USING (file_id) "
-        "WHERE s.engagement_id = ? AND s.status = 'loaded' AND r.kind = ? "
-        'AND r.invoice_date BETWEEN ? AND ? ORDER BY r.invoice_date, r.file_id, r.sheet, r."row"',
-        [engagement_id, kind, start, end],
-    ).fetchall()
+    return con.execute(_SELECT, [year_end, engagement_id, kind, start, end]).fetchall()
 
 
 def _applies(name: str) -> Any:
@@ -82,29 +102,41 @@ def _applies(name: str) -> Any:
         year_end, window = found
         start = year_end - timedelta(days=window.before)
         end = year_end + timedelta(days=window.after)
-        return bool(_rows(con, engagement["engagement_id"], window.kind, start, end))
+        return bool(_rows(con, engagement["engagement_id"], window.kind, year_end, start, end))
 
     return applies
 
 
-def _flag(window: Window, year_end: date, day: date, service: date) -> str | None:
-    """Why the line is flagged, or None."""
+STRADDLES = "straddles"
+
+
+def _flag(window: Window, year_end: date, row: Any) -> tuple[str, str] | None:
+    """(how it is flagged: 'full' or STRADDLES, why) for a register line, or None."""
+    day, service, service_end = row[5], row[6], row[9]
     if day <= year_end and service > year_end and window.kind == "sales":
-        return (
+        return "full", (
             f"invoiced {day}, on or before the year end {year_end}, for a service that starts on "
             f"{service}, after it: billed ahead of the service"
         )
-    if day > year_end and service <= year_end:
-        if window.kind == "sales":
-            return (
-                f"invoiced {day}, after the year end {year_end}, for a service that started on "
-                f"{service}, before it: billed late"
-            )
-        return (
-            f"invoiced {day}, within {window.after} days after the year end {year_end}, for a "
-            f"service that started on {service}, before it: is the liability in the year's books?"
+    if day <= year_end or service > year_end:
+        return None
+    if service_end is not None and service_end > year_end:
+        return STRADDLES, (
+            f"invoiced {day}, after the year end {year_end}, for a service from {service} to "
+            f"{service_end}: straddles the year end; the amount is the part for the service days "
+            "up to the year end (by days)"
         )
-    return None
+    performed = f"ended on {service_end}" if service_end is not None else "has no service end date"
+    if window.kind == "sales":
+        return "full", (
+            f"invoiced {day}, after the year end {year_end}, for a service that started on "
+            f"{service} and {performed}: billed late"
+        )
+    return "full", (
+        f"invoiced {day}, within {window.after} days after the year end {year_end}, for a "
+        f"service that started on {service} and {performed}: is the liability in the year's "
+        "books?"
+    )
 
 
 def _compute(name: str) -> Any:
@@ -120,39 +152,51 @@ def _compute(name: str) -> Any:
         year_end, window = found
         start = year_end - timedelta(days=window.before)
         end = year_end + timedelta(days=window.after)
-        rows = _rows(con, engagement["engagement_id"], window.kind, start, end)
+        rows = _rows(con, engagement["engagement_id"], window.kind, year_end, start, end)
         if not rows:
             raise CutoffCannotRun(
                 f"{company} {period}: no loaded {window.kind} register line is dated {start} to "
                 f"{end} (`fin ingest {company} <file> --kind registers`); nothing recorded"
             )
-        flagged: dict[tuple[str, str | None], list[Any]] = {}
-        notes: dict[tuple[str, str | None], str] = {}
+        flagged: dict[tuple[str, str | None, str], list[Any]] = {}
+        notes: dict[tuple[str, str | None, str], str] = {}
         undated = []
         for row in rows:
             if row[6] is None:
                 undated.append(row)
                 continue
-            if (why := _flag(window, year_end, row[5], row[6])) is not None:
-                flagged.setdefault((row[4], row[8]), []).append(row)
-                notes.setdefault((row[4], row[8]), why)
-        numbers = [number for number, _ in flagged]
+            if (found := _flag(window, year_end, row)) is not None:
+                key = (row[4], row[8], found[0])
+                flagged.setdefault(key, []).append(row)
+                notes.setdefault(key, found[1])
         lines = [
             make_line(
                 "invoice",
-                number if numbers.count(number) == 1 else f"{number} ({party})",
-                sum((Decimal(r[7]) for r in found), ZERO),
+                _key(flagged, number, party, how),
+                sum((Decimal(r[10] if how == STRADDLES else r[7]) for r in found), ZERO),
                 None,
                 rows_text([(r[1], r[2], r[3]) for r in found]),
                 None,
-                note=notes[(number, party)],
+                note=notes[(number, party, how)],
             )
-            for (number, party), found in flagged.items()
+            for (number, party, how), found in flagged.items()
         ]
         lines += _coverage(con, engagement, window, end, undated)
         return Computed(lines, min(r[0] for r in rows), None)
 
     return compute
+
+
+def _key(
+    flagged: dict[tuple[str, str | None, str], list[Any]], number: str, party: str | None, how: str
+) -> str:
+    """The line key: the invoice number, with the party token when two parties use it, and
+    '(straddles)' when the same invoice also has lines flagged in full."""
+    parties = {p for n, p, _ in flagged if n == number}
+    key = number if len(parties) == 1 else f"{number} ({party})"
+    if how == STRADDLES and (number, party, "full") in flagged:
+        key += " (straddles)"
+    return key
 
 
 def _coverage(

@@ -89,6 +89,11 @@ def test_g1_checklist_names_what_is_missing(con: duckdb.DuckDBPyConnection) -> N
     assert [(line["ok"], line["text"]) for line in g4["checklist"]] == [
         (True, "no proposed adjustments"),
         (True, "every accepted adjustment has evidence"),
+        (True, "no proposed net debt items"),
+        (True, "no draft FDD findings"),
+        (True, "no proposed net debt classes"),
+        (True, "no proposed tax classes"),
+        (True, "no proposed related party links"),
     ]
     assert states(ctx(con)) == [
         ("G1", "open", None),
@@ -175,6 +180,36 @@ def test_a_gate_reopens_when_its_data_changes(
     add_document(con, 3, "c.xlsx", "loaded", "FY25")
 
     assert states(ctx(con))[0] == ("G1", "reopened", "changed since it was approved: documents")
+
+
+def test_g4_needs_the_fdd_proposals_decided_and_reopens_when_one_is_added(
+    con: duckdb.DuckDBPyConnection, tmp_path: Path
+) -> None:
+    run = Run("gate approve", {}, tmp_path)
+    con.execute("UPDATE documents SET status = 'loaded' WHERE doc_id = 2")
+    for name in ("G1", "G2", "G3", "G4"):
+        approve_in(run, ctx(con), name)
+
+    con.execute(
+        "INSERT INTO netdebt_items (engagement_id, period, amount, description, evidence, status, "
+        "created_run_id, created_at, status_run_id, status_at) VALUES (1, 'FY25', 5000, "
+        "'Gratuity shortfall', 'fin provisions show', 'proposed', 'r0', now(), 'r0', now())"
+    )
+    con.execute(
+        "INSERT INTO tax_ledgers (ledger, status, tax_class, reason, run_id, changed_at) "
+        "VALUES ('GST Output', 'proposed', 'gst_output', 'name', 'r0', now())"
+    )
+
+    [*_, g4] = evaluate(ctx(con))
+    assert g4["state"] == "reopened"
+    assert g4["reason"] == "changed since it was approved: net debt items, tax classes"
+    failing = [line["text"] for line in g4["checklist"] if not line["ok"]]
+    assert failing == [
+        "proposed net debt items: #1 (the user decides them: `fin netdebt item list acme`)",
+        "proposed tax classes: #1 (the user decides them: `fin review list acme --tax`)",
+    ]
+    with pytest.raises(GateNotApproved):
+        require(ctx(con), "G4", "fin engagement close")
 
 
 def test_g1_counts_only_mapped_figures_and_an_approved_gate_whose_checklist_fails_reopens(

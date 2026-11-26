@@ -133,7 +133,7 @@ SELECT
     c.end_date < r.period_end AS expired,
     c.end_date >= r.period_end AND c.end_date <= (r.period_end + INTERVAL 12 MONTH)::DATE AS expires_within_12m,
     c.auto_renew, c.change_of_control, c.lock_in_months,
-    CASE WHEN c.lock_in_months IS NOT NULL THEN greatest(0, date_diff('month', r.period_end,
+    CASE WHEN c.lock_in_months IS NOT NULL THEN greatest(0, date_sub('month', r.period_end,
         (c.start_date + to_months(c.lock_in_months))::DATE)) END AS lock_in_left_months,
     c.notice_days, c.file_name, c.page
 FROM ranked r

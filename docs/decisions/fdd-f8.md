@@ -46,7 +46,8 @@ Builder's readings of [fdd.md](../fdd.md) F8, not owner decisions. Scope reading
 - **Decision**: findings are draft, final or dropped. Claude proposes, updates and drops drafts only; the user marks a
   draft final, or returns a final one to draft (`fin fdd finding final --undo`) before it can change. The gate-guard
   hook asks the user before `finding final`. The report shows final findings; `--drafts` adds the drafts and labels the
-  copy "Draft copy". Dropped findings stay in the table, out of the report.
+  copy "Draft copy". Dropped findings stay in the table, out of the report. A final finding's amount, source, link
+  status and response are snapshotted when it is made final ([fdd-review-fixes.md](fdd-review-fixes.md)).
 - **Why**: the plan says only the user marks a finding final and only final findings appear unless `--drafts`. A final
   finding that Claude could edit would no longer be the one the user approved.
 - **How to change it**: `fin/fdd/findings.py`: `set_status`, `update`; `.claude/hooks/gate_guard.py`.

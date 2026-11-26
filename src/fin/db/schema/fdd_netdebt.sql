@@ -44,11 +44,12 @@ CREATE TABLE netdebt_items (
 );
 
 -- fin's default class for a ledger confirmed to one of these accounts (ledger_accounts). A ledger confirmed to a profit
--- and loss account defaults to 'none'; every other ledger is unclassified until the user confirms a class.
+-- and loss account defaults to 'none'; every other ledger is unclassified until the user confirms a class. Other bank
+-- balances (fixed deposits, margin money, lien-marked balances) have no default: a buyer often treats restricted cash
+-- apart, so the user confirms their class.
 CREATE VIEW netdebt_default_accounts AS
 SELECT * FROM (VALUES
     ('cash', 'cash'),
-    ('other_bank_balances', 'cash'),
     ('cash_and_bank_balances', 'cash'),
     ('lt_borrowings', 'debt'),
     ('st_borrowings', 'debt'),

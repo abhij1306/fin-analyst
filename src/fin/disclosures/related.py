@@ -20,6 +20,7 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open
+from fin.diligence.mask import Masker
 from fin.map.review import _current_actor
 
 LINK_KINDS = ("customer", "vendor", "ledger")
@@ -109,13 +110,14 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
         targets = {kind: _targets(con, engagement_id, kind) for kind in LINK_KINDS}
         for number, proposal in enumerate(proposals, start=1):
             _check(number, proposal, parties, targets)
+        masker = Masker(con, run.run_id)
         for proposal in proposals:
             row = {
                 "party": proposal["party"],
                 "link_kind": proposal["kind"],
                 "target": proposal["target"],
                 "confidence": float(proposal["confidence"]),
-                "reason": proposal["reason"].strip(),
+                "reason": masker.text(proposal["reason"].strip()),
             }
             con.execute(
                 "INSERT INTO related_party_links (engagement_id, party, link_kind, target, status, "

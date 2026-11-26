@@ -102,8 +102,10 @@ Decisions: [decisions/fdd-f3.md](decisions/fdd-f3.md). Schema: `db/schema/fdd_bs
   data function the FDD report (F8) calls.
 - Cut-off as reconciliations (`fin/reconcile/cutoff.py`, in `RECONCILIATIONS`, so `fin reconcile <co>` and gate G2
   include them): `fin reconcile <co> sales_cutoff`: sales invoices within `[fdd] cutoff_days` (15) of a year end
-  whose service starts on the other side; `purchase_cutoff`: purchase invoices within `[fdd] unrecorded_days` (60)
-  after a year end whose service started on or before it (both windows copied onto the engagement when it opens).
+  whose service is on the other side (billed ahead: service starts after it; billed late: service ended by it);
+  `purchase_cutoff`: purchase invoices within `[fdd] unrecorded_days` (60) after a year end for a service that ended
+  by it (both windows copied onto the engagement when it opens). A service that straddles the year end is its own
+  line for the part up to the year end (by days, in SQL); no service end: flagged in full, the note says so.
   One line per invoice (left_only, level invoice); at or
   above the threshold it needs a query (`fin query raise --items`). Lines with no service start, and registers that
   end before the window, are listed as not reconciled.
@@ -116,8 +118,9 @@ Decisions: [decisions/fdd-f4.md](decisions/fdd-f4.md). Schema: `db/schema/fdd_ne
 
 - Each trial balance ledger of the latest engagement has a net debt class: cash, debt, debt_like or none, one class
   per ledger for every period end. fin defaults it from the ledger's confirmed account (`netdebt_default_accounts`:
-  borrowings, debt securities, subordinated liabilities and lease liabilities are debt; cash, other bank balances and
-  cash and bank balances are cash; a profit and loss account is none) and leaves the rest unclassified
+  borrowings, debt securities, subordinated liabilities and lease liabilities are debt; cash and cash and bank
+  balances are cash; a profit and loss account is none) and leaves the rest unclassified, other bank balances
+  included
   (`netdebt_ledger_classes`). Claude proposes classes (`fin netdebt propose <co> <file.json>`:
   `[{ledger, class, reason}]`, E930; without a file it lists the unclassified ledgers) and the user confirms or
   rejects them (`fin review list|confirm|reject <co> [ids] --netdebt`, E931). A confirmed class wins over the
@@ -193,6 +196,7 @@ Schema `db/schema/fdd_orderbook.sql`; errors E960–E961. Commands: `fin ingest 
 `backlog_remaining`, `visibility_covered`.
 
 - Orderbook rows: customer (token), order number and date, value, currency, start, end, billed to date, as at a date; file + sheet!row.
+  An order whose term ended by the as-at date adds nothing; the as-at date is shown, with a note when it is not the period end.
 - Contracted backlog, per source and never added: unbilled orderbook value; revenue billed but not yet earned at the period end (service-period
   recast, D6); customer contract value remaining after the period end (F1).
 - `revenue_visibility`: for the year after the last period end, the part of each source falling in it (straight-line over the remaining term),
@@ -213,6 +217,8 @@ the report reads every workstream's data function through `fin.report.fdd_data.c
   disclosure, none), amount (only from linked evidence: an adjustment, a net debt item, a recon run or a query),
   severity (high, medium, low), deal consideration (price, SPA indemnity or warranty, condition precedent, further
   work, none), management response (from the linked query's answer), status (draft, final), evidence refs.
+  A final finding shows the amount, source and response snapshotted when it was made final, flagged "changed since
+  final" when the live evidence differs; a rejected linked adjustment or item, or a withdrawn query, is flagged.
   `fin fdd finding propose|list|update|drop <co>` (Claude); `fin fdd finding final <co> <id>` (the user's word only).
 - `fin report <co> --fdd [--render]`: key findings by severity; quality of earnings (D1, D7); working capital; net
   debt and debt-like items (F4); revenue, contracts and visibility (F1, F7, D9); walkthroughs (F1); provisions and

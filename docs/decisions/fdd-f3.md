@@ -64,13 +64,15 @@ Builder's readings of [fdd.md](../fdd.md) F3, not owner decisions. Scope reading
 ## Cut-off lines and what becomes a query
 
 - **Decision**: `sales_cutoff` flags sales register lines invoiced within `[fdd] cutoff_days` (15) on either side of
-  the year end whose service start is on the other side; `purchase_cutoff` flags purchase lines invoiced up to
-  `[fdd] unrecorded_days` (60) after the year end whose service started on or before it. The year end is each annual
+  the year end whose service is on the other side (billed ahead: service starts after it; billed late: service ended
+  by it); `purchase_cutoff` flags purchase lines invoiced up to `[fdd] unrecorded_days` (60) after the year end for a
+  service that ended by it. The year end is each annual
   period's (not the stub's). The two windows are copied onto the engagement when it opens, as the bank matching
   settings are, so a later config.toml change applies to the next engagement. One line per invoice of one party (its flagged lines added up; keyed by the number, with the party token
   when two parties use the same number), kind left_only with the
-  amount; at or above the engagement threshold it needs a query, like any detail line. Only the service start date is
-  read (service end is not). Lines in the window with no service start, and registers ending before the window ends,
+  amount; at or above the engagement threshold it needs a query, like any detail line. Since the review fixes, "billed
+  late" and the purchase test need the service to have ended by the year end, and a service that straddles it is its
+  own line for the part up to the year end ([fdd-review-fixes.md](fdd-review-fixes.md)). Lines in the window with no service start, and registers ending before the window ends,
   are listed as not reconciled. Both are in `RECONCILIATIONS`, so gate G2 requires them when the registers have
   lines in the window.
 - **Why**: the plan calls them reconciliations with lines for queries; fin does not compare them with the books, so

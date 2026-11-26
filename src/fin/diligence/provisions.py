@@ -23,6 +23,7 @@ from fin.config import load_config
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database
+from fin.diligence.mask import Masker
 
 KINDS = ("doubtful_debts", "gratuity")
 LABEL = "indicative, undiscounted, not an actuarial valuation"
@@ -38,8 +39,8 @@ def _check(number: int, proposal: Any, ledgers: set[str], confirmed: set[str]) -
         raise ProvisionLedgerInvalid(f"{what}: give the reason as text")
     if proposal["ledger"] not in ledgers:
         raise ProvisionLedgerInvalid(
-            f"{what}: {proposal['ledger']!r} is not a ledger of a loaded trial balance "
-            "(`fin map ledgers <company>`; party ledgers go by their token)"
+            f"{what}: {proposal['ledger']!r} is not a ledger of a loaded trial balance of the "
+            "latest engagement (`fin map ledgers <company>`; party ledgers go by their token)"
         )
     if proposal["ledger"] in confirmed:
         raise ProvisionLedgerInvalid(
@@ -58,7 +59,8 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
             ledger
             for (ledger,) in con.execute(
                 "SELECT DISTINCT t.ledger FROM trial_balance t JOIN source_files s USING (file_id) "
-                "WHERE s.status = 'loaded' AND t.row_type = 'ledger'"
+                "WHERE s.status = 'loaded' AND t.row_type = 'ledger' "
+                "AND s.engagement_id = (SELECT max(engagement_id) FROM engagement)"
             ).fetchall()
         }
         confirmed = {
@@ -73,8 +75,9 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
         if len(set(named)) != len(named):
             raise ProvisionLedgerInvalid("a ledger is proposed twice in the file; none stored")
         ids = []
+        masker = Masker(con, run.run_id)
         for p in proposals:
-            values = [p["kind"], p["reason"].strip(), run.run_id, utcnow()]
+            values = [p["kind"], masker.text(p["reason"].strip()), run.run_id, utcnow()]
             (provision_id,) = con.execute(
                 "INSERT INTO provision_ledgers (ledger, kind, status, reason, run_id, changed_at) "
                 "VALUES (?, ?, 'proposed', ?, ?, ?) ON CONFLICT (ledger) DO UPDATE SET "
