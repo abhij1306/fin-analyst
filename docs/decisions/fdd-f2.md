@@ -18,8 +18,7 @@ Owner source: the plan in `docs/fdd.md` F2 (2026-11-25). The entries are the bui
   them only for topics with no active inquiry (a withdrawn one does not count as covering the topic). fin raises
   nothing from it; Claude adapts the wording to the company and drafts, the user approves.
 - **Why**: the wording needs the company's facts (policies, parties) and every query is the user's to approve. The
-  question lists are general FDD practice, not tailored to the client. NEEDS CLIENT CONFIRMATION (the diligence user
-  should say which standard questions they use).
+  question lists are general FDD practice, not tailored to the client. [Client question 12](../client-questions.md).
 - **How to change it**: edit `templates/fdd/inquiries.toml`; topics: `config.toml [fdd] inquiry_topics`.
 
 ## Topics and the gate

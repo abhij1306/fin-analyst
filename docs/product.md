@@ -68,7 +68,7 @@ Where Claude fits:
 fin-analyst/
   README.md              # install + daily use, written for the end user
   CLAUDE.md  CHANGELOG.md  LICENSE
-  docs/                  # product.md, diligence.md, development.md, errors.md, client-handoff.md, decisions/
+  docs/                  # product.md, diligence.md, development.md, errors.md, client-handoff.md, client-questions.md, eval-kinds.md, decisions/
   Brewfile  install.sh
   pyproject.toml  uv.lock  .python-version  .gitignore
   .claude/

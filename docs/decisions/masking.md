@@ -36,12 +36,12 @@
   through the masked name it is). Customer revenue, concentration and retention read the registers only (tokens).
   Because a matched line shows the token beside the ledger's name, the token of a matched party can be read off fin's
   output. This follows from the decision above (the books stay as filed); it is a reading of that decision, not an
-  owner quote, so the owner or the client may still ask for it to change.
+  owner quote, so the owner or the client may still ask for it to change ([client question 2](../client-questions.md)).
 - **Still anonymous: the eval bundle.** `fin eval bundle` goes to the fin developers, whom the client's ZDR does not
   cover: companies as `company-N`, ledgers as `ledger-N`, no file names; E833 now also refuses a ledger name or a
   related party name, since ledgers are no longer tokens.
-- **NEEDS CLIENT CONFIRMATION (still open):** whether the starred fields and payroll are all the client wants masked
-  (for example locations, product names or account numbers: option 3 below). LlamaParse, the optional cloud PDF
+- **Open with the client:** [Client question 1](../client-questions.md) (mask more: locations, product names, account numbers; option 3 below)
+  and [client question 2](../client-questions.md) (a token shown beside a ledger name). LlamaParse, the optional cloud PDF
   add-on, sees pages unmasked; the owner allowed it with a warning in the README; Docling and LiteParse run locally.
 
 ## Options

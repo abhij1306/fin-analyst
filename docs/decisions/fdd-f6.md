@@ -14,7 +14,7 @@ Plan: [fdd.md](../fdd.md) F6. These are the builder's readings, not owner decisi
   ITC the net ITC claimed (table 4), RCM liability table 3.1(d), tax paid in cash and through credit (table 6.1).
 - **Why**: the plan says "monthly return summaries" with a profile per return. The portal's own downloads differ by
   year and are not one layout, so fin reads an export the company or its consultant prepares, like the Tally exports.
-  NEEDS CLIENT CONFIRMATION: what the client's GST summaries look like (a profile is written for each layout).
+  [Client question 8](../client-questions.md) (whether the export is fixed). A new layout gets its own profile (agent reading, 2026-11-26).
 - **How to change it**: `templates/profiles/gstr1.toml`, `gstr3b.toml`; `fin/fdd/gst.py: rows`.
 
 ## Tax ledgers: one class per ledger, proposed by Claude, confirmed by the user
@@ -35,7 +35,7 @@ Plan: [fdd.md](../fdd.md) F6. These are the builder's readings, not owner decisi
 - **Why**: the net movement of an output ledger is near zero after the monthly set-off and payment, so it says nothing
   about the tax booked. Counting credits only leaves credit notes out: a month with a credit note shows the books
   higher than GSTR-3B (which is net of credit notes), and that difference is queried, not hidden.
-  NEEDS CLIENT CONFIRMATION: how the company books set-offs, credit notes and RCM.
+  [Client question 8](../client-questions.md).
 - **How to change it**: `fin/reconcile/gst.py: _books`.
 
 ## Lines, keys and thresholds

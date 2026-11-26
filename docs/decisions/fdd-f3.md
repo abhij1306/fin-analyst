@@ -24,8 +24,7 @@ Builder's readings of [fdd.md](../fdd.md) F3, not owner decisions. Scope reading
   invoice is open in full, one paid after the year end too, and an instalment or partly paid one for the part not
   received by then. An invoice in several runs counts from the latest. Only year ends whose period has a
   run are aged; invoices in no run are shown as "not aged" (`not_in_bank_run_inr`). Amounts are before GST (the
-  register's Amount in Rs), while the books' receivables include GST. NEEDS CLIENT CONFIRMATION (whether the
-  before-GST ageing is the comparison the client wants).
+  register's Amount in Rs), while the books' receivables include GST. [Client question 5](../client-questions.md).
 - **Why**: "from the sales register and matched receipts, D5". A period with no bank statement cannot say what was
   paid, so ageing it would show every invoice as open.
 - **How to change it**: `db/schema/fdd_bsheet.sql`: `receivable_open_lines`.
@@ -46,8 +45,7 @@ Builder's readings of [fdd.md](../fdd.md) F3, not owner decisions. Scope reading
   salary / 12 × `[fdd] basic_share` (0.5). The wage-code figure uses wages = the larger of gross × basic_share and
   half the CTC (gross salary when CTC is blank). Employees with no joining date or no gross salary are counted as
   incomplete and add nothing. Only payroll files whose unit the user confirmed annual are used. The figure is always
-  labelled "indicative, undiscounted, not an actuarial valuation" with the assumption. NEEDS CLIENT CONFIRMATION
-  (basic share, and whether the six-month rounding of the Act should apply).
+  labelled "indicative, undiscounted, not an actuarial valuation" with the assumption. [Client question 3](../client-questions.md).
 - **Why**: the plan states the formula and the assumptions; the payroll has no basic pay column. The Payment of
   Gratuity Act counts a part year over six months as a full year; the plan says completed years, which is the more
   conservative reading for an indicative figure.

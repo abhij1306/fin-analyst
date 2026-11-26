@@ -10,7 +10,7 @@ The review found no error in what the loaders load, mask or flag; what it added 
   the engagement count, because fin loads and keeps them. Its period is the file's period (`FY25`, `FY24-FY25`).
 - **Why:** the registers are loaded as filed (a duplicate is a finding, not a drop), so the person's sum of the column
   is what fin should show. A total that left out duplicates would hide a loading error.
-- **How to change it:** `evals/score.py: _FIN_VALUE` (the `register_total` query); `docs/client-handoff.md` step 4.
+- **How to change it:** `evals/score.py: _FIN_VALUE` (the `register_total` query); `docs/eval-kinds.md`.
 
 ## 2. Payroll totals are annual rupees as filed; the user's unit answer is not applied
 

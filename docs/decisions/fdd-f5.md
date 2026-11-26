@@ -28,8 +28,7 @@ Builder's readings of [fdd.md](../fdd.md) F5. None is an owner decision.
   vendor or party ledger, ignoring case and spaces) gets that token; a new name gets a `PRTY-` token. A related party
   is "matched" to a customer, vendor or ledger when it is the same token (view `related_party_matches`), with no
   review. Everything else is a link Claude proposes by token and only counts once the user confirms it. fin does not
-  match by partial name (`ABC Pvt Ltd` vs `ABC Private Limited`): Claude proposes that link. NEEDS CLIENT
-  CONFIRMATION (whether exact-name matches should also wait for the user).
+  match by partial name (`ABC Pvt Ltd` vs `ABC Private Limited`): Claude proposes that link. Agent reading (2026-11-26), not a client question: an exact-name match does not wait for the user.
 - **Why**: the plan says fin matches by normalised name against `mask_values` and never prints names; the token is
   exactly that match, and the same name already means the same party everywhere else in fin.
 - **How to change it**: `db/schema/fdd_disclosures.sql`: `related_party_matches`.

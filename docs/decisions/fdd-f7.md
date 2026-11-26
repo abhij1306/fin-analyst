@@ -13,8 +13,8 @@ Builder readings of `docs/fdd.md` F7; the owner confirms or changes them. Format
 - **Why**: the plan gives a currency column but no rate, and the registers' rupee amounts come from the company's own rate; inventing
   a rate would be a silent assumption. A blank billed cell and "not billed" differ, so it is flagged rather than turned into 0.
 - **How to change it**: `db/schema/fdd_orderbook.sql` (`backlog_lines`, orderbook branch), `diligence/orderbook.py`.
-  NEEDS CLIENT CONFIRMATION: whether the orderbook is in INR or carries other currencies, and the real export's headers (the
-  profile `templates/profiles/orderbook.toml` has synthetic ones).
+  [Client question 10](../client-questions.md) (currencies). The real export's headers: the client's agent writes a profile when E807 shows them
+  (agent reading, 2026-11-26; `templates/profiles/orderbook.toml` has synthetic ones).
 
 ## 2. How each backlog source is computed
 
@@ -50,5 +50,4 @@ Builder readings of `docs/fdd.md` F7; the owner confirms or changes them. Format
 - **Why**: the plan asks only for the two existence tests; a billed-versus-invoiced amount comparison would need an order reference the register
   lacks. Matching by customer means a customer with one billed order hides another order with no billing; the note says what the orderbook's
   billed to date is so the user can see it.
-- **How to change it**: `reconcile/orderbook_vs_register.py`. NEEDS CLIENT CONFIRMATION: whether the orderbook lists open orders only (then
-  every finished order's billing shows as "billing with no order") or all orders of the year, and whether the register can carry an order number.
+- **How to change it**: `reconcile/orderbook_vs_register.py`. [Client question 10](../client-questions.md) (open orders only or all orders; an order number in the register).

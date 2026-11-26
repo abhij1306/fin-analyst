@@ -78,8 +78,7 @@ Builder's readings of [fdd.md](../fdd.md) F8, not owner decisions. Scope reading
   `net_debt_debt_like` (per period end of the engagement and the stub, view `net_debt`) and `effective_tax_rate`
   (`tax_charge`, the report's scope). Other FDD tables (ageing, gratuity, visibility) are shown but not referable.
 - **Why**: these are the per-period headline FDD figures; the others are per bucket, employee or source, and a
-  reference has only a name and a period. NEEDS CLIENT CONFIRMATION (which other FDD figures the narrative should
-  quote).
+  reference has only a name and a period. [Client question 13](../client-questions.md).
 - **How to change it**: `fin/report/fdd_data.py`: `FDD_FIGURES`, `collect`.
 
 ## Scope and limitations text

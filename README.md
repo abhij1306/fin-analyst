@@ -58,7 +58,9 @@ cd fin-analyst
 
 On a Mac the installer asks before installing [Homebrew](https://brew.sh) if it is missing, then installs `uv`, `node`,
 `quarto` and `poppler`; on Linux it installs what is missing with `apt-get` and pinned downloads (`uv`, `node` 24, `quarto`, `poppler-utils`). Then it sets up the tool, creates your data folder (`~/FinAnalysis`) and runs `uv run fin doctor`.
-Running it again only installs what is missing. Its log is `~/FinAnalysis/logs/install.log`.
+Running it again only installs what is missing. Its log is `~/FinAnalysis/logs/install.log`. `./install.sh --ui` also
+installs the optional web UI. A client's Claude Code running the golden eval follows
+[docs/client-handoff.md](docs/client-handoff.md).
 
 **Optional: a PDF add-on.** fin reads digital PDFs with pdfplumber. Some statement pages it can't read (standalone
 and consolidated side by side, unusual headers, scanned results). With an add-on, fin hands exactly those pages to
@@ -77,12 +79,10 @@ uv run fin parser show             # what is chosen (or /parser in Claude Code)
 | [LiteParse](https://github.com/run-llama/liteparse) | your machine | about 12 MB plus about 50 MB of models (its `ocria-nano` package, under its own model licence) | fast; pages with a text layer are never OCR'd, and scanned PDFs are left for Claude to read |
 | [LlamaParse](https://github.com/run-llama/llama-parse-py) | LlamaIndex's cloud: the skipped pages are uploaded | a small Python SDK | paid per page; most accurate on hard tables; needs `LLAMA_CLOUD_API_KEY` in your environment |
 
-`uv run fin parser use <name>` does the same as the flag; the choice is saved in `config.toml` (`[pdf] parser`). LlamaParse needs `LLAMA_CLOUD_API_KEY` in your environment (read only from there, never stored or logged). Figures an add-on reads are marked as read by it.
+`uv run fin parser use <name>` does the same as the flag. Figures an add-on reads are marked as read by it.
 
-**LlamaParse and your data.** LlamaParse is a cloud service: when it is the chosen parser, the PDF pages fin cannot
-read are uploaded to LlamaParse for parsing. Documents can contain personal or confidential data (bank statements
-carry counterparty names, payroll carries employee data). Choose a local parser (Docling or LiteParse) for documents
-that must not leave the machine, and check your own or your client's data-handling rules before choosing LlamaParse.
+**LlamaParse uploads** the pages fin cannot read to its cloud service. Choose Docling or LiteParse for documents that
+must not leave the machine.
 
 To keep your data somewhere else, set `FIN_DATA_DIR` before installing (for example
 `export FIN_DATA_DIR="$HOME/Documents/FinAnalysis"`) and add that line to `~/.zshrc`.
@@ -142,7 +142,8 @@ with what is stored.
 
 ## Golden evaluation
 
-To see how well fin reads your own documents, follow [docs/client-handoff.md](docs/client-handoff.md) (written for your Claude agent): `fin eval init <company>` lists the figures to check, you check them against the documents, `fin eval run <company>` scores fin, and `fin eval bundle` writes a results file with no company, party or file names to send back.
+To see how well fin reads your own documents, follow [docs/client-handoff.md](docs/client-handoff.md) (written for your Claude agent): `fin eval init <company>` lists the figures to check, you check them against the documents, `fin eval run <company>` scores fin, and `fin eval bundle` writes a results file with no company, party or file names to send back with the answers to
+[docs/client-questions.md](docs/client-questions.md).
 
 ## Your data
 
@@ -165,7 +166,7 @@ it.
 
 Change settings in `config.toml`, then run `uv run fin doctor`. Don't open the database files directly; ask Claude.
 
-**Safety net.** Claude works without approval prompts. Every change to data goes through `fin`, which backs up the
+**Safety net.** Every change to data goes through `fin`, which backs up the
 database first (`backups/<run_id>/`) and records the change in the audit log; every action Claude takes is logged to
 `logs/claude_actions.jsonl`. Deleting a company copies everything to `backups/` first.
 
@@ -187,7 +188,8 @@ database first (`backups/<run_id>/`) and records the change in the audit log; ev
 | [docs/development.md](docs/development.md) | Where code lives and how to add an account, metric, check, profile or report section |
 | [docs/errors.md](docs/errors.md) | Error codes: what each means and what to do |
 | [docs/decisions/](docs/decisions/) | Product-level decisions and how to change them |
-| [docs/client-handoff.md](docs/client-handoff.md) | Run fin on real documents, build the golden eval, report back |
+| [docs/client-handoff.md](docs/client-handoff.md) | For the client's Claude Code: install, run the golden eval on real documents, report back |
+| [docs/client-questions.md](docs/client-questions.md) | Questions only the client can answer, asked after the eval |
 | `CLAUDE.md` | Rules for Claude Code in this repo |
 
 When a command fails it prints an error code and a run id; look the code up in [docs/errors.md](docs/errors.md).

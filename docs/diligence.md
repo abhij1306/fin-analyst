@@ -51,8 +51,9 @@ They are in `CLAUDE.md`, "Diligence".
    approvals. All other commands run without prompts and are recorded in the audit log.
 3. **Queries are drafted, never sent.** Claude drafts the wording, the user approves it, and the user sends it from
    their own email and marks it `sent`. fin never sends anything. (The export the user sends is D8.)
-4. **Names stay on the machine (built for Tally ledgers, D2; the rest as each source is added).** The diligence user's rule is to anonymise before any third-party
-   processing, and Claude Code sends what fin prints to Anthropic. fin stores the real values of the masked fields
+4. **The client's fields are masked.** The client's rule is to anonymise payroll names and codes and the starred register
+   fields before any third-party processing; the client has zero data retention with Anthropic, so fin masks only those
+   (`docs/decisions/masking.md`). fin stores the real values of the masked fields
    locally and prints a stable token in their place (§3, "Masking"). Real values appear only in the files
    `fin query export` writes for the user to send. The PDF parser is the user's choice: a cloud parser
    (LlamaParse) sees the pages as they are (D3).
