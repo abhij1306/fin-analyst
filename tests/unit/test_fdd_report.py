@@ -4,6 +4,7 @@ user's final findings in the report, the narrative lint (typed numbers, valuatio
 language) and the sections that say what is not loaded. Quarto is not run here."""
 
 import shutil
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +23,14 @@ from fin.paths import company_db_path
 from fin.report import dd_render
 from fin.report.fdd_data import collect
 from fin.report.fdd_render import FDD, SECTIONS, make_fdd_report
-from fin.report.fdd_tables import key_findings
+from fin.report.fdd_tables import (
+    coverage_table,
+    gst_returns_table,
+    key_findings,
+    related_table,
+    tax_table,
+    walkthroughs_table,
+)
 from fin.report.lint import TOKEN, judging_lines, lint_fdd
 from tests.qoe_fixtures import build_root, run
 
@@ -230,3 +238,57 @@ def test_quarto_renders_the_fdd_report_in_all_three_formats(root: Path) -> None:
         assert (narrative.parent / name).stat().st_size > 0
     html = (narrative.parent / "fdd.html").read_text(encoding="utf-8")
     assert "One-off legal fees added back" in html and "Scope and limitations" in html
+
+
+def test_collected_data_that_was_not_shown_is_in_the_tables() -> None:
+    """Pricing, loans, deferred tax movement, MAT credit, GST totals, contract terms and the
+    walkthrough exception lines each reach a table (M5 of the FDD review)."""
+    cover = {"party_kind": "customer", "rank": 1, "counterparty": "CUST-0001", "amount_inr": 5,
+             "contract_on_file": True, "expires_within_12m": False, "change_of_control": False,
+             "auto_renew": True, "lock_in_left_months": 5, "notice_days": 90,
+             "file_name": "c.pdf", "page": 2}  # fmt: skip
+    text = coverage_table({"coverage": [cover]}, "rupees")
+    assert "Lock-in left" in text and "5 months" in text and "90 days" in text
+    assert (
+        coverage_table({"coverage": [{**cover, "notice_days": None}]}, "rupees").count("not read")
+        == 1
+    )
+
+    walk = {"sample_id": 1, "kind": "sales", "period": "FY25", "lines": 3, "lines_walked": 3,
+            "checks_passed": 4, "exceptions": 1, "not_available": 0, "exception_lines": 1,
+            "exception_amount": 7}  # fmt: skip
+    line = {"sample_id": 1, "line_no": 2, "party": "CUST-0001", "invoice_no": "INV-9",
+            "invoice_date": "2025-03-01", "amount_inr": 7, "check_name": "contract_covers",
+            "evidence": "rate differs", "evidence_file": "c.pdf", "evidence_page": 3}  # fmt: skip
+    text = walkthroughs_table({"walkthroughs": [walk], "walkthrough_exceptions": [line]}, "rupees")
+    assert "Lines with an exception" in text and "#1.2" in text and "rate differs" in text
+
+    tax = {"period": "FY25", "scope": "standalone", "pbt": 100, "current_tax": 20,
+           "deferred_tax": 5, "total_tax": 25, "effective_tax_rate": Decimal("0.25"),
+           "net_deferred_tax": 9,
+           "deferred_tax_movement": 3, "mat_credit": 11}  # fmt: skip
+    text = tax_table({"tax": {"tax_charge": [tax]}, "scope": "standalone"}, "rupees")
+    assert "MAT credit" in text and "Movement in the year" in text
+
+    ret = {"period": "FY25", "return_type": "gstr3b", "months": 12, "taxable_value": 1,
+           "output_tax": 2, "itc": 3, "rcm_liability": 4, "paid_cash": 5, "paid_credit": 6,
+           "file_name": "g.xlsx"}  # fmt: skip
+    assert "Input tax credit" in gst_returns_table({"tax": {"returns": [ret]}}, "rupees")
+
+    found = {"schedules": {"related_party": []}, "related_kinds": ["related_party"],
+             "transactions": [],
+             "pricing": [{"party": "CUST-0001", "kind": "sales", "period": "FY25",
+                          "product": "Widget", "party_rate": 10, "others_rate": 12,
+                          "difference_pct": -16.67}],
+             "loans": [{"party": "CUST-0001", "ledger": "LEDG-0001", "period": "FY25",
+                        "opening": 1, "closing": 2, "interest": 1, "implied_rate_pct": 9.0,
+                        "average_basis": "opening and closing"}]}  # fmt: skip
+    text = related_table({"disclosures": found}, "rupees")
+    assert "Pricing against other" in text and "-16.67%" in text and "Implied rate" in text
+
+
+def test_the_judging_error_names_the_phrase_that_matched(root: Path) -> None:
+    with pytest.raises(NarrativeJudges, match=r"matched: 'enterprise value'"):
+        lint_fdd("## Key findings\n\nThe enterprise value is lower.\n", "n")
+    with pytest.raises(FddFindingInvalid, match=r"matched: 'buy'"):
+        propose(root, observation="We would buy it.")

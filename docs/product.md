@@ -913,10 +913,10 @@ and renders `fdd.html`, `fdd.docx`, `fdd.pdf` and `fdd_data.json` (every value, 
 whether drafts were in). Sections: key findings by severity (each finding with its observation, implication, impact and
 amount, deal consideration, management response and evidence); quality of earnings (adjusted EBITDA, bridge,
 adjustments, EBITDA to cash); working capital; net debt and debt-like items (F4); revenue, contracts and visibility
-(revenue split, contract coverage of the top customers and vendors, revenue visibility, the recast); walkthroughs (F1);
-provisions and payroll (receivables ageing, indicative gratuity with its assumptions; F3); tax (tax charge and GST
-reconciliations; F6); contingencies and commitments, and related parties (Claude's readings, labelled not verified, and
-the related parties' transactions in the books; F5); management inquiries and their answers (F2); reconciliations and
+(revenue split, contract coverage of the top customers and vendors with lock-in left, notice period and auto-renew, revenue visibility, the recast); walkthroughs (F1; each sample's lines with an exception and the exception lines Claude recorded, labelled not verified);
+provisions and payroll (receivables ageing, indicative gratuity with its assumptions; F3); tax (tax charge with net deferred tax, its movement and the MAT credit, the GST returns' totals as filed, and the GST
+reconciliations; F6); contingencies and commitments, and related parties (Claude's readings, labelled not verified, ,
+the related parties' transactions in the books, their pricing against other customers and vendors, and their loans with the implied rate; F5); management inquiries and their answers (F2); reconciliations and
 queries; basis, gates and scope (with the scope and limitations: no actuarial valuation, leave encashment, legal
 review, site visits or MIS/KPI reconciliation); data findings and mappings; the sources appendix. A section whose data
 is not loaded says so. Only final findings are in it; `--drafts` adds the drafts and labels the copy a draft. The

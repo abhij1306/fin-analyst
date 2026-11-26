@@ -165,8 +165,10 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    as a `recast` adjustment (revenue effect = EBITDA effect). Show the output as it is. Sales invoices with no service dates are
    listed as `undated` (recognised on the invoice date): group those at or above the threshold into a draft query with
    `uv run fin query raise <company> --items <ids> --question "..."`; the user approves it. Never fill in service dates. A contract
-   is optional evidence only: read it, write a reading CSV (customer token or name, optional invoice_no, start, end, value,
-   billing_terms, page) and load it with `uv run fin recast contracts <company> <file> --reading <csv>`; it is shown beside the
+   is optional evidence only: read it, write a reading CSV (counterparty token or name, party_kind customer|vendor, optional
+   invoice_no, start, end, value, billing_terms, page, and the terms read, each optional and left empty when the document does not
+   say: lock_in_months, notice_days, escalation_pct, sla_terms, penalty_terms, escalation_terms, renewal_terms, and yes/no
+   auto_renew, termination_convenience, change_of_control, exclusivity) and load it with `uv run fin recast contracts <company> <file> --reading <csv>`; it is shown beside the
    undated line and never changes the schedule. The user accepts or rejects the proposed recast adjustments (step 7).
 7b. **Provisions and cut-off (FDD F3).** Propose the trial balance ledgers holding the provision for doubtful debts and the
    gratuity provision: a JSON list `[{"ledger": ..., "kind": "doubtful_debts"|"gratuity", "reason": ...}]` loaded with
@@ -189,6 +191,37 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    only on their word). `uv run fin netdebt show <company>` prints cash, debt, debt-like and net debt per period end: say
    which items are proposed (not applied) and how many ledgers are unclassified; the stub is unaudited management
    accounts. E930-E934: report the code and stop.
+7d. **Contracts, samples and walkthroughs (FDD F1).** `uv run fin contracts coverage <company>` ranks the top customers and
+   vendors and shows whether a contract is on file, its expiry, auto-renew, change of control, lock-in left and notice period.
+   For each one with no contract on file, ask the user for it (or raise an inquiry, 7e); read the contracts that exist into the
+   reading CSV of step 7a (`fin recast contracts`). Never assume a term that was not read ("not read" is not "no clause").
+   `uv run fin sample draw <company> --kind sales|purchase --period FY25 [--n 25]` draws the lines at or above the threshold
+   plus a seeded random rest; `fin sample show <company> <id>` lists the line numbers. Walk each line against the documents
+   and write a JSON list `[{"line_no": 1, "check": "in_register|contract_covers|service_in_contract|bank_matched|ledger_posting",
+   "result": "pass|exception|not_available", "evidence": "...", "evidence_file": "...", "evidence_page": 3}]`; load it with
+   `uv run fin walkthrough record <company> <sample_id> <file>`. Your walkthrough is a reading, not verified: whether it is
+   trusted is the user's decision. An exception at or above the threshold is a line for a query (`fin query raise --items`),
+   never a fix. E901-E903: report the code and stop.
+7e. **Inquiries (FDD F2).** `uv run fin query checklist <company>` shows each inquiry topic with its queries and status; for a
+   topic with none, adapt the standard questions it shows and draft them with `uv run fin query raise <company> --topic <topic>
+   --question "..."`. The user approves, sends and closes them (step 3-5); an unanswered inquiry is shown as such, never answered
+   by you. E910: report the code and stop.
+7f. **Disclosures and related parties (FDD F5).** Read the notes to accounts and legal or tax notices into a reading CSV (kind,
+   period, nature, page; counterparty, amount, unit, forum, stage, relationship, books, ledger as read) and load it with
+   `uv run fin disclosures load <company> <file> --reading <csv>`. `uv run fin disclosures related <company>` lists each related
+   party and what it is in the books (fin matches by token); propose links fin did not find as a JSON list
+   `[{"party", "kind": "customer|vendor|ledger", "target", "confidence", "reason"}]` with `fin disclosures related <company>
+   <file>`. The user confirms or rejects links (`fin review confirm|reject <company> <ids> --related`), only on their word.
+   Then `fin reconcile <company> rpt_vs_books`: differences are queried, never fixed. E940-E941: report the code and stop.
+7g. **GST and tax (FDD F6).** Load the GST return summaries with `uv run fin ingest <company> <file> --kind gst --profile
+   gstr1|gstr3b`, then propose the tax ledgers (`gst_output`, `gst_input`, `rcm`, `tds`, `income_tax`, `mat_credit`) as a JSON
+   list `[{"ledger", "class", "confidence", "reason"}]` with `uv run fin map tax <company> <file>`; the user confirms or rejects
+   them (`fin review confirm|reject <company> <ids> --tax`), only on their word. Run `fin reconcile <company>` for the GST
+   reconciliations (`gstr1_vs_sales_register`, `gstr3b_vs_gstr1`, `gstr3b_vs_books`, `rcm`); lines at or above the threshold are
+   grouped into queries, never fixed. E950-E951: report the code and stop.
+7h. **Orderbook and visibility (FDD F7).** Load an orderbook with `uv run fin ingest <company> <file> --kind orderbook`, then
+   `fin reconcile <company> orderbook_vs_register` and `uv run fin visibility <company>`: show each source on its own (they
+   are never added together) and say which items were not usable. Differences are queried. E960-E961: report the code and stop.
 8. **Bridge and walk.** `uv run fin engagement bridge <company> [--period FY25] [--scope standalone|consolidated]`
    (`--json` for rupees) shows, per period and scope of the latest engagement, the EBITDA bridge (reported EBITDA,
    each accepted adjustment, adjusted EBITDA) and the EBITDA-to-cash walk (non-cash and other, working capital

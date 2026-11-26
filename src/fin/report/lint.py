@@ -100,6 +100,12 @@ JUDGING = re.compile(
 )
 
 
+def phrase(text: str) -> str:
+    """The phrase of `text` that the judging rule matched ('' when none)."""
+    found = JUDGING.search(text)
+    return found.group(0) if found else ""
+
+
 def judging_lines(text: str) -> list[tuple[int, str]]:
     """(line number, line) for every line of `text` (comments removed) with valuation,
     investment-rating or buy/don't-buy language."""
@@ -117,7 +123,9 @@ def lint_fdd(text: str, name: str) -> None:
     lint(text, name, FDD_ALLOWED, FIGURE_EXAMPLE)
     lines = judging_lines(text)
     if lines:
-        listing = "\n".join(f"  line {number}: {line}" for number, line in lines)
+        listing = "\n".join(
+            f"  line {number}: {line} (matched: '{phrase(line)}')" for number, line in lines
+        )
         raise NarrativeJudges(
             f"{name} has valuation, investment-rating or buy/don't-buy language on {len(lines)} "
             "line(s); the FDD report states findings, severity, implications and deal "

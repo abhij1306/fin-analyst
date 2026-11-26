@@ -204,7 +204,7 @@ that writes to a diligence table.
 | CLI | Phase |
 |---|---|
 | `fin engagement open <co> --periods ... [--stub FY27-YTD-SEP]` | D2 (**built**) |
-| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 (**built**: `registers`, `bank`, `payroll`) |
+| `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|bank\|payroll\|orderbook\|gst [--profile]` | D2 (**built**: `trial_balance`, `ledger_vouchers`), D3 (**built**: `registers`, `bank`, `payroll`) |
 | `fin map ledgers <co> [file.json]` (Tally ledger → account; the user confirms with `fin review confirm <co> <ids> --ledgers`) | D2 (**built**) |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 (**built**) |
 | `fin engagement passthrough <co> --customer CUST-0001 ... --source "..."` (the user's SI/reseller list, one `--customer` token each; fin prints the tokens it matched) | D4 |
@@ -550,7 +550,12 @@ this file.
     debits = closing, or the user has accepted its finding). Overlapping periods and balance gaps are findings for
     queries, listed in G1 but not blocking it.
   - **G2 Reconciliation:** no query in draft. A new or reworded query reopens it; sending, answering or closing an
-    approved query does not. Needed by `fin adjust accept|reject`.
+    approved query does not. Needed by `fin adjust accept|reject`. Also every reconciliation whose inputs are loaded
+    ran on current data and has its lines at or above the threshold in a query: besides the bank ones, the cut-off
+    (`sales_cutoff`, `purchase_cutoff`), GST (`gstr1_vs_sales_register`, `gstr3b_vs_gstr1`, `gstr3b_vs_books`, `rcm`),
+    `orderbook_vs_register`, `walkthrough` and `rpt_vs_books` runs. Inquiries are queries, so a draft inquiry also blocks it.
+    FDD data outside these runs (net debt classes and items, provision and tax ledger classes, contract terms, disclosures,
+    findings) is under no gate: changing it does not reopen one.
   - **G3 Recast:** once a sales register is loaded, for every year: `fin recast run` ran on the current data, every sales
     invoice at or above the threshold with no service dates is in a query, and the year's recast difference has a
     proposed or decided `recast` adjustment. Needed to approve G4.
@@ -559,7 +564,7 @@ this file.
 
   A command that needs a gate that is not approved refuses with E801; a gate that cannot be approved yet, E802.
   `fin status` shows an open engagement's queries, proposed adjustments and gates.
-- Source files: `fin ingest <company> <file> --kind trial_balance|ledger_vouchers|registers|bank|payroll [--profile <name>]` loads a Tally
+- Source files: `fin ingest <company> <file> --kind trial_balance|ledger_vouchers|registers|bank|payroll|orderbook|gst [--profile <name>]` loads a Tally
   Trial Balance (Detailed mode) or Ledger Vouchers export into `trial_balance` or `ledger_entries` (and `ledger_blocks`, every ledger block the export has, even one with no voucher lines), or a billing-system
   registers workbook (a sales sheet and a purchase sheet) into `register_lines`, each row with
   its file (`source_files`: sha256, archive copy, profile) and sheet!row. The period comes from the export's header
@@ -620,7 +625,9 @@ this file.
   management accounts, the gate states it was rendered with and a sources appendix. The dashboard has a "Diligence figures" page.
   Decisions: `docs/decisions/d7-qoe.md`.
 - `fin reconcile <company> [name] [--period FY25] [--json]` (name: `tb_vs_statements`, `sales_register_vs_gl`,
-  `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`; none: every one whose inputs are loaded). The last four compare
+  `purchase_register_vs_gl`, `gl_vs_tb`, `payroll_vs_gl`, `bank_vs_invoices`, `bank_vs_tb`, `walkthrough`, `sales_cutoff`,
+  `purchase_cutoff`, `orderbook_vs_register`, `gstr1_vs_sales_register`, `gstr3b_vs_gstr1`, `gstr3b_vs_books`, `rcm`,
+  `rpt_vs_books`; none: every one whose inputs are loaded). The last four compare
   the registers, Ledger Vouchers, trial balance and payroll; fin drafts no query for them: Claude groups the lines
   at or above the threshold into issues with `fin query raise <company> --items 12,13 --question "..."` and you approve
   them; foreign-currency rate differences are `fx` lines, listed, never queried (E840-E842). `tb_vs_statements`: each year's trial balance, rolled up by

@@ -218,7 +218,10 @@ the report reads every workstream's data function through `fin.report.fdd_data.c
   debt and debt-like items (F4); revenue, contracts and visibility (F1, F7, D9); walkthroughs (F1); provisions and
   payroll (F3); tax (F6); contingencies and commitments (F5); related parties (F5); inquiries and their answers
   (F2); gate states; scope and limitations (what fin did not do: actuarial valuation, legal review, site visits);
-  sources appendix. A section whose data is not loaded says so.
+  sources appendix. A section whose data is not loaded says so. Review fix (owner's review, 2026-11-26): the report
+  also shows what F1, F5 and F6 collect: contract lock-in left, notice period and auto-renew, walkthrough exception
+  lines, related party pricing and loans, deferred tax movement and MAT credit, and the GST returns' totals
+  ([decisions/fdd-review-fixes.md](decisions/fdd-review-fixes.md)).
 - Narrative rule for this report only (owner, 2026-11-25): observations, severity, implications and deal
   considerations are allowed; no valuation, rating of the company as an investment, or buy/don't-buy language.
   Numbers only as references, as in the other reports. Only final findings appear unless `--drafts`.

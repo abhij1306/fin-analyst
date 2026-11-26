@@ -146,6 +146,21 @@ def summaries(
     )
 
 
+def exception_lines(con: duckdb.DuckDBPyConnection, engagement_id: int) -> list[dict[str, Any]]:
+    """The checks Claude recorded as an exception, with the sample line they are on (the FDD
+    report lists them)."""
+    return fetch_dicts(
+        con,
+        "SELECT w.sample_id, w.line_no, l.party, l.invoice_no, l.invoice_date, l.amount_inr, "
+        "w.check_name, w.evidence, w.evidence_file, w.evidence_page "
+        "FROM walkthroughs w JOIN samples s USING (sample_id) "
+        "JOIN sample_lines l USING (sample_id, line_no) "
+        "WHERE s.engagement_id = ? AND w.result = 'exception' ORDER BY w.sample_id, w.line_no, "
+        "w.check_name",
+        [engagement_id],
+    )
+
+
 def list_summaries(run: Run, company: str) -> list[dict[str, Any]]:
     with company_database(run, company) as con:
         return summaries(con, require_open(con, company)["engagement_id"])

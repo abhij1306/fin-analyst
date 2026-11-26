@@ -18,7 +18,7 @@ Placeholders:
   {{narrative:<section>}}  the narrative under that section's heading in fdd_narrative.md
   {{table:<name>}}         draft_note, key_findings, basis, gates, ebitda, bridge, adjustments, walk,
                            revenue, nwc_year_end, nwc_monthly, net_debt, coverage, visibility,
-                           walkthroughs, receivables, gratuity, tax_charge, gst, contingencies,
+                           walkthroughs, receivables, gratuity, tax_charge, gst_returns, gst, contingencies,
                            related, inquiries, recon, queries, findings, mappings, sources
   {{section:recast}}       the service-period recast (empty until `fin recast run` has run)
 Every value comes from SQL on the company database (docs/fdd.md F8).
@@ -117,6 +117,12 @@ items. Proposed items are shown, not applied.
 {{narrative:tax}}
 
 {{table:tax_charge}}
+
+### GST returns as filed
+
+{{table:gst_returns}}
+
+### GST reconciliations
 
 {{table:gst}}
 
