@@ -6,6 +6,7 @@ readings are labelled as such, not verified.
 """
 
 import html
+from decimal import Decimal
 from typing import Any
 
 from fin.report.dd_tables import _label, _m, _ratio
@@ -21,6 +22,7 @@ LABELS = {
     "qoe": "quality of earnings",
     "related_parties": "related parties",
 }
+NOT_READ = "not read"  # a term the reading left empty: not the same as no clause
 NOT_VERIFIED = "Read by Claude from the documents (file + page); not verified by fin."
 
 
@@ -32,7 +34,7 @@ def _t(text: str | None) -> str:
 
 def _known(value: bool | None) -> str:
     """A term Claude read, or did not: yes, no, or "not read" (never shown as absent)."""
-    return "not read" if value is None else ("yes" if value else "no")
+    return NOT_READ if value is None else ("yes" if value else "no")
 
 
 def _word(value: str) -> str:
@@ -40,16 +42,17 @@ def _word(value: str) -> str:
 
 
 def _months(value: int | None) -> str:
-    return "not read" if value is None else f"{value} months"
+    return NOT_READ if value is None else f"{value} months"
 
 
 def _days(value: int | None) -> str:
-    return "not read" if value is None else f"{value} days"
+    return NOT_READ if value is None else f"{value} days"
 
 
-def _rate(value: Any, unit: str) -> str:
-    """A rate per unit of quantity: in rupees whatever the report's display unit."""
-    return _m(value, "rupees") if value is not None else "n/a"
+def _rate(value: Any) -> str:
+    """A rate per unit of quantity: in rupees whatever the report's display unit. SQL gives a
+    float when the quantity column is DOUBLE; money() needs a Decimal."""
+    return "n/a" if value is None else _m(Decimal(str(value)), "rupees")
 
 
 def _pct(value: Any) -> str:
@@ -187,10 +190,10 @@ def walkthroughs_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
     lines = [
         [
-            f"#{r['sample_id']}.{r['line_no']}", r["party"] or "", r["invoice_no"],
+            f"#{r['sample_id']}.{r['line_no']}", _t(r["party"]), _t(r["invoice_no"]),
             str(r["invoice_date"]), _m(r["amount_inr"], unit), _word(r["check_name"]),
             _t(r["evidence"]),
-            f"{r['evidence_file']} p. {r['evidence_page']}" if r["evidence_file"] else "",
+            _t(f"{r['evidence_file']} p. {r['evidence_page']}") if r["evidence_file"] else "",
         ]
         for r in data["walkthrough_exceptions"]
     ]  # fmt: skip
@@ -286,7 +289,7 @@ def gst_returns_table(data: dict[str, Any], unit: str) -> str:
         [
             r["period"], r["return_type"], str(r["months"]), _m(r["taxable_value"], unit),
             _m(r["output_tax"], unit), _m(r["itc"], unit), _m(r["rcm_liability"], unit),
-            _m(r["paid_cash"], unit), _m(r["paid_credit"], unit), r["file_name"],
+            _m(r["paid_cash"], unit), _m(r["paid_credit"], unit), _t(r["file_name"]),
         ]
         for r in data["tax"]["returns"]
     ]  # fmt: skip
@@ -356,8 +359,8 @@ def related_table(data: dict[str, Any], unit: str) -> str:
         )
     pricing = [
         [
-            r["party"], r["kind"], r["period"], r["product"], _rate(r["party_rate"], unit),
-            _rate(r["others_rate"], unit), _pct(r["difference_pct"]),
+            _t(r["party"]), r["kind"], r["period"], _t(r["product"]), _rate(r["party_rate"]),
+            _rate(r["others_rate"]), _pct(r["difference_pct"]),
         ]
         for r in found["pricing"]
     ]  # fmt: skip
@@ -369,8 +372,9 @@ def related_table(data: dict[str, Any], unit: str) -> str:
         )
     loans = [
         [
-            r["party"], r["ledger"], r["period"], _m(r["opening"], unit), _m(r["closing"], unit),
-            _m(r["interest"], unit), _pct(r["implied_rate_pct"]), r["average_basis"],
+            _t(r["party"]), _t(r["ledger"]), r["period"], _m(r["opening"], unit),
+            _m(r["closing"], unit), _m(r["interest"], unit), _pct(r["implied_rate_pct"]),
+            r["average_basis"],
         ]
         for r in found["loans"]
     ]  # fmt: skip

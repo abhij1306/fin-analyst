@@ -198,7 +198,7 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    `uv run fin sample draw <company> --kind sales|purchase --period FY25 [--n 25]` draws the lines at or above the threshold
    plus a seeded random rest; `fin sample show <company> <id>` lists the line numbers. Walk each line against the documents
    and write a JSON list `[{"line_no": 1, "check": "in_register|contract_covers|service_in_contract|bank_matched|ledger_posting",
-   "result": "pass|exception|not_available", "evidence": "...", "evidence_file": "...", "evidence_page": 3}]`; load it with
+   "result": "pass|exception|not_available", "evidence": "...", "file": "...", "page": 3}]`; load it with
    `uv run fin walkthrough record <company> <sample_id> <file>`. Your walkthrough is a reading, not verified: whether it is
    trusted is the user's decision. An exception at or above the threshold is a line for a query (`fin query raise --items`),
    never a fix. E901-E903: report the code and stop.

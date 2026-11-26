@@ -278,13 +278,15 @@ def test_collected_data_that_was_not_shown_is_in_the_tables() -> None:
     found = {"schedules": {"related_party": []}, "related_kinds": ["related_party"],
              "transactions": [],
              "pricing": [{"party": "CUST-0001", "kind": "sales", "period": "FY25",
-                          "product": "Widget", "party_rate": 10, "others_rate": 12,
+                          "product": "<b>Widget</b>", "party_rate": 10.5, "others_rate": 12.25,
                           "difference_pct": -16.67}],
              "loans": [{"party": "CUST-0001", "ledger": "LEDG-0001", "period": "FY25",
                         "opening": 1, "closing": 2, "interest": 1, "implied_rate_pct": 9.0,
                         "average_basis": "opening and closing"}]}  # fmt: skip
     text = related_table({"disclosures": found}, "rupees")
     assert "Pricing against other" in text and "-16.67%" in text and "Implied rate" in text
+    assert "₹10.50" in text  # a float rate from SQL is formatted, not a TypeError
+    assert "&lt;b&gt;Widget&lt;/b&gt;" in text and "<b>" not in text  # imported text is escaped
 
 
 def test_the_judging_error_names_the_phrase_that_matched(root: Path) -> None:
