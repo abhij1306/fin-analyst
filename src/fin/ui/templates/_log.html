@@ -2,9 +2,9 @@
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
-{{ head("Log", "The latest runs for this company, newest first.") }}
+{{ head("Log") }}
 <div class="card">
-  <header><h2>Runs</h2><p>Every fin command with its run id.</p></header>
+  <header><h2>Runs</h2></header>
   <section class="flush">
     {% if data.runs %}
     <div class="table-container"><table class="table">

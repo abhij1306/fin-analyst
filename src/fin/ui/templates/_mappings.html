@@ -4,9 +4,9 @@
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
-{{ head("Mappings", "Labels fin could not map. Claude proposes; you review them.") }}
+{{ head("Mappings") }}
 <div class="card">
-  <header><h2>Waiting for review</h2><p>Confirm a proposal to map the label, or reject it.</p></header>
+  <header><h2>Waiting for review</h2></header>
   <section class="flush">
     {% if data.pending %}
     <div class="table-container"><table class="table">
