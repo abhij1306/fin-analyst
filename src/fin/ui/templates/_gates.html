@@ -1,0 +1,18 @@
+{% if data.empty %}
+<p class="text-muted-foreground">No companies yet: put files in inbox/&lt;company&gt;/ and ingest them.</p>
+{% elif data.no_engagement %}
+<p class="text-muted-foreground">{{ data.no_engagement }}</p>
+{% else %}
+<h2>Gates</h2>
+<p class="text-muted-foreground">Engagement #{{ data.engagement_id }}. Only you approve a gate.</p>
+{% for g in data.gates %}
+<div class="card">
+  <header><h3>{{ g.gate }} {{ g.title }} <span class="badge-outline">{{ g.state }}</span></h3>
+    {% if g.reason %}<p>{{ g.reason }}</p>{% endif %}</header>
+  <section>
+    <ul>{% for line in g.checklist %}<li>{{ "pass" if line.ok else "FAIL" }}: {{ line.text }}</li>{% endfor %}</ul>
+    <p class="text-muted-foreground">Unlocks: {{ g.unlocks }}</p>
+  </section>
+</div>
+{% endfor %}
+{% endif %}

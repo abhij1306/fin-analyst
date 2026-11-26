@@ -941,9 +941,18 @@ buy/don't-buy language (E972).
 
 ## Web UI (optional, `fin ui`)
 
-Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: [decisions/web-ui.md](decisions/web-ui.md). The UI is built in four steps; this is the first (foundation). The CLI does not change, and without the add-on nothing else does either.
+Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: [decisions/web-ui.md](decisions/web-ui.md). The UI is built in four steps; steps 1 (foundation) and 2 (read-only screens) are here. The CLI does not change, and without the add-on nothing else does either.
 
 - **Install**: `./install.sh --ui` or `uv run fin ui setup` (`uv sync --frozen --extra ui`: FastAPI, Jinja2, uvicorn; the chosen PDF add-on is kept). No frontend build and no npm: pages are HTML rendered by the server, with htmx and the Basecoat component CSS and JS (shadcn/ui as plain HTML classes) vendored under `src/fin/ui/static/vendor/` (versions and licences in `VENDOR.md`). `fin parser use`, `fin update` and `install.sh` keep the `ui` extra once installed. `fin doctor` has a `web ui` line (installed or not; never a failure).
 - **`fin ui`**: starts the server on 127.0.0.1 (default port 8765, `--port`), prints and opens a link with a random token, stops on Ctrl-C. Without the extra it stops with E006 and says how to install it; a busy port is E006 too.
 - **Local only**: the server binds 127.0.0.1; a request with another Host, or without the token cookie (HttpOnly, SameSite=Strict, set from the link's token), is refused with E007; no CORS headers; no API documentation pages.
-- **Screens**: a top bar with the company picker and the screen tabs, and a chat panel on the right (a placeholder in this step). Home shows what `fin status` returns: counts, periods and gaps, the next gate, and what waits for the user. The other screens, the decision buttons, uploads and the chat come in later steps; this step changes no data.
+- **Screens**: a top bar with the company picker and the screen tabs (a tab list: `role="tablist"`, the open screen is `aria-selected`), and a chat panel on the right (a placeholder until step 4). The chosen company stays in the link of every tab, including Home, and changing the picker reloads the same screen for that company. Every screen is read-only and uses fin's own modules; a page is `/<screen>?company=<name>` and its partial `/partials/<screen>?company=<name>`.
+  - Home: what `fin status` returns: counts, periods and gaps, the next gate, and what waits for the user (each row links to its screen).
+  - Files: loaded documents (version, status, whether Claude read pages), files in the inbox not loaded, and findings on filed data (open and accepted, as `fin findings list`).
+  - Mappings: the mapping items waiting for review (label, proposed account, confidence, where it is).
+  - Queries: the open engagement's accountant queries and adjustments with status and evidence.
+  - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`).
+  - Findings: the engagement's FDD findings (not dropped) with status, severity, amount and flags.
+  - Reports: the HTML, Word, PDF and Excel files under `reports/<company>/`; HTML opens in the browser, the others download. A name that is not one of the listed files is refused with E001.
+  - Log: the company's latest 100 runs (newest first) with their problems.
+  - Queries, Gates and Findings say so (E803, or nothing loaded) when the company has no open engagement. No screen changes data; the decision buttons and uploads come in step 3.

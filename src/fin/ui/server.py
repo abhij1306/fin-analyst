@@ -1,6 +1,6 @@
 """The UI server: a small FastAPI app that renders HTML pages (Jinja2, htmx, Basecoat) over fin's
 own modules (docs/web-ui-plan.md). Needs the `ui` extra; `fin.cli.ui` imports this module only
-when it is there. This release only shows data: no route changes it."""
+when it is there. Every screen is read-only: no route changes data."""
 
 import socket
 import webbrowser
@@ -9,23 +9,22 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from fin import __version__
 from fin.audit.errors import DependencyMissing, FinError, UiUnavailable
-from fin.audit.logger import Run
-from fin.status import companies, company_status
-from fin.ui import views
+from fin.status import companies
+from fin.ui import screens
 from fin.ui.security import new_token, protect
 from fin.ui.setup import STATIC_DIR, TEMPLATE_DIR
 
 DEFAULT_PORT = 8765
-SCREENS = [("home", "Home", True)] + [
-    (name.lower(), name, False)
-    for name in ("Files", "Mappings", "Queries", "Gates", "Findings", "Reports", "Log")
-]  # (id, label, built); the others arrive in later releases
+SCREENS = [
+    (name.lower(), name)
+    for name in ("Home", "Files", "Mappings", "Queries", "Gates", "Findings", "Reports", "Log")
+]  # (id, label): the tabs of the top bar, in order
 
 
 def create_app(root: Path, token: str, port: int) -> FastAPI:
@@ -41,36 +40,48 @@ def create_app(root: Path, token: str, port: int) -> FastAPI:
             request, "_error.html", {"error": f"{exc.code}: {exc.message}"}, status_code=400
         )
 
-    def home_context(company: str | None) -> dict[str, object]:
-        if company is None:
-            return {"empty": True}
-        if company not in companies(root):
+    def known(company: str | None) -> str | None:
+        """The company, or the first one when none is chosen; E001 for one that does not exist."""
+        names = companies(root)
+        if not company:
+            return names[0] if names else None
+        if company not in names:
             raise DependencyMissing(
                 f"no company {company!r}: put its files in inbox/{company}/ and ingest them"
             )
-        # company_status only reads the data folder; the run is not started (no run record).
-        status = company_status(Run("ui status", {"company": company}, root), company)
-        return views.home(status)
+        return company
 
-    @app.get("/", response_class=HTMLResponse)
-    def page(request: Request, company: str | None = None) -> HTMLResponse:
-        names = companies(root)
-        chosen = company or (names[0] if names else None)
-        context = {
-            "companies": names,
-            "company": chosen,
-            "screens": SCREENS,
-            "screen": "home",
-            "version": __version__,
-            "home": home_context(chosen),
-        }
-        return templates.TemplateResponse(request, "home.html", context)
+    def screen_data(screen: str, company: str | None) -> dict[str, object]:
+        return {"empty": True} if company is None else screens.LOADERS[screen](root, company)
 
-    @app.get("/partials/home", response_class=HTMLResponse)
-    def home_partial(request: Request, company: str | None = None) -> HTMLResponse:
-        return templates.TemplateResponse(
-            request, "_home.html", {"home": home_context(company or None)}
-        )
+    def add_routes(screen: str) -> None:
+        @app.get("/" if screen == "home" else f"/{screen}", response_class=HTMLResponse)
+        def page(request: Request, company: str | None = None) -> HTMLResponse:
+            chosen = known(company)
+            context = {
+                "companies": companies(root),
+                "company": chosen,
+                "screens": SCREENS,
+                "screen": screen,
+                "version": __version__,
+                "data": screen_data(screen, chosen),
+            }  # the partial gets the same "company" and "data"
+            return templates.TemplateResponse(request, "screen.html", context)
+
+        @app.get(f"/partials/{screen}", response_class=HTMLResponse)
+        def partial(request: Request, company: str | None = None) -> HTMLResponse:
+            chosen = known(company)
+            context = {"company": chosen, "data": screen_data(screen, chosen)}
+            return templates.TemplateResponse(request, f"_{screen}.html", context)
+
+    for screen_id, _ in SCREENS:
+        add_routes(screen_id)
+
+    @app.get("/report-file")
+    def report_file(company: str, name: str) -> FileResponse:
+        """A report or export of the company: HTML opens in the browser, the others download."""
+        path = screens.report_file(root, known(company) or "", name)
+        return FileResponse(path, filename=None if path.suffix == ".html" else path.name)
 
     return app
 

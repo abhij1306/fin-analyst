@@ -1,4 +1,4 @@
-# Web UI (PR 1: foundation)
+# Web UI (PR 1: foundation, PR 2: read-only screens)
 
 Builder readings of the owner's 2026-11-26 decisions in [../web-ui-plan.md](../web-ui-plan.md) ("browser is fine", "use shadcn ui to avoid building components yourself", "keep it optional", "yes seitch to HTML", "use a similar library like shadcn for html to avoid writing and maintating code"); the owner confirms or changes them. Format: [README.md](README.md).
 
@@ -8,11 +8,11 @@ Builder readings of the owner's 2026-11-26 decisions in [../web-ui-plan.md](../w
 - **Why**: numbers come from fin; the mockup data was fake. Those two counts arrive with the Files and Findings screens (PR 2), which read them from their own tables.
 - **How to change it**: `src/fin/ui/views.py` (`home`, `waiting`).
 
-## 2. Screens not built yet are shown disabled
+## 2. All eight screens are tabs (PR 2: read-only screens)
 
-- **Decision**: the top bar lists all eight screens of the plan; only Home opens. The others are disabled tabs, not hidden.
-- **Why**: the client sees the whole shape from the start, and no tab leads to an empty page.
-- **How to change it**: `src/fin/ui/server.py` (`SCREENS`).
+- **Decision**: PR 1 showed the screens not built yet as disabled tabs; PR 2 builds them all, so every tab opens. The top bar is a Basecoat tab list (`role="tablist"`, `aria-selected`, `aria-controls="screen"`, the screen is the `tabpanel`); the tabs are links, so a screen has its own address. The chosen company is in every tab link (Home too) and the company picker reloads the current screen with the new company.
+- **Why**: the review notes of #106 (tab semantics; keep the company between screens).
+- **How to change it**: `src/fin/ui/server.py` (`SCREENS`), `templates/base.html`.
 
 ## 3. The UI is read-only in this release, and the chat is a placeholder
 
@@ -31,3 +31,15 @@ Builder readings of the owner's 2026-11-26 decisions in [../web-ui-plan.md](../w
 - **Decision**: a request whose Host is not `127.0.0.1:<port>` or `localhost:<port>`, or that has no valid token cookie, is refused with E007 (400 or 401), including static files. The token is in the link `fin ui` prints and opens; it is not written to the run log.
 - **Why**: a web page in the same browser must not be able to read or drive the server (plan: Local only and protected).
 - **How to change it**: `src/fin/ui/security.py`.
+
+## 6. What each read-only screen shows (PR 2)
+
+- **Decision**: each screen shows what the matching CLI command lists, and no more: Files = documents, inbox files not loaded and findings on filed data (`fin findings list`); Mappings = open items of `pending.json`; Queries = queries and adjustments of the open engagement; Gates = `fin gate status`; Findings = the engagement's FDD findings except dropped ones; Log = the company's last 100 runs with their problems (`fin audit <company>`). Where a company has no open engagement, Queries, Gates and Findings say so (E803) as text, not as an error alert. The mockup's "documents loaded" and "draft FDD findings" cards stay out of Home (see 1).
+- **Why**: numbers come from fin; a second way to count is a second source of truth. An empty engagement is a normal state, not a failure.
+- **How to change it**: `src/fin/ui/screens.py`, the `_<screen>.html` templates.
+
+## 7. Reports lists files that exist; it does not build them
+
+- **Decision**: the Reports screen lists the .html, .docx, .pdf and .xlsx files under `reports/<company>/` (health, diligence and FDD reports, the Excel export). HTML opens in a new tab; the rest download. The file route serves only a name that is in that list, so a path can never leave the folder (E001 otherwise). Making a report (the narrative, `fin report`) stays with Claude and the CLI until chat (PR 4). The plan's "dashboard link" is left out: the Evidence dashboards are served by their own command (`fin dashboard`), and the plan puts replacing them out of scope.
+- **Why**: read-only screens; a report is Claude's work and its numbers come from fin.
+- **How to change it**: `src/fin/ui/screens.py` (`report_files`).

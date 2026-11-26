@@ -16,7 +16,8 @@
     <strong>fin</strong>
     <label class="label" for="company">Company</label>
     <select class="select" id="company" name="company"
-            hx-get="/partials/home" hx-trigger="change" hx-target="#screen">
+            hx-get="{{ '/' if screen == 'home' else '/' ~ screen }}" hx-trigger="change"
+            hx-target="body" hx-select="body" hx-swap="outerHTML" hx-push-url="true">
       {% for co in companies %}
       <option value="{{ co }}"{% if co == company %} selected{% endif %}>{{ co }}</option>
       {% else %}
@@ -24,20 +25,18 @@
       {% endfor %}
     </select>
     <div class="tabs">
-      <div role="tablist" aria-orientation="horizontal">
-        {% for id, label, built in screens %}
-        {% if built %}
-        <a role="tab" href="/{% if id != 'home' %}{{ id }}{% endif %}" aria-selected="{{ 'true' if id == screen else 'false' }}">{{ label }}</a>
-        {% else %}
-        <button type="button" role="tab" aria-selected="false" disabled>{{ label }}</button>
-        {% endif %}
+      <div role="tablist" aria-orientation="horizontal" aria-label="Screens">
+        {% for id, label in screens %}
+        <a role="tab" id="tab-{{ id }}" href="{{ '/' if id == 'home' else '/' ~ id }}{% if company %}?company={{ company | urlencode }}{% endif %}"
+           aria-controls="screen" aria-selected="{{ 'true' if id == screen else 'false' }}"
+           tabindex="{{ '0' if id == screen else '-1' }}">{{ label }}</a>
         {% endfor %}
       </div>
     </div>
     <span class="text-muted-foreground">local only · fin {{ version }}</span>
   </header>
   <div class="split">
-    <main id="screen">{% block screen %}{% endblock %}</main>
+    <main id="screen" role="tabpanel" aria-labelledby="tab-{{ screen }}">{% block screen %}{% endblock %}</main>
     {% include "_chat.html" %}
   </div>
 </body>
