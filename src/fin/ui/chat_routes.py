@@ -109,12 +109,13 @@ def add_chat_routes(app: FastAPI, root: Path, templates: Jinja2Templates, chat: 
         chosen = chat_store.load(root, conv)
         found = permission(chosen, item)
         company = str(chosen["company"])
+        rule = chat_args.checked_rule(str(found["rule"]))
         if chat.running(conv):
             return reply(company, chosen, notice=ChatBusy("this conversation is still working"))
         found["state"] = "allowed"
         said = f"Allowed once: {found['tool']} {found['summary']}. Please go on."
         chat_store.add_user_item(root, chosen, said)
-        return begin(chosen, company, said, str(found["rule"]))
+        return begin(chosen, company, said, rule)
 
     @app.post("/chat/deny", response_class=HTMLResponse)
     def deny(conv: str = Form(), item: str = Form()) -> HTMLResponse:

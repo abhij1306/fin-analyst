@@ -10,7 +10,7 @@ import re
 import shlex
 import shutil
 
-from fin.audit.errors import ChatUnavailable
+from fin.audit.errors import ChatUnavailable, UiActionInvalid
 
 # The commands that are the user's decisions (CLAUDE.md, "Diligence"; the screens' buttons).
 DECISION_COMMANDS = [
@@ -44,6 +44,7 @@ DECISION_RE = re.compile(
 )
 RULE_SAFE = re.compile(r"[^*()\\\n]+")  # a command or path that can be allowed as an exact rule
 ONCE_TOOLS = {"Bash": "command", "Edit": "file_path", "Write": "file_path", "Read": "file_path"}
+ONCE_RULE = re.compile(r"(?:Bash|Edit|Write|Read)\([^*()\\\n]+\)")  # what once_rule makes
 
 
 def disallowed_tools() -> list[str]:
@@ -72,6 +73,14 @@ def once_rule(tool: str, tool_input: dict[str, object]) -> str | None:
     if not isinstance(value, str) or not RULE_SAFE.fullmatch(value):
         return None
     return f"{tool}({value})"
+
+
+def checked_rule(rule: str) -> str:
+    """A stored Allow once rule, only if it has the shape once_rule makes (E008 otherwise): the
+    conversation file must not be able to hand claude anything else."""
+    if not ONCE_RULE.fullmatch(rule):
+        raise UiActionInvalid(f"not a rule the chat can allow: {rule!r}")
+    return rule
 
 
 def locate() -> list[str]:
@@ -111,4 +120,4 @@ def turn_argv(
         "--append-system-prompt",
         GUIDANCE,
     ]
-    return [*argv, "--allowedTools", once] if once else argv
+    return [*argv, f"--allowedTools={checked_rule(once)}"] if once else argv

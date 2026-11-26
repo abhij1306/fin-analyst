@@ -102,9 +102,9 @@ def test_argv_denies_the_users_decisions_and_never_bypasses_permissions() -> Non
     assert "--include-partial-messages" in argv
     assert "--session-id" in argv and "--resume" not in argv
     assert "--resume" in chat_args.turn_argv(["claude"], "sid", started=True)
-    assert chat_args.turn_argv(["claude"], "sid", False, "Bash(ls)")[-2:] == [
-        "--allowedTools", "Bash(ls)",
-    ]  # fmt: skip
+    assert (
+        chat_args.turn_argv(["claude"], "sid", False, "Bash(ls)")[-1] == "--allowedTools=Bash(ls)"
+    )
 
 
 def test_a_turn_runs_in_the_repo_with_the_data_folder_and_the_denied_decisions(
@@ -183,7 +183,7 @@ def test_a_permission_request_is_allowed_once_for_that_command_only(
     assert 'sse-connect="/chat/stream' in answer.text
     wait_idle(client, cid)
     second = started(calls)[1]
-    assert second["argv"][-2:] == ["--allowedTools", "Bash(fin ingest acme)"]
+    assert second["argv"][-1] == "--allowedTools=Bash(fin ingest acme)"
     assert "--resume" in second["argv"]
     states = [
         i.get("state") for i in chat_store.items(chat_store.load(data_root, cid))
@@ -197,6 +197,20 @@ def test_a_permission_request_is_allowed_once_for_that_command_only(
         == 1
     )  # E008 as an alert; nothing started
     assert len(started(calls)) == 2
+
+
+def test_a_tampered_allow_rule_is_refused_and_starts_nothing(
+    client: TestClient, data_root: Path, calls: Path
+) -> None:
+    run_turn(client, data_root, "denied fin ingest acme")
+    cid = conv_id(data_root)
+    conv = chat_store.load(data_root, cid)
+    item = next(i for i in chat_store.items(conv) if i["kind"] == "permission")
+    item["rule"] = "--dangerously-skip-permissions"  # a conversation file edited by someone else
+    chat_store.save(data_root, conv)
+    answer = client.post("/chat/allow", data={"conv": cid, "item": item["id"]}, headers=ORIGIN)
+    assert answer.status_code == 400 and "E008" in answer.text
+    assert len(started(calls)) == 1
 
 
 def test_deny_records_the_choice_and_starts_nothing(
