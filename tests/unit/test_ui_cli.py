@@ -29,7 +29,8 @@ def test_doctor_reports_the_ui_as_not_installed_without_failing(
 
     monkeypatch.setattr(fin.doctor, "extra_installed", lambda: False)
     check = check_web_ui()
-    assert check.ok and not check.warning
+    assert check.ok
+    assert not check.warning
     assert "not installed" in check.detail
 
 
@@ -38,4 +39,6 @@ def test_doctor_reports_the_ui_as_installed(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(fin.doctor, "extra_installed", lambda: True)
     check = check_web_ui()
-    assert check.ok and not check.warning and check.detail.startswith("installed")
+    assert check.ok
+    assert not check.warning
+    assert check.detail.startswith("installed")

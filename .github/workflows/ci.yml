@@ -89,7 +89,7 @@ jobs:
           cache-dependency-glob: uv.lock
           cache-suffix: ui
       - run: uv sync --frozen --extra ui
-      - run: uv run --frozen pytest tests/unit/test_ui_server.py tests/unit/test_ui_cli.py --durations=5
+      - run: .venv/bin/pytest tests/unit/test_ui_server.py tests/unit/test_ui_cli.py --durations=5
 
   # The optional PDF add-ons, one job each (uv sync --extra <name>): the tests that run the real
   # engine on synthetic PDFs (Docling: CPU-only PyTorch on Linux, pyproject.toml; models cached

@@ -49,7 +49,7 @@ def protect(
             return refusal("this server answers only on 127.0.0.1 and localhost", 400)
         offered = request.query_params.get(TOKEN_PARAM)
         if offered is not None:
-            if not secrets.compare_digest(offered, token):
+            if not secrets.compare_digest(offered.encode(), token.encode()):
                 return refusal(
                     "the token in the link is wrong; open the link `fin ui` printed", 401
                 )
@@ -58,7 +58,7 @@ def protect(
             response = RedirectResponse(target, status_code=303)
             response.set_cookie(COOKIE, token, httponly=True, samesite="strict", path="/")
             return response
-        if not secrets.compare_digest(request.cookies.get(COOKIE, ""), token):
+        if not secrets.compare_digest(request.cookies.get(COOKIE, "").encode(), token.encode()):
             return refusal("open the link `fin ui` printed (it carries the token)", 401)
         return await call_next(request)
 

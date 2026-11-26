@@ -91,6 +91,7 @@ def _all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _all_tools_present(monkeypatch)
+    monkeypatch.setattr("fin.doctor.extra_installed", lambda: False)  # the optional web UI
     runner.invoke(app, ["init"])
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
@@ -105,6 +106,7 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
         "ok    audit schema: present",
         "ok    dictionary schema: present",
         "ok    pdf parser: none (optional; `uv run fin parser use <name>` or /parser)",
+        "ok    web ui: not installed (optional; `uv run fin ui setup`)",
         "all checks passed",
     ]
 
@@ -117,7 +119,7 @@ def test_doctor_json_reports_missing_data_folder(
     assert result.exit_code == 1
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert payload["checks"][-5:-1] == [
+    assert payload["checks"][-6:-2] == [
         {
             "name": "data folder",
             "ok": False,

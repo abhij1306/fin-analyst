@@ -51,6 +51,12 @@ def test_a_wrong_token_is_refused_with_e007_and_sets_no_cookie(client: TestClien
     assert "set-cookie" not in response.headers
 
 
+def test_a_token_that_is_not_ascii_is_refused_with_e007(client: TestClient) -> None:
+    response = client.get("/?token=%C3%A9")
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "E007"
+
+
 @pytest.mark.parametrize("path", ["/", "/partials/home?company=acme", "/static/app.css"])
 def test_every_path_needs_the_cookie(client: TestClient, path: str) -> None:
     response = client.get(path)
@@ -104,7 +110,7 @@ def test_an_unknown_company_is_e001_shown_as_an_alert(client: TestClient) -> Non
     response = signed_in(client).get("/partials/home?company=ghost")
     assert response.status_code == 400
     assert "E001" in response.text
-    assert "alert-destructive" in response.text
+    assert 'data-variant="destructive"' in response.text
 
 
 def test_company_names_are_escaped(client: TestClient) -> None:

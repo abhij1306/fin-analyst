@@ -14,10 +14,11 @@
 <body>
   <header class="topbar">
     <strong>fin</strong>
-    <select class="select" name="company" aria-label="Company"
+    <label class="label" for="company">Company</label>
+    <select class="select" id="company" name="company"
             hx-get="/partials/home" hx-trigger="change" hx-target="#screen">
-      {% for name in companies %}
-      <option value="{{ name }}"{% if name == company %} selected{% endif %}>{{ name }}</option>
+      {% for co in companies %}
+      <option value="{{ co }}"{% if co == company %} selected{% endif %}>{{ co }}</option>
       {% else %}
       <option value="">No companies yet</option>
       {% endfor %}

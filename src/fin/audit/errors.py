@@ -111,7 +111,7 @@ class UpdateFailed(FinError):
 
 
 class UiUnavailable(FinError):
-    """E006. `fin ui`: the web UI add-on is not installed or built, or its port is in use."""
+    """E006. `fin ui`: the web UI add-on is not installed, or its port is in use."""
 
     code = "E006"
 

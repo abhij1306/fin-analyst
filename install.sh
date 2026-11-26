@@ -314,5 +314,5 @@ fi
 step "Checking installation (fin doctor)"
 uv run fin doctor
 
-[[ -z "$UI_FLAG" ]] || echo "Web UI installed: start it with `uv run fin ui`"
+[[ -z "$UI_FLAG" ]] || echo "Web UI installed: start it with 'uv run fin ui'"
 step "Install complete. Log: $LOG_FILE"
