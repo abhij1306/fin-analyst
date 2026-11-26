@@ -239,6 +239,7 @@ claude
 4. `uv sync --frozen` (with `--extra <name>` for the PDF add-on `--parser <name>` names, or `config.toml`'s
    `[pdf] parser` without the flag; `--parser none` removes it).
 5. `npm ci --prefix dashboards`
+5a. `./install.sh --ui` also installs the optional web UI (the `ui` extra, added to the sync of step 4); a later run without the flag keeps it when it is already installed.
 6. `uv run fin init` — creates data folder, config, databases from the schema files; then, with `--parser` or an
    add-on in `config.toml`, `uv run fin parser use <name>` downloads its models and records it.
 7. `uv run fin doctor` — checks every dependency, version, folder permission, that the databases exist and are not from an older fin.
@@ -258,6 +259,7 @@ claude
 | CLI | Claude Code | Who |
 |---|---|---|
 | `fin init`, `fin doctor` | — | Human |
+| `fin ui [--port N] [--no-open]`, `fin ui setup` | — | Human (optional web UI; see "Web UI" below) |
 | `fin ingest <co> [path] [--force]` | `/ingest` | Either |
 | `fin ingest <co> <file> --reading <csv>` | `/ingest` (offered after a failure or skipped page) | Claude, when the user asks |
 | `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|payroll\|bank [--profile]` | `/diligence` | Either |
@@ -936,3 +938,12 @@ narrative may state findings, severity, implications and deal considerations; it
 are `{{figure:<name>:<period>}}` with the diligence report's figures plus `net_debt`, `net_debt_cash`,
 `net_debt_debt`, `net_debt_debt_like` and `effective_tax_rate`, E874) and has no valuation, investment-rating or
 buy/don't-buy language (E972).
+
+## Web UI (optional, `fin ui`)
+
+Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: [decisions/web-ui.md](decisions/web-ui.md). The UI is built in four steps; this is the first (foundation). The CLI does not change, and without the add-on nothing else does either.
+
+- **Install**: `./install.sh --ui` or `uv run fin ui setup` (`uv sync --frozen --extra ui`: FastAPI, Jinja2, uvicorn; the chosen PDF add-on is kept). No frontend build and no npm: pages are HTML rendered by the server, with htmx and the Basecoat component CSS and JS (shadcn/ui as plain HTML classes) vendored under `src/fin/ui/static/vendor/` (versions and licences in `VENDOR.md`). `fin parser use`, `fin update` and `install.sh` keep the `ui` extra once installed. `fin doctor` has a `web ui` line (installed or not; never a failure).
+- **`fin ui`**: starts the server on 127.0.0.1 (default port 8765, `--port`), prints and opens a link with a random token, stops on Ctrl-C. Without the extra it stops with E006 and says how to install it; a busy port is E006 too.
+- **Local only**: the server binds 127.0.0.1; a request with another Host, or without the token cookie (HttpOnly, SameSite=Strict, set from the link's token), is refused with E007; no CORS headers; no API documentation pages.
+- **Screens**: a top bar with the company picker and the screen tabs, and a chat panel on the right (a placeholder in this step). Home shows what `fin status` returns: counts, periods and gaps, the next gate, and what waits for the user. The other screens, the decision buttons, uploads and the chat come in later steps; this step changes no data.

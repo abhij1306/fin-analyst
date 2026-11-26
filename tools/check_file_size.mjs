@@ -7,8 +7,8 @@ import { readdirSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
 const MAX_TOKENS = 6000;
-const SOURCE = new Set([".py", ".js", ".mjs", ".cjs", ".ts", ".svelte", ".sql", ".sh"]);
-const SKIPPED_DIR = /(^|\/)(tests?|node_modules|migrations?|generated|dist|build|\.evidence|\.venv)\//;
+const SOURCE = new Set([".py", ".js", ".mjs", ".cjs", ".ts", ".svelte", ".sql", ".sh", ".html"]);
+const SKIPPED_DIR = /(^|\/)(tests?|node_modules|migrations?|generated|vendor|dist|build|\.evidence|\.venv)\//;
 const LOCKFILE = /(^|\/)(uv\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/;
 
 function isAuthoredSource(path) {

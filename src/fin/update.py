@@ -22,6 +22,7 @@ from fin.config import load_config
 from fin.db.schema import all_databases
 from fin.metrics.export import refresh_analytics
 from fin.query.write import backup
+from fin.ui.extra import kept_extras
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -86,10 +87,12 @@ def update(run: Run) -> list[str]:
     _run(run, "git pull", [GIT, "pull", "--ff-only"], repo)
     # A plain sync would uninstall the optional PDF add-on: keep the chosen one.
     parser = load_config(run.root).pdf_parser
-    if parser == "none":
+    # The optional UI add-on is kept the same way (run `fin ui setup` to rebuild the app).
+    extras = [*(["--extra", parser] if parser != "none" else []), *kept_extras()]
+    if not extras:
         _run(run, "uv sync", UV_SYNC, repo)
     else:
-        _run(run, f"uv sync --extra {parser}", [*UV_SYNC, "--extra", parser], repo)
+        _run(run, f"uv sync {' '.join(extras)}", [*UV_SYNC, *extras], repo)
     if (repo / "dashboards" / "package-lock.json").is_file():
         _run(run, "npm ci", NPM_CI, repo)
 

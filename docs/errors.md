@@ -11,6 +11,8 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E002 | A program is the wrong version, `config.toml` is invalid, or a database was made by an older fin | Run the fix shown (`brew upgrade`, correct `config.toml`, or move the data folder away and run `uv run fin init`) |
 | E003 | The data folder is missing or not writable | Run `uv run fin init`, or fix the folder permissions |
 | E005 | `fin update` stopped: local changes in this folder, or a git, uv or npm step failed; or the `uv sync` of `fin parser use` failed | Commit or discard local changes, or fix the failing step, and run it again. The backup is in `backups/<run_id>/` |
+| E006 | `fin ui`: the web UI add-on is not installed, or its port is in use | Run `uv run fin ui setup` (or `./install.sh --ui`); for a busy port use `--port` |
+| E007 | The UI server refused a request: a Host that is not localhost or 127.0.0.1, or a missing or wrong token | Open the link `fin ui` printed (it carries the token); do not reach the server through another name |
 | E101 | File is unreadable or corrupt, or the path does not exist (the message says where a company's files go: `<data folder>/inbox/<company>/`, lower-case name) | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
 | E102 | File is password protected | Save an unprotected copy and ingest that |
 | E103 | Unsupported file format | Convert it to `.xlsx` or a text PDF |

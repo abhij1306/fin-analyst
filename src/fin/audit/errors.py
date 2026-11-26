@@ -3,8 +3,8 @@
 Every failure path raises a subclass of `FinError`. Each class carries its code and the exit code
 a command returns when the error ends it:
 
-- E0xx (setup), E5xx (database), E601-E603 (outputs) and E406 (accepting a finding that is not
-  open) stop the command: exit 2.
+- E0xx (setup, including E006-E007 of the web UI), E5xx (database), E601-E603 (outputs) and E406
+  (accepting a finding that is not open) stop the command: exit 2.
 - E1xx-E3xx are per-document failures and E604 is flagged in the evidence page. The command
   completes and reports them: exit 1.
 - E302 (a low-confidence mapping proposal) is a warning event, not an error: it has no class.
@@ -108,6 +108,19 @@ class UpdateFailed(FinError):
     the `uv sync` of `fin parser use` failed."""
 
     code = "E005"
+
+
+class UiUnavailable(FinError):
+    """E006. `fin ui`: the web UI add-on is not installed, or its port is in use."""
+
+    code = "E006"
+
+
+class UiRequestRefused(FinError):
+    """E007. The UI server refused a request: a Host that is not localhost or 127.0.0.1, or a
+    missing or wrong token."""
+
+    code = "E007"
 
 
 # E1xx: file intake. The file is skipped and moved to review/; the command completes with failures.

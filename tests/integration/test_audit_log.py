@@ -53,6 +53,7 @@ def test_doctor_writes_runs_events_and_jsonl(
     data_root: Path, audit_query: Query, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _all_tools_present(monkeypatch)
+    monkeypatch.setattr("fin.doctor.extra_installed", lambda: False)  # the optional web UI
     runner.invoke(app, ["init"])
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
@@ -97,12 +98,13 @@ def test_doctor_writes_runs_events_and_jsonl(
             None,
             "pdf parser: none (optional; `uv run fin parser use <name>` or /parser)",
         ),
+        (11, "check", "info", None, "web ui: not installed (optional; `uv run fin ui setup`)"),
     ]
 
     records = jsonl_records(data_root, run_id)
     assert [(r["table"], r.get("record"), r.get("seq")) for r in records] == [
         ("runs", "start", None),
-        *[("events", None, seq) for seq in range(1, 11)],
+        *[("events", None, seq) for seq in range(1, 12)],
         ("runs", "end", None),
     ]
     assert [r["message"] for r in records if r["table"] == "events"] == [e[4] for e in events]

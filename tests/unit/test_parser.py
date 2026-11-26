@@ -29,7 +29,18 @@ def steps(data_root: Path, monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
     monkeypatch.setattr(fin.parser.subprocess, "run", run)
     monkeypatch.setattr(fin.parser, "UV_SYNC", [sys.executable, "sync", "--frozen"])
+    monkeypatch.setattr(fin.parser, "kept_extras", lambda: [])  # whether the UI add-on is installed
     return ran
+
+
+def test_an_installed_ui_add_on_stays_when_the_parser_changes(
+    steps: list[list[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fin.parser, "kept_extras", lambda: ["--extra", "ui"])
+
+    assert runner.invoke(app, ["parser", "use", "none"]).exit_code == 0
+
+    assert steps == [["sync", "--frozen", "--extra", "ui"]]
 
 
 def test_use_syncs_the_extra_downloads_models_and_records_it(
