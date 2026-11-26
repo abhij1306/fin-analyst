@@ -39,7 +39,7 @@ def test_classes_items_and_show(root: Path, tmp_path: Path, audit_query: Any) ->
         json.dumps(
             [
                 {"ledger": "Gratuity Provision", "class": "debt_like", "reason": "benefit"},
-                {"ledger": "CUST-0001", "class": "none", "reason": "trade receivable"},
+                {"ledger": "Acme Traders", "class": "none", "reason": "trade receivable"},
                 {"ledger": "TDS Payable", "class": "debt_like", "reason": "statutory due"},
             ]
         ),

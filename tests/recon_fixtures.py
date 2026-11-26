@@ -12,7 +12,7 @@ a billing registers workbook and a payroll snapshot as of 31-Mar-2025, with thes
 - gl_vs_tb: the Bank ledger's trial balance change is 1,50,000 more than its Ledger Vouchers
   movement; Rent's trial balance is 20,000 more than its movement; every other ledger ties, the
   Profit & Loss A/c with the prior year's profit rolled in; Neem Consulting is only in the Ledger
-  Vouchers (masked, not mapped);
+  Vouchers (not mapped);
 - payroll: the snapshot's CTC (70,08,000) is 1,08,000 above employee expense (69,00,000).
 """
 
@@ -56,10 +56,10 @@ TB_FY25 = {
 ACCOUNTS = {
     "Share Capital": "share_capital",
     "Profit & Loss A/c": "other_equity",
-    "VEND-0001": "trade_payables",
-    "VEND-0002": "trade_payables",
-    "CUST-0001": "trade_receivables",
-    "CUST-0002": "trade_receivables",
+    VENDORS[0]: "trade_payables",
+    VENDORS[1]: "trade_payables",
+    CUSTOMERS[0]: "trade_receivables",
+    CUSTOMERS[1]: "trade_receivables",
     BANK: "cash",
     "Software Sales": "revenue",
     "Purchases": "purchases_stock_in_trade",

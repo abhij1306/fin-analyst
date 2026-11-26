@@ -21,7 +21,7 @@ One line per check, the value a person read in the company's document and checke
   `2024-05 rcm_liability`);
 - `gst_return`: a GST return month's figure as filed (`fin.evals.gst`);
 - `rpt_vs_books` (F5): a related party transaction the notes disclose less the books; `ledger` is
-  the line's key (`PRTY-0001 sales`, or `PRTY-0001 debit <ledger>`).
+  the line's key (`CUST-0001 sales`, or `<party> debit <ledger>`).
 - `net_debt` (F4): fin.evals.netdebt.
 - `query_issue`: an exported issue's amount at issue (the lines' differences added without their
   signs) for a query that is approved or later; `ledger` is the query id.

@@ -2,12 +2,14 @@
 
 It holds the fin version and git commit, a `fin doctor` summary, and per company the golden score,
 the checks not passing (kind, period, scope, account, outcome, the kind of source location, the
-related codes) and the counts (fin.evals.counts). It holds no real names: companies are
-`company-1`, `company-2` (in the order of the company names), a ledger shows only as its mask token
-(any other ledger as `ledger-1`, ...), and no file name, label, source text or note is included.
-Before writing, every masked party name, company name and file name is looked for in it; one found
-stops it (E833). By default it has no absolute figures, only the relative difference of a failing
-check; `--with-figures` adds the expected and fin values in rupees."""
+related codes) and the counts (fin.evals.counts). It holds no real names: companies are `company-1`,
+`company-2` (in the order of the company names), a ledger shows only as a token or as `ledger-1`,
+... (ledgers carry names as filed: docs/decisions/masking.md), and no file name, label, source text
+or note is included. The bundle goes to the fin developers, whom the client's zero-data-retention
+terms do not cover. Before writing, every masked name, ledger name, related party name, company name
+and file name is looked for in it; one found stops it (E833). By default it has no absolute figures,
+only the relative difference of a failing check; `--with-figures` adds the expected and fin values
+in rupees."""
 
 import json
 import re
@@ -30,8 +32,11 @@ _CELL, _ROW = re.compile(r"![A-Z]{1,3}\d+"), re.compile(r"!\d+")
 _PAGE = re.compile(r"\b(?:page|p\.?)\s*\d+", re.I)
 _NAMES = (
     "SELECT real_value FROM mask_values UNION SELECT file_name FROM documents "
-    "UNION SELECT file_name FROM source_files"
+    "UNION SELECT file_name FROM source_files UNION SELECT ledger FROM trial_balance "
+    "UNION SELECT ledger FROM ledger_blocks UNION SELECT counterparty FROM disclosures"
 )
+# the bucket and component names a golden line's ledger may be (fin's words, not names)
+_FIN_WORDS = {word.lower() for words in LEDGERS.values() for word in words}
 
 
 def source_kind(source: str) -> str:
@@ -121,8 +126,9 @@ def _names(run: Run, companies: list[str]) -> set[str]:
     names = set(companies)
     for company in companies:
         with company_database(run, company) as con:
-            names |= {value for (value,) in con.execute(_NAMES).fetchall()}
-    return {n.strip().lower() for n in names if len(n.strip()) >= 3}
+            names |= {value for (value,) in con.execute(_NAMES).fetchall() if value}
+    names = {n.strip().lower() for n in names if len(n.strip()) >= 3}
+    return names - _FIN_WORDS
 
 
 def _check_anonymous(text: str, names: set[str]) -> None:
@@ -130,8 +136,9 @@ def _check_anonymous(text: str, names: set[str]) -> None:
     for name in names:
         if re.search(rf"(?<!\w){re.escape(name)}(?!\w)", lowered):
             raise BundleNotAnonymous(
-                "the results bundle would contain a real name (a masked party, a company or a file "
-                "name); nothing written. Report this run_id: the bundle must never carry names"
+                "the results bundle would contain a real name (a masked party, a ledger, a related "
+                "party, a company or a file name); nothing written. Report this run_id: the "
+                "bundle must never carry names"
             )
 
 

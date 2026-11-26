@@ -34,6 +34,6 @@ Product-level choices for the query export (docs/diligence.md §7 D8), written 2
 
 ## 6. Reply files: what fin reads
 
-- **Decision:** `fin query answer --file` archives any file like a source. A plain-text reply (.txt, .eml, .md) is read and, with the names fin knows replaced by tokens, becomes the answer unless `--text` is given. Excel, Word and PDF replies are not read: `--text` must say what they answer (E860). Names fin does not know (for example the accountant's own signature) are not masked.
+- **Decision:** `fin query answer --file` archives any file like a source. A plain-text reply (.txt, .eml, .md) is read and becomes the answer unless `--text` is given (stored as written since 2026-11-26, [masking.md](masking.md); before, the names fin knew were replaced by tokens). Excel, Word and PDF replies are not read: `--text` must say what they answer (E860). Names fin does not know (for example the accountant's own signature) are not masked.
 - **Why:** The plan says only "records a reply file (archived like any source)"; fin must not print real names, and reading arbitrary formats is extraction work the project avoids.
 - **How to change it:** `diligence/answers.py:record_reply` (`TEXT_SUFFIXES`).

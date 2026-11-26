@@ -3,8 +3,8 @@
 An indicative gratuity shortfall (F3), a probable contingency or a cut-off item is proposed as an
 item (`fin netdebt item propose`, table `netdebt_items` in db/schema/fdd_netdebt.sql) with a
 period of the open engagement (a year or its stub), a signed amount in rupees (positive raises net
-debt), a description and evidence (a reference: a query, a fin output, file + page). Known names in
-the text are replaced by their tokens. The user accepts or rejects it, as for adjustments:
+debt), a description and evidence (a reference: a query, a fin output, file + page). The user
+accepts or rejects it, as for adjustments:
 
     proposed -> accepted, or proposed -> rejected (with the reason).
 
@@ -22,7 +22,6 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open, rupees
-from fin.diligence.mask import Masker
 
 
 def propose(
@@ -43,7 +42,6 @@ def propose(
                 f"{period} is not a period of {company}'s open engagement ({', '.join(known)}); "
                 "nothing stored"
             )
-        masker = Masker(con, run.run_id)
         now = utcnow()
         (item_id,) = con.execute(
             "INSERT INTO netdebt_items (engagement_id, period, amount, description, evidence, "
@@ -51,7 +49,7 @@ def propose(
             "VALUES (?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?) RETURNING item_id",
             [
                 engagement["engagement_id"], period, amount,
-                masker.text(" ".join(description.split())), masker.text(" ".join(evidence.split())),
+                " ".join(description.split()), " ".join(evidence.split()),
                 run.run_id, now, run.run_id, now,
             ],
         ).fetchone()  # fmt: skip
@@ -71,7 +69,7 @@ def decide(
     with company_database(run, company, write=True) as con, transaction(con):
         engagement_id = require_open(con, company)["engagement_id"]
         if reason is not None:
-            reason = Masker(con, run.run_id).text(" ".join(reason.split()))
+            reason = " ".join(reason.split())
         rows = {r["item_id"]: r for r in _items(con, engagement_id)}
         for item_id in ids:
             row = rows.get(item_id)

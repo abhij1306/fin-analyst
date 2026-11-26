@@ -4,7 +4,7 @@
 -- fin does not check them; trusting one is the user's call.
 
 -- One row per document a reading was loaded from. file_id comes from source_files_seq, so it never equals a
--- source file's id: a name first masked from a disclosure reading has it as mask_values.first_file_id.
+-- source file's id.
 CREATE TABLE disclosure_files (
     file_id INTEGER PRIMARY KEY DEFAULT nextval('source_files_seq'),
     engagement_id INTEGER NOT NULL,
@@ -19,9 +19,9 @@ CREATE TABLE disclosure_files (
 -- One row per item Claude read. kind (the schedule it is on):
 --   contingent_liability, commitment, guarantee, litigation, tax_matter, off_balance_sheet,
 --   related_party (a party and its relationship), related_party_transaction, related_party_balance.
--- counterparty: a token (CUST-, VEND-, LEDG-, or PRTY- for a name no loaded file had); the same name has the same
--- token in every file, which is how a related party is matched to the customers, vendors and ledgers.
--- nature and relationship: as read, with known masked names replaced by their tokens. amount: rupees (the reading's
+-- counterparty: a register customer or vendor's token (CUST-, VEND-), else a loaded ledger's name as stored, else
+-- the name as read; related_party_matches matches it to the customers, vendors and ledgers.
+-- nature and relationship: as read. amount: rupees (the reading's
 -- unit applied). forum and stage (litigation, tax matters); assessment_year, demand, paid_under_protest (tax matters).
 -- books (related_party_transaction only): what rpt_vs_books compares the amount with: 'sales' (the sales register of
 -- the customers linked to the party), 'purchases' (the purchase register of its vendors), 'debit' or 'credit' (the
@@ -51,8 +51,8 @@ CREATE TABLE disclosures (
     created_at TIMESTAMP NOT NULL
 );
 
--- Links Claude proposed between a related party (its token) and a customer, vendor or ledger that is not the same
--- token (`fin disclosures related <co> <file.json>`). proposed -> confirmed or rejected by the user
+-- Links Claude proposed between a related party and a customer, vendor or ledger that fin did not
+-- match (`fin disclosures related <co> <file.json>`). proposed -> confirmed or rejected by the user
 -- (`fin review confirm|reject <co> <ids> --related`); only confirmed ones count.
 CREATE SEQUENCE related_party_links_seq START 1;
 CREATE TABLE related_party_links (
@@ -75,26 +75,31 @@ SELECT DISTINCT engagement_id, counterparty AS party
 FROM disclosures
 WHERE kind IN ('related_party', 'related_party_transaction', 'related_party_balance') AND counterparty IS NOT NULL;
 
--- What each related party is in the books: 'matched' (fin: the same token is a sales customer, a purchase vendor, or a
--- trial balance or Ledger Vouchers ledger of the engagement's loaded files) or 'confirmed' (a link the user confirmed).
+-- What each related party is in the books: 'matched' (fin: the party is a sales customer or a purchase vendor token,
+-- or a trial balance or Ledger Vouchers ledger of the engagement's loaded files; a ledger is stored by name, so it
+-- matches a token through the masked name it is, ignoring case and spaces) or 'confirmed' (a link the user confirmed).
 CREATE VIEW related_party_matches AS
 WITH files AS (
     SELECT file_id, engagement_id, kind FROM source_files WHERE status = 'loaded'
 ),
+ledgers AS (
+    SELECT f.engagement_id, t.ledger FROM trial_balance t JOIN files f USING (file_id) WHERE t.row_type = 'ledger'
+    UNION
+    SELECT f.engagement_id, b.ledger FROM ledger_blocks b JOIN files f USING (file_id)
+),
 targets AS (
-    SELECT DISTINCT f.engagement_id, 'customer' AS link_kind, r.customer AS target
+    SELECT DISTINCT f.engagement_id, 'customer' AS link_kind, r.customer AS target, r.customer AS party
     FROM register_lines r JOIN files f USING (file_id) WHERE r.kind = 'sales' AND r.customer IS NOT NULL
     UNION
-    SELECT DISTINCT f.engagement_id, 'vendor', r.vendor
+    SELECT DISTINCT f.engagement_id, 'vendor', r.vendor, r.vendor
     FROM register_lines r JOIN files f USING (file_id) WHERE r.kind = 'purchase' AND r.vendor IS NOT NULL
     UNION
-    SELECT DISTINCT f.engagement_id, 'ledger', t.ledger
-    FROM trial_balance t JOIN files f USING (file_id) WHERE t.row_type = 'ledger'
-    UNION
-    SELECT DISTINCT f.engagement_id, 'ledger', b.ledger FROM ledger_blocks b JOIN files f USING (file_id)
+    SELECT l.engagement_id, 'ledger', l.ledger, coalesce(k.token, l.ledger)
+    FROM ledgers l LEFT JOIN mask_values k ON k.kind IN ('customer', 'vendor')
+        AND k.match_key = lower(regexp_replace(trim(l.ledger), '\s+', ' ', 'g'))
 )
 SELECT p.engagement_id, p.party, t.link_kind, t.target, 'matched' AS status
-FROM related_parties p JOIN targets t ON t.engagement_id = p.engagement_id AND t.target = p.party
+FROM related_parties p JOIN targets t ON t.engagement_id = p.engagement_id AND t.party = p.party
 UNION
 SELECT l.engagement_id, l.party, l.link_kind, l.target, 'confirmed'
 FROM related_party_links l JOIN related_parties p ON p.engagement_id = l.engagement_id AND p.party = l.party

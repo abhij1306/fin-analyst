@@ -17,8 +17,3 @@ unit = 1
 group = "bold"
 level = "indent"
 skip = ["Grand Total"]
-
-# Ledgers under these groups are parties: their names are stored as tokens.
-[mask]
-groups = { "Sundry Debtors" = "customer", "Sundry Creditors" = "vendor" }
-fields = ["name"]

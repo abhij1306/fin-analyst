@@ -6,11 +6,10 @@ header may be on any of the first rows) and returns its non-blank rows with shee
 `fin.extract.ledger` does for Tally exports. What the rows mean is `fin.diligence.registers`'s.
 
 E807 when no profile fits, with the title and header lines of every sheet listed (never data rows,
-which hold names; known masked names replaced) so Claude can write a profile; also when a kind is
+which hold names) so Claude can write a profile; also when a kind is
 found on more than one sheet, or one sheet fits both kinds.
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
@@ -29,9 +28,7 @@ class RegisterTable:
     rows: dict[str, list[SheetRow]]  # sheet kind ('sales', 'purchase') -> rows, in sheet order
 
 
-def read_registers(
-    path: Path, profile_name: str | None = None, hide: Callable[[str], str] = str
-) -> RegisterTable:
+def read_registers(path: Path, profile_name: str | None = None) -> RegisterTable:
     """The rows of `path` read with the named `registers` profile, or the first one that fits."""
     if profile_name is not None:
         candidates = [load_profile(profile_name)]
@@ -48,9 +45,7 @@ def read_registers(
         if table is not None:
             return table
     names = ", ".join(p.name for p in candidates) or "none"
-    shown = "; ".join(
-        f"sheet {s.title!r}: " + " / ".join(_top_rows(s, hide)) for s in book.worksheets
-    )
+    shown = "; ".join(f"sheet {s.title!r}: " + " / ".join(_top_rows(s)) for s in book.worksheets)
     extra = f" Problems: {'; '.join(problems)}." if problems else ""
     raise LayoutUnknown(
         f"{path.name}: no registers column profile matches its headers (tried: {names}).{extra} "

@@ -36,6 +36,8 @@ Only decisions that affect the analysis or what the user sees. Plan: docs/dilige
 - **How to change it:** `bank_pdf.py: read_pdf`.
 
 ## 6. Names and account numbers
+
+- **Superseded 2026-11-26** by [masking.md](masking.md): remarks and reference are stored as filed.
 - **Decision:** remarks and reference have known masked names replaced by tokens; no new tokens are made from bank
   text. The account number is shown as filed (not on the plan's masked list; needed to chain statements).
 - **How to change it:** `bank.py: _insert` (mask `account` there if wanted).

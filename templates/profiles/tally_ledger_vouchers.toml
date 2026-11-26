@@ -20,7 +20,3 @@ unit = 1
 block = "date"
 block_prefix = "Ledger:"
 skip = ["Opening Balance", "Closing Balance", "Current Total", "Grand Total"]
-
-# Known masked names (party ledgers) in these fields are replaced by their tokens.
-[mask]
-fields = ["particulars"]

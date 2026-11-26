@@ -7,8 +7,7 @@ invoice_no) a row may carry, all optional:
   `customer` is still read as the counterparty column);
 - `lock_in_months`, `notice_days`: whole numbers; `escalation_pct`: the escalation a year, as
   `5` or `5%`;
-- `sla_terms`, `penalty_terms`, `escalation_terms`, `renewal_terms`: as read, free text (names
-  are masked on load);
+- `sla_terms`, `penalty_terms`, `escalation_terms`, `renewal_terms`: as read, free text;
 - `auto_renew`, `termination_convenience`, `change_of_control`, `exclusivity`: yes or no.
 
 An empty cell means the reading did not say (stored as NULL, shown as "not read"); it is not "no

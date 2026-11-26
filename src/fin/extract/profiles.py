@@ -23,8 +23,6 @@ special cases:
   see `REGISTER_FIELDS`; `REGISTER_REQUIRED` fields must be mapped), `header_rows`, `date_format`,
   `unit` and `[rows] skip` (total rows). They have no `period`: a register has no period header,
   its period is read from its invoice dates.
-- `[mask]`: `groups` (group name -> masked kind: the ledgers under it are tokenised, as
-  `fin.diligence.mask`) and `fields` (fields in which known masked names are replaced by tokens).
 - GST return summaries (`kind = "gst"`, docs/fdd.md F6): one row per return month. `gst_return` is
   `gstr1` or `gstr3b` (what the file is stored as); `month_format` is the `strptime` format of a
   month written as text ("Apr-2024": "%b-%Y"); `period` gives the period covered as for a trial
@@ -73,7 +71,6 @@ REGISTER_REQUIRED = {
     "purchase": {"invoice_no", "invoice_date", "vendor", "amount_inr"},
 }
 HEADER_KEYS = ("account", "currency", "opening", "closing")  # a bank profile's [header]
-MASK_KINDS = ("customer", "vendor", "user", "employee_name", "employee_code", "ledger")
 
 
 def norm(text: object) -> str:
@@ -95,8 +92,6 @@ class Profile:
     level: str = "indent"
     block: str = "date"
     block_prefix: str = ""
-    mask_groups: dict[str, str] = field(default_factory=dict)  # normalised group -> kind
-    mask_fields: tuple[str, ...] = ()
     parts: dict[str, dict[str, str]] = field(
         default_factory=dict
     )  # registers: sheet kind -> columns
@@ -149,11 +144,7 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
     missing = FIELDS[kind] - set(columns.values())
     if missing:
         raise _invalid(name, f"[columns] has no header for {', '.join(sorted(missing))}")
-    rows, mask = data.get("rows") or {}, data.get("mask") or {}
-    groups = {norm(k): v for k, v in (mask.get("groups") or {}).items()}
-    bad = sorted(set(groups.values()) - set(MASK_KINDS))
-    if bad:
-        raise _invalid(name, f"[mask] groups kinds {', '.join(bad)} are not one of {MASK_KINDS}")
+    rows = data.get("rows") or {}
     try:
         period = re.compile(str(data["period"]), re.IGNORECASE)
         profile = Profile(
@@ -169,8 +160,6 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
             level=str(rows.get("level", "indent")),
             block=str(rows.get("block", "date")),
             block_prefix=str(rows.get("block_prefix", "")),
-            mask_groups=groups,
-            mask_fields=tuple(mask.get("fields", [])),
             bank=str(data.get("bank", "")),
             currency=str(data.get("currency", "INR")),
             header={

@@ -1,6 +1,7 @@
 """FDD F5 (fin.disclosures) on the synthetic set of tests/disclosure_fixtures.py: the reading loads
-masked, bad readings are refused whole, related parties match by token, links need the user,
-rpt_vs_books finds the planted differences, and the pricing and loan views compute."""
+(a register customer as its token, other names as read), bad readings are refused whole, related
+parties match the registers by token and the ledgers by name, links need the user, rpt_vs_books
+finds the planted differences, and the pricing and loan views compute."""
 
 import shutil
 from pathlib import Path
@@ -22,7 +23,7 @@ from fin.map.dictionary import load_seed
 from fin.paths import company_db_path, dictionary_db_path
 from fin.query.write import check_write_sql
 from fin.reconcile import run_new
-from tests.disclosure_fixtures import ACCOUNTS, LOAN, ROWS, row, write_reading, write_set
+from tests.disclosure_fixtures import ACCOUNTS, LOAN, RAVI, ROWS, row, write_reading, write_set
 from tests.tally_fixtures import CUSTOMERS
 
 
@@ -84,19 +85,19 @@ def lines(root: Path) -> dict[str, dict[str, Any]]:
     return {line["key"]: line for line in result["lines"]}
 
 
-def test_the_reading_loads_masked_in_rupees(root: Path, tmp_path: Path) -> None:
+def test_the_reading_loads_in_rupees_with_register_names_as_tokens(
+    root: Path, tmp_path: Path
+) -> None:
     rows = loaded(root, tmp_path)
     by_nature = {row["nature"]: row for row in rows}
     text = load.format_schedules(rows)
 
     assert len(rows) == len(ROWS)
-    assert {row["counterparty"] for row in rows} == {"CUST-0001", "PRTY-0001", None}
-    assert by_nature["Bank guarantee given for CUST-0001"]["amount"] == 2000000
+    assert {row["counterparty"] for row in rows} == {"CUST-0001", RAVI, None}
+    assert by_nature[f"Bank guarantee given for {CUSTOMERS[0]}"]["amount"] == 2000000  # as read
     tax = by_nature["Income tax demand under appeal"]
     assert (tax["demand"], tax["paid_under_protest"], tax["forum"]) == (1250000, 250000, "CIT(A)")
     assert "not verified" in text and "tax_matter (1)" in text
-    for name in (*CUSTOMERS, "Ravi Menon"):
-        assert name not in text
     assert len(loaded(root, tmp_path)) == len(ROWS)  # the same document again replaces its rows
 
 
@@ -138,6 +139,13 @@ def test_rpt_vs_books_finds_the_planted_differences(root: Path, tmp_path: Path) 
         "target": "CUST-0001",
         "status": "matched",
     } in matches
+    # the customer's Tally ledger carries its name; it meets the register token through mask_values
+    assert {
+        "party": "CUST-0001",
+        "link_kind": "ledger",
+        "target": CUSTOMERS[0],
+        "status": "matched",
+    } in matches
     sales = found["CUST-0001 sales"]
     assert (sales["left_amount"], sales["right_amount"], sales["difference"]) == (
         1000000,
@@ -145,25 +153,25 @@ def test_rpt_vs_books_finds_the_planted_differences(root: Path, tmp_path: Path) 
         140000,
     )
     assert sales["needs_query"] and sales["left_source"] == "notes.pdf p.13"
-    loan = found[f"PRTY-0001 credit {LOAN}"]
+    loan = found[f"{RAVI} credit {LOAN}"]
     assert (loan["difference"], loan["needs_query"]) == (-60000, False)
-    unlinked = found["PRTY-0001 sales"]
+    unlinked = found[f"{RAVI} sales"]
     assert unlinked["kind"] == "not_reconciled" and "no customer is linked" in unlinked["note"]
 
 
 def test_links_count_only_once_the_user_confirms(root: Path, tmp_path: Path) -> None:
     loaded(root, tmp_path)
     proposals = [
-        {"party": "PRTY-0001", "kind": "customer", "target": "CUST-0002"},
-        {"party": "PRTY-0001", "kind": "ledger", "target": LOAN},
+        {"party": RAVI, "kind": "customer", "target": "CUST-0002"},
+        {"party": RAVI, "kind": "ledger", "target": LOAN},
     ]
     proposals = [p | {"confidence": 0.8, "reason": "notes"} for p in proposals]
     assert related.propose(run(root), "acme", proposals) == 2
-    assert lines(root)["PRTY-0001 sales"]["kind"] == "not_reconciled"
+    assert lines(root)[f"{RAVI} sales"]["kind"] == "not_reconciled"
 
     ids = [row["link_id"] for row in related.list_links(run(root), "acme")]
     related.decide(run(root), "acme", ids, "confirmed")
-    sales = lines(root)["PRTY-0001 sales"]
+    sales = lines(root)[f"{RAVI} sales"]
     loans = {row["period"]: row for row in sql(root, "SELECT * FROM related_party_loans")}
     loan = loans["FY25"]
 
@@ -172,7 +180,7 @@ def test_links_count_only_once_the_user_confirms(root: Path, tmp_path: Path) -> 
         -150000,
         True,
     )
-    assert (loan["party"], loan["opening"], loan["closing"]) == ("PRTY-0001", -400000, -600000)
+    assert (loan["party"], loan["opening"], loan["closing"]) == (RAVI, -400000, -600000)
     assert (loan["average_balance"], loan["interest"], loan["implied_rate_pct"]) == (
         -500000,
         50000,
@@ -188,6 +196,9 @@ def test_links_count_only_once_the_user_confirms(root: Path, tmp_path: Path) -> 
         ({"party": "CUST-0002"}, "is not a related party"),
         ({"target": "CUST-0099"}, "is not a customer"),
         ({"target": "CUST-0001", "party": "CUST-0001"}, "already matched"),
+        # the customer's ledger carries its name and fin matched it through the token: a link to it
+        # would count the ledger twice
+        ({"party": "CUST-0001", "kind": "ledger", "target": CUSTOMERS[0]}, "already matched"),
         ({"confidence": 2}, "confidence"),
         ({"kind": "lender"}, "kind must be one of"),
     ],
@@ -196,7 +207,7 @@ def test_a_bad_link_proposal_stores_nothing(
     root: Path, tmp_path: Path, change: dict[str, Any], message: str
 ) -> None:
     loaded(root, tmp_path)
-    proposal = {"party": "PRTY-0001", "kind": "customer", "target": "CUST-0002"}
+    proposal = {"party": RAVI, "kind": "customer", "target": "CUST-0002"}
     proposal |= {"confidence": 0.5, "reason": "r", **change}
 
     with pytest.raises(RelatedPartyLinkInvalid, match=message):
@@ -235,9 +246,7 @@ def test_the_report_data_and_the_write_guard(root: Path, tmp_path: Path) -> None
     assert data["pricing"] and data["matches"] and data["loans"] == []
 
 
-def test_a_ledger_named_like_a_new_counterparty_stays_that_ledger(
-    root: Path, tmp_path: Path
-) -> None:
+def test_a_counterparty_named_like_a_ledger_becomes_that_ledger(root: Path, tmp_path: Path) -> None:
     reading = [
         row("related_party_transaction", "Loan taken", 3, counterparty=LOAN, amount="150000",
             books="credit", ledger=LOAN),
@@ -247,12 +256,12 @@ def test_a_ledger_named_like_a_new_counterparty_stays_that_ledger(
 
     [item] = load.load(run(root), "acme", notes, write_reading(tmp_path / "r.csv", reading))
 
-    assert (item["counterparty"], item["ledger"]) == ("PRTY-0001", LOAN)
+    assert (item["counterparty"], item["ledger"]) == (LOAN, LOAN)
 
 
 def test_review_decides_only_the_open_engagements_links(root: Path, tmp_path: Path) -> None:
     loaded(root, tmp_path)
-    proposal = {"party": "PRTY-0001", "kind": "customer", "target": "CUST-0002"}
+    proposal = {"party": RAVI, "kind": "customer", "target": "CUST-0002"}
     related.propose(run(root), "acme", [proposal | {"confidence": 0.5, "reason": "r"}])
     [link] = related.list_links(run(root), "acme")
     with connect(company_db_path(root, "acme"), write=True) as con:

@@ -23,6 +23,7 @@ from fin.map.dictionary import load_seed
 from fin.paths import company_db_path, dictionary_db_path
 from fin.reconcile import items, run_new
 from tests.recon_fixtures import ACCOUNTS, write_set
+from tests.tally_fixtures import CUSTOMERS
 
 
 def run(root: Path) -> Run:
@@ -115,6 +116,15 @@ def test_sales_differences_and_the_fx_line(root: Path) -> None:
     assert odd(result, "month") == {"2024-05": ("difference", 296000)}
 
 
+def test_a_register_customer_matches_its_tally_ledger_by_name(root: Path) -> None:
+    # the register carries customer tokens, the Ledger Vouchers the names as filed: the party
+    # roll-up meets them through the masked names, so no line is under a real name
+    lines = detail(recon(root, "sales_register_vs_gl"), "party")
+    assert lines
+    assert all(key.startswith("CUST-") for key in lines)
+    assert not set(lines) & set(CUSTOMERS)
+
+
 def test_purchases_match_by_number_then_by_party_and_amount(root: Path) -> None:
     result = recon(root, "purchase_register_vs_gl")
     lines = detail(result)
@@ -138,7 +148,7 @@ def test_gl_vs_tb_finds_only_the_planted_ledgers(root: Path) -> None:
     assert not lines["Rent"]["needs_query"]
     assert lines["Profit & Loss A/c"]["kind"] == "matched"
     assert "prior period's profit" in lines["Profit & Loss A/c"]["note"]
-    assert {k for k, x in lines.items() if x["kind"] == "unmapped"} == {"LEDG-0001"}
+    assert {k for k, x in lines.items() if x["kind"] == "unmapped"} == {"Neem Consulting"}
     assert {k for k, x in lines.items() if x["kind"] not in ("matched", "unmapped")} == {
         "Axis Bank Current Account",
         "Rent",

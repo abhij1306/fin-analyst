@@ -27,6 +27,8 @@ Each entry that is not a plain bug fix is the orchestrator's reading, owner may 
 
 ## Reasons and FDD text are masked, at write and when a name is learned later
 
+- **Superseded 2026-11-26** by [masking.md](masking.md): reasons and FDD text are stored as written.
+
 - **Decision**: the reasons stored with provision ledger, net debt class, tax class and related party link proposals
   are masked when written, and `FREE_TEXT_COLUMNS` adds `netdebt_items` (description, evidence, reason),
   `netdebt_classes.reason`, `provision_ledgers.reason`, `tax_ledgers.reason`, `related_party_links.reason`,

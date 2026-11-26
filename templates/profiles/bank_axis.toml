@@ -23,7 +23,3 @@ account = 'Account\s+(?:Number|No\.?)\s*:?\s*(?P<value>\d{6,})'
 currency = 'Currency\s*:?\s*(?P<value>[A-Z]{3})'
 opening = 'Opening\s+Balance\s*:?\s*(?P<value>-?[\d,]+(?:\.\d{1,2})?)'
 closing = 'Closing\s+Balance\s*:?\s*(?P<value>-?[\d,]+(?:\.\d{1,2})?)'
-
-# Known masked names in these fields are replaced by their tokens.
-[mask]
-fields = ["remarks", "reference"]

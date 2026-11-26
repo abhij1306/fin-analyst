@@ -19,6 +19,7 @@ Product-level choices for registers (docs/diligence.md §7 D3), written 2026-11-
 - **Decision:** Customer, vendor, handler and submitted-by are tokens (`CUST-`, `VEND-`, `USER-`), the same name the same token as in the Tally files. Known names inside location, order type, product and service type are replaced too. Ids, invoice numbers, purchase ids and currency stay as filed.
 - **Why:** The plan fixes which register columns are masked; a name in a free-text column is still a name.
 - **How to change it:** `MASKED` and `FREE_TEXT` in `diligence/registers.py`.
+- **Superseded 2026-11-26:** free-text columns are stored as filed; see `docs/decisions/masking.md`.
 
 ## 4. What counts as a duplicate invoice, and its finding
 

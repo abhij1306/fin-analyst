@@ -21,15 +21,22 @@ from fin.diligence.sources import ingest_source
 from fin.diligence.stub import parse_stub
 from fin.map.dictionary import load_accounts, load_seed
 from fin.paths import company_db_path, dictionary_db_path
-from tests.tally_fixtures import BANK, VOUCHERS, write_ledger_vouchers, write_trial_balance
+from tests.tally_fixtures import (
+    BANK,
+    CUSTOMERS,
+    VENDORS,
+    VOUCHERS,
+    write_ledger_vouchers,
+    write_trial_balance,
+)
 
 ACCOUNTS = {
     "Share Capital": "share_capital",
-    "VEND-0001": "trade_payables",
-    "VEND-0002": "trade_payables",
+    VENDORS[0]: "trade_payables",
+    VENDORS[1]: "trade_payables",
     "GST Payable": "other_current_liabilities",
-    "CUST-0001": "trade_receivables",
-    "CUST-0002": "trade_receivables",
+    CUSTOMERS[0]: "trade_receivables",
+    CUSTOMERS[1]: "trade_receivables",
     BANK: "cash",
     "Software Sales": "revenue",
     "Rent": "other_expenses",
@@ -333,8 +340,8 @@ def test_g1_checks_the_trial_balance_and_reopens_when_it_changes(
         (False, "FY26-YTD-SEP: no loaded trial balance or Ledger Vouchers (`fin ingest acme "
          "<file> --kind trial_balance|ledger_vouchers`)"),
         (False, "10 trial balance ledgers not mapped to an account (`fin map ledgers acme`, "
-         "then the user confirms them): Axis Bank Current Account, CUST-0001, CUST-0002, "
-         "GST Payable, Rent and 5 more"),
+         "then the user confirms them): Axis Bank Current Account, "
+         f"{VENDORS[0]}, GST Payable, {CUSTOMERS[1]}, {CUSTOMERS[0]} and 5 more"),
         (False, "FY25: tb_vs_statements has not run (`fin reconcile acme --period FY25`)"),
         (True, "FY26-YTD-SEP: unaudited management accounts; checked against its Ledger "
          "Vouchers only (no audited statement)"),

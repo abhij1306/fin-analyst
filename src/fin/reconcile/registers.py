@@ -7,8 +7,9 @@ and cost of materials for purchases (debit - credit). Left is the register, righ
 difference = register - books. Three levels, in this order:
 
 - month: register invoice month vs entry month; a roll-up, listed;
-- party: register customer or vendor token vs the entry's particulars (the party ledger, a token
-  too); a roll-up, listed;
+- party: register customer or vendor token vs the entry's particulars (the party ledger, by name:
+  matched to the register's token through the masked names, `fin.diligence.mask.Parties`); a
+  roll-up, listed;
 - invoice: the line a query can be raised on. Pass 1 matches the register's invoice number with the
   voucher number; pass 2 pairs what is left of the same party and the same amount (the voucher
   number differs: the note says so). An invoice only in the register is left_only, a voucher only
@@ -28,6 +29,7 @@ import duckdb
 
 from fin.audit.errors import ReconCannotRun
 from fin.diligence.engagement import rupees
+from fin.diligence.mask import Parties
 from fin.reconcile.base import (
     ZERO,
     Computed,
@@ -126,11 +128,13 @@ def _docs(register: list[Any], spec: Spec) -> list[Doc]:
     return list(docs.values())
 
 
-def _vouchers(entries: list[Any], file_name: str, spec: Spec) -> dict[str, Doc]:
+def _vouchers(entries: list[Any], file_name: str, spec: Spec, parties: Parties) -> dict[str, Doc]:
+    """Books vouchers: lines with the same voucher number added up; the party is the particulars
+    ledger as the registers know it (its token when it is a register customer or vendor)."""
     docs: dict[str, Doc] = {}
     for sheet, row, day, particulars, number, debit, credit in entries:
         key = str(number).strip() if number is not None else "(no number)"
-        doc = docs.setdefault(key, Doc(key, particulars, day))
+        doc = docs.setdefault(key, Doc(key, parties.party(particulars), day))
         doc.amount += (credit - debit) if spec.credit_side else (debit - credit)
         doc.refs.append((file_name, sheet, row))
     return docs
@@ -255,7 +259,8 @@ def compute(
             "nothing recorded"
         )
     entries = books_entries(con, company, period, voucher[0], spec.accounts, spec.what)
-    register, books = _docs(rows, spec), _vouchers(entries, voucher[1], spec)
+    parties = Parties(con)
+    register, books = _docs(rows, spec), _vouchers(entries, voucher[1], spec, parties)
     sources = (rows[0][1], rows[0][2], voucher[1], entries[0][0] if entries else "")
     by_month = _rollup(
         "month",
@@ -272,7 +277,10 @@ def compute(
         "party",
         _totals([(r[6], r[7]) for r in rows]),
         _totals(
-            [(e[3] or "", (e[6] - e[5]) if spec.credit_side else (e[5] - e[6])) for e in entries]
+            [
+                (parties.party(e[3]) or "", (e[6] - e[5]) if spec.credit_side else (e[5] - e[6]))
+                for e in entries
+            ]
         ),
         sources,
     )

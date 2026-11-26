@@ -22,6 +22,8 @@ Builder's readings of [fdd.md](../fdd.md) F5. None is an owner decision.
 
 ## Related parties are matched by token
 
+- **Superseded 2026-11-26** by [masking.md](masking.md): a counterparty that is a register customer or vendor gets its token, one that is a loaded ledger's name becomes that ledger, any other is stored as read (no `PRTY-`); a ledger meets a token through `mask_values`.
+
 - **Decision**: a counterparty is masked on load with the existing masking: a name fin already masked (a customer,
   vendor or party ledger, ignoring case and spaces) gets that token; a new name gets a `PRTY-` token. A related party
   is "matched" to a customer, vendor or ledger when it is the same token (view `related_party_matches`), with no

@@ -6,26 +6,26 @@ For one file, `ingest_source`:
 
 1. Needs an open engagement (E803), refuses a file already loaded (same sha256, E105, even when
    superseded) and reads it with a column profile (`fin.extract.ledger`; E807 when no profile
-   matches, its header lines listed with known masked names replaced).
+   matches, its header lines listed).
 2. Checks the period its header lines give is an annual period of the open engagement, or exactly
    its stub (basis unaudited: unaudited management accounts) (E808). A payroll snapshot has one
    date, which must fall in an annual period or the stub (`fin.diligence.payroll`); so does an
    orderbook (F7, `fin.diligence.orderbook`).
-   Ledger Vouchers need their period's trial balance loaded first (E811): it says which ledgers
-   are parties. A registers workbook has no period header: its period comes from its invoice dates
+   Ledger Vouchers need their period's trial balance loaded first (E811): their ledgers are checked
+   against it. A registers workbook has no period header: its period comes from its invoice dates
    (`fin.diligence.registers`), and a later registers file replaces the earlier whatever its period.
 3. Copies the original to `archive/<company>/<sha256>.<ext>`.
 4. In ONE transaction: adds the `source_files` row, the rows (`fin.diligence.tally`) with sheet and
-   row, names masked (`fin.diligence.mask`), the trial balance's group findings, and marks an
+   row, the client's masked fields as tokens (`fin.diligence.mask`), the trial balance's group
+   findings, and marks an
    earlier file of the same kind and period superseded (and its findings). A trial balance adds its
    new ledgers to `ledger_accounts` as pending (`fin.diligence.ledgers`). Any error rolls it back.
 
 It returns what was loaded: the ledgers present, and for Ledger Vouchers the trial balance ledgers
 missing from it (ask the user for the export with all ledgers) and its ledgers not in the trial
-balance (masked: fin cannot tell whether they are parties).
+balance.
 """
 
-from collections.abc import Callable
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -108,12 +108,11 @@ def _load_tb(
     con: duckdb.DuckDBPyConnection,
     table: Table,
     file: dict[str, Any],
-    masker: Masker,
 ) -> list[str]:
     """Insert the trial balance rows and its group findings; the lines to show."""
     file_id, name, period = file["file_id"], file["file_name"], file["period"]
     rows = tally.trial_balance_rows(table, name)
-    names = tally.stored_names(rows, table.profile, masker)
+    names = [r.name for r in rows]
 
     def stored(index: int | None) -> str | None:
         return names[index] if index is not None else None
@@ -142,9 +141,8 @@ def _load_tb(
     ledgers = sum(1 for r in rows if r.row_type == "ledger")
     lines = [
         f"trial balance {period}: {ledgers} ledgers in {len(rows) - ledgers} groups, "
-        f"{masker.added} names newly masked, {len(findings)} findings"
+        f"{len(findings)} findings"
     ]
-    lines.append(tally.group_summary(rows, names, table.profile))
     if findings:
         lines.append(
             f"{len(findings)} groups are not the sum of the ledgers under them (rows kept as "
@@ -159,41 +157,21 @@ def _load_lv(
     table: Table,
     file: dict[str, Any],
     tb: list[str],
-    masker: Masker,
 ) -> list[str]:
     """Insert the Ledger Vouchers lines; the lines to show, with the trial balance's ledgers
     (`tb`, as stored) missing from it and its ledgers not in the trial balance."""
     file_id, name, period = file["file_id"], file["file_name"], file["period"]
     entries, blocks = tally.ledger_entries(table, name)
     in_tb = set(tb)
-    stored_as: dict[str, str] = {}
-    outside: list[str] = []
-    for entry in [*blocks, *entries]:
-        if entry.ledger in stored_as:
-            continue
-        # A known name is its token; another ledger is stored as the trial balance stores it
-        # (known names inside it replaced). One not in the trial balance cannot be classified,
-        # so it is masked.
-        token = masker.known(entry.ledger)
-        shown = masker.text(entry.ledger) or entry.ledger
-        if token is None and shown not in in_tb:
-            token = masker.token("ledger", entry.ledger)
-            outside.append(token)
-        stored_as[entry.ledger] = token or shown
-    masked = set(table.profile.mask_fields)
-
-    def text(field: str, value: str) -> str | None:
-        return (masker.text(value) if field in masked else value) or None
-
+    outside = list(dict.fromkeys(e.ledger for e in [*blocks, *entries] if e.ledger not in in_tb))
     insert_rows(
         con,
         "ledger_entries",
         'file_id, sheet, "row", ledger, entry_date, particulars, voucher_type, voucher_no, '
         "debit, credit, run_id",
         [
-            [file_id, e.sheet, e.row, stored_as[e.ledger], e.date]
-            + [text("particulars", e.particulars), text("voucher_type", e.voucher_type)]
-            + [text("voucher_no", e.voucher_no), e.debit, e.credit, run.run_id]
+            [file_id, e.sheet, e.row, e.ledger, e.date, e.particulars or None]
+            + [e.voucher_type or None, e.voucher_no or None, e.debit, e.credit, run.run_id]
             for e in entries
         ],
     )
@@ -201,18 +179,14 @@ def _load_lv(
         con,
         "ledger_blocks",
         'file_id, sheet, "row", ledger',
-        [[file_id, b.sheet, b.row, stored_as[b.ledger]] for b in blocks],
+        [[file_id, b.sheet, b.row, b.ledger] for b in blocks],
     )
-    present = {stored_as[b.ledger] for b in blocks}
+    present = {b.ledger for b in blocks}
     missing = [ledger for ledger in tb if ledger not in present]
-    lines = [
-        f"ledger vouchers {period}: {len(entries)} lines in {len(present)} ledgers, "
-        f"{masker.added} names newly masked"
-    ]
+    lines = [f"ledger vouchers {period}: {len(entries)} lines in {len(present)} ledgers"]
     if outside:
         lines.append(
-            f"{len(outside)} ledgers not in the {period} trial balance, masked because fin cannot "
-            f"tell whether they are parties: {', '.join(outside)}"
+            f"{len(outside)} ledgers not in the {period} trial balance: {', '.join(outside)}"
         )
     if missing:
         lines.append(
@@ -266,7 +240,6 @@ def _read_source(
     path: Path,
     kind: str,
     profile: str | None,
-    hide: Callable[[str], str],
     engagement: dict[str, Any],
     month: int,
 ) -> tuple[Any, tuple[str, str, date, date, str]]:
@@ -274,11 +247,11 @@ def _read_source(
     name)."""
     name = path.name
     if kind == "registers":
-        reg_table = read_registers(path, profile, hide)
+        reg_table = read_registers(path, profile)
         parsed = registers.parse(reg_table, name)
         period, basis, start, end = registers.file_period(parsed, engagement, month)
         return parsed, (period, basis, start, end, reg_table.profile.name)
-    table = read_table(path, kind, profile, hide=hide)
+    table = read_table(path, kind, profile)
     if kind in ("payroll", "orderbook"):  # one as-at date, in an annual period or the stub
         period, basis = payroll.snapshot_period(table, engagement, month, name)
     else:
@@ -300,7 +273,7 @@ def _load_source(
     balance ledgers, masker). `when`: (engagement, fiscal year start month)."""
     tb, masker = masking
     if kind == "trial_balance":
-        lines = _load_tb(run, company, con, content, file, masker)
+        lines = _load_tb(run, company, con, content, file)
         added = ledgers.sync(con, run.run_id)
         if added:
             lines.append(
@@ -328,7 +301,7 @@ def _load_source(
                 f"{added} new customers waiting for a sector (`fin map customers {company}`)"
             )
         return lines
-    return _load_lv(run, con, content, file, tb, masker)
+    return _load_lv(run, con, content, file, tb)
 
 
 def ingest_source(
@@ -342,19 +315,15 @@ def ingest_source(
         refuse_duplicate(con, name, sha256)
         masker = Masker(con, run.run_id)
         month = config.fiscal_year_start_month
-
-        def hide(text: str) -> str:
-            return masker.text(text) or text
-
-        content, found = _read_source(path, kind, profile, hide, engagement, month)
+        content, found = _read_source(path, kind, profile, engagement, month)
         period, basis, start, end, profile_name = found
         kind = gst.stored_kind(kind, content)
         tb = _tb_ledgers(con, engagement["engagement_id"], period)
         if kind == "ledger_vouchers" and not tb:
             raise TrialBalanceNeeded(
                 f"{name}: load the {period} trial balance first (`fin ingest {company} <file> "
-                "--kind trial_balance`): it says which ledgers are parties, whose names are "
-                "masked. Nothing loaded"
+                "--kind trial_balance`): the Ledger Vouchers ledgers are checked against "
+                "it. Nothing loaded"
             )
         archive = archive_copy(run, company, path, sha256)
         file = add_file(
@@ -369,12 +338,9 @@ def ingest_source(
             run, company, con, kind, content, file, (tb, masker), (engagement, month)
         )
         replaced = _supersede(run, company, con, file)
-        remasked = masker.remask()
     head = f"loaded as source file_id {file['file_id']} ({kind} {period}, profile {profile_name})"
     if basis == "unaudited":
         head += f"; {period} is the stub: {UNAUDITED}"
     if replaced:
         head += f"; supersedes file_id {', '.join(map(str, replaced))}"
-    if remasked:
-        lines.append(f"{remasked} earlier free-text values masked with the new names")
     return log_load(run, company, file, [head, *lines], archive)

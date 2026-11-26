@@ -6,13 +6,11 @@ with its sheet and row number, its cells by field, and the name cell's bold and 
 balance tells group rows from ledger rows by them). What the rows mean is `fin.diligence.tally`'s.
 
 The first profile of the kind (or the one named) whose header is found is used. E807 when none
-matches: the message lists the title and column header lines (never data rows, which may hold
-names; known masked names replaced), so Claude can write a profile. E808 when no header line
-gives the period, or sheets give different periods.
+matches: the message lists the title and column header lines (never data rows), so Claude can write
+a profile. E808 when no header line gives the period, or sheets give different periods.
 """
 
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -201,10 +199,10 @@ def is_data(value: Any) -> bool:
     return parse_figure(text) is not None or DATE_TEXT.fullmatch(text) is not None
 
 
-def _top_rows(sheet: Worksheet, hide: Callable[[str], str]) -> list[str]:
+def _top_rows(sheet: Worksheet) -> list[str]:
     """The title and column header lines: the rows above the first row holding a number, a date or
     a figure, ending before a one-cell row below a wider one (a ledger block's heading). Data
-    rows, which may hold names, are never listed; known masked names are replaced (`hide`)."""
+    rows are never listed."""
     lines, widest = [], 0
     for row in sheet.iter_rows(max_row=HEADER_SEARCH_ROWS):
         values = [c.value for c in row if c.value is not None and str(c.value).strip()]
@@ -212,7 +210,7 @@ def _top_rows(sheet: Worksheet, hide: Callable[[str], str]) -> list[str]:
             break
         widest = max(widest, len(values))
         if values:
-            texts = (hide(" ".join(str(v).split())) for v in values)
+            texts = (" ".join(str(v).split()) for v in values)
             lines.append(f"row {row[0].row}: {' | '.join(texts)}")
     return lines[:SHOWN_ROWS]
 
@@ -221,11 +219,9 @@ def read_table(
     path: Path,
     kind: str,
     profile_name: str | None = None,
-    hide: Callable[[str], str] = str,
 ) -> Table:
     """The rows of `path` read with the named profile, or the first profile of `kind` whose
-    header is found. E101/E102 (unreadable), E807 (`hide` replaces known masked names in the
-    header lines it lists), E808."""
+    header is found. E101/E102 (unreadable), E807, E808."""
     if profile_name is not None:
         candidates = [load_profile(profile_name)]
         if candidates[0].kind != kind:
@@ -240,9 +236,7 @@ def read_table(
         if headers:
             return _table(path, profile, headers)
     names = ", ".join(p.name for p in candidates) or "none"
-    shown = "; ".join(
-        f"sheet {s.title!r}: " + " / ".join(_top_rows(s, hide)) for s in book.worksheets
-    )
+    shown = "; ".join(f"sheet {s.title!r}: " + " / ".join(_top_rows(s)) for s in book.worksheets)
     raise LayoutUnknown(
         f"{path.name}: no {kind} column profile matches its headers (tried: {names}). "
         f"Title and header lines: {shown or 'none'}. Write a profile in templates/profiles/ "

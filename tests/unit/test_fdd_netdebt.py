@@ -15,7 +15,6 @@ from fin.config import write_default_config
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.diligence import netdebt, netdebt_items, provisions
-from fin.diligence.mask import Masker
 from fin.evals import netdebt as netdebt_evals
 from fin.evals.golden import KINDS, LEDGERS, NEEDS, Check
 from fin.evals.score import fin_value
@@ -63,7 +62,7 @@ def classify(root: Path) -> None:
         "acme",
         [
             {"ledger": "Gratuity Provision", "class": "debt_like", "reason": "employee benefit"},
-            {"ledger": "CUST-0001", "class": "none", "reason": "trade receivable"},
+            {"ledger": "Acme Traders", "class": "none", "reason": "trade receivable"},
             {"ledger": "TDS Payable", "class": "debt_like", "reason": "statutory due"},
         ],
     )
@@ -76,7 +75,7 @@ def test_defaults_come_from_the_confirmed_account_and_the_rest_is_unclassified(r
         "SELECT ledger, debt_class, class_source FROM netdebt_ledger_classes ORDER BY ledger",
     )
     assert got == [
-        ("CUST-0001", None, None),
+        ("Acme Traders", None, None),
         ("Cash in hand", "cash", "default"),
         ("Gratuity Provision", None, None),
         ("HDFC Bank", "cash", "default"),
@@ -164,7 +163,7 @@ def test_only_the_user_changes_a_confirmed_class(root: Path) -> None:
     classify(root)
     ev = run(root)
     with pytest.raises(FinError) as exc:
-        netdebt.propose(ev, "acme", [{"ledger": "CUST-0001", "class": "debt", "reason": "x"}])
+        netdebt.propose(ev, "acme", [{"ledger": "Acme Traders", "class": "debt", "reason": "x"}])
     assert code(exc) == "E930"
     for ids, status in (([1], "confirmed"), ([99], "rejected")):
         with pytest.raises(FinError) as exc:
@@ -201,18 +200,18 @@ def test_bad_items_store_nothing(
     assert query(root, "SELECT count(*) FROM netdebt_items") == [(0,)]
 
 
-def test_items_mask_names_and_follow_the_adjustment_flow(root: Path) -> None:
+def test_items_keep_names_as_written_and_follow_the_adjustment_flow(root: Path) -> None:
     item = netdebt_items.propose(
         run(root), "acme", "FY26-YTD-SEP", D("-5000.50"), "Advance from Acme  Traders", "q #3"
     )
-    assert item["description"] == "Advance from CUST-0001"
+    assert item["description"] == "Advance from Acme Traders"  # spaces collapsed, not masked
     assert item["status"] == "proposed"
     ev, ids = run(root), [item["item_id"]]
     with pytest.raises(FinError) as exc:
         netdebt_items.decide(ev, "acme", ids, "rejected")
     assert code(exc) == "E933"
     [rejected] = netdebt_items.decide(run(root), "acme", ids, "rejected", "paid by Acme Traders")
-    assert "rejected: paid by CUST-0001" in netdebt_items.format_item(rejected)
+    assert "rejected: paid by Acme Traders" in netdebt_items.format_item(rejected)
     with pytest.raises(FinError) as exc:
         netdebt_items.decide(ev, "acme", ids, "accepted")
     assert code(exc) == "E933"
@@ -283,7 +282,7 @@ def test_golden_kind_net_debt(root: Path) -> None:
 # --- review fixes: masking, engagement scope, other bank balances -----------------------------
 
 
-def test_a_reason_naming_a_party_is_stored_masked(root: Path) -> None:
+def test_a_reason_naming_a_party_is_stored_as_written(root: Path) -> None:
     netdebt.propose(
         run(root),
         "acme",
@@ -295,29 +294,8 @@ def test_a_reason_naming_a_party_is_stored_masked(root: Path) -> None:
         [{"ledger": "Gratuity Provision", "kind": "gratuity", "reason": "acme traders staff"}],
     )
 
-    assert query(root, "SELECT reason FROM netdebt_classes") == [("due to CUST-0001",)]
-    assert query(root, "SELECT reason FROM provision_ledgers") == [("CUST-0001 staff",)]
-
-
-def test_a_name_learned_later_is_masked_in_the_stored_reasons_and_items(root: Path) -> None:
-    netdebt.propose(
-        run(root),
-        "acme",
-        [{"ledger": "TDS Payable", "class": "debt_like", "reason": "Beta Works dues"}],
-    )
-    netdebt_items.propose(
-        run(root), "acme", "FY25", D("1000"), "Beta Works claim", "Beta Works letter"
-    )
-    with connect(company_db_path(root, "acme"), write=True) as con:
-        masker = Masker(con, "r1")
-        masker.file_id = 3
-        masker.token("vendor", "Beta Works")
-        masker.remask()
-
-    assert query(root, "SELECT reason FROM netdebt_classes") == [("VEND-0001 dues",)]
-    assert query(root, "SELECT description, evidence FROM netdebt_items") == [
-        ("VEND-0001 claim", "VEND-0001 letter")
-    ]
+    assert query(root, "SELECT reason FROM netdebt_classes") == [("due to Acme  Traders",)]
+    assert query(root, "SELECT reason FROM provision_ledgers") == [("acme traders staff",)]
 
 
 def test_only_ledgers_of_the_latest_engagement_can_be_proposed(root: Path) -> None:

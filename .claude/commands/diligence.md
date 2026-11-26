@@ -19,8 +19,8 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      `uv run fin ingest <company> <file> --kind trial_balance`, then `--kind ledger_vouchers` (E811 if the trial
      balance is not loaded yet). Report the outcome lines as printed: ledgers and groups, findings (a group not
      equal to its ledgers: show it with `fin findings list` and ask, as for any finding), the trial balance ledgers
-     missing from the Ledger Vouchers (ask the user for the export with all ledgers) and the ledgers masked as
-     `LEDG-...`. E807 lists the header lines of a layout no profile reads: write a profile in
+     missing from the Ledger Vouchers (ask the user for the export with all ledgers) and the Ledger Vouchers
+     ledgers not in the trial balance. E807 lists the header lines of a layout no profile reads: write a profile in
      `templates/profiles/` (`docs/development.md`) and ingest with `--profile <name>`. E808: the period is not a
      year of the engagement nor exactly its stub; E809: ask for the Detailed export.
    - **Payroll.** Load the Sparsh snapshot with `uv run fin ingest <company> <file> --kind payroll` (its header gives
@@ -32,7 +32,7 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      row with no employee name or code, or a bad date (a corrected file is the company's to send).
    - **Registers.** The billing system's workbook (a sales sheet and a purchase sheet) loads with
      `uv run fin ingest <company> <file> --kind registers`: it needs no trial balance and has no period header (the
-     period comes from its invoice dates). Report the outcome lines as printed: lines per sheet, names masked, lines
+     period comes from its invoice dates). Report the outcome lines as printed: lines per sheet, the starred names masked, lines
      outside the engagement. A repeated invoice number is a finding (`register_duplicate_invoice`, both rows kept):
      show it with `fin findings list` and ask the user, then draft a query from it as in step 2. E813: a row is not
      an invoice line (the message names sheet!row); E807: no profile reads the layout (write one).
@@ -43,8 +43,10 @@ fixed; you draft and propose, the user decides; fin never sends anything.
      between statements are findings, not failures: show them neutrally with `fin findings list` and ask the user
      (accept as filed, or a query); never edit bank rows to make them tie. G1 needs every bank parse to tie or
      its finding accepted by the user.
-   - **Names are tokens** (`CUST-0001`, `VEND-0001`, `LEDG-0001`, `EMP-0001`, `ECODE-0001`). Use them as they are in queries and answers;
-     never try to read `mask_values` (`fin sql` refuses, E810) or guess a name.
+   - **The client's fields are tokens** (`CUST-0001`, `VEND-0001`, `USER-0001`, `EMP-0001`, `ECODE-0001`: the registers'
+     customers, vendors and handlers, payroll names and codes). Ledgers, particulars and bank text are as filed.
+     Use the tokens as they are in queries; never try to read `mask_values` (`fin sql` refuses, E810) or guess the
+     name behind a token.
    - **Ledger mapping.** `uv run fin map ledgers <company>` lists the trial balance ledgers waiting for an account.
      Propose one per ledger from its name and group (`uv run fin map accounts` for the accounts: balance sheet or
      profit and loss). Where the audited statements have the line, propose the account they map it to
@@ -115,8 +117,7 @@ fixed; you draft and propose, the user decides; fin never sends anything.
    when the user says they sent those queries.
 5. **Answers.** When the user gives an accountant's answer: `uv run fin query answer <company> <id> --text "..."
    [--source "<email, file or page>"]`, or with the reply file: `--file <path>` (archived like a source; a .txt, .eml or
-   .md reply is read with known names masked and is the answer, any other file needs `--text`; E860). Write `--text`
-   with tokens, never real names. Then propose what follows (close it; re-reconcile after the company sends a corrected file and the user loads it; raise a follow-up; or an adjustment)
+   .md reply is read as written and is the answer, any other file needs `--text`; E860). Then propose what follows (close it; re-reconcile after the company sends a corrected file and the user loads it; raise a follow-up; or an adjustment)
    and close it only when the user says: `uv run fin query close <company> <ids...>`. To drop a query before it is
    closed, when the user says: `uv run fin query withdraw <company> <ids...> --reason "..."`.
 6. **Adjustments.** Propose an adjustment only with evidence: an answered query, a finding, or a source reference.
@@ -209,7 +210,8 @@ fixed; you draft and propose, the user decides; fin never sends anything.
 7f. **Disclosures and related parties (FDD F5).** Read the notes to accounts and legal or tax notices into a reading CSV (kind,
    period, nature, page; counterparty, amount, unit, forum, stage, relationship, books, ledger as read) and load it with
    `uv run fin disclosures load <company> <file> --reading <csv>`. `uv run fin disclosures related <company>` lists each related
-   party and what it is in the books (fin matches by token); propose links fin did not find as a JSON list
+   party and what it is in the books (fin matches a register customer or vendor by its token and a ledger by its
+   name); propose links fin did not find as a JSON list
    `[{"party", "kind": "customer|vendor|ledger", "target", "confidence", "reason"}]` with `fin disclosures related <company>
    <file>`. The user confirms or rejects links (`fin review confirm|reject <company> <ids> --related`), only on their word.
    Then `fin reconcile <company> rpt_vs_books`: differences are queried, never fixed. E940-E941: report the code and stop.

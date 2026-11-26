@@ -9,7 +9,8 @@ choices in `docs/decisions/fdd-<id>.md`. Scope readings that are the orchestrato
 ## Rules (apply to every workstream)
 
 - The diligence rules hold (`CLAUDE.md`, "Diligence"): differences are queried, never fixed; Claude drafts, the user
-  decides; fin never sends anything; names are masked (tokens) in everything fin prints.
+  decides; fin never sends anything; the client's fields (register parties, payroll names) are tokens in everything fin prints
+  (`docs/decisions/masking.md`).
 - fin computes the repeatable parts; judgement stays with Claude (proposals) and the user (decisions). Every
   proposal Claude makes is reviewed by the user through `fin review` or an accept/reject command, as for ledger
   mappings and adjustments.
@@ -126,7 +127,7 @@ Decisions: [decisions/fdd-f4.md](decisions/fdd-f4.md). Schema: `db/schema/fdd_ne
   rejects them (`fin review list|confirm|reject <co> [ids] --netdebt`, E931). A confirmed class wins over the
   default; rejecting it restores the default. Table `netdebt_classes`.
 - Items not in a ledger: `fin netdebt item propose <co> --period P --amount N --description ... --evidence <ref>`
-  (signed rupees, positive raises net debt; a year of the open engagement or its stub; names masked; E932); the user
+  (signed rupees, positive raises net debt; a year of the open engagement or its stub; text as written; E932); the user
   accepts or rejects them (`fin netdebt item accept <co> <ids>`, `reject <co> <ids> --reason`, E933;
   `fin netdebt item list <co>`). Table `netdebt_items`.
 - Views: `net_debt` per period end of the latest engagement (annual periods, then the stub as unaudited): cash, debt,
@@ -151,10 +152,11 @@ Built (decisions: [decisions/fdd-f5.md](decisions/fdd-f5.md); module `fin/disclo
   purchases, debit, credit) and `ledger` say what it is compared with. Tables `disclosure_files`, `disclosures`.
   `fin disclosures list <co> [--kind K] [--json]`: the schedules, one per kind, each row with file + page, "not
   verified".
-- Related parties: a counterparty whose name a loaded file already had gets that file's token, so fin matches it to
-  the masked customers, vendors and ledgers by token (view `related_party_matches`, status `matched`; names never
-  printed). `fin disclosures related <co>` lists each party and its matches; `fin disclosures related <co>
-  <file.json>` stores Claude's link proposals by token (`{party, kind: customer|vendor|ledger, target, confidence,
+- Related parties: a counterparty that is a register customer or vendor gets its token; one that is a loaded
+  ledger's name becomes that ledger (case and spaces ignored); fin matches it to the customers and vendors by token
+  and to the ledgers by name, a ledger meeting a token through `mask_values` (view `related_party_matches`, status
+  `matched`). `fin disclosures related <co>` lists each party and its matches; `fin disclosures related <co>
+  <file.json>` stores Claude's link proposals (a party by token or name; `{party, kind: customer|vendor|ledger, target, confidence,
   reason}`, table `related_party_links`); the user confirms or rejects them (`fin review list|confirm|reject <co>
   --related`).
 - Views: `related_party_transactions` (per party and period: the linked customers' sales register, vendors' purchase

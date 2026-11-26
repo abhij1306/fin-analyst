@@ -1,9 +1,10 @@
 -- Company database, companies/<company>.duckdb: diligence source files and their rows (docs/diligence.md D2,
 -- fin.diligence.sources). Run after diligence.sql. Money is DECIMAL(20,2) rupees. No foreign keys: file_id is the
 -- link. Every row keeps its lineage: the file (sha256, archive path) and sheet + row.
--- Masked names: party ledgers (under the groups a column profile names, e.g. Sundry Debtors and Sundry Creditors)
--- are stored as tokens (CUST-0001, VEND-0001, LEDG-0001); mask_values holds the real values and is never printed
--- (`fin sql` refuses to read it, E810).
+-- Masked names (the client's instruction, docs/decisions/masking.md): the registers' customer, vendor, handler and
+-- submitted-by, the orderbook's customer and payroll's employee name and code are stored as tokens (CUST-0001,
+-- VEND-0001, USER-0001, EMP-0001, ECODE-0001); the books and bank statements keep names as filed. mask_values holds
+-- the real values and is never printed (`fin sql` refuses to read it, E810).
 
 CREATE SEQUENCE source_files_seq START 1;
 
@@ -38,9 +39,9 @@ CREATE TABLE source_files (
 );
 
 -- The real value behind each token, stored once per kind: the same name gets the same token in every file.
--- kind: customer, vendor, user, employee_name, employee_code, or ledger (a Ledger Vouchers ledger not in its
--- period's trial balance: fin cannot tell whether it is a party, so it is masked). match_key: the value in lower
--- case with spaces collapsed. Read only by the accountant export (D8); never printed.
+-- kind: customer, vendor, user, employee_name or employee_code. match_key: the value in lower case with spaces
+-- collapsed; a ledger or a bank line naming a customer or vendor is matched to its token by it (party matching).
+-- real_value is read only by the accountant export (D8); never printed.
 CREATE TABLE mask_values (
     token VARCHAR PRIMARY KEY,
     kind VARCHAR NOT NULL,
@@ -52,8 +53,8 @@ CREATE TABLE mask_values (
 );
 
 -- Trial balance rows as filed (Tally Detailed export: closing balances only). row_type 'group' (a group total;
--- group_name is the group, parent_group the group it sits in) or 'ledger' (ledger is the ledger name, or its token
--- for a party ledger; group_name the group it sits in). A group not equal to the sum of its ledgers is a finding
+-- group_name is the group, parent_group the group it sits in) or 'ledger' (ledger is the ledger name as filed;
+-- group_name the group it sits in). A group not equal to the sum of its ledgers is a finding
 -- (check_name 'tb_group_sum'), and the rows stay as filed.
 CREATE TABLE trial_balance (
     file_id INTEGER NOT NULL,
@@ -70,9 +71,8 @@ CREATE TABLE trial_balance (
     PRIMARY KEY (file_id, sheet, "row")
 );
 
--- Ledger Vouchers rows: one per voucher line, the ledger taken from the block header above it (token for a party
--- ledger). particulars: the other ledger, with known masked names replaced by their tokens. Opening, closing and
--- total rows are not loaded.
+-- Ledger Vouchers rows: one per voucher line, the ledger taken from the block header above it, as
+-- filed. particulars: the other ledger, as filed. Opening, closing and total rows are not loaded.
 CREATE TABLE ledger_entries (
     file_id INTEGER NOT NULL,
     sheet VARCHAR NOT NULL,
@@ -190,7 +190,7 @@ CREATE TABLE bank_statements (
 
 -- Bank statement rows, one per transaction, with lineage: sheet and row (Excel), or page (PDF: sheet is 'page N',
 -- row counts the table rows on that page, so it is the position in the saved parse). remarks and reference: text as
--- filed with every known masked name replaced by its token. Debit and credit are the movement out of and into the
+-- filed. Debit and credit are the movement out of and into the
 -- account (blank is 0); balance is the running balance the bank printed (NULL when it printed none).
 CREATE TABLE bank_lines (
     file_id INTEGER NOT NULL,
@@ -220,8 +220,8 @@ CREATE TABLE payroll_units (
     confirmed_at TIMESTAMP NOT NULL
 );
 
--- Tally ledgers mapped to Schedule III dictionary accounts (fin.diligence.ledgers): one row per ledger as stored (the
--- token for a party ledger), for the company. A trial balance load adds its new ledgers as 'pending'.
+-- Tally ledgers mapped to Schedule III dictionary accounts (fin.diligence.ledgers): one row per ledger as filed, for the
+-- company. A trial balance load adds its new ledgers as 'pending'.
 --   pending    not proposed yet;
 --   proposed   Claude proposed an account (`fin map ledgers <co> <file>`): account, confidence, reason;
 --   confirmed  the user confirmed it (`fin review confirm <co> <ids> --ledgers`); only confirmed ledgers count;

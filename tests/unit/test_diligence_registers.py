@@ -54,7 +54,9 @@ def rows(root: Path, sql: str) -> list[tuple[Any, ...]]:
         return con.execute(sql).fetchall()
 
 
-def test_registers_load_with_lineage_and_masked_names(root: Path, tmp_path: Path) -> None:
+def test_registers_load_with_lineage_and_the_starred_fields_masked(
+    root: Path, tmp_path: Path
+) -> None:
     lines = load(root, write_registers(tmp_path / "reg.xlsx"))
 
     assert lines[0] == "loaded as source file_id 1 (registers FY25, profile billing_registers)"
@@ -81,11 +83,16 @@ def test_registers_load_with_lineage_and_masked_names(root: Path, tmp_path: Path
         root,
         "SELECT vendor, amount_inr FROM register_lines WHERE kind = 'purchase' ORDER BY \"row\"",
     ) == [("VEND-0001", 90000), ("VEND-0002", 40000)]
-    stored = " ".join(str(r) for r in rows(root, "SELECT * FROM register_lines"))
+    # the client's starred fields are tokens; the other columns are stored as filed
+    starred = " ".join(
+        str(r)
+        for r in rows(root, "SELECT customer, vendor, handler, submitted_by FROM register_lines")
+    )
     for name in REAL_NAMES:
-        assert name not in stored
+        assert name not in starred
         assert name not in " ".join(lines)
-    assert "Licence for CUST-0001" in stored  # a name inside a free-text column
+    stored = " ".join(str(r) for r in rows(root, "SELECT * FROM register_lines"))
+    assert f"Licence for {CUSTOMERS[0]}" in stored  # a name inside a free-text column
     assert rows(root, "SELECT count(*) FROM mask_values") == [(6,)]
     usd = rows(
         root,

@@ -1,5 +1,6 @@
 """FDD F1 end to end through the CLI: a contract reading with terms, coverage, a sample, a
-walkthrough with an exception that becomes a query line, and no real name in any output."""
+walkthrough with an exception that becomes a query line. The register's parties stay tokens in every
+output; the walkthrough evidence is stored as written (docs/decisions/masking.md)."""
 
 import csv
 import json
@@ -77,6 +78,9 @@ def test_contracts_sample_walkthrough_and_the_query_line(root: Path, tmp_path: P
     assert "needs a query" in recorded.stdout  # INV-1003, Rs 160000, is above the threshold
     assert json.loads(summary.stdout)[0]["exceptions"] == 1
     assert bad.exit_code == 2 and "E901" in bad.output
-    printed = " ".join(r.output for r in (loaded, coverage, drawn, recorded, summary))
+    evidence = f"contract rate differs for {CUSTOMERS[0]}"
+    assert evidence in recorded.stdout  # Claude's evidence, as written
+    printed = " ".join(r.output for r in (loaded, coverage, drawn, summary))
+    printed += recorded.output.replace(evidence, "")
     for name in (*CUSTOMERS, *VENDORS):
-        assert name not in printed
+        assert name not in printed  # the register's customer and vendor stay tokens

@@ -37,7 +37,7 @@ GOLDEN = [
     ("statement", "FY25", "standalone", "cash", "", "2,50,000", "rupees", "fs.xlsx BS!C5", "yes"),
     ("statement", "FY25", "standalone", "other_expenses", "", "1", "", "", ""),  # a draft
     ("tb_ledger", "FY25", "", "", "Software Sales", "(9,00,000)", "rupees", "tb.xlsx TB!21", "yes"),
-    ("tb_ledger", "FY25", "", "", "CUST-0001", "200000", "rupees", "tb.xlsx TB!12", "yes"),
+    ("tb_ledger", "FY25", "", "", CUSTOMERS[0], "200000", "rupees", "tb.xlsx TB!12", "yes"),
     ("tb_vs_statements", "FY25", "", "revenue", "", "-1,00,000", "rupees", "tb; fs", "yes"),
     ("stub", "FY26-YTD-SEP", "", "revenue", "", "9.00", "lakh", "stub.xlsx", "yes"),
 ]
@@ -189,7 +189,8 @@ def test_init_lists_what_to_check_and_never_changes_a_persons_lines(root: Path) 
         "nwc_year_end",
         "net_debt",
     }
-    assert not any(name in first["path"].read_text(encoding="utf-8") for name in CUSTOMERS)
+    # the golden set stays in the data folder: it lists ledgers as filed (party ledgers too)
+    assert CUSTOMERS[0] in first["path"].read_text(encoding="utf-8")
 
     revenue.update(expected="10.00", unit="lakh", checked="yes")
     with first["path"].open("w", encoding="utf-8", newline="") as handle:
@@ -261,12 +262,14 @@ def test_the_bundle_has_no_real_names_and_no_figures_unless_asked(
     )
 
 
+# a party ledger (a name: ledgers are no longer tokens) and an ordinary ledger name
+@pytest.mark.parametrize("name", [CUSTOMERS[0], "Software Sales"])
 def test_a_bundle_that_would_carry_a_name_is_not_written(
-    root: Path, monkeypatch: pytest.MonkeyPatch
+    root: Path, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
     no_doctor(monkeypatch)
     real = bundle.format_bundle
-    monkeypatch.setattr(bundle, "format_bundle", lambda b: real(b) + CUSTOMERS[0])
+    monkeypatch.setattr(bundle, "format_bundle", lambda b: real(b) + name)
 
     attempt = run(root)
     with pytest.raises(BundleNotAnonymous):

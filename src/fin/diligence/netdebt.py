@@ -22,7 +22,6 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, rupees
-from fin.diligence.mask import Masker
 
 CLASSES = ("cash", "debt", "debt_like", "none")
 
@@ -38,8 +37,7 @@ def _check(number: int, proposal: Any, ledgers: set[str], confirmed: set[str]) -
     if proposal["ledger"] not in ledgers:
         raise NetDebtClassInvalid(
             f"{what}: {proposal['ledger']!r} is not a ledger of a loaded trial balance of the "
-            "latest engagement (`fin netdebt propose <company>` lists the unclassified ones; "
-            "party ledgers go by their token)"
+            "latest engagement (`fin netdebt propose <company>` lists the unclassified ones)"
         )
     if proposal["ledger"] in confirmed:
         raise NetDebtClassInvalid(
@@ -74,9 +72,8 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
         if len(set(named)) != len(named):
             raise NetDebtClassInvalid("a ledger is proposed twice in the file; none stored")
         ids = []
-        masker = Masker(con, run.run_id)
         for p in proposals:
-            reason = masker.text(p["reason"].strip())
+            reason = p["reason"].strip()
             values = [p["ledger"], p["class"], reason, run.run_id, utcnow()]
             (class_id,) = con.execute(
                 "INSERT INTO netdebt_classes (ledger, debt_class, status, reason, run_id, "

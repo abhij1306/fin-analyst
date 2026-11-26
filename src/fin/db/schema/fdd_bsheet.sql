@@ -6,8 +6,7 @@
 -- Trial balance ledgers that hold a provision F3 compares with: 'doubtful_debts' (provision for doubtful debts,
 -- expected credit loss allowance) or 'gratuity'. The dictionary has no account for these (they sit inside
 -- provisions or trade receivables), so Claude proposes the ledgers (`fin provisions propose`) and the user confirms
--- or rejects them (`fin provisions confirm|reject`); only confirmed ledgers count. One row per ledger (the token for
--- a party ledger); a new proposal on a rejected ledger replaces it.
+-- or rejects them (`fin provisions confirm|reject`); only confirmed ledgers count. One row per ledger; a new proposal on a rejected ledger replaces it.
 CREATE SEQUENCE provision_ledgers_seq START 1;
 CREATE TABLE provision_ledgers (
     provision_id INTEGER PRIMARY KEY DEFAULT nextval('provision_ledgers_seq'),

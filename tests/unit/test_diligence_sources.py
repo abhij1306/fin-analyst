@@ -1,5 +1,6 @@
 """Diligence source files (fin.diligence.sources): a synthetic Tally trial balance and Ledger
-Vouchers load with sheet!row lineage and masked party names; what cannot load is refused with its
+Vouchers load with sheet!row lineage and party names as filed (docs/decisions/masking.md); what
+cannot load is refused with its
 code and nothing is loaded."""
 
 import shutil
@@ -35,8 +36,6 @@ from tests.tally_fixtures import (
     write_trial_balance,
     write_unknown_layout,
 )
-
-REAL_NAMES = (*CUSTOMERS, *VENDORS)
 
 
 @pytest.fixture(scope="module")
@@ -92,20 +91,14 @@ def test_ledger_block_without_vouchers_counts_as_in_the_ledger_vouchers(
         assert _missing_from_vouchers(con, 1, 2) == []
 
 
-def test_trial_balance_loads_with_lineage_and_masked_parties(root: Path, tmp_path: Path) -> None:
+def test_trial_balance_loads_with_lineage_and_parties_as_filed(root: Path, tmp_path: Path) -> None:
     lines = load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
 
     assert lines[0] == (
         "loaded as source file_id 1 (trial_balance FY25, profile tally_trial_balance)"
     )
-    assert (
-        lines[1] == "trial balance FY25: 10 ledgers in 9 groups, 4 names newly masked, 0 findings"
-    )
-    assert lines[2] == (
-        "party groups (ledgers masked): Sundry Creditors (2 ledgers), Sundry Debtors (2 ledgers); "
-        "other groups: Indirect Expenses (2 ledgers), Bank Accounts (1 ledgers), "
-        "Capital Account (1 ledgers), Duties & Taxes (1 ledgers), Sales Accounts (1 ledgers)"
-    )
+    assert lines[1] == "trial balance FY25: 10 ledgers in 9 groups, 0 findings"
+    assert not any("mask" in line for line in lines)
     assert rows(
         root,
         "SELECT kind, period, period_start::VARCHAR, period_end::VARCHAR, basis, status, "
@@ -119,28 +112,20 @@ def test_trial_balance_loads_with_lineage_and_masked_parties(root: Path, tmp_pat
     )
     assert ledgers == [
         (7, "Capital Account", None, "Share Capital", Decimal("-500000.00")),
-        (10, "Sundry Creditors", "Current Liabilities", "VEND-0001", Decimal("-120000.00")),
-        (11, "Sundry Creditors", "Current Liabilities", "VEND-0002", Decimal("-60000.00")),
-        (16, "Sundry Debtors", "Current Assets", "CUST-0001", Decimal("200000.00")),
-        (17, "Sundry Debtors", "Current Assets", "CUST-0002", Decimal("100000.00")),
+        (10, "Sundry Creditors", "Current Liabilities", VENDORS[0], Decimal("-120000.00")),
+        (11, "Sundry Creditors", "Current Liabilities", VENDORS[1], Decimal("-60000.00")),
+        (16, "Sundry Debtors", "Current Assets", CUSTOMERS[0], Decimal("200000.00")),
+        (17, "Sundry Debtors", "Current Assets", CUSTOMERS[1], Decimal("100000.00")),
     ]
     assert rows(root, "SELECT DISTINCT sheet FROM trial_balance") == [("Trial Balance",)]
     assert rows(
         root, 'SELECT row_type, group_name, parent_group FROM trial_balance WHERE "row" = 15'
     ) == [("group", "Sundry Debtors", "Current Assets")]
-    masked = rows(root, "SELECT token, kind, real_value FROM mask_values ORDER BY token")
-    assert masked == [
-        ("CUST-0001", "customer", CUSTOMERS[0]),
-        ("CUST-0002", "customer", CUSTOMERS[1]),
-        ("VEND-0001", "vendor", VENDORS[0]),
-        ("VEND-0002", "vendor", VENDORS[1]),
-    ]
-    stored = " ".join(str(r) for r in rows(root, "SELECT * FROM trial_balance"))
-    assert not any(name in stored for name in REAL_NAMES)
-    assert not any(name in " ".join(lines) for name in REAL_NAMES)
+    # the books are not masked: no token is made from a trial balance
+    assert rows(root, "SELECT count(*) FROM mask_values") == [(0,)]
 
 
-def test_ledger_vouchers_take_the_ledger_from_the_block_and_mask_names(
+def test_ledger_vouchers_take_the_ledger_from_the_block_as_filed(
     root: Path, tmp_path: Path
 ) -> None:
     load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
@@ -148,15 +133,12 @@ def test_ledger_vouchers_take_the_ledger_from_the_block_and_mask_names(
 
     lines = load(root, write_ledger_vouchers(tmp_path / "lv.xlsx", ledgers), "ledger_vouchers")
 
-    assert lines[1] == "ledger vouchers FY25: 7 lines in 5 ledgers, 1 names newly masked"
-    assert lines[2] == (
-        "1 ledgers not in the FY25 trial balance, masked because fin cannot tell whether they "
-        "are parties: LEDG-0001"
-    )
+    assert lines[1] == "ledger vouchers FY25: 7 lines in 5 ledgers"
+    assert lines[2] == "1 ledgers not in the FY25 trial balance: Neem Consulting"
     assert lines[3] == (
         "6 trial balance ledgers are missing from it (ask for the Ledger Vouchers export with all "
-        "ledgers): Share Capital, VEND-0002, GST Payable, CUST-0002, Axis Bank Current Account, "
-        "Salaries"
+        f"ledgers): Share Capital, {VENDORS[1]}, GST Payable, {CUSTOMERS[1]}, Axis Bank Current "
+        "Account, Salaries"
     )
     entries = rows(
         root,
@@ -164,15 +146,14 @@ def test_ledger_vouchers_take_the_ledger_from_the_block_and_mask_names(
         'debit - credit FROM ledger_entries ORDER BY "row"',
     )
     assert entries[:3] == [
-        (7, "CUST-0001", "2024-05-12", "Software Sales", "Sales", "101", Decimal("500000.00")),
-        (8, "CUST-0001", "2024-05-30", BANK, "Receipt", "7", Decimal("-300000.00")),
-        (12, "Software Sales", "2024-05-12", "CUST-0001", "Sales", "101", Decimal("-500000.00")),
+        (7, CUSTOMERS[0], "2024-05-12", "Software Sales", "Sales", "101", Decimal("500000.00")),
+        (8, CUSTOMERS[0], "2024-05-30", BANK, "Receipt", "7", Decimal("-300000.00")),
+        (12, "Software Sales", "2024-05-12", CUSTOMERS[0], "Sales", "101", Decimal("-500000.00")),
     ]
     assert rows(root, "SELECT DISTINCT sheet FROM ledger_entries") == [("Ledger Vouchers",)]
     assert len(entries) == sum(len(VOUCHERS[name]) for name in ledgers)
-    assert ("LEDG-0001",) in rows(root, "SELECT DISTINCT ledger FROM ledger_entries")
-    stored = " ".join(str(r) for r in entries)
-    assert not any(name in stored for name in (*REAL_NAMES, "Neem Consulting"))
+    assert ("Neem Consulting",) in rows(root, "SELECT DISTINCT ledger FROM ledger_entries")
+    assert rows(root, "SELECT count(*) FROM mask_values") == [(0,)]
 
 
 def test_a_group_not_equal_to_its_ledgers_is_a_finding(root: Path, tmp_path: Path) -> None:
@@ -212,20 +193,17 @@ def test_an_unknown_layout_lists_the_header_lines_and_no_data(root: Path, tmp_pa
     assert CUSTOMERS[0] not in message
 
 
-def test_e807_never_lists_a_ledger_block_heading_and_masks_known_names(
-    root: Path, tmp_path: Path
-) -> None:
+def test_e807_never_lists_a_ledger_block_heading(root: Path, tmp_path: Path) -> None:
     lv = write_ledger_vouchers(tmp_path / "lv.xlsx", [CUSTOMERS[0]])
     with pytest.raises(LayoutUnknown) as error:
         load(root, lv, "trial_balance")
     assert "row 4: Date | Particulars | Vch Type | Vch No. | Debit | Credit" in str(error.value)
     assert CUSTOMERS[0] not in str(error.value)
 
-    load(root, write_trial_balance(tmp_path / "tb.xlsx"), "trial_balance")
     titled = write_unknown_layout(tmp_path / "x.xlsx", title=f"Ledger: {CUSTOMERS[0]}")
     with pytest.raises(LayoutUnknown) as error:
         load(root, titled, "trial_balance")
-    assert "row 1: Ledger: CUST-0001 / row 2: Account | Balance" in str(error.value)
+    assert f"row 1: Ledger: {CUSTOMERS[0]} / row 2: Account | Balance" in str(error.value)
 
 
 def test_a_voucher_row_whose_date_cannot_be_read_is_refused(root: Path, tmp_path: Path) -> None:
@@ -279,7 +257,6 @@ def test_the_same_file_twice_is_refused_and_a_new_one_supersedes(
         (2, "loaded", None),
     ]
     assert rows(root, "SELECT status FROM findings") == [("superseded",)]
-    assert rows(root, "SELECT count(*) FROM mask_values") == [(4,)]  # same names, same tokens
     with pytest.raises(DuplicateFile, match="already loaded as source file_id 1"):
         load(root, first, "trial_balance")  # superseded, still the same file
 

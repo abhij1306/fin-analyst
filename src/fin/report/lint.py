@@ -26,9 +26,9 @@ STUB = r"FY\d{2}-YTD-[A-Z]{3}"
 FIGURE = re.compile(r"\{\{(figure):([a-z][a-z0-9_]*):(" + PERIOD + "|" + STUB + r")\}\}")
 FISCAL_YEAR = re.compile(r"\b" + PERIOD + r"\b")
 DIGIT = re.compile(r"\d")  # any Unicode digit
-# A masked name (fin.diligence.mask.PREFIX: CUST-0001, LEDG-0012, ...): an identity, not a number.
+# A masked name (fin.diligence.mask.PREFIX: CUST-0001, EMP-0012, ...): an identity, not a number.
 # The FDD report and its findings allow them (fin.report.lint.lint_fdd, fin.fdd.findings).
-TOKEN = r"\b(?:CUST|VEND|USER|EMP|ECODE|LEDG|PRTY)-\d+\b"
+TOKEN = r"\b(?:CUST|VEND|USER|EMP|ECODE)-\d+\b"
 FDD_ALLOWED = re.compile(FIGURE.pattern + "|" + TOKEN)
 FIGURE_EXAMPLE = "{{figure:adjusted_ebitda:FY25}}"
 HEADING = re.compile(r"^## (.+)$")

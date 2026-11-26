@@ -1,11 +1,11 @@
 """Related party links (`fin disclosures related`; `fin review ... --related`).
 
-fin matches each related party locally: a counterparty whose name a loaded file already had gets
-that file's token on load, so a party that is the same token as a sales customer, a purchase vendor
-or a ledger is matched (view `related_party_matches`, status 'matched'); real names are never
-printed. For the rest Claude proposes links by token (`propose`: {party, kind, target,
-confidence, reason}); nothing is applied. The user confirms or rejects them in review; only
-confirmed links count.
+fin matches each related party locally: a counterparty that is a register customer or vendor gets
+its token on load, and one that is a loaded ledger's name gets that ledger, so it is matched to the
+sales customer, purchase vendor or ledger (view `related_party_matches`, status 'matched'; a ledger
+matches a token through the masked name it is). Register names stay tokens. For the rest Claude
+proposes links (`propose`: {party, kind, target, confidence, reason}); nothing is applied. The user
+confirms or rejects them in review; only confirmed links count.
 
 Every proposal and decision is appended to the audit table `mapping_decisions` (scope
 'related_party').
@@ -20,7 +20,6 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open
-from fin.diligence.mask import Masker
 from fin.map.review import _current_actor
 
 LINK_KINDS = ("customer", "vendor", "ledger")
@@ -48,7 +47,23 @@ def _parties(con: duckdb.DuckDBPyConnection, engagement_id: int) -> set[str]:
     return {party for (party,) in rows}
 
 
-def _check(number: int, proposal: Any, parties: set[str], targets: dict[str, set[str]]) -> None:
+def _matched(con: duckdb.DuckDBPyConnection, engagement_id: int) -> set[tuple[str, str, str]]:
+    """(party, kind, target) fin already matched (a ledger meets a token through its name)."""
+    rows = con.execute(
+        "SELECT party, link_kind, target FROM related_party_matches "
+        "WHERE engagement_id = ? AND status = 'matched'",
+        [engagement_id],
+    ).fetchall()
+    return {(party, kind, target) for party, kind, target in rows}
+
+
+def _check(
+    number: int,
+    proposal: Any,
+    parties: set[str],
+    targets: dict[str, set[str]],
+    matched: set[tuple[str, str, str]],
+) -> None:
     what = f"proposal {number}"
     if not isinstance(proposal, dict):
         raise RelatedPartyLinkInvalid(
@@ -67,7 +82,7 @@ def _check(number: int, proposal: Any, parties: set[str], targets: dict[str, set
     if proposal["party"] not in parties:
         raise RelatedPartyLinkInvalid(
             f"{what}: {proposal['party']!r} is not a related party of the open engagement "
-            "(`fin disclosures related <company>` lists them by token)"
+            "(`fin disclosures related <company>` lists them)"
         )
     kind = proposal["kind"]
     if kind not in LINK_KINDS:
@@ -77,8 +92,8 @@ def _check(number: int, proposal: Any, parties: set[str], targets: dict[str, set
             f"{what}: the target is not a {kind} of the engagement's loaded files (customers and "
             "vendors are tokens; ledgers as `fin map ledgers` lists them)"
         )
-    if proposal["target"] == proposal["party"]:
-        raise RelatedPartyLinkInvalid(f"{what}: fin already matched {proposal['party']} by token")
+    if (proposal["party"], kind, proposal["target"]) in matched:
+        raise RelatedPartyLinkInvalid(f"{what}: fin already matched {proposal['party']}")
 
 
 def _record(run: Run, company: str, row: dict[str, Any], decision: str) -> None:
@@ -108,16 +123,16 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
         engagement_id = require_open(con, company)["engagement_id"]
         parties = _parties(con, engagement_id)
         targets = {kind: _targets(con, engagement_id, kind) for kind in LINK_KINDS}
+        matched = _matched(con, engagement_id)
         for number, proposal in enumerate(proposals, start=1):
-            _check(number, proposal, parties, targets)
-        masker = Masker(con, run.run_id)
+            _check(number, proposal, parties, targets, matched)
         for proposal in proposals:
             row = {
                 "party": proposal["party"],
                 "link_kind": proposal["kind"],
                 "target": proposal["target"],
                 "confidence": float(proposal["confidence"]),
-                "reason": masker.text(proposal["reason"].strip()),
+                "reason": proposal["reason"].strip(),
             }
             con.execute(
                 "INSERT INTO related_party_links (engagement_id, party, link_kind, target, status, "

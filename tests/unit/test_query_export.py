@@ -174,12 +174,13 @@ def test_round_trip_with_real_names_only_in_the_export(
     marked = [r for r in source.iter_rows() if r[0].fill.start_color.rgb == "00FFFF00"]
     assert len(marked) == 1
     assert any(f"Q{query_id}" in str(c.value) for c in source[marked[0][0].row])
-    # nothing but the export holds a real name: the database tables other than mask_values,
-    # the audit log and the data folder's logs
+    # the query and its lines carry the register token, never the name: the export alone
+    # writes it (ledgers keep names as filed, so the mapping log names the customer's ledger)
     with connect(company_db_path(root, "acme")) as con:
         for table in ("accountant_queries", "recon_items", "query_items"):
             assert real not in str(con.execute(f"SELECT * FROM {table}").fetchall())
-    assert real not in all_files_text(root / "logs")
+    logged = all_files_text(root / "logs").splitlines()
+    assert not [line for line in logged if real in line and "mapping_decisions" not in line]
 
     # the user sends it, then the accountant replies with a file
     assert fin("query", "sent", "acme", str(query_id)).exit_code == 0
@@ -187,8 +188,7 @@ def test_round_trip_with_real_names_only_in_the_export(
     reply.write_text(f"{real} confirms INV-2003 was billed in the next year.", encoding="utf-8")
     answered = fin("query", "answer", "acme", str(query_id), "--file", str(reply))
     assert answered.exit_code == 0, answered.output
-    assert real not in answered.output
-    assert "CUST-0001 confirms" in answered.output
+    assert f"{real} confirms" in answered.output  # the reply is stored as written
     assert list((root / "archive" / "acme").glob("*.txt"))
 
     # an adjustment on the answered query, then G4's checklist

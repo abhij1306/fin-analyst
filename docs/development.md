@@ -45,9 +45,9 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   approval (E802)), `cli.py` (the `fin engagement`, `fin query`, `fin adjust` and `fin gate` Typer groups; `cli_checks.py` checks the options of `fin query raise`). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
   Source files (`fin ingest --kind`): `sources.py` (one file in one transaction: period check, archive,
   `source_files`, supersede), `tally.py` (what trial balance and Ledger Vouchers rows mean: groups, ledger blocks,
-  the group-sum finding), `mask.py` (tokens for names, `mask_values`), `payroll.py` (the payroll snapshot:
+  the group-sum finding), `mask.py` (tokens for the client's fields, `mask_values`; `Parties` matches ledger and bank names to tokens), `payroll.py` (the payroll snapshot:
   rows, snapshot period, the monthly-amounts check, `fin payroll confirm-unit`, G1's payroll line; the CLI is
-  the group-sum finding), `mask.py` (tokens for names, `mask_values`), `bank.py` (`--kind bank`: a bank statement as
+  the group-sum finding), `mask.py` (tokens for the client's fields, `mask_values`; `Parties` matches ledger and bank names to tokens), `bank.py` (`--kind bank`: a bank statement as
   a `Statement`, the tie check, the load), `bank_pdf.py` (a PDF statement: the chosen PDF add-on's tables, saved
   once per sha256 in `cache/bank/`, read with the same profiles), `bank_raw.py`, `bank_checks.py` (overlap and
   balance gap findings, G1's bank line). Tables: `db/schema/sources.sql`.
@@ -113,8 +113,7 @@ Copy the nearest profile in `templates/profiles/` to `<name>.toml` (lower case, 
 differs: `[columns]` (header text as printed, joined over `header_rows` rows, to a field; the fields each kind needs
 are `FIELDS` in `extract/profiles.py`), `date_format`, `period` (a regular expression with groups `start` and `end`
 for the header line naming the period; a payroll profile has one group, `date`), `unit`, `[rows]` (`skip`; for a trial balance `group` and `level`; for
-Ledger Vouchers `block` and `block_prefix`) and `[mask]` (`groups`: the party groups whose ledgers are masked, and
-`fields`; a bank profile also has `bank`, `currency` and `[header]`: a regular expression with a group `value` for each of `account`, `currency`, `opening`, `closing`, matched against the lines around the table; the amounts stay in the account's own currency, `unit = 1`). Then ingest with `--profile <name>`. A bank profile reads Excel and PDF statements alike (`tests/bank_fixtures.py`: Excel layouts for the three banks). Add a test with a synthetic file in that layout
+Ledger Vouchers `block` and `block_prefix`); a bank profile also has `bank`, `currency` and `[header]`: a regular expression with a group `value` for each of `account`, `currency`, `opening`, `closing`, matched against the lines around the table; the amounts stay in the account's own currency, `unit = 1`). Then ingest with `--profile <name>`. A bank profile reads Excel and PDF statements alike (`tests/bank_fixtures.py`: Excel layouts for the three banks). Add a test with a synthetic file in that layout
 (`tests/tally_fixtures.py` shows how). Keep it to what the profile can state: no layout special cases in code.
 
 A `registers` profile (`billing_registers.toml`) has no `[columns]` and no `period`: it has `[sales.columns]` and
