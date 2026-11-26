@@ -196,6 +196,9 @@ def test_links_count_only_once_the_user_confirms(root: Path, tmp_path: Path) -> 
         ({"party": "CUST-0002"}, "is not a related party"),
         ({"target": "CUST-0099"}, "is not a customer"),
         ({"target": "CUST-0001", "party": "CUST-0001"}, "already matched"),
+        # the customer's ledger carries its name and fin matched it through the token: a link to it
+        # would count the ledger twice
+        ({"party": "CUST-0001", "kind": "ledger", "target": CUSTOMERS[0]}, "already matched"),
         ({"confidence": 2}, "confidence"),
         ({"kind": "lender"}, "kind must be one of"),
     ],

@@ -101,6 +101,7 @@ def test_the_amount_comes_only_from_the_linked_evidence(root: Path) -> None:
         ({"observation": "Fees of 12 lakh were added back."}, "typed number"),
         ({"implication": "The enterprise value should be lower."}, "valuation"),
         ({"title": "Do not buy"}, "buy"),
+        ({"implication": "A buy\nrecommendation follows."}, "buy recommendation"),
         ({"severity": "critical"}, "severity 'critical'"),
         ({"evidence": " "}, "give the evidence"),
         ({"netdebt_item_id": 1}, "at most one"),

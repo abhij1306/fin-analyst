@@ -120,7 +120,8 @@ def test_a_register_customer_matches_its_tally_ledger_by_name(root: Path) -> Non
     # the register carries customer tokens, the Ledger Vouchers the names as filed: the party
     # roll-up meets them through the masked names, so no line is under a real name
     lines = detail(recon(root, "sales_register_vs_gl"), "party")
-    assert lines and all(key.startswith("CUST-") for key in lines)
+    assert lines
+    assert all(key.startswith("CUST-") for key in lines)
     assert not set(lines) & set(CUSTOMERS)
 
 

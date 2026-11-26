@@ -73,11 +73,10 @@ class Parties:
     """The customer and vendor tokens, to match the books and bank text (which carry names as
     filed) with the registers (which carry tokens). Read-only; never printed."""
 
-    def __init__(
-        self, con: duckdb.DuckDBPyConnection, kinds: tuple[str, ...] = PARTY_KINDS
-    ) -> None:
+    def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
         rows = con.execute(
-            "SELECT match_key, token FROM mask_values WHERE list_contains(?, kind)", [list(kinds)]
+            "SELECT match_key, token FROM mask_values WHERE list_contains(?, kind)",
+            [list(PARTY_KINDS)],
         ).fetchall()
         self.by_key = dict(rows)
         names = sorted(self.by_key, key=len, reverse=True)  # the longest name wins

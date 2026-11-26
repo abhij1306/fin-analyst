@@ -12,6 +12,7 @@ import pytest
 from fin.db.conn import connect
 from fin.paths import company_db_path
 from tests.qoe_fixtures import build_root
+from tests.tally_fixtures import CUSTOMERS, VENDORS
 
 D = Decimal
 
@@ -45,12 +46,15 @@ def test_every_year_end_figure_has_its_trial_balance_rows(root: Path) -> None:
         'SELECT period, ledger, balance, sheet, "row" FROM nwc_year_end_lines '
         "WHERE period = 'FY24' ORDER BY ledger",
     )
-    assert [(p, ledger, b) for p, ledger, b, _, _ in got] == [
-        ("FY24", "CUST-0001", D("100000")),
-        ("FY24", "CUST-0002", D("50000")),
-        ("FY24", "VEND-0001", D("50000")),
-        ("FY24", "VEND-0002", D("20000")),
-    ]
+    # the books keep party ledgers as filed (docs/decisions/masking.md)
+    assert sorted((p, ledger, b) for p, ledger, b, _, _ in got) == sorted(
+        [
+            ("FY24", CUSTOMERS[0], D("100000")),
+            ("FY24", CUSTOMERS[1], D("50000")),
+            ("FY24", VENDORS[0], D("50000")),
+            ("FY24", VENDORS[1], D("20000")),
+        ]
+    )
     assert all(sheet == "Trial Balance" and row > 0 for _, _, _, sheet, row in got)
 
 
@@ -78,7 +82,7 @@ def test_a_ledger_that_does_not_tie_is_left_out_with_its_reason(root: Path) -> N
         "SELECT ledger, status, reason FROM nwc_monthly_ledgers WHERE period = 'FY26-YTD-SEP' "
         "ORDER BY ledger",
     )
-    assert ("CUST-0002", "excluded", "movements do not tie to the trial balance") in got
+    assert (CUSTOMERS[1], "excluded", "movements do not tie to the trial balance") in got
     month = rows(
         root,
         "SELECT month_end::VARCHAR, ledgers_included, ledgers_excluded FROM nwc_monthly "

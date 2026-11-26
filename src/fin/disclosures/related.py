@@ -47,7 +47,23 @@ def _parties(con: duckdb.DuckDBPyConnection, engagement_id: int) -> set[str]:
     return {party for (party,) in rows}
 
 
-def _check(number: int, proposal: Any, parties: set[str], targets: dict[str, set[str]]) -> None:
+def _matched(con: duckdb.DuckDBPyConnection, engagement_id: int) -> set[tuple[str, str, str]]:
+    """(party, kind, target) fin already matched (a ledger meets a token through its name)."""
+    rows = con.execute(
+        "SELECT party, link_kind, target FROM related_party_matches "
+        "WHERE engagement_id = ? AND status = 'matched'",
+        [engagement_id],
+    ).fetchall()
+    return {(party, kind, target) for party, kind, target in rows}
+
+
+def _check(
+    number: int,
+    proposal: Any,
+    parties: set[str],
+    targets: dict[str, set[str]],
+    matched: set[tuple[str, str, str]],
+) -> None:
     what = f"proposal {number}"
     if not isinstance(proposal, dict):
         raise RelatedPartyLinkInvalid(
@@ -76,7 +92,7 @@ def _check(number: int, proposal: Any, parties: set[str], targets: dict[str, set
             f"{what}: the target is not a {kind} of the engagement's loaded files (customers and "
             "vendors are tokens; ledgers as `fin map ledgers` lists them)"
         )
-    if proposal["target"] == proposal["party"]:
+    if (proposal["party"], kind, proposal["target"]) in matched:
         raise RelatedPartyLinkInvalid(f"{what}: fin already matched {proposal['party']}")
 
 
@@ -107,8 +123,9 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
         engagement_id = require_open(con, company)["engagement_id"]
         parties = _parties(con, engagement_id)
         targets = {kind: _targets(con, engagement_id, kind) for kind in LINK_KINDS}
+        matched = _matched(con, engagement_id)
         for number, proposal in enumerate(proposals, start=1):
-            _check(number, proposal, parties, targets)
+            _check(number, proposal, parties, targets, matched)
         for proposal in proposals:
             row = {
                 "party": proposal["party"],

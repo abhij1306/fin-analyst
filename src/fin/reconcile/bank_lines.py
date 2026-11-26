@@ -1,9 +1,9 @@
 """bank_vs_invoices: the lines of the bank receipts <-> sales invoices reconciliation (D5).
 
 `load` reads the engagement's loaded bank statements (credits are receipts), sales register lines
-and Ledger Vouchers receipts (a receipt's party: the first sales register customer its reference or
-remarks name; a Ledger Vouchers receipt's: its ledger, both matched to the register's customer token
-by name, `fin.diligence.mask.Parties`); `build` matches them (`fin.reconcile.bank_match`) and
+and Ledger Vouchers receipts (a receipt's party: the first register customer or vendor its
+reference or remarks name; a Ledger Vouchers receipt's: its ledger, both matched to the register's
+token by name, `fin.diligence.mask.Parties`); `build` matches them (`fin.reconcile.bank_match`) and
 returns each period's lines (`fin.reconcile.base` lines, with `match_lines`: the `recon_match_lines`
 rows):
 
@@ -71,8 +71,9 @@ def period_bounds(engagement: dict[str, Any]) -> dict[str, tuple[date, date]]:
 def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
     eid = engagement["engagement_id"]
     bounds = period_bounds(engagement)
-    # bank text and ledgers carry names as filed; the sales register carries customer tokens
-    parties = Parties(con, ("customer",))
+    # bank text and ledgers carry names as filed; the sales register carries tokens (a customer
+    # first masked as a vendor keeps its VEND- token, so every party kind is looked for)
+    parties = Parties(con)
     receipts, receipt_period = [], {}
     for fid, sheet, row, day, cur, ref, remarks, credit, period in con.execute(
         'SELECT b.file_id, b.sheet, b."row", b.txn_date, b.currency, b.reference, b.remarks, '

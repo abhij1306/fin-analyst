@@ -11,8 +11,9 @@
     (`CUST-0001`, `USER-0001`, `VEND-0001`). The orderbook's customer gets the same token as the registers, so the
     orderbook and the registers stay one customer.
 
-  Names are stored once in `mask_values`; the data tables, `fin` output and logs carry the token. Real names come
-  back only in `fin query export`, for the accountant. `fin sql` refuses `mask_values` (E810).
+  Names are stored once in `mask_values`; these fields carry the token in the data tables, `fin` output and logs,
+  and their real values come back only in `fin query export`, for the accountant. The same names can still appear as
+  filed or written where masking was dropped (below): the books, bank text and free text. `fin sql` refuses `mask_values` (E810).
 - **Why it stays:** the client's own instruction (answers of 2026-11-24): anonymise payroll before any third-party
   processing (mask name and code at minimum), and mask the identifier fields they starred.
 - **What was dropped, and why:** our own reading that Claude counts as third-party processing, which made fin mask
@@ -34,7 +35,8 @@
   that is a loaded ledger's name becomes that ledger) and the view `related_party_matches` (a ledger meets a token
   through the masked name it is). Customer revenue, concentration and retention read the registers only (tokens).
   Because a matched line shows the token beside the ledger's name, the token of a matched party can be read off fin's
-  output; the owner accepted that with the decision above.
+  output. This follows from the decision above (the books stay as filed); it is a reading of that decision, not an
+  owner quote, so the owner or the client may still ask for it to change.
 - **Still anonymous: the eval bundle.** `fin eval bundle` goes to the fin developers, whom the client's ZDR does not
   cover: companies as `company-N`, ledgers as `ledger-N`, no file names; E833 now also refuses a ledger name or a
   related party name, since ledgers are no longer tokens.

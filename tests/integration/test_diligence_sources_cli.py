@@ -68,7 +68,8 @@ def test_source_files_load_with_ledgers_as_filed(root: Path, tmp_path: Path) -> 
         {"ledger": CUSTOMERS[0], "particulars": "Axis Bank Current Account"},
     ]
     printed = loaded.output + vouchers.output + findings.output + entries.output
-    assert "CUST-0001" not in printed and "LEDG-" not in printed  # no token from the books
+    assert "CUST-0001" not in printed  # no token from the books
+    assert "LEDG-" not in printed
 
 
 def test_fin_sql_refuses_mask_values(root: Path, audit_query: Any) -> None:

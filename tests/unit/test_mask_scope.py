@@ -72,7 +72,9 @@ def test_bank_text_keeps_names_and_payroll_stays_tokens_in_either_order(
     assert remarks == ["SALARY Meera Kulkarni", "Bank charges"]
     assert not any("earlier free-text" in line for line in lines)
     names = rows(root, "SELECT DISTINCT employee_name, employee_code FROM payroll_lines")
-    assert names and all(n.startswith("EMP-") and c.startswith("ECODE-") for n, c in names)
+    assert names
+    assert all(n.startswith("EMP-") for n, _ in names)
+    assert all(c.startswith("ECODE-") for _, c in names)
     assert ("Meera Kulkarni",) not in rows(root, "SELECT employee_name FROM payroll_lines")
 
 
@@ -85,7 +87,6 @@ def test_parties_match_a_name_in_the_books_or_bank_text_to_its_register_token(ro
         banyan = masker.token("vendor", "Banyan Traders")
         masker.token("employee_name", "Meera Kulkarni")
         parties = Parties(con)
-        customers = Parties(con, ("customer",))
 
     assert parties.token("orchid  systems PVT ltd") == orchid
     assert parties.party("Banyan Traders") == banyan
@@ -94,5 +95,6 @@ def test_parties_match_a_name_in_the_books_or_bank_text_to_its_register_token(ro
     assert parties.find("NEFT ORCHID SYSTEMS PVT LTD LABS INV-1") == orchid_labs  # longest wins
     assert parties.find("NEFT-Orchid Systems Pvt Ltd-INV101") == orchid
     assert parties.find("Orchid Systems Pvt Ltdx") is None  # whole words only
-    assert customers.find("RTGS Banyan Traders") is None  # a vendor is not a payer
+    # a customer first masked as a vendor keeps its VEND- token in the sales register too
+    assert parties.find("RTGS Banyan Traders") == banyan
     assert parties.find(None) is None

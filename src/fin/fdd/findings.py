@@ -97,8 +97,8 @@ def propose(run: Run, company: str, fields: dict[str, Any]) -> dict[str, Any]:
     """Store a draft finding in the open engagement. E803 without one; E970 for a field at fault."""
     with company_database(run, company, write=True) as con, transaction(con):
         engagement_id = require_open(con, company)["engagement_id"]
-        _check(con, engagement_id, dict.fromkeys(LINKS) | fields)
-        values = _cleaned(fields)
+        values = _cleaned(fields)  # checked as stored: a phrase split over lines is still caught
+        _check(con, engagement_id, dict.fromkeys(LINKS) | values)
         columns = [*CHOICES, *TEXTS, "evidence", *LINKS]
         now = utcnow()
         (finding_id,) = con.execute(
@@ -118,8 +118,8 @@ def update(run: Run, company: str, finding_id: int, fields: dict[str, Any]) -> d
         row = _one(con, engagement_id, finding_id, "draft", "updated", company)
         if any(fields.get(name) is not None for name in AMOUNT_LINKS):
             fields = dict.fromkeys(AMOUNT_LINKS) | fields
-        _check(con, engagement_id, {name: row[name] for name in LINKS} | fields)
         values = _cleaned(fields)
+        _check(con, engagement_id, {name: row[name] for name in LINKS} | values)
         if values:
             sets = ", ".join(f"{name} = ?" for name in values)
             con.execute(
