@@ -9,8 +9,8 @@ register no order reference). Two kinds of line, level 'order':
   (listed, never reaches the threshold);
 - a customer (not a pass-through customer) with sales register billing in the period and no order
   on the orderbook: right_only, right the billing. If the orderbook lists open orders only, a
-  finished order is not on it: the note says so (NEEDS CLIENT CONFIRMATION,
-  docs/decisions/fdd-f7.md).
+  finished order is not on it: the note says so (client question 10,
+  docs/client-questions.md).
 
 A line at or above the threshold can be grouped into a query (`fin query raise --items`). Nothing
 here changes company data.

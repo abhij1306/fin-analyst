@@ -92,7 +92,7 @@ Each entry that is not a plain bug fix is the orchestrator's reading, owner may 
   counted as such beside net debt) until the user confirms a class.
 - **Why**: other bank balances are often fixed deposits, margin money or lien-marked balances that a buyer treats
   apart from free cash; defaulting them to cash lowered net debt without the user's word. Orchestrator's reading,
-  owner may override. NEEDS CLIENT CONFIRMATION (whether restricted balances are cash).
+  owner may override. [Client question 4](../client-questions.md).
 - **How to change it**: `db/schema/fdd_netdebt.sql`: `netdebt_default_accounts`.
 
 # Report and docs (#104)

@@ -323,7 +323,7 @@ reconciliation lines, adjusted EBITDA) adds a check kind so the client's golden 
 4. `evals/counts.py`: if the feature has its own failure markers, add them to `related_codes`; if it adds a count
    worth watching, add it to `counts`. The bundle carries whatever these return, so return only accounts, periods,
    codes, tokens and counts: never names, file names, labels or figures.
-5. `docs/client-handoff.md`: the kind in the "What each kind's value is" table of step 3, and its place in the check order.
+5. `docs/eval-kinds.md`: the kind in the "What each kind's value is" table, and its place in the check order.
 6. Test in `tests/unit/test_evals.py`: a correct golden line for the kind passes and a planted wrong one fails.
 
 ## Tests and fixtures
