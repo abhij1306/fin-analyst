@@ -59,6 +59,9 @@ FREE_TEXT_COLUMNS = (
     ("fdd_findings", "observation"),
     ("fdd_findings", "implication"),
     ("fdd_findings", "evidence"),
+    # the final response snapshot copies the query answer: both are masked again, so they stay equal
+    ("fdd_findings", "final_response"),
+    ("accountant_queries", "answer"),
     ("netdebt_items", "description"),
     ("netdebt_items", "evidence"),
     ("netdebt_items", "reason"),

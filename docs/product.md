@@ -796,8 +796,8 @@ on the other side (billed ahead: invoiced by the year end, service starting afte
 service ended by it); `purchase_cutoff` lists purchase invoices within `unrecorded_days` (60) after a year end for a
 service that ended by it (possible unrecorded liabilities). In both, an invoice dated after the year end for a service
 that started by it and ends after it straddles the year end: it is its own line, its amount the part for the service
-days up to the year end (by days, in SQL), its note "straddles the year end". A line with a service start and no
-service end is flagged in full, its note saying the end is not known. One line per invoice
+days up to the year end (by days, in SQL), its note "straddles the year end". An invoice dated after the year end
+for a service that started by it and has no service end is flagged in full, its note saying the end is not known. One line per invoice
 number (left_only, Amount in Rs); at or above the threshold it needs a query (`fin query raise --items`). Register
 lines in the window with no service start, and registers that end before the window does, are listed as not
 reconciled. E922 when the period is not an annual period or no register line is in the window. Golden kinds:

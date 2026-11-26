@@ -560,7 +560,9 @@ this file.
     proposed or decided `recast` adjustment. Needed to approve G4.
   - **G4 Adjustments:** no proposed adjustment, and every accepted one has evidence; no FDD proposal waiting for the
     user (proposed net debt items, draft FDD findings, proposed net debt classes, tax classes and related party
-    links). Those FDD tables are among its inputs, so a change to them reopens it. Needed by `fin engagement close`.
+    links). Those FDD tables are among its inputs (findings with their live evidence, the linked query's answer and the
+    final snapshot), so a change to them reopens it. Needed by `fin engagement close`, also for an engagement whose only
+    work is FDD proposals.
   - **Other FDD data and the gates:** provision ledgers, contracts and their terms, disclosures, samples and
     walkthroughs, the orderbook and GST returns sit outside G1 to G3 and have no checklist line. What of them feeds a
     reconciliation in `RECONCILIATIONS` (cut-off, GST, orderbook, walkthrough, related parties against the books)

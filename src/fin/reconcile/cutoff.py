@@ -9,8 +9,8 @@ for a service that ended on or before it (a possible unrecorded liability).
 In both, a line invoiced after the year end whose service started on or before it and ends after
 it straddles the year end: it is its own line (key suffix "(straddles)" when the invoice also has
 lines flagged in full), and its amount is the part for the service days up to the year end, by
-days, computed in SQL. A line with a service start and no service end is flagged in full, its note
-saying the end is not known.
+days, computed in SQL. A line invoiced after the year end with a service start on or before it and
+no service end is flagged in full, its note saying the end is not known.
 
 The windows are the engagement's `cutoff_days` and `unrecorded_days`, copied from config.toml [fdd]
 when it opens (like the bank matching settings), and the year end comes from its fiscal start month.

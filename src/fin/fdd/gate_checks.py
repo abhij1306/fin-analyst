@@ -28,9 +28,13 @@ _CHECKS = (
         "draft FDD findings",
         "SELECT finding_id FROM fdd_findings WHERE engagement_id = ? AND status = 'draft' "
         "ORDER BY finding_id",
+        # from the view: the live evidence (amount, link status, the linked query's answer) and
+        # the final snapshot, so an answer, a withdrawn link or a new snapshot reopens G4
         "SELECT finding_id, status, area, title, observation, implication, impact_type, severity, "
-        "deal_consideration, evidence, adj_id, netdebt_item_id, recon_id, query_id "
-        "FROM fdd_findings WHERE engagement_id = ? ORDER BY finding_id",
+        "deal_consideration, evidence, adj_id, netdebt_item_id, recon_id, query_id, live_amount, "
+        "live_amount_source, link_status, query_status, live_response, final_amount, "
+        "final_amount_source, final_link_status, final_response "
+        "FROM fdd_finding_rows WHERE engagement_id = ? ORDER BY finding_id",
         "`fin fdd finding list {co} --status draft`",
     ),
     (

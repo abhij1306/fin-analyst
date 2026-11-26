@@ -169,7 +169,7 @@ def visibility_table(data: dict[str, Any], unit: str) -> str:
         f"\n\n- {n['source']}: {n['note']} ({n['items']} items)" for n in found["notes"]
     )
     if (dated := orderbook_date_note(found)) is not None:
-        notes = f"\n\n- {dated}" + notes
+        notes = f"\n\n- {_t(dated)}" + notes
     return table(
         ["Source (never added together)", "Items", "Not usable (left out)", "Remaining",
          "In the next year", "Last year's core revenue", "Covered"],

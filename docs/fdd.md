@@ -105,7 +105,7 @@ Decisions: [decisions/fdd-f3.md](decisions/fdd-f3.md). Schema: `db/schema/fdd_bs
   whose service is on the other side (billed ahead: service starts after it; billed late: service ended by it);
   `purchase_cutoff`: purchase invoices within `[fdd] unrecorded_days` (60) after a year end for a service that ended
   by it (both windows copied onto the engagement when it opens). A service that straddles the year end is its own
-  line for the part up to the year end (by days, in SQL); no service end: flagged in full, the note says so.
+  line for the part up to the year end (by days, in SQL); invoiced after the year end for a service started by it with no service end: flagged in full, the note says so.
   One line per invoice (left_only, level invoice); at or
   above the threshold it needs a query (`fin query raise --items`). Lines with no service start, and registers that
   end before the window, are listed as not reconciled.

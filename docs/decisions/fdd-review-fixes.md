@@ -31,8 +31,8 @@ Each entry that is not a plain bug fix is the orchestrator's reading, owner may 
   are masked when written, and `FREE_TEXT_COLUMNS` adds `netdebt_items` (description, evidence, reason),
   `netdebt_classes.reason`, `provision_ledgers.reason`, `tax_ledgers.reason`, `related_party_links.reason`,
   `disclosures.forum` and `stage`, so a name learned from a later file is masked in them too. The final response
-  snapshot is not re-masked, like the query answer it copies; otherwise re-masking would flag every final finding as
-  changed.
+  snapshot and the query answer it copies (`accountant_queries.answer`, masked when written) are both masked again,
+  so they stay equal and a final finding is not flagged as changed by masking alone.
 - **Why**: the diligence rule is that names are masked in everything fin prints; these columns are printed.
 - **How to change it**: `src/fin/diligence/mask.py`: `FREE_TEXT_COLUMNS`; the `propose` functions.
 
@@ -76,8 +76,8 @@ Each entry that is not a plain bug fix is the orchestrator's reading, owner may 
   end only when its service ended on or before the year end. An invoice dated after the year end for a service that
   started on or before it and ends after it "straddles the year end": it is its own line (key suffix "(straddles)"
   when the same invoice also has lines flagged in full), and its amount is the part for the service days up to the
-  year end, by days, computed in SQL. A line with a service start and no service end is still flagged in full, its
-  note saying the end is not known. "Billed ahead" stays on service start after the year end.
+  year end, by days, computed in SQL. An invoice dated after the year end for a service that started by it and has
+  no service end is still flagged in full, its note saying the end is not known. "Billed ahead" stays on service start after the year end.
 - **Why**: an invoice billed in arrears for a service running across the year end is normal and only partly belongs to
   the earlier year; flagging it in full put noise above the threshold that G2 forces into queries. A line without a
   service end cannot be shown to be performed after the year end, so it stays flagged rather than hidden.

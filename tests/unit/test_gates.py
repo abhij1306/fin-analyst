@@ -212,6 +212,36 @@ def test_g4_needs_the_fdd_proposals_decided_and_reopens_when_one_is_added(
         require(ctx(con), "G4", "fin engagement close")
 
 
+def test_g4_reopens_when_the_query_of_a_final_finding_is_answered(
+    con: duckdb.DuckDBPyConnection, tmp_path: Path
+) -> None:
+    """A final finding shows its snapshot, but the live answer is a G4 input: answering the
+    linked query reopens an approved G4, so the user sees the change before closing."""
+    run = Run("gate approve", {}, tmp_path)
+    con.execute("UPDATE documents SET status = 'loaded' WHERE doc_id = 2")
+    con.execute(
+        "INSERT INTO accountant_queries (engagement_id, origin, question, sources, status, "
+        "created_run_id, created_at, status_run_id, status_at) VALUES (1, 'manual', "
+        "'Why is the provision lower?', 'a.xlsx', 'sent', 'r0', now(), 'r0', now())"
+    )
+    con.execute(
+        "INSERT INTO fdd_findings (engagement_id, area, title, observation, impact_type, severity, "
+        "deal_consideration, evidence, query_id, status, created_run_id, created_at, "
+        "status_run_id, status_at) VALUES (1, 'provisions', 'Provision', 'Lower than ageing', "
+        "'none', 'low', 'further_work', 'a.xlsx', 1, 'final', 'r0', now(), 'r0', now())"
+    )
+    for name in ("G1", "G2", "G3", "G4"):
+        approve_in(run, ctx(con), name)
+
+    con.execute("UPDATE accountant_queries SET status = 'answered', answer = 'Written back'")
+
+    [*_, g4] = evaluate(ctx(con))
+    assert (g4["state"], g4["reason"]) == (
+        "reopened",
+        "changed since it was approved: fdd findings",
+    )
+
+
 def test_g1_counts_only_mapped_figures_and_an_approved_gate_whose_checklist_fails_reopens(
     con: duckdb.DuckDBPyConnection, tmp_path: Path
 ) -> None:
