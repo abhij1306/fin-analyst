@@ -17,7 +17,7 @@ further with Claude Code, so the code and docs stay simple and easy to modify.
 
 ## 2. Constraints
 
-- macOS (Apple Silicon and Intel), single user. 16 GB RAM is sufficient.
+- macOS (Apple Silicon and Intel) and Linux (Debian and Ubuntu, x86_64 and aarch64), single user. 16 GB RAM is sufficient.
 - Installed from GitHub with one script; updated with one command.
 - AI runs through Claude Code only. The Python code never calls an LLM or the Anthropic API.
 - Code and data fully separate: updating code never touches data.
@@ -38,11 +38,12 @@ further with Claude Code, so the code and docs stay simple and easy to modify.
 | Reports | Quarto | HTML, docx, Typst PDF (no LaTeX) |
 | Dashboards | Evidence | Node LTS, local dev server |
 | Tests / lint | pytest, ruff | |
-| CI | GitHub Actions | Linux on every push; macOS on main and on demand |
-| System deps | Homebrew `Brewfile` | uv, node, quarto, poppler |
+| CI | GitHub Actions | Linux on every push (including the Linux install in an `ubuntu:24.04` container); macOS on main and on demand |
+| System deps | macOS: Homebrew `Brewfile`; Linux: `install.sh` (apt-get and pinned downloads) | uv, node, quarto, poppler |
 
-Python dependencies are pinned exactly in `uv.lock`. Homebrew cannot pin versions, so `install.sh` takes its current
-uv, node, quarto and poppler, and `fin doctor` checks minimum versions for uv, node and quarto. CI pins the tested
+Python dependencies are pinned exactly in `uv.lock`. Homebrew cannot pin versions, so on macOS `install.sh` takes its current
+uv, node, quarto and poppler; on Linux it takes uv and node (the newest 24.x) as they are released, quarto as the pinned
+`.deb` version named in `install.sh`, and poppler from apt. `fin doctor` checks minimum versions for uv, node and quarto. CI pins the tested
 Node and Quarto versions. Upgrade deliberately, never implicitly.
 
 ## 4. Architecture
@@ -225,10 +226,16 @@ claude
 
 `install.sh` (idempotent, logs to `logs/install.log`):
 
-1. Check macOS and architecture.
-2. Install Homebrew if missing (asks first).
-3. `brew bundle --file=Brewfile` (uv, node, quarto, poppler); tried up to 3 times, a minute apart, since GitHub
-   release downloads sometimes fail for a minute or two.
+1. Check the OS and architecture: macOS (arm64, x86_64) or Debian/Ubuntu Linux (x86_64, aarch64). Any other Linux
+   stops here with the list of tools to install by hand.
+2. macOS: install Homebrew if missing (asks first). Linux: nothing (root, or sudo, is needed for step 3).
+3. macOS: `brew bundle --file=Brewfile` (uv, node, quarto, poppler); tried up to 3 times, a minute apart, since GitHub
+   release downloads sometimes fail for a minute or two. Linux: only what is missing or too old, as `doctor`'s
+   minimums define it: poppler-utils, curl and xz-utils with `apt-get` (tried up to 3 times, 30 s apart); uv from its
+   GitHub release; node (newest 24.x, from nodejs.org, linked into `/usr/local/bin`); quarto from its pinned GitHub
+   release `.deb`. Downloads are checked against the published SHA-256. A kept tool is never replaced, and a second run
+   prints `all system dependencies already installed`. As root it runs `apt-get` directly; otherwise it uses `sudo`
+   (`sudo -n` when there is no terminal).
 4. `uv sync --frozen` (with `--extra <name>` for the PDF add-on `--parser <name>` names, or `config.toml`'s
    `[pdf] parser` without the flag; `--parser none` removes it).
 5. `npm ci --prefix dashboards`
@@ -300,7 +307,7 @@ verify and update.
 - **CI** (`.github/workflows/ci.yml`, Linux, every PR and main push): ruff, the file-size check (`tools/check_file_size.mjs`: source files under 6,000 tokens), pytest, `shellcheck install.sh`; one job ingests the synthetic companies once, renders a report (Quarto) and builds the Evidence dashboard (node 24). A `pdf-addon` job per engine syncs its extra: Docling and LiteParse restore their model caches and
 run the tests marked `docling` / `liteparse` (the real engine on synthetic PDFs); LlamaParse checks its fixture's
 shape against the SDK and never calls the API (its live test skips without `LLAMA_CLOUD_API_KEY`); the other jobs run
-without the extras. `macos.yml` (main and on demand): `install.sh` twice, `fin doctor` and a smoke ingest; and, for
+without the extras. An `install-linux` job runs `install.sh` twice as root in an `ubuntu:24.04` container (a second run changes nothing), then `fin doctor` and a smoke ingest. `macos.yml` (main and on demand): `install.sh` twice, `fin doctor` and a smoke ingest; and, for
 Docling and LiteParse, `install.sh --parser <name>`, the real-engine tests and `--parser none`.
 - **Releases**: semantic version tags, `CHANGELOG.md` written at release.
 

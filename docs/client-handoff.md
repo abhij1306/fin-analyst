@@ -1,6 +1,6 @@
 # Client handoff: run fin on your documents and report back
 
-For the Claude Code agent on the client's Mac. It assumes no prior context. The goal: install fin, load the client's
+For the Claude Code agent on the client's Mac or Linux (Debian/Ubuntu) machine. It assumes no prior context. The goal: install fin, load the client's
 real documents, build a **golden set** (values a person checked in the documents), score fin against it, ask the
 client to confirm fin's product decisions, and prepare a **results report** for fin's maintainers.
 
@@ -20,7 +20,7 @@ Read `CLAUDE.md` first. The rules that matter here:
 
 ```sh
 git clone https://github.com/abhij1306/fin-analyst.git && cd fin-analyst
-./install.sh            # Homebrew tools, uv sync, the data folder ~/FinAnalysis, fin init, fin doctor
+./install.sh            # system tools (Homebrew on macOS, apt-get on Linux), uv sync, the data folder ~/FinAnalysis, fin init, fin doctor
 uv run fin doctor       # every line ok or warn; a FAIL shows its fix
 ```
 

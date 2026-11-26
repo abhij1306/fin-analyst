@@ -44,11 +44,11 @@ Claude runs `fin` for you, shows where every number came from, and asks you when
 5. **Report.** Health reports (HTML, Word, PDF) and dashboards (company, compare, data quality).
 
 fin analyses; it does not judge. No scores, ratings or recommendations: decisions stay with you. Everything stays on
-your Mac.
+your machine.
 
 ## Install
 
-You need a Mac (Apple Silicon or Intel), an internet connection for the first install, and Claude Code.
+You need a Mac (Apple Silicon or Intel) or a Debian or Ubuntu Linux machine (x86_64 or aarch64), an internet connection for the first install, and Claude Code. On Linux the installer needs root or `sudo`; other Linux distributions are not supported (it stops and lists the tools to install by hand).
 
 ```sh
 git clone https://github.com/abhij1306/fin-analyst.git
@@ -56,8 +56,8 @@ cd fin-analyst
 ./install.sh
 ```
 
-The installer asks before installing [Homebrew](https://brew.sh) if it is missing, then installs `uv`, `node`,
-`quarto` and `poppler`, sets up the tool, creates your data folder (`~/FinAnalysis`) and runs `uv run fin doctor`.
+On a Mac the installer asks before installing [Homebrew](https://brew.sh) if it is missing, then installs `uv`, `node`,
+`quarto` and `poppler`; on Linux it installs what is missing with `apt-get` and pinned downloads (`uv`, `node` 24, `quarto`, `poppler-utils`). Then it sets up the tool, creates your data folder (`~/FinAnalysis`) and runs `uv run fin doctor`.
 Running it again only installs what is missing. Its log is `~/FinAnalysis/logs/install.log`.
 
 **Optional: a PDF add-on.** fin reads digital PDFs with pdfplumber. Some statement pages it can't read (standalone
@@ -73,8 +73,8 @@ uv run fin parser show             # what is chosen (or /parser in Claude Code)
 | Add-on | Where it runs | Download and disk | Speed and cost |
 |---|---|---|---|
 | none (default) | | the base tool only | pages pdfplumber skips are listed as not read |
-| [Docling](https://github.com/docling-project/docling) | your Mac (Apple silicon only: PyTorch has no Intel Mac build) | about 650 MB of Python packages (PyTorch, Docling) plus about 730 MB of models in `~/.cache/docling/models` | about 15 seconds a page; read 99-100% of the figures on our benchmark of skipped pages |
-| [LiteParse](https://github.com/run-llama/liteparse) | your Mac | about 12 MB plus about 50 MB of models (its `ocria-nano` package, under its own model licence) | fast; pages with a text layer are never OCR'd, and scanned PDFs are left for Claude to read |
+| [Docling](https://github.com/docling-project/docling) | your machine (not Intel Macs: PyTorch has no Intel Mac build) | about 650 MB of Python packages (PyTorch, Docling) plus about 730 MB of models in `~/.cache/docling/models` | about 15 seconds a page; read 99-100% of the figures on our benchmark of skipped pages |
+| [LiteParse](https://github.com/run-llama/liteparse) | your machine | about 12 MB plus about 50 MB of models (its `ocria-nano` package, under its own model licence) | fast; pages with a text layer are never OCR'd, and scanned PDFs are left for Claude to read |
 | [LlamaParse](https://github.com/run-llama/llama-parse-py) | LlamaIndex's cloud: the skipped pages are uploaded | a small Python SDK | paid per page; most accurate on hard tables; needs `LLAMA_CLOUD_API_KEY` in your environment |
 
 `uv run fin parser use <name>` does the same as the flag; the choice is saved in `config.toml` (`[pdf] parser`). LlamaParse needs `LLAMA_CLOUD_API_KEY` in your environment (read only from there, never stored or logged). Figures an add-on reads are marked as read by it.

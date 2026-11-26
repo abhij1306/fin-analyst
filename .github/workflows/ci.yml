@@ -1,5 +1,5 @@
 # Every PR and main push: fast checks on Linux runners (they start in seconds).
-# macOS checks live in macos.yml.
+# macOS checks live in macos.yml; the Linux install check (install-linux) runs here.
 name: CI
 
 on:
@@ -118,6 +118,42 @@ jobs:
         run: .venv/bin/pytest -m ${{ matrix.parser }} --durations=10
       - if: matrix.parser == 'llamaparse'
         run: .venv/bin/pytest tests/unit/test_llamaparse_run.py -rs
+
+  # Linux install (Debian/Ubuntu): a fresh ubuntu:24.04 container, as root with no sudo, runs ./install.sh
+  # twice; the second run changes nothing; fin doctor passes; one company loads. (The macOS equivalent is
+  # macos.yml.)
+  install-linux:
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    timeout-minutes: 15
+    steps:
+      - name: Tools the checkout and the state comparison need (install.sh installs the rest)
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates git
+      - uses: actions/checkout@v5
+      - name: Use a temporary data folder
+        run: echo "FIN_DATA_DIR=$RUNNER_TEMP/fin-data" >> "$GITHUB_ENV"
+      - name: First install
+        run: ./install.sh
+      # logs/ is left out of the comparison: every fin command appends its own run log there.
+      - name: Snapshot state
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && sha256sum config.toml); git status --porcelain; command -v uv node npm quarto pdftoppm; } > "$RUNNER_TEMP/before.txt"
+      - name: Second install
+        run: ./install.sh
+      - name: Second run changed nothing
+        run: |
+          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && sha256sum config.toml); git status --porcelain; command -v uv node npm quarto pdftoppm; } > "$RUNNER_TEMP/after.txt"
+          diff -u "$RUNNER_TEMP/before.txt" "$RUNNER_TEMP/after.txt"
+          grep -q "all system dependencies already installed" "$FIN_DATA_DIR/logs/install.log"
+          grep -q "kept     config.toml (already present, not changed)" "$FIN_DATA_DIR/logs/install.log"
+          grep -q "kept     shared/audit.duckdb" "$FIN_DATA_DIR/logs/install.log"
+      - name: fin doctor passes
+        run: uv run --frozen fin doctor
+      - name: Smoke ingest and query
+        run: |
+          uv run --frozen fin ingest kestrel tests/fixtures/sample-financials/clean/kestrel
+          uv run --frozen fin sql kestrel --sql "SELECT count(*) AS facts FROM facts" | grep -q '"facts": 162'
 
   # Ingest the synthetic companies once, then render Kestrel's report (Quarto) and build the dashboard;
   # the quarto-marked tests render the health report and the diligence report for real.

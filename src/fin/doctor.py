@@ -9,6 +9,7 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from fin import installhint
 from fin.audit.errors import (
     DatabaseLocked,
     DataFolderNotWritable,
@@ -27,7 +28,8 @@ DATA_FOLDER = "data folder"  # the name of that check
 PDF_PARSER = "pdf parser"  # the name of the PDF add-on's check
 RUN_INIT = "run `uv run fin init`"  # the fix when the data folder, config or a schema is missing
 
-# Homebrew cannot pin exact versions, so system tools have minimums.
+# Homebrew and apt cannot pin exact versions, so system tools have minimums. install.sh checks the
+# same numbers on Linux (tests/unit/test_installhint.py keeps them equal).
 # Python dependencies are pinned exactly in uv.lock.
 TOOL_MINIMUMS: dict[str, tuple[int, ...]] = {
     "uv": (0, 11),
@@ -101,7 +103,7 @@ def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
             False,
             f"`{tool} --version` did not run ({exc})",
             DependencyMissing.code,
-            f"reinstall with `brew reinstall {tool}`",
+            installhint.reinstall(tool),
         )
     if output is None:
         return Check(
@@ -109,7 +111,7 @@ def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
             False,
             "not found on PATH",
             DependencyMissing.code,
-            "run ./install.sh (installs it with `brew bundle --file=Brewfile`)",
+            installhint.missing(),
         )
     found = parse_version(output)
     if found is None:
@@ -118,7 +120,7 @@ def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
             False,
             f"cannot read version from {output!r}",
             DependencyVersionMismatch.code,
-            f"reinstall with `brew reinstall {tool}`",
+            installhint.reinstall(tool),
         )
     if found < minimum:
         return Check(
@@ -126,7 +128,7 @@ def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
             False,
             f"found {_fmt(found)}, need >= {_fmt(minimum)}",
             DependencyVersionMismatch.code,
-            f"run `brew upgrade {tool}`",
+            installhint.upgrade(tool),
         )
     return Check(tool, True, _fmt(found))
 
@@ -141,7 +143,7 @@ def check_poppler() -> Check:
             "poppler",
             True,
             f"`pdftoppm --version` did not run ({exc}): Claude cannot read PDF pages as images",
-            fix="run `brew reinstall poppler`",
+            fix=installhint.poppler_reinstall(),
             warning=True,
         )
     if output is None:
@@ -149,7 +151,7 @@ def check_poppler() -> Check:
             "poppler",
             True,
             "pdftoppm not found on PATH: Claude cannot read PDF pages as images for readings",
-            fix="run ./install.sh (installs it with `brew bundle --file=Brewfile`)",
+            fix=installhint.missing(),
             warning=True,
         )
     found = parse_version(output)

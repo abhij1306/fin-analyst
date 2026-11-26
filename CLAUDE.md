@@ -55,7 +55,7 @@ This app is meant to be modified with Claude Code. Keep modules small and readab
 
 ## Coding rules
 
-- Python 3.12 via uv. Add dependencies only with `uv add`, and say why. Commit lockfiles. macOS is the only target.
+- Python 3.12 via uv. Add dependencies only with `uv add`, and say why. Commit lockfiles. macOS and Linux (Debian/Ubuntu) are the targets; `install.sh` supports both.
 - Every failure path raises an error class with a code (table: `docs/errors.md`). No bare `except`, no silent defaults.
 - Every `fin` command creates a run record and logs through `src/fin/audit/logger.py`. No `print` for logging.
 - Database access only through `src/fin/db/conn.py`: short-lived connections, read-only unless the command writes.
