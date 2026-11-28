@@ -203,7 +203,11 @@ def report_command(
     if diligence and fdd:
         raise typer.BadParameter("use --diligence or --fdd, not both")
 
-    kind = "fdd" if fdd else "diligence" if diligence else "health"
+    kind = "health"
+    if fdd:
+        kind = "fdd"
+    elif diligence:
+        kind = "diligence"
     given = {"scope": scope, "render": render, "peers": peer_list, "drafts": drafts}
 
     def body(run: Run) -> None:

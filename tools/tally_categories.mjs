@@ -19,7 +19,7 @@ function categories(body) {
 
 const prs = JSON.parse(readFileSync(0, "utf8"));
 if (!Array.isArray(prs)) {
-  throw new Error("expected gh pr list --json number,body on standard input");
+  throw new TypeError("expected gh pr list --json number,body on standard input");
 }
 const counts = new Map();
 const untagged = [];
