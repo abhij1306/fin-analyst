@@ -43,14 +43,18 @@ def _refs(number: int, proposal: dict[str, Any], field: str) -> list[list[Any]]:
 
 
 def _ref(r: object) -> bool:
-    """[file_id, sheet, row]."""
+    """[file_id, sheet, row]: whole numbers, not JSON true or false (a bool is an int to Python)."""
     return (
         isinstance(r, list)
         and len(r) == 3
-        and isinstance(r[0], int)
+        and _whole(r[0])
         and isinstance(r[1], str)
-        and isinstance(r[2], int)
+        and _whole(r[2])
     )
+
+
+def _whole(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _check_lines(

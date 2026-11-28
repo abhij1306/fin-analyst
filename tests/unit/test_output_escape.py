@@ -12,6 +12,12 @@ def test_markdown_cell_keeps_a_table_row_whole() -> None:
     assert escape.markdown_cell("a | b\nc <b>") == "a \\| b c &lt;b&gt;"
 
 
+def test_a_markdown_link_or_image_stays_text() -> None:
+    assert escape.markdown_text("![x](http://e.invalid/a.png) [go](javascript:alert(1)) a\\b") == (
+        "!\\[x\\](http://e.invalid/a.png) \\[go\\](javascript:alert(1)) a\\\\b"
+    )
+
+
 def test_markdown_text_and_html_escape_markup() -> None:
     assert escape.markdown_text("<script>") == "&lt;script&gt;"
     assert escape.html('"x" & <y>') == "&quot;x&quot; &amp; &lt;y&gt;"

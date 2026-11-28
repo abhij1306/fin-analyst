@@ -16,8 +16,10 @@ def html(text: object) -> str:
 
 def markdown_text(text: object) -> str:
     """Free text for a Markdown paragraph that becomes HTML: markup is escaped, so it shows as text
-    and never runs in the rendered page. None is empty."""
-    return _html.escape("" if text is None else str(text), quote=False)
+    and never runs in the rendered page; brackets are escaped too, so a Markdown link or image in
+    the text stays text. None is empty."""
+    escaped = _html.escape("" if text is None else str(text), quote=False)
+    return escaped.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
 
 
 def markdown_cell(text: object) -> str:
