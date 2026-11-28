@@ -175,7 +175,7 @@ def test_a_data_change_rebuilds_analytics(root: Path) -> None:
         con.execute(
             "UPDATE facts SET confirmed = false WHERE account = 'revenue' AND fiscal_year = 'FY25'"
         )
-    sql = "UPDATE documents SET status = status WHERE false"
+    sql = "UPDATE company_profile SET name = name WHERE false"
 
     result = runner.invoke(app, ["sql", "kestrel", "--write", "--sql", sql])
 

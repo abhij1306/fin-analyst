@@ -103,3 +103,4 @@ Updated: 2026-11-28.
 | 17 | 5 | Show the recast against the books in the differences list | | done (#134) |
 | review | data | System review of data intake and integrity across #116 to #134 | | done (#136) |
 | review | ui | Cross-PR system review of the web UI: seams, invariants and dead ends | high | done (#138) |
+| review | docguard | Refuse `fin sql --write` on documents (owner, 2026-11-28) | | done (#139) |

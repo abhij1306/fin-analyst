@@ -6,7 +6,7 @@ a command returns when the error ends it:
 - E0xx (setup, including E006-E008 of the web UI), E5xx (database), E601-E603 (outputs), E406
   (accepting a finding that is not open), E407-E408 (a figure the user states that cannot be
   stated or withdrawn) and E409 (a figure that cannot be corrected) stop the command: exit 2.
-  E505 (`fin sql --write` on facts, raw_values, stated_figures or fact_corrections) is a
+  E505 (`fin sql --write` on facts, raw_values, stated_figures, fact_corrections or documents) is a
   database error like the other E5xx.
 - E1xx-E3xx are per-document failures and E604 is flagged in the evidence page. The command
   completes and reports them: exit 1.
@@ -330,8 +330,9 @@ class SqlFailed(FinError):
 
 class FigureTableWrite(FinError):
     """E505. `fin sql --write` was given a statement other than a SELECT that names facts,
-    raw_values or stated_figures: figures change only by loading documents, mapping their lines
-    (`fin review`) or stating a figure (`fin fact state`). Nothing was run."""
+    raw_values, stated_figures, fact_corrections or documents: figures and documents change only
+    through fin (`fin ingest`, `fin review`, `fin fact`, `fin findings accept`, `fin document
+    delete`). Nothing was run."""
 
     code = "E505"
 

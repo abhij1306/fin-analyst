@@ -1,5 +1,6 @@
 """`fin sql --write` refuses, before any statement runs, statements that write to a diligence table
-(E806) or that would end its transaction or reach past the company database (E504)."""
+(E806), a figure table or documents (E505), or that would end its transaction or reach past the
+company database (E504)."""
 
 from pathlib import Path
 
@@ -54,8 +55,8 @@ def test_writes_naming_a_diligence_table_are_refused(tmp_path: Path, sql: str, f
 @pytest.mark.parametrize(
     "sql",
     [
-        "UPDATE documents SET status = 'loaded' WHERE engagement_id = 2",
-        "SELECT * FROM gate_approvals; UPDATE documents SET status = 'held'",
+        "UPDATE notes SET section = 'x' WHERE doc_id = 2",
+        "SELECT * FROM gate_approvals; UPDATE company_profile SET name = 'x'",
         "DELETE FROM findings WHERE label = 'adjusted_ebitda'",
         "UPDATE findings SET message = 'x' WHERE label = 'current_facts'",
     ],
@@ -73,7 +74,11 @@ def test_other_writes_pass(tmp_path: Path, sql: str) -> None:
         ("DELETE FROM raw_values", "raw_values"),
         ("UPDATE stated_figures SET status = 'withdrawn'", "stated_figures"),
         ("DELETE FROM fact_corrections", "fact_corrections"),
-        ("UPDATE documents SET status = 'held'; DELETE FROM facts", "facts"),
+        ("UPDATE notes SET section = 'x'; DELETE FROM facts", "facts"),
+        ("UPDATE documents SET status = 'loaded' WHERE doc_id = 2", "documents"),
+        ("DELETE FROM Documents", "documents"),
+        ("INSERT INTO main.documents SELECT * FROM documents", "documents"),
+        ("UPDATE documents SET archive_path = '../x'; DELETE FROM facts", "documents"),
         ("INSERT INTO raw_values SELECT * FROM raw_values "
          "WHERE raw_id IN (SELECT raw_id FROM facts)", "facts, raw_values"),
     ],
@@ -83,10 +88,11 @@ def test_writes_naming_a_figure_table_are_e505(tmp_path: Path, sql: str, found: 
         check_write_sql(con, sql)
 
     assert str(e.value) == (
-        f"E505: `fin sql --write` does not change the figures (found: {found}). Load a document "
-        "(`fin ingest`, `--reading` for pages fin could not read), map its lines (`fin review`), "
-        "state a figure the documents do not give (`fin fact state`) or correct one fin misread "
-        "(`fin fact correct`). Nothing was run"
+        f"E505: `fin sql --write` does not change the figures or the documents (found: {found}). "
+        "Load a document (`fin ingest`, `--reading` for pages fin could not read), map its lines "
+        "(`fin review`), state a figure the documents do not give (`fin fact state`), correct one "
+        "fin misread (`fin fact correct`), accept a held document's findings (`fin findings "
+        "accept`) or delete a document (`fin document delete`). Nothing was run"
     )
 
 
@@ -187,6 +193,39 @@ def test_schema_changes_are_refused_and_the_database_is_unchanged(tmp_path: Path
     assert not (tmp_path / "backups").exists()
 
 
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "UPDATE documents SET status = 'loaded' WHERE doc_id = 1",
+        "DELETE FROM documents",
+        "INSERT INTO documents (file_name, sha256, version, fiscal_year, scope, status, "
+        "archive_path, run_id, ingested_at) VALUES ('b.xlsx', 'b', 1, 'FY25', 'standalone', "
+        "'loaded', 'archive/acme/b.xlsx', 'r', now())",
+    ],
+)
+def test_a_write_to_documents_is_refused_and_changes_nothing(tmp_path: Path, sql: str) -> None:
+    path = company_db_path(tmp_path, "acme")
+    ensure_database(path, "company")
+    with connect(path, write=True) as con:
+        con.execute(
+            "INSERT INTO documents (doc_id, file_name, sha256, version, fiscal_year, scope, "
+            "status, archive_path, run_id, ingested_at) VALUES (1, 'a.xlsx', 'a', 1, 'FY25', "
+            "'standalone', 'held', 'archive/acme/a.xlsx', 'r', now())"
+        )
+    run = Run("sql", {}, tmp_path)
+
+    with pytest.raises(FigureTableWrite) as e:
+        write_sql(run, "acme", sql)
+
+    assert e.value.code == "E505"
+    with connect(path) as con:
+        assert con.execute("SELECT doc_id, status FROM documents").fetchall() == [(1, "held")]
+    assert not (tmp_path / "backups").exists()
+    assert [(table, row["mode"], row["row_count"]) for table, row in run._records] == [
+        ("queries", "write", None)
+    ]
+
+
 def test_the_written_sql_cannot_read_files(tmp_path: Path) -> None:
     path = company_db_path(tmp_path, "acme")
     ensure_database(path, "company")
@@ -197,7 +236,7 @@ def test_the_written_sql_cannot_read_files(tmp_path: Path) -> None:
         write_sql(
             Run("sql", {}, tmp_path),
             "acme",
-            "UPDATE documents SET file_name = "
+            "UPDATE company_profile SET name = "
             f"(SELECT count(*) FROM read_csv('{secret.as_posix()}'))",
         )
 

@@ -70,3 +70,14 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
 - **Why**: one set of reported figures for every comparison; a stated figure is a figure in use (this file, above),
   and G1 lists it for the user before approving.
 - **How to change it**: `src/fin/diligence/recon.py: statement_figures`.
+
+## E505 covers documents too
+
+- **OWNER DECISION** (owner, 2026-11-28): asked whether `fin sql --write` should refuse to change the `documents` table,
+  the same as the figure tables, the owner answered: "ok and document it as decisions so client can know".
+- **Decision**: `fin sql --write` refuses any statement other than a SELECT that names `documents` (E505), before the
+  backup. A document is loaded, held, released or removed only by `fin ingest`, `fin findings accept`,
+  `fin fact correct` and `fin document delete`.
+- **Why**: `UPDATE documents SET status = 'loaded'` released a held document into `current_facts` without its
+  findings being accepted, and the stored file paths were writable too (#136).
+- **How to change it**: `src/fin/query/write.py: FIGURE_TABLE`.
