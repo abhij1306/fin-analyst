@@ -11,8 +11,9 @@ reconciliation run, else a query; view `fdd_finding_rows`). The linked query's a
 management response. Making a finding final snapshots its amount, source, link status and response
 (`_snapshot`); a final one shows the snapshot, and `flags` says when the live evidence changed
 since, or when its link is rejected or withdrawn. Text has no typed number and no
-valuation, investment-rating or buy/don't-buy language (E970). `collect` is what the FDD report
-reads.
+valuation, investment-rating or buy/don't-buy language (E970). A finding of area forensic rests on
+forensic flags (`--flags`, `fin.fdd.finding_flags`), evidence that gives no amount. `collect` is
+what the FDD report reads.
 """
 
 from typing import Any
@@ -24,10 +25,11 @@ from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts, fetch_one
 from fin.diligence.engagement import company_database, require_open, rupees
+from fin.fdd import finding_flags
 from fin.report.lint import FDD_ALLOWED, JUDGING, phrase, typed_number_lines
 
 AREAS = ("qoe", "working_capital", "net_debt", "revenue", "walkthroughs", "provisions", "tax",
-         "contingencies", "related_parties", "inquiries", "other")  # fmt: skip
+         "contingencies", "related_parties", "inquiries", "forensic", "other")  # fmt: skip
 IMPACTS = ("ebitda", "net_debt", "working_capital", "revenue", "disclosure", "none")
 SEVERITIES = ("high", "medium", "low")
 DEALS = ("price", "spa_protection", "condition_precedent", "further_work", "none")
@@ -66,9 +68,15 @@ def _field_problems(fields: dict[str, Any]) -> list[str]:
     return problems
 
 
-def _check(con: duckdb.DuckDBPyConnection, engagement_id: int, fields: dict[str, Any]) -> None:
-    """E970 for any field at fault, every problem listed."""
+def _check(
+    con: duckdb.DuckDBPyConnection, engagement_id: int, fields: dict[str, Any], look_up: bool = True
+) -> None:
+    """E970 for any field at fault, every problem listed. `look_up`: check the forensic flags
+    against the latest runs (`fin.fdd.finding_flags`; only flags given now are)."""
     problems = _field_problems(fields)
+    problems += finding_flags.problems(
+        con, engagement_id, fields.get("area"), fields.get("flag_ids") or [], look_up=look_up
+    )
     if sum(fields.get(name) is not None for name in AMOUNT_LINKS) > 1:
         problems.append("link at most one of --adjustment, --netdebt-item, --recon")
     for name, (table, column) in LINKS.items():
@@ -108,6 +116,7 @@ def propose(run: Run, company: str, fields: dict[str, Any]) -> dict[str, Any]:
             f"(?, {', '.join('?' for _ in columns)}, 'draft', ?, ?, ?, ?) RETURNING finding_id",
             [engagement_id, *(values.get(c) for c in columns), run.run_id, now, run.run_id, now],
         )
+        finding_flags.store(con, finding_id, values.get("flag_ids") or [])
         _log(run, company, finding_id, f"proposed ({fields['severity']}, {fields['area']})")
         return _rows(con, engagement_id, [finding_id])[0]
 
@@ -120,7 +129,14 @@ def update(run: Run, company: str, finding_id: int, fields: dict[str, Any]) -> d
         if any(fields.get(name) is not None for name in AMOUNT_LINKS):
             fields = dict.fromkeys(AMOUNT_LINKS) | fields
         values = _cleaned(fields)
-        _check(con, engagement_id, {name: row[name] for name in LINKS} | values)
+        flag_ids = values.pop("flag_ids", None)
+        stored = {name: row[name] for name in (*LINKS, "area")} | {
+            "flag_ids": row["flag_ids"] or []
+        }
+        given = values | ({"flag_ids": flag_ids} if flag_ids is not None else {})
+        _check(con, engagement_id, stored | given, look_up=flag_ids is not None)
+        if flag_ids is not None:
+            finding_flags.store(con, finding_id, flag_ids)
         if values:
             sets = ", ".join(f"{name} = ?" for name in values)
             con.execute(
@@ -128,7 +144,7 @@ def update(run: Run, company: str, finding_id: int, fields: dict[str, Any]) -> d
                 "WHERE finding_id = ?",
                 [*values.values(), run.run_id, utcnow(), finding_id],
             )
-        _log(run, company, finding_id, "updated " + ", ".join(sorted(values)))
+        _log(run, company, finding_id, "updated " + ", ".join(sorted(given)))
         return _rows(con, engagement_id, [finding_id])[0]
 
 
@@ -238,6 +254,8 @@ def format_finding(row: dict[str, Any]) -> str:
         f"  impact {row['impact_type']}, {amount}; deal consideration {row['deal_consideration']}",
         f"  evidence: {row['evidence']}",
     ]
+    if row.get("flag_ids"):
+        lines.append(f"  forensic flags: {finding_flags.flag_text(row)} (`fin forensic flags`)")
     if row["implication"]:
         lines.insert(2, f"  implication: {row['implication']}")
     if row["query_id"] is not None:

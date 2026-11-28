@@ -48,9 +48,15 @@ def latest_runs(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> d
 def status(run: Run, root: Path, company: str) -> list[dict[str, Any]]:
     """One row per registered test and engagement period. E803 without an open engagement."""
     with company_database(run, company) as con:
-        engagement = require_open(con, company)
-        hashes = current_hashes(con, root, company, engagement)
-        latest = latest_runs(con, engagement)
+        return status_rows(con, root, company, require_open(con, company))
+
+
+def status_rows(
+    con: duckdb.DuckDBPyConnection, root: Path, company: str, engagement: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """`status` on an open connection, for any engagement (the FDD report reads the latest)."""
+    hashes = current_hashes(con, root, company, engagement)
+    latest = latest_runs(con, engagement)
     out = []
     for name, test in tests().items():
         for period in periods_of(engagement):
@@ -154,18 +160,23 @@ def flags(
     with none, last), each with its query (carried from the same flag of an earlier run) and
     whether its run is stale."""
     with company_database(run, company) as con:
-        engagement = require_open(con, company)
-        hashes = current_hashes(con, root, company, engagement)
-        latest = LATEST.replace("r.*", "r.forensic_run_id")
-        rows = fetch_dicts(
-            con, FLAGS.format(links=LINKS, latest=latest), [engagement["engagement_id"]]
-        )
-    out = []
+        rows = flag_rows(con, root, company, require_open(con, company))
+    return [
+        row
+        for row in rows
+        if (not test or row["test"] == test)
+        and (not period or row["period"] == period)
+        and (not over_threshold or row["over_threshold"])
+    ]
+
+
+def flag_rows(
+    con: duckdb.DuckDBPyConnection, root: Path, company: str, engagement: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """`flags` (every one) on an open connection, for any engagement (the FDD report)."""
+    hashes = current_hashes(con, root, company, engagement)
+    latest = LATEST.replace("r.*", "r.forensic_run_id")
+    rows = fetch_dicts(con, FLAGS.format(links=LINKS, latest=latest), [engagement["engagement_id"]])
     for row in rows:
-        if (test and row["test"] != test) or (period and row["period"] != period):
-            continue
-        if over_threshold and not row["over_threshold"]:
-            continue
         row["stale"] = row.pop("input_hash") != hashes.get(row["test"])
-        out.append(row)
-    return out
+    return rows

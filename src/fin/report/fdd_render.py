@@ -8,6 +8,8 @@ own sections, figures and lint:
   (E602; `{{figure:<name>:<period>}}` references, E874) and has no valuation, investment-rating
   or buy/don't-buy language (E972, `fin.report.lint.lint_fdd`).
 - Only findings the user marked final are in it, unless `--drafts` (labelled a draft copy).
+- The Forensic tests section (SPEC-21, `fin.report.forensic_section`) is always there: each
+  test's state, the flags at or above the threshold, the queries on flags and forensic findings.
 """
 
 from typing import Any
@@ -16,6 +18,7 @@ from fin.audit.logger import Run
 from fin.config import Display
 from fin.report import dd_tables as t
 from fin.report import fdd_tables as f
+from fin.report import forensic_section
 from fin.report.dd_data import FIGURES
 from fin.report.dd_render import Kind, make
 from fin.report.fdd_data import FDD_FIGURES, collect
@@ -33,6 +36,7 @@ SECTIONS = {
     "contingencies": "Contingencies and commitments",
     "related": "Related parties",
     "inquiries": "Management inquiries",
+    "forensic": "Forensic tests",
     "basis": "Basis, gates and scope",
 }
 RULES = """- Findings, severity, implications and deal considerations are allowed. No valuation (no
@@ -40,7 +44,9 @@ RULES = """- Findings, severity, implications and deal considerations are allowe
   don't-buy language (E972). Proposed adjustments and items are not applied; the stub is unaudited
   management accounts; Claude's readings are not verified.
 - The key findings are the table fin builds from `fin fdd finding` (final ones only unless
-  --drafts); the narrative summarises them."""
+  --drafts); the narrative summarises them.
+- Forensic tests: a flag is an entry for the company to explain, never a conclusion; describe what
+  the tests flagged and what was raised, with no score, rating or "risk" word."""
 
 
 def parts(data: dict[str, Any], u: Display) -> tuple[dict[str, str], dict[str, str]]:
@@ -68,6 +74,7 @@ def parts(data: dict[str, Any], u: Display) -> tuple[dict[str, str], dict[str, s
         "contingencies": f.contingencies_table(data, u),
         "related": f.related_table(data, u),
         "inquiries": f.inquiries_table(data),
+        "forensic": forensic_section.section(data, u),
         "recon": t.recon_table(data),
         "queries": t.queries_table(data, u),
         "findings": t.findings_table(data),

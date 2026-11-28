@@ -1,8 +1,10 @@
 """The Forensic screen (SPEC-18, Diligence menu): each test's state per period, then the flags of
 the latest runs by test, largest first, each opening to its source and reason. Read-only: the run
 button queues a job (`fin.ui.job_routes`), and the flags the user ticks go to the assistant's chat
-as a request to draft one query (`fin query raise --flags`), as on the Differences screen. The
-forensic settings are edited on the Settings screen (`POST /forensic/set`)."""
+as a request to draft one query (`fin query raise --flags`), as on the Differences screen, or to
+propose one FDD finding draft on them (SPEC-21, `fin fdd finding propose --area forensic --flags`:
+the assistant runs the command the CLI runs; only the user marks the finding final). The forensic
+settings are edited on the Settings screen (`POST /forensic/set`)."""
 
 import json
 from collections.abc import Callable
@@ -86,6 +88,39 @@ def query_prompt(root: Path, company: str, items: list[str]) -> str:
     )
 
 
+def finding_prompt(root: Path, company: str, items: list[str]) -> str:
+    """The chat message that asks the assistant to propose one FDD finding draft on the ticked
+    flags. E008 when none is ticked or a flag is not of a current run (`fin fdd finding propose`
+    checks them again, E970)."""
+    ids = list(dict.fromkeys(items))
+    if not 0 < len(ids) <= MAX_ASK or not all(ITEM_ID.fullmatch(i) for i in ids):
+        raise UiActionInvalid(f"tick from 1 to {MAX_ASK} flags of a current run")
+    run = screen_run("forensic", root, company)
+    flags = {str(f["flag_id"]): f for f in services.read_flags(run, root, company)}
+    bad = [i for i in ids if i not in flags or flags[i]["stale"]]
+    if bad:
+        raise UiActionInvalid(
+            f"flags {', '.join(f'#{i}' for i in bad)} are not of a current run: run the forensic "
+            "tests again"
+        )
+    queries = sorted({flags[i]["query_id"] for i in ids if flags[i]["query_status"] not in OPEN})
+    link = (
+        f" Link query #{queries[0]}, raised on these flags, with `--query {queries[0]}`: the "
+        "amount and the management response come from it."
+        if len(queries) == 1
+        else ""
+    )
+    return (
+        f"Please propose one draft FDD finding for {company} on the forensic flags #"
+        f"{', #'.join(ids)}. Read them with `uv run fin forensic flags {company} --json`, word "
+        "the title and observation neutrally (what the entries are, their source, why each was "
+        "flagged; no typed numbers, no valuation or rating), and run `uv run fin fdd finding "
+        f'propose {company} --area forensic --flags {",".join(ids)} --title "..." --observation '
+        '"..." --severity ... --impact ... --deal ... --evidence "..."`.'
+        f"{link} Do not mark it final: I review it on the Findings screen."
+    )
+
+
 def add_forensic_routes(
     app: FastAPI,
     root: Path,
@@ -96,6 +131,16 @@ def add_forensic_routes(
     def forensic_ask(company: str, item: Annotated[list[str] | None, Query()] = None) -> Response:
         """The ticked flags: the chat opens with a request to draft one query (nothing changes)."""
         text = query_prompt(root, known(root, company) or "", item or [])
+        where = "/chat/panel?" + urlencode({"company": company, "prefill": text})
+        target = json.dumps({"path": where, "target": "#chat", "swap": "outerHTML"})
+        return Response(status_code=204, headers={"HX-Location": target})
+
+    @app.get("/partials/forensic-finding")
+    def forensic_finding(
+        company: str, item: Annotated[list[str] | None, Query()] = None
+    ) -> Response:
+        """The ticked flags: the chat opens with a request to propose one finding draft."""
+        text = finding_prompt(root, known(root, company) or "", item or [])
         where = "/chat/panel?" + urlencode({"company": company, "prefill": text})
         target = json.dumps({"path": where, "target": "#chat", "swap": "outerHTML"})
         return Response(status_code=204, headers={"HX-Location": target})

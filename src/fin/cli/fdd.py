@@ -12,6 +12,7 @@ from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company
 from fin.fdd import findings
 from fin.paths import data_dir
+from fin.reconcile.items import parse_ids
 from fin.services import decisions, fdd
 from fin.services.result import show
 
@@ -46,11 +47,26 @@ Adjustment = Annotated[int | None, _opt("--adjustment", "Amount from this adjust
 Item = Annotated[int | None, _opt("--netdebt-item", "Amount from this net debt item.")]
 Recon = Annotated[int | None, _opt("--recon", "Amount from this reconciliation run.")]
 Query = Annotated[int | None, _opt("--query", "Management response (and amount) from this query.")]
+Flags = Annotated[
+    str | None,
+    typer.Option(
+        "--flags",
+        metavar="IDS",
+        help="Forensic flags the finding rests on (ids from `fin forensic flags`, e.g. 12,13); "
+        "only with --area forensic. Evidence: they give no amount.",
+    ),
+]
 
 
 def _fields(**given: Any) -> dict[str, Any]:
     names = {"impact": "impact_type", "deal": "deal_consideration", "adjustment": "adj_id",
-             "item": "netdebt_item_id", "recon": "recon_id", "query": "query_id"}  # fmt: skip
+             "item": "netdebt_item_id", "recon": "recon_id", "query": "query_id",
+             "flags": "flag_ids"}  # fmt: skip
+    if given.get("flags") is not None:
+        try:
+            given["flags"] = parse_ids(given["flags"])
+        except ValueError:
+            raise typer.BadParameter("give flag ids separated by commas, e.g. 12,13") from None
     return {names.get(k, k): v for k, v in given.items() if v is not None}
 
 
@@ -58,8 +74,9 @@ def _echo(rows: list[dict[str, Any]], empty: str = "no FDD findings") -> None:
     typer.echo("\n".join(map(findings.format_finding, rows)) if rows else empty)
 
 
+# One parameter per CLI option: Typer reads the options from them (docs/decisions/spec-00.md).
 @finding_app.command("propose")
-def propose(
+def propose(  # NOSONAR  # noqa: PLR0913
     company: Company,
     area: Area = None,
     title: Title = None,
@@ -73,9 +90,11 @@ def propose(
     item: Item = None,
     recon: Recon = None,
     query: Query = None,
+    flags: Flags = None,
 ) -> None:
     """Propose a draft finding with evidence. The amount comes only from a linked adjustment, net
-    debt item, reconciliation run or query; --query also gives the management response."""
+    debt item, reconciliation run or query; --query also gives the management response. A finding
+    of --area forensic rests on --flags (evidence, no amount)."""
     given = dict(locals())
     del given["company"]
     required = ("area", "title", "observation", "severity", "impact", "deal", "evidence")
@@ -85,7 +104,7 @@ def propose(
         raise typer.BadParameter(f"give {', '.join(missing)}")
     execute(
         "fdd finding propose",
-        {"company": company, **{k: v for k, v in fields.items() if k.endswith("_id")}},
+        {"company": company, **{k: v for k, v in fields.items() if k.endswith(("_id", "_ids"))}},
         lambda run: _echo([findings.propose(run, company, fields)]),
     )
 
@@ -107,6 +126,7 @@ def update(  # NOSONAR  # noqa: PLR0913
     item: Item = None,
     recon: Recon = None,
     query: Query = None,
+    flags: Flags = None,
 ) -> None:
     """Change a draft finding (a final one: the user returns it to draft first)."""
     given = dict(locals())

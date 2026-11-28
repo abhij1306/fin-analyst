@@ -110,6 +110,6 @@ Updated: 2026-11-28.
 | 18 | 1 | Add the forensic flags, settings, status and Forensic screen with the journal-entry tests | high | done (#144) |
 | 19 | 1 | Add the bank row and flow checks to the forensic tests | | done (#145) |
 | 20 | 1 | Add the counterparty tests, the accrual and period-end measures and the GSTR-2B reconciliation | high | done (#146) |
-| 21 | 1 | Add the forensic area and the forensic section of the FDD report | high | todo |
+| 21 | 1 | Add the forensic area and the forensic section of the FDD report | high | done (#148) |
 | review | docguard | Refuse `fin sql --write` on documents and the reference tables (owner, 2026-11-28) | | done (#139) |
 | review | uigaps | Close the web UI gaps the system review left open | high | done (#142) |

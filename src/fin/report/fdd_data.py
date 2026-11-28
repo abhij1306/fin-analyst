@@ -1,6 +1,7 @@
 """Everything the FDD report (templates/report/fdd.qmd, docs/fdd.md F8) shows: the diligence
 report's data (`fin.report.dd_data.collect`: adjusted EBITDA, working capital, reconciliations,
-queries, gates, sources) and the data function of each FDD workstream, read on one read-only
+queries, gates, sources), the data function of each FDD workstream and the forensic section's
+(`fin.report.forensic_section`, SPEC-21), read on one read-only
 connection. A part with no data is empty (or None for revenue visibility), so its section says it is
 not loaded. Python only gathers: every figure was computed in SQL.
 """
@@ -17,6 +18,7 @@ from fin.fdd import findings, tax_data
 from fin.paths import company_db_path
 from fin.reconcile.contract_coverage import coverage
 from fin.reconcile.visibility import visibility
+from fin.report import forensic_section
 from fin.report.dd_data import collect as diligence_data
 from fin.sampling.walkthrough import exception_lines, summaries
 
@@ -50,6 +52,9 @@ def collect(root: Path, company: str, scope: str, drafts: bool = False) -> dict[
         data["walkthroughs"] = summaries(con, engagement_id)
         data["walkthrough_exceptions"] = exception_lines(con, engagement_id)
         data["coverage"] = coverage(con, engagement_id, fdd["coverage_top_n"])
+        data["forensic"] = forensic_section.collect(
+            con, root, company, data["engagement"], data["fdd_findings"]
+        )
         try:
             data["visibility"] = visibility(con, engagement_id)
         except VisibilityUnavailable:

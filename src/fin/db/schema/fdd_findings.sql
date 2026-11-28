@@ -6,7 +6,8 @@
 -- 'dropped', for the audit trail. The amount is never typed: it comes from the linked evidence (view
 -- fdd_finding_rows), at most one of adj_id, netdebt_item_id, recon_id, else the linked query's amount. query_id also
 -- gives the management response (the query's answer). Text has no typed number.
---   area:               the report section it belongs to;
+--   area:               the report section it belongs to; 'forensic' (SPEC-21) rests on forensic flags
+--                       (fdd_finding_flags) and is shown in the report's Forensic tests section;
 --   impact_type:        ebitda, net_debt, working_capital, revenue, disclosure or none;
 --   deal_consideration: price, spa_protection (SPA indemnity or warranty), condition_precedent, further_work, none.
 CREATE SEQUENCE fdd_findings_seq START 1;
@@ -14,7 +15,7 @@ CREATE TABLE fdd_findings (
     finding_id INTEGER PRIMARY KEY DEFAULT nextval('fdd_findings_seq'),
     engagement_id INTEGER NOT NULL,
     area VARCHAR NOT NULL CHECK (area IN ('qoe', 'working_capital', 'net_debt', 'revenue', 'walkthroughs',
-        'provisions', 'tax', 'contingencies', 'related_parties', 'inquiries', 'other')),
+        'provisions', 'tax', 'contingencies', 'related_parties', 'inquiries', 'forensic', 'other')),
     title VARCHAR NOT NULL,
     observation VARCHAR NOT NULL,
     implication VARCHAR,
@@ -44,6 +45,15 @@ CREATE TABLE fdd_findings (
         + (recon_id IS NOT NULL)::INTEGER <= 1)
 );
 
+-- The forensic flags a finding of area 'forensic' rests on (`fin fdd finding propose --area forensic --flags 12,13`,
+-- SPEC-21), as forensic_flag_queries links flags to a query. Evidence only: the finding's amount comes from its other
+-- links (a query raised on the flags, say), never from the flags added up, since one entry can be flagged by two tests.
+CREATE TABLE fdd_finding_flags (
+    finding_id INTEGER NOT NULL,
+    flag_id INTEGER NOT NULL,
+    PRIMARY KEY (finding_id, flag_id)
+);
+
 -- Each finding with its amount and where the amount comes from: an adjustment's amount, a net debt item's amount, a
 -- reconciliation run's lines at or above the threshold (sum of the absolute differences in rupees: amount_inr, or the
 -- difference of a rupee line; a foreign-currency line with no rupee value is left out), else the linked query's
@@ -52,7 +62,8 @@ CREATE TABLE fdd_findings (
 -- A final finding shows what the user signed off (the final_* snapshot) as amount, amount_source,
 -- management_response and response_source; live_* are the values now. changed_since_final: a final finding whose live
 -- amount, source, link status or response differs from the snapshot. link_flag: the linked adjustment or net debt
--- item is rejected, or the linked query is withdrawn (any status of the finding).
+-- item is rejected, or the linked query is withdrawn (any status of the finding). flag_ids: the forensic flags it rests
+-- on (NULL when none).
 CREATE VIEW fdd_finding_rows AS
 WITH live AS (
     SELECT f.*,
@@ -82,7 +93,9 @@ WITH live AS (
             WHEN a.status = 'rejected' THEN 'linked adjustment #' || f.adj_id || ' is rejected'
             WHEN n.status = 'rejected' THEN 'linked net debt item #' || f.netdebt_item_id || ' is rejected'
             WHEN q.status = 'withdrawn' THEN 'linked query #' || f.query_id || ' is withdrawn'
-        END AS link_flag
+        END AS link_flag,
+        (SELECT list(l.flag_id ORDER BY l.flag_id) FROM fdd_finding_flags l
+            WHERE l.finding_id = f.finding_id) AS flag_ids
     FROM fdd_findings f
     LEFT JOIN adjustments a ON a.adj_id = f.adj_id
     LEFT JOIN netdebt_items n ON n.item_id = f.netdebt_item_id
