@@ -194,6 +194,42 @@ The owner confirms or changes these.
 - **The mock's salaries** are paid per employee (one Payment voucher each, `SALARY/<yymm>/<nn>`, with no employee
   code), so a full year has the 500 lines the rare-ledger and pair tests need; the books' totals do not change.
 
+### Builder readings for SPEC-19 PR 1 (2026-11-28)
+
+The owner confirms or changes these.
+
+- **A balance break is flagged at or above `min_amount`.** The spec's single-row threshold applies to the chain
+  test with the break (printed balance less expected) as the amount; a break from 80% of it is a near miss. The first
+  row is checked against the statement's opening balance. One row printed wrong mid-statement breaks twice (that row,
+  and the row below against it); a break on the last row once.
+- **"Cannot run for it"** is per statement, but a run is per period: when every statement of the period prints no row
+  balance the test cannot run; when only some do, it runs on the others and its state ends "cannot run for the
+  statement ACCT-0001 01-Apr-2024 to 31-Mar-2025: it prints no row balance" (`Outcome.needs` on a run that ran). The
+  statement is named by its account token and dates, not its file name (a bank file name often holds the number).
+- **Duplicates are per statement**: two overlapping statements already give `bank_overlap`; comparing across them
+  would flag every shared row again.
+- **`bank_round` reuses `round_unit`** (10,00,000) of the journal tests, as the spec names it; the month needs three
+  such lines on one account, and two is a near miss. It does not apply `min_amount` (a month test).
+- **A round trip flags its first line**, naming the second (as `je_reversed` flags the original); each line is in one
+  pair. The party is the register token both lines' remarks name (`Parties.find`, as bank_vs_invoices reads them).
+- **An own-account match is the same amount on the other account within 3 days, either side**, as the spec words it;
+  a line naming an account whose statement does not cover its date is not compared and not counted.
+- **`bank_period_end_credit` cannot run** without the next period's statements, like `je_reversed`. An account
+  whose next-period statement does not start by that period's first day is not checked, and the state names it
+  (reviewer reading: passing it would show missing as clean).
+- **Rupee statements only** (reviewer reading): the thresholds and a flag's stored amount are in rupees, so a
+  statement in another currency is left out of every bank test and the period's state names it, as `bank_vs_tb`
+  leaves a foreign-currency account uncompared.
+- **`bank_cash` matches a word** of `cash_words` as a whole word, any case (spaces in a word match any spaces). The
+  default `SELF` also matches "CBDT-SELF ASSESSMENT TAX", a tax payment the mock company makes every July: it flags
+  that month each year (mock/EXPECTED.md lists it). Kept as the spec's default and **marked for tuning on the second
+  client run (H3)**; the user can drop `SELF` on Settings.
+- **The bank tests' data hash** is the loaded bank statements and the register party tokens, kept apart from the books'
+  hash: a bank load makes only the bank runs stale, a Ledger Vouchers load only the journal runs.
+- **The planted bank cases are on a second account in `mock/extra/bank/`**, not in the data room: adding the account to
+  the books and the data room would change the trial balances, bank_vs_tb and the end-to-end plan. Its definition is
+  `mock/generator/data_bank.py`, beside `data.py` (which is near the file size limit).
+
 ### Who sets the inputs
 
 - **Decision:** approval limits, holidays, keyword lists and thresholds are the user's: Claude sets one only when the user gives it,

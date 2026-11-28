@@ -302,3 +302,121 @@ Near misses (not flagged):
 | Period | Voucher | Why |
 |---|---|---|
 | FY25 | JV/25/004 | near miss: a Saturday (not a weekend day by default) |
+
+## Forensic tests on bank statements (SPEC-19)
+
+The three statements of the main account (`03_bank/`) and the two of a second account, 004105067890 (`extra/bank/`: not in the books or the data room, so load them only for these tests: they would change bank_vs_tb FY25), with the registers loaded (a party is named by its token) and the query threshold of 100,000: `fin forensic run corvane` flags exactly these rows and no near miss. The main account flags only its yearly self-assessment tax payment (the default cash word SELF; marked for tuning); its uncleared cheque (paid 31-Mar-2025, cleared 03-Apr-2025) is not a period-end reversal. FY23 has no bank statement (cannot run), and the stub has no next period for bank_period_end_credit (cannot run). A row of the stub statement prints no balance: the chain restarts there and it is not flagged.
+
+### bank_balance_chain
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!34 | 31-Mar-2025 | 125,000 debit | printed 2,00,000 above the balance above less the debit |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!14 | near miss: printed 90,000 above (below the threshold); the row below 90,000 back |
+
+### bank_cash
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY24 | icici_004105012345_fy24.xlsx Statement!64 | 31-Jul-2023 | - | the default cash word SELF in the yearly self-assessment tax payment |
+| FY25 | icici_004105012345_fy25.xlsx Statement!67 | 31-Jul-2024 | - | the default cash word SELF in the yearly self-assessment tax payment |
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!19 | 10-Feb-2025 | 60,000 credit | February's cash: a deposit of 60,000 and a withdrawal of 50,000, 1,10,000 in all |
+| FY26-YTD-SEP | icici_004105012345_fy26_h1.xlsx Statement!74 | 31-Jul-2025 | - | the default cash word SELF in the yearly self-assessment tax payment |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!31 | near miss: March's cash is 85,000, below the threshold |
+
+### bank_date_gap
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY26-YTD-SEP | icici_004105067890_fy26_q1.xlsx (statement period) | 18-Apr-2025 to 24-May-2025 | - | 37 days with no line (more than 31) |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY26-YTD-SEP | icici_004105067890_fy26_q1.xlsx 26-May-2025 to 21-Jun-2025 | near miss: 27 days with no line |
+
+### bank_date_order
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!22 | 14-Feb-2025 | 300,000 debit | dated 14-Feb below a row dated 18-Feb |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!26 | near miss: out of order, 85,000 is below the threshold |
+
+### bank_duplicate
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!27 | 05-Mar-2025 | 250,000 debit | the same row twice |
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!28 | 05-Mar-2025 | 250,000 debit | the same row twice |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!29 | near miss: the same row twice, 90,000 is below the threshold |
+
+### bank_own_transfer
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!9 | 06-Jan-2025 | 400,000 debit | names the main account, which has no line of 4,00,000 within 3 days |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!17 | near miss: the main account's 1,70,000 (rent, 01-Feb) is 4 days away (window 3) |
+
+### bank_period_end_credit
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!32 | 28-Mar-2025 | 600,000 credit | debited again on 08-Apr, day 8 of the stub |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!33 | near miss: debited again on 16-Apr, day 16 (window 15) |
+
+### bank_round
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!10 | 09-Jan-2025 | 2,000,000 credit | one of three multiples of 10,00,000 in January |
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!12 | 16-Jan-2025 | 3,000,000 credit | one of three multiples of 10,00,000 in January |
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!8 | 02-Jan-2025 | 1,000,000 credit | one of three multiples of 10,00,000 in January |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!18 | near miss: only two multiples of 10,00,000 in February |
+
+### bank_round_trip
+
+| Period | Row | Date | Amount | Why |
+|---|---|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!11 | 13-Jan-2025 | 350,000 debit | paid out and the same amount back on 17-Jan; both lines name the customer |
+
+Near misses (not flagged):
+
+| Period | Row | Why |
+|---|---|---|
+| FY25 | icici_004105067890_fy25_q4.xlsx Statement!16 | near miss: the same amount back 8 days later (window 7) |

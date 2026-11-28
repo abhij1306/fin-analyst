@@ -11,11 +11,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from mock.generator import bank_extra, write
 from mock.generator import books as b
 from mock.generator import data as d
 from mock.generator import reports as r
 from mock.generator import sources as s
-from mock.generator import write
 
 ROOT = Path(__file__).resolve().parent.parent
 COMPANY, AUDITOR, BANK, ADVISER = (
@@ -202,7 +202,7 @@ DOCUMENTS = [
     ),
 ]
 ZIP = "zipped/corvane_dataroom.zip"  # in a folder of its own: `fin dataroom scan` takes a folder
-EXTRA = {"walk_sheet_fy23-fy25.xlsx": r.walk_sheet}
+EXTRA = {"walk_sheet_fy23-fy25.xlsx": r.walk_sheet, **bank_extra.extra()}
 
 
 def _write(doc: Document, books: b.Books, folder: Path) -> None:

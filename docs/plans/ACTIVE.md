@@ -108,7 +108,7 @@ Updated: 2026-11-28.
 | review | data | System review of data intake and integrity across #116 to #134 | | done (#136) |
 | review | ui | Cross-PR system review of the web UI: seams, invariants and dead ends | high | done (#138) |
 | 18 | 1 | Add the forensic flags, settings, status and Forensic screen with the journal-entry tests | high | done (#144) |
-| 19 | 1 | Add the bank row and flow checks to the forensic tests | | todo |
+| 19 | 1 | Add the bank row and flow checks to the forensic tests | | done (#145) |
 | 20 | 1 | Add the counterparty tests, the accrual and period-end measures and the GSTR-2B reconciliation | high | todo |
 | 21 | 1 | Add the forensic area and the forensic section of the FDD report | high | todo |
 | review | docguard | Refuse `fin sql --write` on documents and the reference tables (owner, 2026-11-28) | | done (#139) |

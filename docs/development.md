@@ -45,7 +45,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   reference databook through `reference/store.py`).
 - `forensic/` (SPEC-18, `fin forensic`, CLI `cli/forensic.py`, service `services/forensic.py`, screen
   `ui/forensic_screen.py`, tables `db/schema/forensic.sql`): `registry.py` (the families and their tests), `settings.py`
-  (`[forensic]` and `fin forensic set`), `books.py` (lines and rebuilt vouchers), `run.py`, `status.py` (states, flags,
+  (`[forensic]` and `fin forensic set`), `books.py` (lines and rebuilt vouchers), `bank.py` (the bank statements and
+  their lines, SPEC-19), `run.py`, `status.py` (states, flags,
   tuning counts), `handoff.py` (`fin query raise --flags`), `families/` (the tests). See "Add a forensic test".
 - `reference/` (SPEC-10, `fin reference`, CLI `cli/reference.py`, tables and the view `reference_comparison` in
   `db/schema/reference.sql`): `store.py` (`add_reference`: read, archive, store the lines and figures), `lines.py`
@@ -326,11 +327,15 @@ settings, the run log and the eval bundle take a new test with no edit to shared
    reading to `docs/decisions/forensic.md`.
 3. Write the test over `ctx` (`fin.forensic.books.Context`): `ctx.lines` (the period's Ledger Vouchers lines),
    `ctx.books.vouchers(period)` (vouchers rebuilt from every ledger block, `whole` when debits equal credits),
-   `ctx.settings`, `ctx.threshold`, `ctx.min_amount`, `ctx.account(ledger)`. Return `Outcome(flags, population,
+   `ctx.settings`, `ctx.threshold`, `ctx.min_amount`, `ctx.account(ledger)`; a bank test (`kinds=("bank",)`)
+   reads `ctx.books.bank` (`fin.forensic.bank.Bank`: statements with their lines in file order, an account's lines in
+   date order, the period bounds) and its flags give the account token and party (`BankLine.flag`). Return `Outcome(flags, population,
    near_misses)`, `Outcome.too_few(count, minimum)` below the minimum population, or `Outcome.cannot(needs)`. A flag
    is `line.flag(reason)` (or a `Flag` with the source in words); give the reason in words, never a score, and count a
-   case within 20% of a threshold as a near miss. Never read `particulars`.
-4. Plant one flagged row and one near miss in `mock/generator/data.py` (`FORENSIC`), regenerate the mock (`uv run
+   case within 20% of a threshold as a near miss. Never read `particulars`. A test that ran but could not test part
+   of the period (a bank statement with no row balances) says so in `Outcome.needs`.
+4. Plant one flagged row and one near miss in `mock/generator/data.py` (`FORENSIC`; bank tests:
+   `mock/generator/data_bank.py`, checked by `tests/unit/test_forensic_bank_mock.py`), regenerate the mock (`uv run
    --with xlwt python -m mock.generator`) and check `tests/unit/test_forensic_mock.py`; a routine mock row that flags
    means the default is too loose. Cases the mock cannot reach go in `tests/unit/test_forensic_families.py`.
 5. Add the test to the list in `docs/product.md` ("Forensic tests").

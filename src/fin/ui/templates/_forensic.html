@@ -5,7 +5,7 @@
 {{ head("Forensic") }}
 {{ no_engagement(data.no_engagement, company, data.can_open) }}
 {% else %}
-{% call head("Forensic", "Tests over the ledger vouchers. A flag is an entry for the company to explain, never a conclusion; nothing is changed to clear one. The settings are on the Settings screen.") %}
+{% call head("Forensic", "Tests over the ledger vouchers and the bank statements. A flag is an entry for the company to explain, never a conclusion; nothing is changed to clear one. The settings are on the Settings screen.") %}
 <form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML"><input type="hidden" name="action" value="forensic-run"><input type="hidden" name="company" value="{{ company }}"><button type="submit" class="btn" data-size="sm">Run the forensic tests</button></form>
 <a class="btn" data-size="sm" data-variant="outline" href="/settings?company={{ company | urlencode }}#forensic-settings">Settings</a>
 {% endcall %}
@@ -40,7 +40,7 @@
         <li>
           {% if f.queryable %}<input type="checkbox" class="input" name="item" value="{{ f.flag_id }}" aria-label="Flag {{ f.flag_id }}">{% endif %}
           <details><summary>
-            <strong>#{{ f.flag_id }} {{ f.period }}</strong> {{ f.voucher_no or "" }} {{ f.ledger or "" }}: <strong>{{ f.amount_text }}</strong>
+            <strong>#{{ f.flag_id }} {{ f.period }}</strong> {{ f.voucher_no or "" }} {{ f.ledger or f.account or "" }}: <strong>{{ f.amount_text }}</strong>
             {% if f.stale %}{{ badge("stale", as="warn") }}{% endif %}
             {% if not f.over_threshold %}{{ badge("below the threshold", as="info") }}{% endif %}
             {% if f.query_id %}<a href="/queries?company={{ company | urlencode }}">{{ badge(f.query_status, "query #" ~ f.query_id ~ " " ~ f.query_status) }}</a>{% elif f.queryable %}{{ badge("can be queried", as="info") }}{% endif %}
@@ -49,7 +49,7 @@
             <div>{{ f.reason }}</div>
             <div>Source: {{ f.source }}</div>
             {% if f.entry_date %}<div>{{ f.voucher_type or "" }} {{ f.voucher_no or "" }} dated {{ f.entry_date }}</div>{% endif %}
-            {% if f.account %}<div>Account {{ f.account }}{% if not f.mapping_confirmed %} (mapping not confirmed){% endif %}</div>{% endif %}
+            {% if f.account %}<div>Account {{ f.account }}{% if f.mapping_confirmed is sameas false %} (mapping not confirmed){% endif %}</div>{% endif %}
             {% if f.party %}<div>Party {{ f.party }}</div>{% endif %}
           </div></details>
         </li>
