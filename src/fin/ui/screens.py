@@ -19,6 +19,7 @@ from fin.findings import list_findings
 from fin.map.review import open_items, read_pending
 from fin.paths import company_db_path, reports_dir
 from fin.rebuilt.compare import blocks, notes, rebuilt_rows, select_period
+from fin.services.addon import offer
 from fin.services.jobs import list_jobs
 from fin.statements import (
     TITLES,
@@ -80,6 +81,7 @@ def files(root: Path, company: str) -> dict[str, Any]:
         "inbox": status["inbox_not_ingested"],
         "inbox_folder": f"inbox/{company}/",
         "findings": list_findings(_run("files", root, company), company),
+        "addon_offer": offer(root, company),
     }
 
 

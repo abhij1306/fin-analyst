@@ -23,6 +23,12 @@ confirmed = false, and is logged with E301. Only a file with nothing readable fa
 is copied to `review/<company>/` with a `.error.json` file giving the code and reason; the next
 file goes on.
 
+A file whose statements name no unit is not loaded but held with the question "which unit?"
+(E203, counted in `run.held`; its `.error.json` has `"question": "which unit?"`). Ingesting it
+again with the user's answer (`unit`, `fin ingest --unit`) stores the unit and who gave it on
+the document. When statement pages were not read and no PDF add-on is chosen, the outcome offers
+the add-ons (`fin.extract.fallback.offer`).
+
 With a reading (`--reading`, `fin.extract.reading`): figures Claude read from the document's pages
 or cells are loaded for each statement and scope neither fin nor the PDF add-on read (all of them
 when the file could not be read at all), through the same stage -> validate -> commit. Their facts
@@ -44,6 +50,8 @@ from fin.audit.errors import (
     DocumentFailure,
     DuplicateFile,
     LoadRejected,
+    ScannedPdf,
+    UnitNotDetected,
     UnmappedLabel,
 )
 from fin.audit.logger import Run
@@ -51,9 +59,12 @@ from fin.config import Config
 from fin.db.conn import connect, utcnow
 from fin.extract.addon import ADDON_LABELS
 from fin.extract.diagnostics import failure_context
+from fin.extract.fallback import offer
 from fin.findings import check_document, supersede
 from fin.ingest_read import (
+    UNIT_ANSWERS,
     Document,
+    GivenUnit,
     check_range,
     files_in,
     read_document,
@@ -63,7 +74,7 @@ from fin.ingest_read import (
 from fin.map.dictionary import LabelMap, map_rows
 from fin.paths import archive_dir, company_db_path, review_dir
 
-__all__ = ["files_in", "ingest_file", "read_document", "sha256_of"]
+__all__ = ["UNIT_ANSWERS", "GivenUnit", "files_in", "ingest_file", "read_document", "sha256_of"]
 
 
 def _copy(source: Path, target: Path) -> None:
@@ -121,7 +132,8 @@ def _load(
             doc = con.execute(
                 "INSERT INTO documents (file_name, sha256, version, fiscal_year, period_end, "
                 "scope, status, archive_path, run_id, ingested_at, reading_sha256, reading_path, "
-                "unread_pages) VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?, ?, ?, ?) "
+                "unread_pages, unit_given, unit_given_by) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?, ?, ?, ?, ?, ?) "
                 "RETURNING doc_id",
                 [
                     path.name,
@@ -135,6 +147,8 @@ def _load(
                     utcnow(),
                     *(reading or (None, None)),
                     json.dumps(document.unread) if document.unread else None,
+                    document.unit_given and document.unit_given.unit,
+                    document.unit_given and document.unit_given.by,
                 ],
             ).fetchone()
             assert doc is not None
@@ -217,10 +231,12 @@ def ingest_file(
     *,
     force: bool,
     reading: Path | None = None,
+    unit: GivenUnit | None = None,
 ) -> str:
-    """Ingest one file (with a reading: see the module docstring) and return a one-line outcome.
-    Per-document failures are logged, counted on `run` and sent to review; they do not raise. A
-    document with findings is held (counted in `run.held`), not failed."""
+    """Ingest one file (with a reading, or the unit the user gave: see the module docstring) and
+    return a one-line outcome. Per-document failures are logged, counted on `run` and sent to
+    review; they do not raise. A document with findings, or waiting for its unit, is held (counted
+    in `run.held`), not failed."""
     name = f"{company}/{path.name}"
     document: Document | None = None
     try:
@@ -228,9 +244,9 @@ def ingest_file(
         _refuse_duplicate(run, company, name, sha256, force)
         archived_reading = None
         if reading is None:
-            document = read_document(run, path, company, config)
+            document = read_document(run, path, company, config, unit)
         else:
-            document = read_with_reading(run, path, company, config, reading)
+            document = read_with_reading(run, path, company, config, reading, unit)
             archived_reading = _archive_reading(run, company, reading)
         check_range(document, path.name)
         for notice in document.notices:
@@ -248,20 +264,12 @@ def ingest_file(
         run.skipped += 1
         run.event("ingest", exc.message, level="warning", code=exc.code, file=name)
         return f"skipped ({exc})"
+    except UnitNotDetected as exc:
+        if exc.context.get("question") != "unit":
+            return _failed(run, config, company, path, exc, reading, document)
+        return _held_for_unit(run, company, path, exc, reading)
     except DocumentFailure as exc:
-        run.failed += 1
-        run.failure_codes.append(exc.code)
-        run.exit_code = EXIT_FAILURES
-        exc.context = failure_context(path, config, exc, reading)
-        run.event(
-            "ingest", exc.message, level="error", code=exc.code, file=name, context=exc.context
-        )
-        unread = list(exc.pages) if document is None else document.unread
-        _to_review(run, company, path, exc, reading, unread)
-        return (
-            f"failed ({exc}); copied to review/{company}/, reason in "
-            f"review/{company}/{path.name}.error.json" + _unread_lines(unread)
-        )
+        return _failed(run, config, company, path, exc, reading, document)
     for statement, label in unmapped:
         run.event(
             "map",
@@ -288,17 +296,72 @@ def ingest_file(
         run.loaded += 1
         message = f"loaded as {details}"
     run.event("ingest", message, file=name, context={"doc_id": doc_id, "archive": archive_rel})
-    return message + _unread_lines(document.unread)
+    return message + _unread_lines(document.unread, config)
 
 
-def _unread_lines(unread: list[dict[str, object]]) -> str:
-    """The statement pages fin could not read, one per line, for the screen."""
-    if not unread:
-        return ""
-    return f"; {len(unread)} statement page(s) not read:" + "".join(
-        f"\n  not read: {u['statement']} page {u['page']}: {u['code']} {u['reason']}"
-        for u in unread
+def _failed(
+    run: Run,
+    config: Config,
+    company: str,
+    path: Path,
+    exc: DocumentFailure,
+    reading: Path | None,
+    document: Document | None,
+) -> str:
+    """Log a failed file, copy it to review/ and return its outcome."""
+    name = f"{company}/{path.name}"
+    run.failed += 1
+    run.failure_codes.append(exc.code)
+    run.exit_code = EXIT_FAILURES
+    exc.context = failure_context(path, config, exc, reading)
+    run.event("ingest", exc.message, level="error", code=exc.code, file=name, context=exc.context)
+    unread = list(exc.pages) if document is None else document.unread
+    _to_review(run, company, path, exc, reading, unread)
+    return (
+        f"failed ({exc}); copied to review/{company}/, reason in "
+        f"review/{company}/{path.name}.error.json"
+        + _unread_lines(unread, config, scanned=isinstance(exc, ScannedPdf))
     )
+
+
+def _held_for_unit(
+    run: Run, company: str, path: Path, exc: UnitNotDetected, reading: Path | None
+) -> str:
+    """A file whose statements name no unit: nothing loaded, held with the question "which unit?"
+    for the user (the file and its .error.json in review/)."""
+    run.held += 1
+    answers = "|".join(UNIT_ANSWERS)
+    run.event(
+        "ingest",
+        f"held: {exc.message}; ask the user and ingest again with --unit {answers}",
+        level="warning",
+        code=exc.code,
+        file=f"{company}/{path.name}",
+        context=exc.context,
+    )
+    _to_review(run, company, path, exc, reading)
+    return (
+        f"held: {exc.message}. Nothing loaded: fin does not guess a unit. Ask the user, then "
+        f"`fin ingest {company} <file> --unit {answers}`"
+    )
+
+
+def _unread_lines(unread: list[dict[str, object]], config: Config, *, scanned: bool = False) -> str:
+    """The statement pages (and Excel sheets) fin could not read, one per line, for the screen;
+    then the add-on offer when PDF pages were not read and no add-on is chosen."""
+    lines = "".join(
+        f"\n  not read: {u['statement']} {_where(u)}: {u['code']} {u['reason']}" for u in unread
+    )
+    head = f"; {len(unread)} statement page(s) or sheet(s) not read:" if unread else ""
+    pdf_pages = scanned or any(u.get("page") is not None for u in unread)
+    if pdf_pages and config.pdf_parser == "none":
+        lines += f"\n  {offer(scanned)}"
+    return head + lines
+
+
+def _where(unread: dict[str, object]) -> str:
+    sheet = unread.get("sheet")
+    return f"sheet {sheet!r}" if sheet is not None else f"page {unread['page']}"
 
 
 def _to_review(
@@ -323,6 +386,9 @@ def _to_review(
         reason["reading"] = str(reading)
     if error.context:
         reason["context"] = error.context
+    if error.context.get("question") == "unit":
+        reason["question"] = "which unit?"
+        reason["answers"] = list(UNIT_ANSWERS)
     if unread:
         reason["unread_pages"] = unread  # statement pages fin could not read: offer a reading
     try:

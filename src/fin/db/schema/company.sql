@@ -20,7 +20,10 @@ CREATE SEQUENCE fact_corrections_seq START 1;
 -- reading_sha256 / reading_path: the Claude reading file a document was loaded with (`fin ingest --reading`,
 -- archived under archive/<company>/), NULL when fin read the whole document.
 -- unread_pages: the statement pages fin could not read, as JSON ([{"page", "statement", "code", "reason"}]);
--- NULL when every statement page was read.
+-- NULL when every statement page was read. An Excel sheet held for values with no label (E204) is an entry with
+-- "sheet" (and "page" null).
+-- unit_given / unit_given_by: the unit the user gave for statements with no unit line (`fin ingest --unit`), and
+-- the actor who entered it ('user' or 'ai:claude'); its rows' raw_unit says "unit given by user". NULL otherwise.
 CREATE TABLE documents (
     doc_id INTEGER PRIMARY KEY DEFAULT nextval('documents_seq'),
     file_name VARCHAR NOT NULL,
@@ -37,6 +40,8 @@ CREATE TABLE documents (
     reading_sha256 VARCHAR,
     reading_path VARCHAR,
     unread_pages VARCHAR,
+    unit_given VARCHAR,
+    unit_given_by VARCHAR,
     UNIQUE (sha256, version)
 );
 

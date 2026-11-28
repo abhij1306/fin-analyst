@@ -1,10 +1,13 @@
-"""Extract statement values from an Excel workbook (.xlsx), with sheet and cell.
+"""Extract statement values from an Excel workbook (.xlsx, .xlsm; .xls through `fin.extract.xls`),
+with sheet and cell.
 
 Each sheet is read top to bottom:
 
 1. Rows above the header give the sheet's title text: the statement (balance sheet, profit and
    loss, cash flow) and the unit line ("₹ in Lakhs").
-   A sheet whose title names no statement (a cover page, notes) is skipped.
+   A sheet whose title names no statement (a cover page, notes) is skipped. A statement sheet with
+   no unit line is read in the unit the user gave (`unit`); without one, the workbook is held with
+   the question "which unit?" (E203 naming every such sheet). fin does not guess a unit.
 2. The header is the first row with a period cell: a date ("31.03.2025", "31-Mar-2025",
    "31 March 2025", an Excel date) alone or after "As at" / "Year ended" / "Quarter ended" /
    "Half year ended" / "Nine months ended". Each such cell starts a value column, so any number of
@@ -18,7 +21,9 @@ Each sheet is read top to bottom:
    a flow column names no length on a sheet with quarter, half-year or nine-month columns, or
    names no scope on a sheet naming both.
 3. Below the header, a row with a label and numbers in the period columns is a value row; a row
-   with a label and no numbers is a section heading for the rows under it.
+   with a label and no numbers is a section heading for the rows under it. A row of numbers with
+   no label holds that sheet (E204 naming its cells, `HeldSheet`); the other sheets are read. When
+   no sheet can be read, the workbook fails with that E204.
 
 Formula cells are read through the values Excel (or LibreOffice) cached when the file was saved. A
 formula with no cached value raises E204: open the file in Excel, save it and ingest it again.
@@ -26,7 +31,7 @@ formula with no cached value raises E204: open the file in Excel, save it and in
 
 import re
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -49,6 +54,7 @@ from fin.audit.errors import (
 from fin.extract.diagnostics import top_lines
 from fin.extract.periods import MONTHS, PHRASE, months_in
 from fin.extract.units import parse_figure, to_rupees, unit_in
+from fin.extract.xls import open_xls
 
 # An encrypted .xlsx is not a zip file but an OLE compound file with this signature.
 _OLE_SIGNATURE = bytes.fromhex("d0cf11e0a1b11ae1")
@@ -94,34 +100,82 @@ class ExcelValue:
     period_end: date
     months: int | None  # period length the header cell names (fin.extract.periods.months_in)
     rupees: Decimal
+    unit_given: bool = False  # the sheet has no unit line: `unit` is the one the user gave
+
+
+@dataclass(frozen=True)
+class HeldSheet:
+    """A statement sheet that was not read: a row of values with no label (E204)."""
+
+    sheet: str
+    statement: str
+    error: ParseError
+
+    def as_dict(self) -> dict[str, object]:
+        """As `documents.unread_pages` holds it (a page entry has `page` instead of `sheet`)."""
+        return {
+            "page": None,
+            "sheet": self.sheet,
+            "statement": self.statement,
+            "code": self.error.code,
+            "reason": self.error.message,
+        }
 
 
 @dataclass(frozen=True)
 class ExcelExtraction:
     values: list[ExcelValue]
     skipped_sheets: list[str]  # sheets with no statement title
+    held: list[HeldSheet] = field(default_factory=list)
 
 
-def extract_workbook(path: Path) -> ExcelExtraction:
-    """Extract every statement value. Raises E101, E102, E201, E202, E203 or E204."""
+def extract_workbook(path: Path, unit: str | None = None) -> ExcelExtraction:
+    """Extract every statement value; `unit` (lakh, crore, ...) is the one the user gave for
+    sheets with no unit line. Raises E101, E102, E201, E202, E203 (a statement sheet with no unit
+    line and no `unit`) or E204."""
     values_book = open_workbook(path, data_only=True)
     formula_book = open_workbook(path, data_only=False)
     values: list[ExcelValue] = []
     skipped: list[str] = []
+    held: list[HeldSheet] = []
+    no_unit: list[UnitNotDetected] = []
     for sheet in values_book.worksheets:
-        found = _sheet_values(path, sheet, formula_book[sheet.title])
+        try:
+            found = _sheet_values(path, sheet, formula_book[sheet.title], unit)
+        except UnitNotDetected as exc:
+            no_unit.append(exc)
+            continue
         if found is None:
             skipped.append(sheet.title)
+        elif isinstance(found, HeldSheet):
+            held.append(found)
         else:
             values.extend(found)
+    if no_unit:
+        raise _which_unit(path, no_unit)
+    if not values and held:  # the file fails, listing every held sheet as not read
+        error = ParseError(held[0].error.message).with_context(sheets=[h.sheet for h in held])
+        error.pages = tuple(h.as_dict() for h in held)
+        raise error
     if not values:
         raise NoTablesFound(
             f"{path.name}: no balance sheet, profit and loss or cash flow values"
         ).with_context(sheets=top_lines(skipped, 30))
-    return ExcelExtraction(values, skipped)
+    return ExcelExtraction(values, skipped, held)
+
+
+def _which_unit(path: Path, missing: list[UnitNotDetected]) -> UnitNotDetected:
+    """The question for a workbook whose statement sheets name no unit: one E203 naming them all."""
+    sheets = [str(exc.context["sheet"]) for exc in missing]
+    return UnitNotDetected(
+        f"{path.name}: which unit? no unit line such as '(₹ in Lakhs)' above the header on sheets "
+        f"{', '.join(repr(s) for s in sheets)}"
+    ).with_context(question="unit", sheets=sheets, seen=[exc.context for exc in missing])
 
 
 def open_workbook(path: Path, *, data_only: bool) -> Workbook:
+    if path.suffix.lower() == ".xls":
+        return open_xls(path)
     try:
         with path.open("rb") as handle:
             if handle.read(8) == _OLE_SIGNATURE:
@@ -323,8 +377,11 @@ def _filled_cells(
     ]
 
 
-def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[ExcelValue] | None:
-    """Values of one sheet, or None if it holds no statement."""
+def _sheet_values(
+    path: Path, sheet: Worksheet, formulas: Worksheet, given_unit: str | None
+) -> list[ExcelValue] | HeldSheet | None:
+    """Values of one sheet, None if it holds no statement, or the sheet held (values with no
+    label). Raises E203 when it names no unit and none was given."""
     title_parts, header = _find_header(sheet)
     title = " ".join(title_parts).lower()
     statement = statement_in(title)
@@ -337,11 +394,11 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
             f"{where}: no header row with period dates such as 31.03.2025"
         ).with_context(**seen)
     units = [(text.strip(), unit) for text in title_parts[1:] if (unit := unit_in(text))]
-    if not units:
+    if not units and given_unit is None:
         raise UnitNotDetected(
             f"{where}: no unit line such as '(₹ in Lakhs)' above the header"
         ).with_context(**seen, header_row=header.row)
-    unit_text, unit = units[0]
+    unit_text, unit = units[0] if units else ("", given_unit or "")
     columns = _columns(sheet, header, statement, title, where)
     first_value_column = min(header.periods)
 
@@ -355,9 +412,12 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
                 section = label
             continue
         if not label:
-            raise ParseError(f"{where} row {row[0].row}: values with no label").with_context(
-                sheet=sheet.title, row=row[0].row, cells=[c.coordinate for c in filled]
-            )
+            cells = [c.coordinate for c in filled]
+            error = ParseError(
+                f"{where} row {row[0].row}: values with no label in cells {', '.join(cells)}; the "
+                "sheet was not read"
+            ).with_context(sheet=sheet.title, row=row[0].row, cells=cells)
+            return HeldSheet(sheet.title, statement, error)
         for cell in filled:
             raw, number = parse_number(cell.value, f"{where} cell {cell.coordinate}")
             found.append(
@@ -374,6 +434,7 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
                     period_end=header.periods[cell.column],
                     months=columns[cell.column][0],
                     rupees=to_rupees(number, unit),
+                    unit_given=not units,
                 )
             )
     return found

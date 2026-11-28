@@ -98,7 +98,10 @@ def test_a_groups_only_trial_balance_is_refused(root: Path, tmp_path: Path) -> N
     [
         (["--profile", "tally_trial_balance"], "--profile needs --kind"),
         (["--kind", "weather"], "--kind takes"),
-        (["--kind", "trial_balance", "--force"], "--kind does not take --force or --reading"),
+        (
+            ["--kind", "trial_balance", "--force"],
+            "--kind does not take --force, --reading or --unit",
+        ),
     ],
 )
 def test_kind_usage_errors(root: Path, tmp_path: Path, args: list[str], message: str) -> None:

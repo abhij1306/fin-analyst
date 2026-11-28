@@ -25,10 +25,11 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E105 | The same file is already loaded | Nothing to do. Use `--force` to load it again as a new version |
 | E201 | No tables found in the file | Check the file has statement tables; read the reason in `review/<company>/` |
 | E202 | Fiscal periods or column headers not detected | Fix the headers in the file, or ask Claude to read the pages |
-| E203 | Unit (crores, lakhs, ...) not detected | Add a unit line such as "Rs. in Crores" to the file, then ingest again |
-| E204 | Parse error while reading the file | Read the reason in `review/<company>/<file>.error.json` and fix the file |
+| E203 | Unit (crores, lakhs, ...) not detected: a statement sheet or page has no unit line. Ingest holds the file with the question "which unit?" (nothing loaded; fin does not guess); in a reading file, the unit cell names no unit | Ask the user which unit and ingest again with `--unit lakhs\|crores\|millions\|thousands\|rupees` (stored as given by the user), or add a unit line such as "Rs. in Crores" to the file |
+| E204 | Parse error while reading the file. A row of values with no label (Excel) names its cells and holds only that sheet: the other sheets load and the sheet is listed as not read; the file fails only when no sheet can be read | Read the reason in `review/<company>/<file>.error.json` (or the sheets not read in the outcome) and fix the file, or ask Claude to read the sheet |
 | E205 | A Claude reading file cannot be used (missing columns, unknown statement or scope, bad figure, date or source) | Fix the line named in the message and run again |
 | E206 | The PDF add-on (Docling, LiteParse or LlamaParse; the message names it) failed on the pages pdfplumber skipped, could not download its models, or (LlamaParse) found no `LLAMA_CLOUD_API_KEY`; a warning, the pages stay unread | Read the warning in the run log; `uv run fin doctor`; set the key; or ask Claude to read the pages |
+| E207 | `fin ingest --unit` was given, but every statement sheet or page of the file names its own unit; nothing loaded | Ingest the file without `--unit` |
 | E301 | A line is not in the chart of accounts | Loaded as unconfirmed. Run `/review` to confirm a mapping |
 | E302 (warning) | A proposed mapping has low confidence; a warning, not an error | Check it in `/review` |
 | E303 | A line maps to conflicting accounts | You decide in `/review` |

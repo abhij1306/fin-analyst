@@ -14,7 +14,7 @@ from pathlib import Path
 from fin.audit.errors import DocumentFailure
 from fin.config import Config
 
-READERS = {".pdf": "pdfplumber", ".xlsx": "openpyxl", ".xlsm": "openpyxl"}
+READERS = {".pdf": "pdfplumber", ".xlsx": "openpyxl", ".xlsm": "openpyxl", ".xls": "xlrd"}
 TOP_LINES = 8  # lines of a page or sheet kept in a context
 LINE_WIDTH = 120
 

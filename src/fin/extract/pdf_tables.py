@@ -31,7 +31,7 @@ points from the page's top-left corner), so evidence crops work as for pdfplumbe
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 
@@ -79,6 +79,7 @@ class PageContext:
     unit: str | None  # from a unit line on the page
     results: bool  # a quarterly or half-year results statement: flow columns must name a length
     reader: str = "PDF add-on"  # the engine that read the tables, named in error messages
+    given_unit: str | None = None  # the unit the user gave, for a page that names none
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,8 @@ def read_tables(context: PageContext, tables: list[Table], start_month: int) -> 
     """The values of one statement page's tables. Raises E201 (no table gives a figure), E202,
     E203 or E204 (any table misread): the page is then not read at all."""
     unit = context.unit or _unit_of_tables(tables)
+    given = unit is None
+    unit = unit or context.given_unit
     if unit is None:
         raise UnitNotDetected(f"page {context.page}: no unit line such as '₹ in Lakhs'")
     values = [v for table in tables for v in read_table(context, table, unit, start_month)]
@@ -111,7 +114,7 @@ def read_tables(context: PageContext, tables: list[Table], start_month: int) -> 
         raise NoTablesFound(
             f"page {context.page}: no table with period columns and figures ({context.reader})"
         )
-    return values
+    return [replace(v, unit_given=True) for v in values] if given else values
 
 
 def unit_of_text(text: str) -> str | None:

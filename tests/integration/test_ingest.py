@@ -275,7 +275,11 @@ def test_broken_files_go_to_review_with_their_code(root: Path, samples: Path) ->
         "Tarang_FY2024-25_SCANNED.pdf": "E104",
         "notes.csv": "E103",
     }
-    assert "summary: loaded 0, skipped 0, failed 4 (E102, E103, E104, E203)," in result.stderr
+    # The workbook with no unit line is held with the question "which unit?", not failed.
+    assert (
+        "summary: loaded 0, skipped 0, failed 3 (E102, E103, E104), pending review 0, held 1,"
+        in (result.stderr)
+    )
     assert not company_db_path(root, "bluepeak").exists()  # nothing loaded: no empty company
 
 

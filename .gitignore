@@ -36,3 +36,4 @@ logs/
 # Synthetic test documents are the only xlsx/pdf files that are committed
 !tests/fixtures/sample-financials/**/*.xlsx
 !tests/fixtures/sample-financials/**/*.pdf
+!tests/fixtures/xls/*.xls

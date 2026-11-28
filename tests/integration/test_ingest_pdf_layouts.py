@@ -145,8 +145,9 @@ def test_a_statement_page_fin_cannot_read_is_listed_on_screen(root: Path, tmp_pa
 
     assert result.exit_code == 0, result.stderr
     assert (
-        "; 1 statement page(s) not read:\n  not read: balance_sheet page 2: E202 page 2: no "
-        "period column headers (such as 'As at 31 March 2025')\n"
+        "; 1 statement page(s) or sheet(s) not read:\n"
+        "  not read: balance_sheet page 2: E202 page 2: no period column headers "
+        "(such as 'As at 31 March 2025')\n"
     ) in result.stdout
     # Kept with the document, for the report's data coverage and the dashboard.
     [(unread,)] = query(root, "SELECT unread_pages FROM documents")

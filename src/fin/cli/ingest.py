@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.errors import FileUnreadable
 from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company, echo_refresh
@@ -15,7 +16,7 @@ from fin.db.schema import ensure_database
 from fin.diligence.bank import ingest_bank
 from fin.diligence.sources import ingest_source
 from fin.extract.profiles import KINDS
-from fin.ingest import files_in, ingest_file
+from fin.ingest import UNIT_ANSWERS, GivenUnit, files_in, ingest_file
 from fin.map.dictionary import load_label_map
 from fin.map.review import write_pending
 from fin.metrics.export import refresh_analytics
@@ -52,7 +53,11 @@ def _discard_if_empty(root: Path, company: str) -> None:
 
 
 def _ingest_files(
-    run: Run, jobs: list[tuple[str, list[Path]]], force: bool, reading: Path | None = None
+    run: Run,
+    jobs: list[tuple[str, list[Path]]],
+    force: bool,
+    reading: Path | None = None,
+    unit: GivenUnit | None = None,
 ) -> None:
     """Ingest each company's files, printing progress as `[i/N] company/file: outcome`."""
     config = load_config(run.root)
@@ -65,7 +70,7 @@ def _ingest_files(
             for path in files:
                 done += 1
                 outcome = ingest_file(
-                    run, config, company, path, label_map, force=force, reading=reading
+                    run, config, company, path, label_map, force=force, reading=reading, unit=unit
                 )
                 typer.echo(f"[{done}/{total}] {company}/{path.name}: {outcome}")
             write_pending(run, company)
@@ -78,21 +83,34 @@ def _ingest_files(
 
 
 def _check_usage(
-    path: Path | None, force: bool, reading: Path | None, kind: str | None, profile: str | None
+    path: Path | None,
+    force: bool,
+    reading: Path | None,
+    kind: str | None,
+    profile: str | None,
+    unit: str | None = None,
 ) -> None:
     """Usage errors, before the run starts (like the option callbacks)."""
     one_file = path is not None and path.is_file()
     if reading is not None and not one_file:
         raise typer.BadParameter("--reading needs PATH to be the one file it was read from")
+    if unit is not None and not one_file:
+        raise typer.BadParameter("--unit needs PATH to be the one file whose unit it answers")
     if kind is not None:
         if kind not in KINDS or not one_file:
             raise typer.BadParameter(f"--kind takes {' or '.join(KINDS)} and PATH as one file")
-        if force or reading is not None:
-            raise typer.BadParameter("--kind does not take --force or --reading")
+        if force or reading is not None or unit is not None:
+            raise typer.BadParameter("--kind does not take --force, --reading or --unit")
         if kind == "gst" and profile is None:
             raise typer.BadParameter("--kind gst needs --profile gstr1 or gstr3b (or your own)")
     elif profile is not None:
         raise typer.BadParameter("--profile needs --kind")
+
+
+def _unit_answer(value: str | None) -> str | None:
+    if value is not None and value not in UNIT_ANSWERS:
+        raise typer.BadParameter(f"use one of: {', '.join(UNIT_ANSWERS)}")
+    return value
 
 
 @app.command()
@@ -129,13 +147,24 @@ def ingest(
             "first profile of the kind whose headers the file has.",
         ),
     ] = None,
+    unit: Annotated[
+        str | None,
+        typer.Option(
+            "--unit",
+            callback=_unit_answer,
+            help="The user's answer to 'which unit?' for a file whose statements name none: "
+            f"{', '.join(UNIT_ANSWERS)}. Used only where no unit line is found; stored as given "
+            "by the user. PATH must be one file.",
+        ),
+    ] = None,
 ) -> None:
     """Load Excel and PDF documents for one company. Files already loaded are skipped (E105).
     With --kind, load one diligence source file (trial balance, Ledger Vouchers, registers, bank
     statement, payroll, orderbook, GST return summary: --kind gst --profile gstr1|gstr3b)
     instead."""
 
-    _check_usage(path, force, reading, kind, profile)
+    _check_usage(path, force, reading, kind, profile, unit)
+    given = GivenUnit(UNIT_ANSWERS[unit], from_environment()) if unit is not None else None
 
     def body(run: Run) -> None:
         if kind is not None and path is not None:
@@ -152,10 +181,10 @@ def ingest(
             typer.echo(f"{company}/{path.name}: " + "\n  ".join(loaded.lines))
             return
         source = path if path is not None else inbox_dir(run.root, company)
-        _ingest_files(run, [(company, files_in(source))], force, reading)
+        _ingest_files(run, [(company, files_in(source))], force, reading, given)
 
     args = {"company": company, "path": path, "force": force, "reading": reading}
-    execute("ingest", args | {"kind": kind, "profile": profile}, body)
+    execute("ingest", args | {"kind": kind, "profile": profile, "unit": unit}, body)
 
 
 @app.command("ingest-batch")

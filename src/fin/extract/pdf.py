@@ -34,17 +34,21 @@ is read as two halves. On each statement page (balance sheet, profit and loss, c
    is the nearest heading above it that is not a sub-heading.
 
 A statement page without its own header or unit continues the page before it when that page holds
-the same statement and scope. A page that still cannot be read is skipped and reported in
-`PdfExtraction.skipped`; the document fails only when no statement page can be read. So is a page
-whose figures look misread: a row label that holds a figure (the figures do not line up with their
-labels) or a figure with an unpaired bracket (its sign is unknown). fin reads clean digital
-statements; a page it skips is listed for a Claude reading, never loaded wrong.
+the same statement and scope. A statement page with no unit line of its own is read in the unit the
+user gave (`unit`; its values have `unit_given`), else skipped with E203: ingest then holds the
+document with the question "which unit?". fin does not guess a unit. A page that still cannot be
+read is skipped and reported in `PdfExtraction.skipped`; the document fails only when no statement
+page can be read. So is a page whose figures look misread: a row label that holds a figure (the
+figures do not line up with their labels) or a figure with an unpaired bracket (its sign is
+unknown). fin reads clean digital statements; a page it skips is listed for a Claude reading, never
+loaded wrong.
 
 Every value keeps its raw text, the parsed `Decimal` in document units, the same in rupees, the
 1-based page number and the word's bbox `(x0, top, x1, bottom)` in PDF points from the page's
 top-left corner (pdfplumber's convention, so `page.crop(bbox)` shows it).
 """
 
+from dataclasses import replace
 from pathlib import Path
 
 from fin.audit.errors import (
@@ -83,9 +87,12 @@ from fin.extract.pdf_reader import read_page
 from fin.extract.periods import FY_START_MONTH, STATEMENTS
 
 
-def extract_pdf(path: Path, start_month: int = FY_START_MONTH) -> PdfExtraction:
+def extract_pdf(
+    path: Path, start_month: int = FY_START_MONTH, unit: str | None = None
+) -> PdfExtraction:
     """Extract every readable statement value from a text PDF. Periods are named for a fiscal year
-    starting in `start_month` (config `fiscal_year_start_month`).
+    starting in `start_month` (config `fiscal_year_start_month`); `unit` is the one the user gave
+    for pages with no unit line.
 
     Raises E101/E102/E104, and E201/E202/E203 when no statement page can be read at all.
     """
@@ -98,7 +105,14 @@ def extract_pdf(path: Path, start_month: int = FY_START_MONTH) -> PdfExtraction:
     previous: _Page | None = None
     for number, lines in parts:
         previous = _read_one_part(
-            number, lines, previous, values, skipped, results=results, start_month=start_month
+            number,
+            lines,
+            previous,
+            values,
+            skipped,
+            results=results,
+            start_month=start_month,
+            unit=unit,
         )
     if not any(v.statement in STATEMENTS for v in values):
         raise _nothing_read(path, skipped, parts)
@@ -114,6 +128,7 @@ def _read_one_part(
     *,
     results: bool,
     start_month: int,
+    unit: str | None,
 ) -> _Page | None:
     """Read one page part: add its values to `values`, or record why it was skipped in `skipped`.
     Returns the page as read, for the next part to carry on from (None when there is none)."""
@@ -139,6 +154,7 @@ def _read_one_part(
             continues,
             results=is_results(lines) or bool(continues and results),
             start_month=start_month,
+            given_unit=unit,
         )
     except (UnitNotDetected, PeriodsNotDetected, NoTablesFound, ParseError) as exc:
         if statement != "notes":
@@ -198,12 +214,15 @@ def _read_part(
     *,
     results: bool,
     start_month: int,
+    given_unit: str | None,
 ) -> tuple[list[PdfValue], _Page]:
     """The values of one statement page part, and the page as read. `continues`: the page before,
     when this part carries on its statement (its unit and columns hold until replaced). Raises
     E203 (no unit), E202 (no period columns), E201 (no row of figures on a primary statement) or
     E204."""
     unit = unit_of(lines) or (continues.unit if continues else None)
+    given = unit is None or bool(continues and continues.unit_given and not unit_of(lines))
+    unit = unit or given_unit
     if unit is None:
         raise UnitNotDetected(f"page {number}: no unit line such as '₹ in Lakhs'").with_context(
             lines=top_lines(map(line_text, lines))
@@ -226,7 +245,9 @@ def _read_part(
         raise NoTablesFound(
             f"page {number}: titled as a statement, but no line has a figure under a period column"
         )
-    return page_values, _Page(number, statement, scope, unit, columns)
+    if given:
+        page_values = [replace(v, unit_given=True) for v in page_values]
+    return page_values, _Page(number, statement, scope, unit, columns, unit_given=given)
 
 
 def _untitled_statement(lines: list[Line], number: int) -> tuple[str, DocumentFailure] | None:

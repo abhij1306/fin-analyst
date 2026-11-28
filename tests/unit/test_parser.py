@@ -57,7 +57,7 @@ def test_use_syncs_the_extra_downloads_models_and_records_it(
         "done     uv sync --extra liteparse",
         "done     LiteParse models",
         'set      [pdf] parser = "liteparse" in config.toml (was "none")',
-        "LiteParse: local; small and fast",
+        "LiteParse: local, nothing leaves this machine; small (models about 50 MB) and fast",
     ]
     events = [m for (m,) in audit_query("SELECT message FROM events WHERE stage = 'parser'")]
     assert 'set [pdf] parser = "liteparse" in config.toml (was "none")' in events
