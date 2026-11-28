@@ -119,7 +119,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 
 ```
 ~/FinAnalysis/
-  config.toml             # tolerances, display units, defaults
+  config.toml             # tolerances, display units, defaults, [dataroom] archive limit
   inbox/<company>/        # drop documents here
   archive/<company>/      # originals after ingest, named by sha256
   companies/<company>.duckdb
@@ -130,6 +130,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
   review/<company>/       # failed docs + reasons, pending mappings
   evals/<company>/        # golden set and eval reports; evals/bundle-* results bundles (docs/client-handoff.md)
   notes/<company>/<sha256[:12]>/  # Markdown of notes to accounts, auditor reports (one folder per PDF: two PDFs with one name never overwrite each other)
+  dataroom/<company>/<sha256[:16]>/  # a data-room archive unpacked by `fin dataroom scan` (one folder per archive)
   evidence/  reports/  logs/  backups/
 ```
 
@@ -300,6 +301,9 @@ claude
 | `fin ingest <co> <file> --kind trial_balance\|ledger_vouchers\|registers\|payroll\|bank [--profile]` | `/diligence` | Either |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` | `/diligence` | Either (only when the user says which) |
 | `fin ingest-batch [folder]` (default `inbox/`) | `/ingest-batch` | Either |
+| `fin dataroom scan <co> <folder> [--json]`, `fin dataroom plan <co> [--json]`, `fin dataroom load <co>` | — | Either (`load` loads only rows the user approved) |
+| `fin dataroom propose <co> <id> --kind K [--profile P] --reason R` | — | Claude proposes a kind for a file fin could not name |
+| `fin dataroom approve <co> <ids> [--undo]` | — | Either (only when the user says which rows; approving a proposed kind confirms it) |
 | `fin verify <co> <file> --reading <csv>` | `/verify` | Either (when the user asks) |
 | `fin map propose <co> <file.json>` | used inside `/ingest` | Claude |
 | `fin map set <co> --statement --label --account`, `fin map accounts` | `/ingest` (fixing a finding) | Either |
@@ -978,6 +982,42 @@ narrative may state findings, severity, implications and deal considerations; it
 are `{{figure:<name>:<period>}}` with the diligence report's figures plus `net_debt`, `net_debt_cash`,
 `net_debt_debt`, `net_debt_debt_like` and `effective_tax_rate`, E874) and has no valuation, investment-rating or
 buy/don't-buy language (E972).
+
+### Data-room intake (SPEC-13, `fin dataroom`)
+
+`fin dataroom scan <co> <folder>` reads a whole data room into a plan and loads nothing. It walks the folder and its
+sub-folders in name order, leaving out hidden files (a name starting with "."), and lists a link without following
+it. A `.zip` archive is unpacked into its own new folder, `dataroom/<co>/<sha256[:16]>/` in the data folder, and its
+files (and archives inside it, up to three deep) are part of the plan. Every entry is checked before anything is
+written: an archive with an entry whose path is absolute, names a drive or climbs out with `..`, a link entry, a
+password, two entries with the same path, or more than `[dataroom] archive_limit_mb` (config.toml, default 2048) of
+content is refused and listed, with nothing unpacked; entries are also checked after resolving the path and counted as
+they are written. Other archive types (.rar, .7z, .tar, .gz) are listed for the user to unpack. Files with the same
+content (sha256) are one plan row; the other paths are its duplicates.
+
+Each file gets a kind from its type and from which column profile's headers it has, the test `fin ingest --kind`
+uses: `trial_balance`, `ledger_vouchers`, `registers`, `payroll`, `bank`, `orderbook` or `gst` with the profile;
+else `statements` for a workbook with statement sheets or a text PDF fin reads statements from (the test `fin ingest`
+uses); else `unknown`. fin does not guess from file names or contents beyond that. The plan shows each row's kind,
+profile, the period the file states (the export's header period, or the statements' period ends), its duplicates, and
+what will be skipped. A file fin cannot use has a reason and one next step (`fin.dataroom.kinds.REASONS`): a PDF with
+no statement page fin reads, such as a ledger PDF ("ask the company for the Excel export, or have the assistant read
+it"), an .xls, another file type, a damaged or protected workbook, a workbook whose headers fit no profile or profiles
+of more than one kind, a refused archive. The plan is stored in the company database (`dataroom_files`; the
+database is made if the company has none); `fin dataroom plan <co>` shows it again (`--json` for the assistant and
+the UI). Scanning again adds only what the plan does not have: a content already in it gains the new path as a
+duplicate.
+
+For a file fin could not name, the assistant may propose a kind (`fin dataroom propose`, with a reason; a GST return
+needs its profile). The user chooses the rows to load with `fin dataroom approve <co> <ids>` (`--undo` takes it
+back); approving a row with a proposed kind confirms that kind, and a file fin cannot use cannot be approved without
+one. `fin dataroom load <co>` loads every approved row not loaded yet under the one run id of the command, each
+document in its own transaction as `fin ingest` does (statements first, then trial balances before the Ledger Vouchers
+checked against them, then the other kinds; source files need the open engagement as with `--kind`), and prints one
+outcome per file. A file that fails is recorded on its row (status failed, with the error) and the next file loads;
+the command exits 1. A file already loaded (same content) is marked loaded and not loaded twice, so a second scan and
+load changes nothing. Gates reopen as on any ingest. A data folder made before this change has no `dataroom_files`
+table and no `[dataroom]` table in config.toml: re-create it with `uv run fin init` and re-ingest.
 
 ## Web UI (optional, `fin ui`)
 

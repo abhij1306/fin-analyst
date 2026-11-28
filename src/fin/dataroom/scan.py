@@ -30,7 +30,8 @@ from fin.paths import company_db_path, dataroom_dir
 
 MAX_DEPTH = 3  # archives inside archives unpacked
 COLUMNS = (
-    "file_id, sha256, folder, path, location, kind, profile, period, reason, next_step, duplicates"
+    "file_id, sha256, folder, path, location, kind, profile, period, reason, next_step, "
+    "duplicates, proposed_kind, proposed_profile, proposal_reason, approved, status, outcome"
 )
 
 
@@ -47,6 +48,19 @@ class PlanRow:
     reason: str | None
     next_step: str | None
     duplicates: list[str]
+    proposed_kind: str | None
+    proposed_profile: str | None
+    proposal_reason: str | None
+    approved: bool
+    status: str  # planned, loaded or failed
+    outcome: str | None
+
+    @property
+    def load_kind(self) -> tuple[str, str | None]:
+        """(kind, profile) the load uses: the proposal the user confirmed, else the scan's."""
+        if self.proposed_kind is not None:
+            return self.proposed_kind, self.proposed_profile
+        return self.kind, self.profile
 
 
 @dataclass
@@ -185,19 +199,37 @@ def plan_json(rows: list[PlanRow]) -> str:
 
 
 def format_plan(company: str, rows: list[PlanRow]) -> str:
-    """The plan as text: the files fin can use, the archives, then what will be skipped."""
-    usable = [r for r in rows if r.reason is None and r.kind != "archive"]
+    """The plan as text: the files fin can use, the archives, then what will be skipped (with the
+    assistant's proposed kind where there is one)."""
+    usable = [r for r in rows if r.kind != "archive" and (r.reason is None or r.proposed_kind)]
     archives = [r for r in rows if r.reason is None and r.kind == "archive"]
-    skipped = [r for r in rows if r.reason is not None]
-    lines = [f"data-room plan for {company}: {len(usable)} to load, {len(skipped)} skipped"]
+    skipped = [r for r in rows if r.reason is not None and not r.proposed_kind]
+    approved = sum(1 for r in usable if r.approved)
+    lines = [
+        f"data-room plan for {company}: {len(usable)} to load ({approved} approved), "
+        f"{len(skipped)} skipped"
+    ]
     for r in usable:
-        detail = ", ".join(x for x in (r.profile and f"profile {r.profile}", r.period) if x)
-        lines.append(f"  [{r.file_id}] {r.path}: {r.kind}" + (f" ({detail})" if detail else ""))
+        lines.append(f"  [{r.file_id}] {r.path}: {_described(r)}; {_state(r)}")
         lines.extend(f"      duplicate: {d}" for d in r.duplicates)
     lines.extend(f"  [{r.file_id}] {r.path}: archive, unpacked" for r in archives)
     if skipped:
         lines.append("skipped (fin cannot use these):")
     for r in skipped:
         lines.append(f"  [{r.file_id}] {r.path}: {r.reason}. Next: {r.next_step}")
-    lines.append("nothing was loaded")
     return "\n".join(lines)
+
+
+def _described(r: PlanRow) -> str:
+    kind, profile = r.load_kind
+    detail = ", ".join(x for x in (profile and f"profile {profile}", r.period) if x)
+    text = kind + (f" ({detail})" if detail else "")
+    if r.proposed_kind:
+        text += f", proposed by the assistant: {r.proposal_reason} (fin: {r.reason})"
+    return text
+
+
+def _state(r: PlanRow) -> str:
+    if r.status != "planned":
+        return f"{r.status}: {r.outcome}"
+    return "approved" if r.approved else "not approved"

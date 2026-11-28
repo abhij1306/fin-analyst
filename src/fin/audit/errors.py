@@ -45,8 +45,9 @@ a command returns when the error ends it:
   a status change not allowed) stop the command: exit 2.
 - E9xx (the FDD extension) stop the command: exit 2; each range is described in
   `fin.audit.errors_fdd`.
-- E814-E815 (data-room intake, fin.dataroom: a folder that cannot be scanned, a company with no
-  data-room plan) stop the command: exit 2.
+- E814, E815 and E819 (data-room intake, fin.dataroom: a folder that cannot be scanned, a company
+  with no data-room plan, a plan row that cannot be approved or given that kind) stop the command:
+  exit 2.
 - E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
   to bundle, a bundle that would contain a real name) stop the command: exit 2.
 """
@@ -430,20 +431,6 @@ class RegisterLineInvalid(FinError):
     code = "E813"
 
 
-class DataroomFolderInvalid(FinError):
-    """E814. `fin dataroom scan`: the folder does not exist, is not a folder, or holds the data
-    folder (fin would scan its own files). Nothing written."""
-
-    code = "E814"
-
-
-class DataroomPlanMissing(FinError):
-    """E815. `fin dataroom plan`: the company has no data-room plan; run `fin dataroom scan`
-    first. Nothing shown."""
-
-    code = "E815"
-
-
 class BankPdfUnreadable(FinError):
     """E816. A PDF bank statement cannot be read: `[pdf] parser` is none (a bank PDF needs Docling,
     LiteParse or LlamaParse), the parser could not read a page, or no table on it has the columns
@@ -661,6 +648,13 @@ class FigureReferenceUnknown(FinError):
 
     code = "E874"
 
+
+# E814, E815, E819: data-room intake, in fin.audit.errors_dataroom (split for size), re-exported.
+from fin.audit.errors_dataroom import (  # noqa: E402, F401
+    DataroomFolderInvalid,
+    DataroomPlanMissing,
+    DataroomRowInvalid,
+)
 
 # E9xx: the FDD extension, in fin.audit.errors_fdd (split for size), re-exported here.
 from fin.audit.errors_fdd import (  # noqa: E402, F401

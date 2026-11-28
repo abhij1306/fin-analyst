@@ -81,10 +81,9 @@ def test_the_plan_text_lists_files_duplicates_and_what_is_skipped(
     root: Path, tmp_path: Path
 ) -> None:
     output = scan(str(make_room(tmp_path)))
-    assert "data-room plan for acme: 3 to load, 2 skipped" in output
+    assert "data-room plan for acme: 3 to load (0 approved), 2 skipped" in output
     assert "      duplicate: registers.zip/tb_copy.xlsx" in output
     assert "registers.zip: archive, unpacked" in output
-    assert "nothing was loaded" in output
 
 
 def test_a_second_scan_adds_only_new_files(root: Path, tmp_path: Path) -> None:
