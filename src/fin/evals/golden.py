@@ -30,7 +30,7 @@ One line per check, the value a person read in the company's document and checke
   (`left_only`, `right_only` or `difference`), e.g. `3 left_only`.
 - `bank_closing`: a bank statement's closing balance, in the account's own currency (use unit
   `rupees` for the amount as printed, INR or USD): period is the statement's end date (YYYY-MM-DD),
-  ledger its account number;
+  ledger its account number's token (`ACCT-0001`);
 - `core_revenue`, `passthrough_revenue`: the period's sales register revenue (Amount in Rs, before
   GST) of customers not on, and on, the engagement's pass-through list (`revenue_split`), and
   `linked_purchase_cost`: the purchase register lines whose Purchase Id is on a pass-through
@@ -52,7 +52,7 @@ One line per check, the value a person read in the company's document and checke
   loaded payroll file: period is the file's period, ledger `gross_salary` or `ctc`.
 - `bank_unmatched`: the receipts (bank credits) of a bank account that no invoice matched in the
   period's latest `bank_vs_invoices` run, summed in the account's own currency (ledger the
-  account number);
+  account number's token);
 - `invoice_unmatched`: a customer's invoices with no receipt in that run, Amount in Rs summed
   (ledger the customer token);
 - `fx_line`: a customer's FX gain (positive) or loss in that run, rupees (ledger the customer

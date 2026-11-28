@@ -30,7 +30,7 @@ from fin.diligence.bank import ingest_bank
 from fin.extract import fallback, llamaparse_run
 from fin.extract.addon import PageRead
 from fin.extract.pdf_tables import Cell, Table
-from fin.extract.profiles import load_profile
+from fin.extract.profiles import load_profile, profiles_for
 from fin.findings import accept
 from fin.ingest import sha256_of
 from fin.paths import company_db_path
@@ -129,7 +129,7 @@ def test_excel_statements_load_with_lineage_and_remarks_as_filed(
     ) == [
         (
             bank.upper() if bank != "axis" else "Axis",
-            "123456789012",
+            "ACCT-0001",
             currency,
             "2024-04-01",
             "2024-04-30",
@@ -174,9 +174,7 @@ def test_a_statement_that_does_not_tie_is_a_finding_and_blocks_g1_until_accepted
     lines = load(root, write_statement(tmp_path / "s.xlsx", closing=CLOSING + 5000))
 
     assert "DOES NOT TIE" in lines[1]
-    assert findings(root) == [
-        ("bank_tie", "open", 1, "ICICI 123456789012 INR", Decimal("-5000.00"))
-    ]
+    assert findings(root) == [("bank_tie", "open", 1, "ICICI ACCT-0001 INR", Decimal("-5000.00"))]
     assert rows(root, "SELECT ties, line_count FROM bank_statements") == [(False, 3)]
     ok, text = g1(root)[0]
     assert not ok
@@ -194,7 +192,7 @@ def test_a_balance_gap_between_statements_is_a_finding(root: Path, tmp_path: Pat
     )
 
     assert findings(root) == [
-        ("bank_balance_gap", "open", 2, "ICICI 123456789012 INR", Decimal("7000.00"))
+        ("bank_balance_gap", "open", 2, "ICICI ACCT-0001 INR", Decimal("7000.00"))
     ]
     assert "opens at" in lines[-1]
     # each source names its file once (a query raised from it copies them; test run 2026-11-25)
@@ -237,7 +235,7 @@ def test_overlapping_periods_of_one_account_are_a_finding(root: Path, tmp_path: 
     load(root, write_statement(tmp_path / "a.xlsx"))
     load(root, write_statement(tmp_path / "b.xlsx", rows=[(4, "Cash deposit", 0, 100)]))
 
-    assert findings(root) == [("bank_overlap", "open", 2, "ICICI 123456789012 INR", None)]
+    assert findings(root) == [("bank_overlap", "open", 2, "ICICI ACCT-0001 INR", None)]
 
 
 def test_another_account_does_not_overlap(root: Path, tmp_path: Path) -> None:
@@ -334,7 +332,7 @@ def test_a_pdf_statement_loads_from_its_saved_parse_with_page_lineage(
         root,
         "SELECT bank, account, reader, parse_path LIKE 'cache/bank/%.json', ties, line_count "
         "FROM bank_statements",
-    ) == [("Axis", "917020012345678", "liteparse", True, True, 4)]
+    ) == [("Axis", "ACCT-0001", "liteparse", True, True, 4)]
     assert rows(
         root,
         'SELECT sheet, page, "row", txn_date::VARCHAR, remarks FROM bank_lines '
@@ -368,9 +366,7 @@ def test_a_pdf_parse_that_does_not_tie_is_a_finding(root: Path, tmp_path: Path) 
     lines = load(root, pdf, parser="liteparse")
 
     assert "DOES NOT TIE" in lines[1]
-    assert findings(root) == [
-        ("bank_tie", "open", 1, "Axis 917020012345678 INR", Decimal("27000.00"))
-    ]
+    assert findings(root) == [("bank_tie", "open", 1, "Axis ACCT-0001 INR", Decimal("27000.00"))]
 
 
 def fake_engine(calls: list[int]) -> Any:
@@ -400,13 +396,17 @@ def test_a_pdf_is_parsed_once_per_sha256(
     config = dataclasses.replace(load_config(root), pdf_parser="liteparse")
     run = Run("ingest", {}, root)
 
-    first, path = bank_pdf.read_parse(run, config, pdf, sha256_of(pdf))
-    second, _ = bank_pdf.read_parse(run, config, pdf, sha256_of(pdf))
+    masking = (company_db_path(root, "acme"), profiles_for("bank"))
+    first, path = bank_pdf.read_parse(run, config, pdf, sha256_of(pdf), masking)
+    second, _ = bank_pdf.read_parse(run, config, pdf, sha256_of(pdf), masking)
 
     assert calls == [1]
-    assert first == second
+    assert first == second  # the saved tokens read back as the numbers, in memory
     assert path.startswith("cache/bank/")
-    assert json.loads((root / path).read_text(encoding="utf-8"))["engine"] == "liteparse"
+    saved = (root / path).read_text(encoding="utf-8")
+    assert json.loads(saved)["engine"] == "liteparse"
+    assert "917020012345678" not in saved
+    assert "Account Number : ACCT-0001" in saved
 
 
 def test_llamaparse_reads_a_recorded_response_and_is_never_called(

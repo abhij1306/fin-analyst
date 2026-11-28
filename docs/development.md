@@ -53,7 +53,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   rows, snapshot period, the monthly-amounts check, `fin payroll confirm-unit`, G1's payroll line; the CLI is
   the group-sum finding), `mask.py` (tokens for the client's fields, `mask_values`; `Parties` matches ledger and bank names to tokens), `bank.py` (`--kind bank`: a bank statement as
   a `Statement`, the tie check, the load), `bank_pdf.py` (a PDF statement: the chosen PDF add-on's tables, saved
-  once per sha256 in `cache/bank/`, read with the same profiles), `bank_raw.py`, `bank_checks.py` (overlap and
+  once per sha256 in `cache/bank/`, read with the same profiles), `bank_raw.py`, `bank_mask.py` (account numbers as `ACCT-` tokens, in the
+  tables and the saved parse), `bank_checks.py` (overlap and
   balance gap findings, G1's bank line). Tables: `db/schema/sources.sql`.
   `ledgers.py` (`ledger_accounts`: Tally ledger to account, proposed by Claude, confirmed in review; an account's
   side), `recon.py` (`tb_vs_statements`: `recon_runs`, `recon_items`, draft queries at or above the threshold,

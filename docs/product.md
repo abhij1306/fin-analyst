@@ -585,7 +585,8 @@ date in another format is never dropped); and the outcome lists the trial balanc
 Vouchers ledgers not in the trial balance. Masking (`fin/diligence/mask.py`, `docs/decisions/masking.md`): only the
 client's fields are tokens: the registers' customer, vendor, handler and submitted-by and the orderbook's customer
 (`CUST-0001`, `VEND-0001`, `USER-0001`; the same value keeps its first token in every file, whatever kind it is
-found as later) and payroll's employee name and code (`EMP-0001`, `ECODE-0001`). The trial balance and Ledger
+found as later) and payroll's employee name and code (`EMP-0001`, `ECODE-0001`), and a bank statement's account
+number (`ACCT-0001`, below). The trial balance and Ledger
 Vouchers (ledgers, party ledgers too, and particulars), bank remarks and reference, the other register columns and
 all free text (contract terms, FDD text, query answers, the reasons stored with proposals) are stored as filed or
 written. Party matching: a ledger, a Ledger Vouchers particulars or a bank line that names a register customer or
@@ -796,13 +797,20 @@ Bank statements (D3, bank; decisions in `docs/decisions/d3-bank.md`): `fin inges
 `bank_axis` (kind `bank`: the table's columns, `bank`, default `currency`, and `[header]` regular expressions for the
 account, currency, opening and closing balance in the lines around the table) read INR and USD accounts alike; an
 Excel file is read by `extract/ledger.read_table`, a PDF by `diligence/bank_pdf.py`: the chosen `[pdf] parser` reads
-every page once, its tables and text lines are saved as `cache/bank/<sha256>.json` (a second ingest of the same bytes
-never calls the parser; `bank_statements.parse_path` and the rows' page + row trace to it), and the same profile reads
+every page once, its tables and text lines are saved as `cache/bank/<sha256>.json` (with each account number as its
+token; a second ingest of the same bytes, or one after a failed load, never calls the parser; `bank_statements.parse_path` and the rows' page + row trace to it), and the same profile reads
 the saved parse (a table with the profile's header starts the transactions, a headerless table of the same width
 continues them). Tables `bank_statements` (one per file: bank, account, currency, period, opening and closing
 balance with where each came from, totals, `ties`, reader, parse path) and `bank_lines` (sheet or page, row, date,
 remarks and reference as filed, debit, credit, balance), money in the account's own
-currency. The period of `source_files` is the engagement period (or the stub) holding all the statement's dates
+currency. The account number is masked (the client, 2026-11-27; `diligence/bank_mask.py`): it is stored once in
+`mask_values` (kind `bank_account`) and `bank_statements`, `bank_lines`, findings, `fin` output, logs, saved parses,
+exports and reports carry its token `ACCT-0001`; the same number gets the same token in every file, so the statements of
+one account still chain. A known account number in remarks or reference (a transfer between the company's own
+accounts) is its token too, also in the lines loaded before that account was. Only `fin query export` writes the real
+number, for the accountant. The original file in the archive, the PDF and its evidence crops show the number as filed,
+and so does a file name that contains it. Bank statements loaded before this change hold the number: re-ingest them
+(`fin delete <co>`, then load again; that also removes their saved parses). The period of `source_files` is the engagement period (or the stub) holding all the statement's dates
 (E808 across a year end); bank files are never superseded (the same bytes again are E105). A statement whose opening
 + credits − debits is not its closing balance is a finding (`bank_tie`, rows kept as filed); `diligence/bank_checks.py`
 records `bank_overlap` and `bank_balance_gap` findings across the statements of one account after every load. G1 adds

@@ -41,7 +41,12 @@
   cover: companies as `company-N`, ledgers as `ledger-N`, no file names; E833 now also refuses a ledger name or a
   related party name, since ledgers are no longer tokens.
 - **Answered 2026-11-27:** bank account numbers are to be masked too ([client-answers.md](client-answers.md),
-  answer 1; [SPEC-17](../specs/SPEC-17-client-answers.md)); nothing else was asked for.
+  answer 1; [SPEC-17](../specs/SPEC-17-client-answers.md)); nothing else was asked for. **Built:** kind
+  `bank_account`, token `ACCT-0001` (`src/fin/diligence/bank_mask.py`): `bank_statements.account` and
+  `bank_lines.account` hold it, and a known account number inside bank remarks or reference is replaced by it (whole
+  numbers only; names in bank text stay as filed). The saved parse of a bank PDF holds the token; the original PDF,
+  its evidence crops and the archived file show the number as filed. An account number is its own kind: a payroll
+  code with the same digits gets its own token. Earlier data: re-ingest.
 - **Was open with the client:** [Client question 1](../client-questions.md) (mask more: locations, product names, account numbers; option 3 below)
   and [client question 2](../client-questions.md) (a token shown beside a ledger name). LlamaParse, the optional cloud PDF
   add-on, sees pages unmasked; the owner allowed it with a warning in the README; Docling and LiteParse run locally.
