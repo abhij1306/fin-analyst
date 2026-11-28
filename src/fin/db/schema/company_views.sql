@@ -79,6 +79,8 @@ CREATE MACRO cagr6(x, earlier, n) AS
 -- no total printed, so one is the total only when the document says so: its label starts with "Total", or the other
 -- line sits under it (raw_values.section is its label, list marker and colon aside); otherwise both are summed.
 -- fact_ids lists the lines used; fact_id is the first of them.
+-- about: One value per document, account, period and scope (the lines a document prints for an account, summed).
+-- example: SELECT doc_id, account, period, scope, value, fact_ids FROM document_facts WHERE account = 'revenue'
 CREATE VIEW document_facts AS
 WITH lines AS (
     SELECT
@@ -133,6 +135,8 @@ GROUP BY l.doc_id, l.account, l.period, l.scope;
 -- Then the figures the user stated (stated_figures, not withdrawn) for an account, period and scope no loaded
 -- document gives: stated_id is set, and fact_id and doc_id are NULL and fact_ids is empty (no document line). A
 -- stated figure never replaces a document's: once a loaded document gives it, the document's value is used.
+-- about: The figures to answer with: one value per account, period and scope, in rupees, from loaded documents or stated by the user (stated_id).
+-- example: SELECT account, period, scope, value, fact_ids FROM current_facts WHERE period = 'FY25' ORDER BY account
 CREATE VIEW current_facts AS
 WITH from_documents AS (
     SELECT
@@ -229,3 +233,17 @@ LEFT JOIN raw_values r ON r.raw_id = f.raw_id
 JOIN documents d ON d.doc_id = c.doc_id
 WHERE d.status IN ('loaded', 'held')
 QUALIFY row_number() OVER (PARTITION BY c.fact_id ORDER BY c.correction_id DESC) = 1;
+-- Every fact with where it came from, so a question needs one join (`JOIN fact_sources USING (fact_id)`). A
+-- current_facts value summed from several lines has one row here per line: join on `unnest(fact_ids)` for them all.
+-- label and section are as printed; source_confirmed is the mapping's confirmation; source_read_by who read the figure
+-- (fin, docling, liteparse, llamaparse or claude); document_status loaded, held or superseded.
+-- about: Each fact with its file, sheet!cell or page, printed label, confirmation and reader: one join for sources.
+-- example: SELECT c.account, c.period, c.value, s.source_file, s.source_ref, s.source_confirmed FROM current_facts c JOIN fact_sources s USING (fact_id)
+CREATE VIEW fact_sources AS
+SELECT
+    f.fact_id, f.doc_id, f.account, f.period, f.scope, f.value, d.file_name AS source_file,
+    source_ref(r.sheet, r.cell, r.page) AS source_ref, r.sheet, r.cell, r.page, r.statement, r.raw_label AS label,
+    r.section, f.confirmed AS source_confirmed, f.read_by AS source_read_by, d.status AS document_status
+FROM facts f
+JOIN raw_values r ON r.raw_id = f.raw_id
+JOIN documents d ON d.doc_id = f.doc_id;

@@ -32,6 +32,7 @@ from fin.db.conn import connect, lock_files
 from fin.db.rows import fetch_dicts
 from fin.paths import company_db_path
 from fin.query.evidence import write_evidence
+from fin.query.guide import column_hint
 from fin.statements import add_view
 
 # The source_ref of a line in a sum whose raw value records no sheet, cell or page.
@@ -105,7 +106,9 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
         try:
             rows = fetch_dicts(con, sql)
         except duckdb.Error as exc:
-            raise SqlFailed(f"the query failed: {' '.join(str(exc).split())}") from exc
+            cause = " ".join(str(exc).split())
+            hint = column_hint(con, sql, cause, company)
+            raise SqlFailed(f"the query failed: {cause}{hint}") from exc
         columns = rows[0] if rows else {}
         key = next((name for name in ("fact_ids", "fact_id", "raw_id") if name in columns), None)
         if key is None and "stated_id" not in columns:

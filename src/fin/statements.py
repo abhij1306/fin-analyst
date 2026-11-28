@@ -68,6 +68,8 @@ LIMIT 1
 """
 
 VIEW_SQL = """
+-- about: The P&L, balance sheet and cash flow in standard order, with Unmapped / other lines.
+-- example: SELECT statement, label, value FROM standard_statements WHERE period = 'FY25'
 CREATE OR REPLACE TEMP VIEW standard_statements AS
 WITH vals AS (
     SELECT

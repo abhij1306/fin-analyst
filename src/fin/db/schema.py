@@ -9,6 +9,8 @@ database is created from its file once, when it does not exist yet. There are no
 change a schema, edit its file and re-create the data folder (docs/development.md).
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
@@ -23,11 +25,12 @@ SCHEMA_DIR = Path(__file__).parent / "schema"
 # The files run, in order, to create each kind of database.
 SCHEMA_FILES = {
     "audit": ["audit.sql"],
-    "dictionary": ["dictionary.sql"],
+    "dictionary": ["dictionary.sql", "dictionary_saved_metrics.sql"],
     "analytics": ["analytics.sql"],
     "company": [
         "company.sql",
         "company_views.sql",
+        "company_saved_metrics.sql",
         "company_metric_definitions.sql",
         "company_metric_inputs.sql",
         "company_metrics.sql",
@@ -65,7 +68,7 @@ UNION SELECT table_name, NULL FROM information_schema.tables
 """
 
 
-def _schema_texts(kind: str) -> list[str]:
+def schema_texts(kind: str) -> list[str]:
     """The schema files of `kind`, in order. E503 when one cannot be read."""
     texts = []
     for name in SCHEMA_FILES[kind]:
@@ -88,10 +91,17 @@ def expected_shape(kind: str) -> frozenset[tuple[str, str | None]]:
     """What SHAPE finds in a database just created from the schema files of `kind`, views and
     their columns included. It is made in memory once per process (the company views take about
     half a second)."""
-    texts = _schema_texts(kind)
+    with in_memory(kind) as con:
+        return frozenset(con.execute(SHAPE).fetchall())
+
+
+@contextmanager
+def in_memory(kind: str) -> Iterator[duckdb.DuckDBPyConnection]:
+    """An empty database of `kind` in memory, made from its schema files."""
+    texts = schema_texts(kind)
     with connect(Path(":memory:"), write=True) as con:
         _create(con, texts)
-        return frozenset(con.execute(SHAPE).fetchall())
+        yield con
 
 
 def is_old_format(con: duckdb.DuckDBPyConnection, kind: str) -> bool:
@@ -122,7 +132,7 @@ def ensure_database(path: Path, kind: str) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot create {path.parent}: {exc}") from exc
-    texts = _schema_texts(kind)
+    texts = schema_texts(kind)
     try:
         with connect(path, write=True) as con:
             _create(con, texts)
@@ -130,6 +140,12 @@ def ensure_database(path: Path, kind: str) -> bool:
         remove_database(path)
         cause = " ".join(str(exc).split())
         raise SchemaFailed(f"{path.name}: creating the {kind} database failed ({cause})") from exc
+    if kind == "company":
+        # A new company gets the metrics saved for every company. Imported here: fin.metrics.saved
+        # imports this module.
+        from fin.metrics.saved import install_shared
+
+        install_shared(path)
     return True
 
 

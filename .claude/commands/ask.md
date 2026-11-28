@@ -5,11 +5,14 @@ argument-hint: <company> <question>
 
 Answer this question with `fin`: $ARGUMENTS
 
-1. Write one SELECT on the company database (`companies/<company>.duckdb`). Tables: `documents` (use
+1. First run `uv run fin schema <company>`: it lists the views for questions with their columns and an example
+   query each. Use only the column names it shows. Then write one SELECT on the company database
+   (`companies/<company>.duckdb`). Tables: `documents` (use
    `status = 'loaded'`), `raw_values`, `facts` (value in rupees, `confirmed`); views `current_facts` (one value per
    account, period and scope, already de-duplicated across documents), `metrics` (one row per period, scope and
-   metric, with `unit` and `category`), `metric_definitions` (what each metric means and its formula) and
-   `standard_statements` (the P&L, balance sheet and cash flow in standard order, with `explained`, `coverage` and
+   metric, with `unit` and `category`), `metric_definitions` (what each metric means and its formula),
+   `fact_sources` (each fact's `source_file`, `source_ref`, printed `label`, `source_confirmed`: `JOIN fact_sources
+   USING (fact_id)`) and `standard_statements` (the P&L, balance sheet and cash flow in standard order, with `explained`, `coverage` and
    an `Unmapped / other` line where a printed subtotal is more than its mapped lines). Rules:
    - Account names: `uv run fin map accounts` or `SELECT DISTINCT account FROM current_facts`. Zero rows usually
      means a wrong account name or period, not missing data.
@@ -21,7 +24,12 @@ Answer this question with `fin`: $ARGUMENTS
      cycle), `cash_flow` (CFO, free cash flow, CFO/EBITDA, CFO/PAT, capex ratios), `growth` (year on year, and
      3- and 5-year CAGR), `earnings_quality` (other income and exceptional items over PBT, effective tax rate),
      `per_share` (EPS as reported), `lender` (NBFCs and banks: net interest income, cost to income, credit cost,
-     assets/equity), `ttm` (last four quarters), `headline` (a quarter's revenue and PAT).
+     assets/equity), `ttm` (last four quarters), `headline` (a quarter's revenue and PAT), `user` (metrics the
+     user saved with `fin metric add`).
+   - If no metric fits and you write a ratio by hand, answer with it, then offer to save it:
+     `uv run fin metric add <name> --formula "<accounts and metrics, e.g. cfo / revenue>" --unit ratio|rupees|days
+     --definition "<what it means>" [--company <company>]` (without `--company` it is saved for every company). Run it
+     only when the user says yes.
    - A metric whose inputs are missing is NULL or absent: say which input is missing (`metric_inputs` rows with
      no `fact_id`); never fill it in.
    - Select `metric_inputs.fact_id` with a metric (`JOIN metric_inputs USING (period, scope, metric)`), so each

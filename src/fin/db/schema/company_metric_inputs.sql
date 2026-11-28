@@ -88,7 +88,8 @@ by_period AS (SELECT metric, unnest(input_periods) AS input_period, accounts FRO
 by_account AS (SELECT metric, unnest(accounts) AS account, input_period FROM by_period),
 pbt_before_exceptional(account, exceptional) AS (
     VALUES ('pbt', false), ('profit_before_exceptional_items', true), ('share_of_associates_jv', true)
-)
+),
+builtin AS (
 SELECT a.metric, coalesce(x.account, a.account) AS account, a.input_period, NULL::VARCHAR AS stands_in_for,
     x.exceptional
 FROM by_account a
@@ -99,4 +100,16 @@ FROM by_account a
 JOIN stand_ins s ON s.total = a.account
 UNION ALL
 -- A bank prints no total equity: assets_to_equity (lenders only) uses capital plus reserves instead.
-SELECT 'assets_to_equity', unnest(['share_capital', 'other_equity']), 'same', 'total_equity', NULL;
+SELECT 'assets_to_equity', unnest(['share_capital', 'other_equity']), 'same', 'total_equity', NULL
+)
+FROM builtin
+UNION ALL
+-- Saved metrics (saved_metric_operands): an account as printed, and every input of a built-in metric they use.
+SELECT DISTINCT * FROM (
+    SELECT o.metric, o.operand, 'same', NULL, NULL FROM saved_metric_operands o WHERE o.kind = 'account'
+    UNION ALL
+    SELECT o.metric, b.account, b.input_period, b.stands_in_for, b.exceptional
+    FROM saved_metric_operands o
+    JOIN builtin b ON b.metric = o.operand
+    WHERE o.kind = 'metric'
+);

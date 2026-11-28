@@ -322,6 +322,22 @@ class FigureTableWrite(FinError):
     code = "E505"
 
 
+class SavedMetricInvalid(FinError):
+    """E506. `fin metric add`: a name that is not lower-case letters, digits and '_' or is
+    taken (a built-in or saved metric, or an account), an unknown unit, an empty definition, or a
+    formula that does not parse or names something that is not an account or metric. Nothing
+    saved. Also a new company database whose shared saved metric no longer compiles."""
+
+    code = "E506"
+
+
+class SavedMetricUnknown(FinError):
+    """E507. `fin metric remove`: no saved metric of that name where it was looked for (the
+    company's, or the shared ones), or another saved metric's formula uses it. Nothing removed."""
+
+    code = "E507"
+
+
 # E6xx: outputs.
 
 

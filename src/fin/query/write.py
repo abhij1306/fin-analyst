@@ -23,7 +23,8 @@ and a figure fin misread is corrected with `fin fact correct`. SQL naming
 mask_values is refused with E810 (fin.query.run.refuse_masked). A statement that would end the
 transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH, DETACH, COPY FROM
 DATABASE, LOAD/INSTALL) or change the schema (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) is
-refused with E504, also before the backup. The statements run with file access closed
+refused with E504, also before the backup, as is a change naming the saved metric tables
+(`fin metric`). The statements run with file access closed
 (`fin.db.conn.lock_files`).
 """
 
@@ -47,6 +48,7 @@ from fin.db.conn import connect, lock_files, no_company_message
 from fin.findings import recheck_held
 from fin.metrics.export import refresh_analytics
 from fin.paths import backups_dir, company_db_path
+from fin.query.guide import column_hint
 from fin.query.run import refuse_masked
 
 # Tables only the diligence commands change (`fin engagement|query|adjust|gate`).
@@ -63,6 +65,8 @@ DILIGENCE_TABLE = re.compile(
 # The figures: loaded by `fin ingest`, mapped by `fin review`, stated by `fin fact state`, never
 # written by hand (SPEC-08: an assistant once inserted zero rows as if read from a document).
 FIGURE_TABLE = re.compile(r"\b(facts|raw_values|stated_figures|fact_corrections)\b")
+# Saved metrics change only through `fin metric add|remove`, which rewrites the view computing them.
+SAVED_METRIC_TABLE = re.compile(r"\bsaved_metric(?:s|_operands)\b")
 
 # Statements that would end the wrapping transaction or reach past the company database.
 REFUSED = {
@@ -146,6 +150,11 @@ def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
                 f"{', '.join(named)}); use `fin engagement`, `fin query`, `fin adjust`, "
                 "`fin gate` or `fin ingest --kind`. Nothing was run"
             )
+        if SAVED_METRIC_TABLE.search((statement.query or sql).lower()):
+            raise SqlFailed(
+                "`fin sql --write` does not change saved metrics; use `fin metric add` or "
+                "`fin metric remove`. Nothing was run"
+            )
         if statement.type in SCHEMA_CHANGE:
             raise SqlFailed(
                 f"schema changes are not allowed ({statement.type.name}): `fin sql --write` "
@@ -206,7 +215,8 @@ def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> 
                     f"the change failed ({cause}) and rolling it back failed too "
                     f"({' '.join(str(rollback).split())}); the backup is {saved}"
                 ) from exc
-            raise SqlFailed(f"the change failed and was rolled back: {cause}") from exc
+            hint = column_hint(con, sql, cause, company)
+            raise SqlFailed(f"the change failed and was rolled back: {cause}{hint}") from exc
     backup_path = saved.relative_to(run.root).as_posix()
     run.record(
         "queries",
