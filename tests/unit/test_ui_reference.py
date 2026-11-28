@@ -19,15 +19,15 @@ pytest.importorskip("jinja2")
 pytest.importorskip("httpx")
 pytest.importorskip("multipart")
 
-from fastapi.testclient import TestClient  # noqa: E402
-from typer.testing import CliRunner  # noqa: E402
+from fastapi.testclient import TestClient
+from typer.testing import CliRunner
 
-from fin.cli import app  # noqa: E402
-from fin.db.conn import connect  # noqa: E402
-from fin.paths import company_db_path, dataroom_dir  # noqa: E402
-from fin.services.jobs import list_jobs  # noqa: E402
-from fin.ui.server import create_app  # noqa: E402
-from tests.unit.test_reference import PLANTED, fin_lines, write_databook  # noqa: E402
+from fin.cli import app
+from fin.db.conn import connect
+from fin.paths import company_db_path, dataroom_dir
+from fin.services.jobs import list_jobs
+from fin.ui.server import create_app
+from tests.unit.test_reference import PLANTED, fin_lines, write_databook
 
 pytestmark = pytest.mark.timeout(240)  # the first test also ingests the shared kestrel template
 TOKEN = "t0ken"

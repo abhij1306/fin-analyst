@@ -128,7 +128,7 @@ def _excel(path: Path) -> FileKind:
         (profile,) = matches.values()
         return FileKind(profile.kind, profile.name, _source_period(path, profile))
     if any(REFERENCE_SHEETS.search(norm(title)) for title in book.sheetnames):
-        return Kind("reference_databook")
+        return FileKind("reference_databook")
     try:
         values = extract_workbook(path).values
     except NoTablesFound:

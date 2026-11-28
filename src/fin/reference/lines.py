@@ -32,12 +32,13 @@ def list_lines(root: Path, company: str, open_only: bool = True) -> list[dict[st
     path = company_db_path(root, company)
     if not path.is_file():
         return []
-    where = "WHERE l.status IN ('pending', 'proposed')" if open_only else ""
     with connect(path) as con:
         return fetch_dicts(
             con,
             "SELECT l.*, (SELECT count(*) FROM reference_values v WHERE v.line_id = l.line_id) "
-            f"AS figures FROM reference_lines l {where} ORDER BY l.line_id",
+            "AS figures FROM reference_lines l WHERE NOT ? OR l.status IN ('pending', 'proposed') "
+            "ORDER BY l.line_id",
+            [open_only],
         )
 
 
@@ -89,7 +90,7 @@ def _checked(number: int, proposal: Any, lines: dict[int, dict[str, Any]]) -> tu
     line = (
         lines.get(line_id) if isinstance(line_id, int) and not isinstance(line_id, bool) else None
     )
-    if line is None or line["status"] not in OPEN + ("rejected",):
+    if line is None or line["status"] not in (*OPEN, "rejected"):
         state = "no such line" if line is None else line["status"]
         raise ReferenceLineInvalid(f"{what}: line {proposal['line']!r} is not waiting ({state})")
     return kinds[0], proposal[kinds[0]]
