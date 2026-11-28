@@ -7,10 +7,17 @@ the client decides mappings, findings, queries and gates; on a failed command re
 
 ## 1. Install
 
+Ask the client which folder fin should live in (default `~/fin-analyst`) and clone it there, never into your own
+workspace or a temporary folder, which the app can delete (`install.sh` warns if it is in one):
+
 ```sh
-./install.sh             # Homebrew tools, uv sync, the data folder ~/FinAnalysis, fin init, fin doctor
-./install.sh --ui        # optional: also the web UI (start it with: uv run fin ui)
+git clone https://github.com/abhij1306/fin-analyst.git ~/fin-analyst   # or the folder the client named
+cd ~/fin-analyst
+./install.sh             # Homebrew tools, Quarto (no sudo), uv's own Python, uv sync with the web UI, ~/FinAnalysis, fin init, fin doctor
 ```
+
+It needs no password. If it stops, it prints the failing command and the reason; a network failure is tried again
+first. Its last line is the command that opens the web UI.
 
 `uv run fin doctor` must show every line `ok` or `warn`. PDF statements that pdfplumber cannot read need an add-on:
 `./install.sh --parser docling` (Apple silicon) or `--parser liteparse` (Intel); see the README, "Install".

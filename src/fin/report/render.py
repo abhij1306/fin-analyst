@@ -25,7 +25,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from fin import installhint
+from fin import installhint, systools
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing, ReportRenderFailed
 from fin.audit.logger import Run
 from fin.config import load_config
@@ -316,7 +316,7 @@ def template_commit() -> str | None:
 def quarto_render(qmd: Path, outputs: tuple[str, ...] = OUTPUTS) -> None:
     """Render `qmd` to every format in its front matter, next to it. Raises E001 without Quarto
     and E601 when the render fails."""
-    quarto = shutil.which("quarto")
+    quarto = systools.which("quarto")
     if quarto is None:
         raise DependencyMissing(installhint.quarto_missing())
     try:

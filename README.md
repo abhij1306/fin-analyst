@@ -51,15 +51,15 @@ your machine.
 You need a Mac (Apple Silicon or Intel) or a Debian or Ubuntu Linux machine (x86_64 or aarch64), an internet connection for the first install, and Claude Code. On Linux the installer needs root or `sudo`; other Linux distributions are not supported (it stops and lists the tools to install by hand).
 
 ```sh
-git clone https://github.com/abhij1306/fin-analyst.git
-cd fin-analyst
+git clone https://github.com/abhij1306/fin-analyst.git ~/fin-analyst
+cd ~/fin-analyst
 ./install.sh
 ```
 
-On a Mac the installer asks before installing [Homebrew](https://brew.sh) if it is missing, then installs `uv`, `node`,
-`quarto` and `poppler`; on Linux it installs what is missing with `apt-get` and pinned downloads (`uv`, `node` 24, `quarto`, `poppler-utils`). Then it sets up the tool, creates your data folder (`~/FinAnalysis`) and runs `uv run fin doctor`.
-Running it again only installs what is missing. Its log is `~/FinAnalysis/logs/install.log`. `./install.sh --ui` also
-installs the optional web UI. A client's Claude Code running the golden eval follows
+Clone into a folder you choose (`~/fin-analyst` above), not a temporary one; the installer warns if it is in one.
+On a Mac the installer asks before installing [Homebrew](https://brew.sh) if it is missing, then installs `uv`, `node`
+and `poppler` with it, and Quarto from its release into your home folder (no password needed); on Linux it installs what is missing with `apt-get` and pinned downloads (`uv`, `node` 24, `quarto`, `poppler-utils`). Then it sets up the tool on uv's own Python (whatever `python3` you have), installs the web UI, creates your data folder (`~/FinAnalysis`), runs `uv run fin doctor` and ends with the command that opens the web UI.
+Running it again only installs what is missing. A download that fails for a network reason is tried again; anything else stops with the reason. Its log is `~/FinAnalysis/logs/install.log`. `./install.sh --no-ui` leaves out the web UI. A client's Claude Code running the golden eval follows
 [docs/client-handoff.md](docs/client-handoff.md).
 
 **Optional: a PDF add-on.** fin reads digital PDFs with pdfplumber. Some statement pages it can't read (standalone
@@ -129,7 +129,7 @@ For a quality-of-earnings style review of one company, fin keeps questions for t
 
 ## Web UI (optional)
 
-Prefer a browser to the terminal? `./install.sh --ui` (or `uv run fin ui setup`) installs an optional web UI; start it with `uv run fin ui`. It shows what is loaded and waiting, has a button for every decision that is yours, takes uploads, and has a chat with Claude on the right of every screen. The chat runs your own installed Claude Code with your own login (no API key; it warns if `ANTHROPIC_API_KEY` is set), for you alone on this machine: it listens on 127.0.0.1 only and is not for hosting or sharing. Claude cannot take your decisions in it; they stay buttons. The CLI works as before without it.
+Prefer a browser to the terminal? `./install.sh` installs the web UI (`--no-ui` leaves it out; `uv run fin ui setup` adds it later); start it with `uv run fin ui`. It shows what is loaded and waiting, has a button for every decision that is yours, takes uploads, and has a chat with Claude on the right of every screen. The chat runs your own installed Claude Code with your own login (no API key; it warns if `ANTHROPIC_API_KEY` is set), for you alone on this machine: it listens on 127.0.0.1 only and is not for hosting or sharing. Claude cannot take your decisions in it; they stay buttons. The CLI works as before without it.
 
 ## Pages fin can't read
 
