@@ -3,8 +3,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from fin.config import Display
-from fin.diligence.bridge import _bridge_block, format_bridge
+from fin.diligence.bridge import format_bridge
 
 D = Decimal
 
@@ -123,6 +122,8 @@ def test_a_reclassification_names_the_amount_it_moves_in_the_display_unit() -> N
         "proposed_count": 0,
     }
     step = {
+        "period": "FY26",
+        "scope": "standalone",
         "kind": "adjustment",
         "adj_id": 4,
         "category": "reclassification",
@@ -132,8 +133,24 @@ def test_a_reclassification_names_the_amount_it_moves_in_the_display_unit() -> N
         "moved_amount": D("2500000"),
         "amount": D("0"),
     }
-    display = Display("millions", 1, "brackets", "INR Mn")
+    result = {
+        "company": "acme",
+        "display": {"unit": "millions", "decimals": 1, "negatives": "brackets",
+                    "unit_label": "INR Mn"},
+        "engagement": {"engagement_id": 1, "status": "open", "periods": "FY26",
+                       "query_threshold": D("100000.00"), "opened_at": datetime(2026, 11, 9),
+                       "closed_at": None, "invoice_due_days": 90},
+        "adjusted_ebitda": [summary],
+        "bridge": [step],
+        "walk": [{"period": "FY26", "scope": "standalone"}
+                 | dict.fromkeys(["ebitda", "non_cash_and_other", "working_capital_change",
+                                  "taxes_paid", "other_operating", "cfo", "capex",
+                                  "free_cash_flow", "cash_conversion",
+                                  "adjusted_cash_conversion", "cf_op_profit_before_wc",
+                                  "cf_cash_generated", "cf_taxes_paid"])],
+        "not_computed": [],
+    }  # fmt: skip
 
-    lines = _bridge_block("acme", display, summary, [step])
+    [line] = [t for t in format_bridge(result).splitlines() if "#4 reclassification" in t]
 
-    assert "(other_expenses to cost_of_materials, moves 2.5 INR Mn)" in lines[2]
+    assert "(other_expenses to cost_of_materials, moves 2.5 INR Mn)" in line

@@ -324,14 +324,19 @@ def test_pass_through_and_adjusted_figures_are_scored(root: Path, tmp_path: Path
     assert {"core_revenue", "passthrough_revenue", "adjusted_revenue"} <= scaffold
 
 
-def test_a_misread_digit_in_a_large_figure_does_not_show_as_no_difference() -> None:
-    # 13,409.92 lakh expected, 13,409.29 read: 0.0047%, which four places or two decimals hide
-    difference = relative(Decimal("1340929000"), Decimal("1340992000"))
-    assert difference is not None
-    assert difference != 0
-    assert bundle._percent(difference) == "-0.0047%"
-    assert bundle._percent(Decimal("-0.001")) == "-0.10%"
-    assert bundle._percent(None) is None
+def test_a_misread_digit_in_a_large_figure_does_not_show_as_no_difference(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 13,409.92 lakh expected, 13,409.29 read: 0.0047%, which four places hide
+    assert relative(Decimal("1340929000"), Decimal("1340992000")) == Decimal("-0.0000469801")
+    # fin holds revenue 10,00,000; a person read 10.00047 lakh: two decimals would show 0.00%
+    no_doctor(monkeypatch)
+    write_golden(root, [(*GOLDEN[0][:5], "10.00047", *GOLDEN[0][6:])])
+
+    _, js = bundle.make_bundle(run(root), None, with_figures=False)
+
+    [company] = json.loads(js.read_text(encoding="utf-8"))["companies"]
+    assert [f["relative_difference"] for f in company["failures"]] == ["-0.0047%"]
 
 
 def init_golden_rows(root: Path) -> list[dict[str, str]]:

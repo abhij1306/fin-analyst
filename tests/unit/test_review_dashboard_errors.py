@@ -6,7 +6,11 @@ import pytest
 
 import fin.dashboard
 from fin.audit.errors import DashboardBuildFailed, InvalidMapping
-from fin.map.review import _check_proposal
+from fin.audit.logger import Run
+from fin.db.schema import ensure_database
+from fin.map.dictionary import load_seed
+from fin.map.review import propose, read_pending, save_pending
+from fin.paths import company_db_path, dictionary_db_path
 
 PENDING: Any = {
     "company": "bluepeak",
@@ -22,6 +26,17 @@ GOOD = {
 }
 
 
+@pytest.fixture(scope="module")
+def root(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A data folder with the seeded dictionary and bluepeak's pending item."""
+    root = tmp_path_factory.mktemp("review")
+    ensure_database(dictionary_db_path(root), "dictionary")
+    load_seed(root, Run("init", {}, root))
+    ensure_database(company_db_path(root, "bluepeak"), "company")
+    save_pending(root, "bluepeak", PENDING)
+    return root
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -32,10 +47,11 @@ GOOD = {
         ("section", None),
     ],
 )
-def test_a_proposal_value_that_is_not_text_is_e304(field: str, value: Any) -> None:
+def test_a_proposal_value_that_is_not_text_is_e304(root: Path, field: str, value: Any) -> None:
     with pytest.raises(InvalidMapping) as caught:
-        _check_proposal(1, {**GOOD, field: value}, PENDING, {}, {})
+        propose(Run("map propose", {}, root), "bluepeak", [{**GOOD, field: value}])
     assert str(caught.value) == f"E304: proposal 1: {field!r} must be text"
+    assert read_pending(root, "bluepeak")["items"] == PENDING["items"]  # nothing stored
 
 
 def _npm_exits(monkeypatch: pytest.MonkeyPatch, code: int | None) -> None:

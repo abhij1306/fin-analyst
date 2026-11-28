@@ -162,9 +162,12 @@ def test_the_upload_holds_only_the_pages_under_a_neutral_name(
         PollingTimeoutError=Failure,
     )
     monkeypatch.setitem(sys.modules, "llama_cloud", fake)
+    monkeypatch.setenv(llamaparse_run.API_KEY_ENV, KEY)
     req = request(tmp_path)
 
-    assert llamaparse_run._parse(req, KEY) == response()
+    found = llamaparse_run.convert(req, [])
+
+    assert found[4] == llamaparse_run.read_items(response(), [4, 7])[4]
 
     name, content, kind = sent["upload_file"]
     assert (name, kind, sent["api_key"]) == ("pages.pdf", "application/pdf", KEY)
@@ -187,12 +190,14 @@ def test_a_failed_job_is_e206(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         PollingTimeoutError=OSError,
     )
     monkeypatch.setitem(sys.modules, "llama_cloud", fake)
+    monkeypatch.setenv(llamaparse_run.API_KEY_ENV, KEY)
 
     req = request(tmp_path)
     with pytest.raises(PdfAddonFailed) as caught:
-        llamaparse_run._parse(req, KEY)
+        llamaparse_run.convert(req, [])
 
     assert caught.value.message == "acme_h1.pdf: LlamaParse failed on pages [4, 7]: bad pdf"
+    assert not llamaparse_run.cache_file(req).exists()  # a failed job saves nothing
 
 
 def test_a_saved_response_in_another_shape_is_e206(tmp_path: Path) -> None:

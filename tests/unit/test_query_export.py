@@ -24,8 +24,8 @@ from fin.db.schema import ensure_database
 from fin.diligence import gates, ledgers, payroll, queries
 from fin.diligence.answers import record_reply
 from fin.diligence.export import export_queries
-from fin.diligence.export_data import line_difference
-from fin.diligence.export_xlsx import _parse
+from fin.diligence.export_data import Issue, line_difference
+from fin.diligence.export_xlsx import source_marks
 from fin.diligence.sources import ingest_source
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.scaffold import init_golden
@@ -314,7 +314,17 @@ def test_a_reused_file_name_resolves_to_the_loaded_file_of_the_period() -> None:
         (-1, "Statements.xlsx", "archive/d.xlsx", "loaded", "FY25"),
     ]
 
-    assert _parse("tb.xlsx Sheet 1!C7", files, "FY25") == (2, "Sheet 1", ["C7"])
-    assert _parse("tb.xlsx Sheet 1!4, 5 and 2 more", files, "FY24") == (3, "Sheet 1", ["4", "5"])
-    assert _parse("Statements.xlsx P&L!C7", files, "FY25") == (-1, "P&L", ["C7"])
-    assert _parse("bank.pdf page 3", files, "FY25") is None
+    issues = [
+        Issue({"query_id": 1, "period": "FY25",
+               "sources": "tb.xlsx Sheet 1!C7; Statements.xlsx P&L!C7; bank.pdf page 3"}),
+        Issue({"query_id": 2, "period": "FY24", "sources": "tb.xlsx Sheet 1!4, 5 and 2 more"}),
+    ]  # fmt: skip
+
+    marks = source_marks(issues, files)
+
+    # The superseded FY25 file and the page of a PDF get no highlight.
+    assert dict(marks) == {
+        (2, "Sheet 1"): {7: ({"C7"}, {"Q1"})},
+        (-1, "P&L"): {7: ({"C7"}, {"Q1"})},
+        (3, "Sheet 1"): {4: ({""}, {"Q2"}), 5: ({""}, {"Q2"})},
+    }

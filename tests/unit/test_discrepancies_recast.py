@@ -8,13 +8,16 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from openpyxl import load_workbook
+
 from fin.db.conn import connect
 from fin.discrepancies.rows import discrepancy_rows, format_rows
-from fin.discrepancies.sheet import COLUMNS, _value
+from fin.discrepancies.sheet import COLUMNS
 from fin.discrepancies.view import RECOGNITION, add_view
 from fin.paths import company_db_path
 from fin.reconcile.recast_run import run_recast
 from fin.statements import add_view as add_statement_view
+from fin.workbook import export_workbook
 from tests.unit.test_discrepancies import reconcile, root, rows, run  # noqa: F401
 from tests.unit.test_reconcile_d4 import template  # noqa: F401
 
@@ -112,9 +115,15 @@ def test_it_is_labelled_in_the_text_and_the_sheet(root: Path) -> None:  # noqa: 
     [head] = [r for r in found if r["level"] == "headline"]
 
     text = format_rows("acme", {"rows": found, "display": display})
-    kind = {key: _value(head, key) for _, key in COLUMNS}
+    sheet = load_workbook(export_workbook(root, "acme"))["Differences"]
+    column = {key: n for n, (_, key) in enumerate(COLUMNS)}
+    [row] = [
+        [c.value for c in r]
+        for r in sheet.iter_rows(min_row=3)
+        if (r[column["kind"]].value, r[column["level"]].value) == (RECOGNITION, "headline")
+    ]
 
     assert f"headline FY25 revenue: {RECOGNITION}, books " in text
-    assert kind["kind"] == RECOGNITION
-    assert kind["left_name"] == "books"
-    assert kind["right_name"] == "recast"
+    assert (row[column["level"]], row[column["period"]]) == ("headline", head["period"])
+    assert row[column["left_name"]] == "books"
+    assert row[column["right_name"]] == "recast"
