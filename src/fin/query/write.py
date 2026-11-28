@@ -17,12 +17,15 @@ query_items) is refused with E806 before the backup: those tables change only th
 `fin engagement|query|adjust|gate`, `fin ingest --kind`, `fin map ledgers` with `fin review
 --ledgers`, `fin reconcile`, `fin recast`, `fin sample`, `fin walkthrough` and the FDD commands,
 which check the gates and log every change. A statement other than a SELECT that names facts,
-raw_values, stated_figures, fact_corrections, documents or the reference tables
-(reference_files, reference_lines, reference_values) is refused with E505, also before the backup:
+raw_values, stated_figures, fact_corrections, documents, the reference tables
+(reference_files, reference_lines, reference_values), findings or dataroom_files is refused with
+E505, also before the backup:
 figures come from documents (`fin ingest`, `fin review`) or from the user (`fin fact state`), a
 figure fin misread is corrected with `fin fact correct`, a document's status and paths are not
 written by hand (owner, 2026-11-28: a status written so released a held document; fin's own
-commands change them), and a reference line is confirmed only by `fin reference confirm`. SQL naming
+commands change them), a reference line is confirmed only by `fin reference confirm`, a finding is
+accepted only by `fin findings accept` and a data-room row approved only by `fin dataroom approve`
+(owner, 2026-11-28: each is the user's decision with an audit record). SQL naming
 mask_values is refused with E810 (fin.query.run.refuse_masked). A statement that would end the
 transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH, DETACH, COPY FROM
 DATABASE, LOAD/INSTALL) or change the schema (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) is
@@ -72,9 +75,12 @@ DILIGENCE_TABLE = re.compile(
 # and deleted.
 # The reference tables too (owner, 2026-11-28): a reference line is confirmed only by
 # `fin reference confirm`, the user's step.
+# And findings and dataroom_files (owner, 2026-11-28): a finding is accepted only by `fin findings
+# accept` (an accepted status written by hand released a held document with no audit row), a
+# data-room row approved only by `fin dataroom approve` (the next `fin dataroom load` loads it).
 FIGURE_TABLE = re.compile(
     r"\b(facts|raw_values|stated_figures|fact_corrections|documents"
-    r"|reference_files|reference_lines|reference_values)\b"
+    r"|reference_files|reference_lines|reference_values|findings|dataroom_files)\b"
 )
 # Saved metrics change only through `fin metric add|remove`, which rewrites the view computing them.
 SAVED_METRIC_TABLE = re.compile(r"\bsaved_metric(?:s|_operands)\b")
@@ -139,9 +145,9 @@ def _changed_rows(con: duckdb.DuckDBPyConnection, statement: Any) -> int:
 def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
     """Check every statement before any runs. E504 when the SQL does not parse or a statement is
     one of REFUSED; E806 when a statement other than a SELECT names a diligence table (a name match
-    is enough: when in doubt, refuse); E505 when one names a figure table or documents
-    (FIGURE_TABLE; checked after every statement passed the others); E810 when the SQL names
-    mask_values."""
+    is enough: when in doubt, refuse); E505 when one names a figure table, documents, a
+    reference table, findings or dataroom_files (FIGURE_TABLE; checked after every statement
+    passed the others); E810 when the SQL names mask_values."""
     refuse_masked(sql)
     try:
         statements = con.extract_statements(sql)
@@ -155,13 +161,14 @@ def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
         named = sorted(set(FIGURE_TABLE.findall((statement.query or sql).lower())))
         if named:
             raise FigureTableWrite(
-                f"`fin sql --write` does not change the figures, the documents or the reference "
-                f"figures (found: "
+                f"`fin sql --write` does not change the figures, the documents, the reference "
+                f"figures, the findings or the data-room plan (found: "
                 f"{', '.join(named)}). Load a document (`fin ingest`, `--reading` for pages fin "
                 "could not read), map its lines (`fin review`), state a figure the documents do "
                 "not give (`fin fact state`), correct one fin misread (`fin fact correct`), "
-                "accept a held document's findings (`fin findings accept`), delete a document "
-                "(`fin document delete`) or load, confirm or reject reference lines "
+                "accept findings (`fin findings accept`, which also releases a held document), "
+                "delete a document (`fin document delete`), approve a data-room file (`fin "
+                "dataroom approve`) or load, confirm or reject reference lines "
                 "(`fin reference add|confirm|reject`). Nothing was run"
             ).with_context(tables=named)
 

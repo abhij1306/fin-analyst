@@ -330,9 +330,10 @@ class SqlFailed(FinError):
 
 class FigureTableWrite(FinError):
     """E505. `fin sql --write` was given a statement other than a SELECT that names facts,
-    raw_values, stated_figures, fact_corrections, documents or the reference tables: they change
-    only through fin (`fin ingest`, `fin review`, `fin fact`, `fin findings accept`, `fin document
-    delete`, `fin reference`). Nothing was run."""
+    raw_values, stated_figures, fact_corrections, documents, the reference tables, findings or
+    dataroom_files: they change only through fin (`fin ingest`, `fin review`, `fin fact`, `fin
+    findings accept`, `fin document delete`, `fin reference`, `fin dataroom approve`). Nothing was
+    run."""
 
     code = "E505"
 

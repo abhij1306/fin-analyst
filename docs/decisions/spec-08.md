@@ -79,10 +79,23 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
   cannot be confirmed by SQL past `fin reference confirm`.
 - **Decision**: `fin sql --write` refuses any statement other than a SELECT that names `documents` (E505), before the
   backup. fin's own commands load, hold, release and remove documents (`fin ingest`, `fin findings accept`,
-  `fin review confirm`, `fin fact correct`, `fin document delete`). A write to `findings` can still release a held
-  document through the recheck after it; that is open (#139, Not fixed). It also refuses `reference_files`,
+  `fin review confirm`, `fin fact correct`, `fin document delete`). A write to `findings` is refused
+  too (next entry). It also refuses `reference_files`,
   `reference_lines` and `reference_values` (E505): only the user confirms or rejects a reference line.
 - **Why**: `UPDATE documents SET status = 'loaded'` released a held document into `current_facts` without its
   findings being accepted, and the stored file paths were writable too (#136). `UPDATE reference_lines SET status =
   'confirmed'` stood in for the user's confirmation, and only confirmed lines are compared.
+- **How to change it**: `src/fin/query/write.py: FIGURE_TABLE`.
+
+## E505 covers findings and the data-room plan too
+
+- **OWNER DECISION** (owner, 2026-11-28): "ok" to the orchestrator's recommendation to add `findings` and
+  `dataroom_files` to the same `fin sql --write` guard (the open item of #139).
+- **Decision**: `fin sql --write` refuses any statement other than a SELECT that names `findings` or `dataroom_files`
+  (E505), before the backup. A finding is accepted only through `fin findings accept`, and a data-room row approved
+  only through `fin dataroom approve`; the E505 message names both commands. `notes`, `company_profile` and the
+  verification tables stay writable.
+- **Why**: each is a user decision with an audit record. `UPDATE findings SET status = 'accepted'` released a held
+  document through the recheck after the write with no audit `findings` row, and `UPDATE dataroom_files SET approved
+  = true` approved a file that the next `fin dataroom load` loads.
 - **How to change it**: `src/fin/query/write.py: FIGURE_TABLE`.

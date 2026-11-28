@@ -357,7 +357,7 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin document delete <co> <ids>` (the Files screen's Delete) | — | Either (when the user asks) |
 | `fin status [co]` | `/status` | Either |
 | `fin sql <co> --sql "…" [--question] [--evidence]` | `/ask`, `/report` | Either (reads) |
-| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit; refuses the figure tables, `documents` and the reference tables, E505) |
+| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit; refuses the figure tables, `documents`, the reference tables, `findings` and `dataroom_files`, E505) |
 | `fin fact state <co> --account --period --scope --value --reason`, `fin fact unstate <co> <id>`, `fin fact correct <co> <fact_id> --value --reason`, `fin fact list <co> [--json]` | `/ingest` | Either (state or correct only when the user says, in their words) |
 | `fin schema [co] [--table name] [--json]` | `/ask` | Either |
 | `fin metric add <name> --formula … --unit ratio\|rupees\|days --definition "…" [--company co]`, `fin metric list [co]`, `fin metric remove <name> [--company co]` | `/ask` (offers to save a hand-written ratio) | Either (add or remove when the user says) |
@@ -1316,7 +1316,9 @@ states the figure; fin never invents one.
   user (`fin fact state`), or from a correction of fin's own misread (`fin fact correct`). It does not write a
   document's status or paths (owner, 2026-11-28): a status written by hand would release a held document without its
   findings accepted. fin's own commands change them (`fin ingest`, `fin findings accept`, `fin review confirm`,
-  `fin fact correct`, `fin document delete`).
+  `fin fact correct`, `fin document delete`). It also refuses `findings` and `dataroom_files` (E505; owner, 2026-11-28):
+  a finding is accepted only with `fin findings accept` and a data-room file approved only with `fin dataroom approve`,
+  each the user's decision with an audit record. `notes`, `company_profile` and the verification tables stay writable.
 - **Correcting a figure fin read wrongly**: `fin fact correct <co> <fact_id> --value V --reason "..."`, only on the
   user's word. It backs up the company database, sets `facts.value` (rupees; rupees per share for EPS), keeps the
   cell or page and the printed text in `raw_values`, and records the value before, the reason, the actor (`fin.actor`:
