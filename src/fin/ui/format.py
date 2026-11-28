@@ -62,5 +62,13 @@ def code(text: Any) -> Markup:
     return Markup(re.sub(r"`([^`]+)`", r"<code>\1</code>", str(escape(text or ""))))
 
 
+def gate_names(lines: list[str]) -> list[str]:
+    """The gates a refusal names ('... needs gate G2 (Reconciliation) approved; gate G1 ...'), each
+    once, in order: an E801 alert links to them on the Gates screen."""
+    return list(dict.fromkeys(re.findall(r"\bgate (G\d)\b", " ".join(lines))))
+
+
 def register(env: Environment) -> None:
-    env.filters.update(when=when, tone=tone, problems_view=problems_view, code=code)
+    env.filters.update(
+        when=when, tone=tone, problems_view=problems_view, code=code, gate_names=gate_names
+    )

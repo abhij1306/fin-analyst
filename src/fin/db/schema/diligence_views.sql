@@ -216,3 +216,61 @@ SELECT
     CAST(cf_cash_generated AS DECIMAL(38, 2)) AS cf_cash_generated,
     CAST(cf_taxes_paid AS DECIMAL(38, 2)) AS cf_taxes_paid
 FROM walk;
+
+-- The P&L before and after accepted adjustments (SPEC-09, fin.diligence.adjusted), one row per period and scope of the
+-- latest engagement and account (every annual account: fin.diligence.adjusted reads the P&L lines; a balance sheet or
+-- cash flow account is there as reported, adjustment 0): the account's reported figure (current_facts, annual), the
+-- accepted adjustments to it, and adjusted = reported + adjustment. Where an accepted adjustment lands:
+--   revenue, total_income                     its revenue effect;
+--   total_expenses                            its cost effect;
+--   profit_before_exceptional_items, profit_before_extraordinary_items, pbt
+--                                             its EBITDA effect (amount = revenue effect - cost effect);
+--   a reclassification's account, from_account  plus and minus the amount moved (its effects are 0).
+-- Other lines have adjustment 0 (a true zero). Tax is not computed for an adjustment, so no line after profit before
+-- tax is adjusted (fin.diligence.adjusted shows the P&L down to pbt). A line with an adjustment and no reported figure
+-- has reported and adjusted NULL: the adjustment is shown, never made into a figure.
+CREATE VIEW adjusted_pl AS
+WITH accepted AS (
+    SELECT a.*
+    FROM adjustments a
+    JOIN engagement_periods e ON e.engagement_id = a.engagement_id AND e.period = a.period AND e.scope = a.scope
+    WHERE a.status = 'accepted'
+),
+effects AS (
+    SELECT period, scope, unnest(['revenue', 'total_income']) AS account, revenue_effect AS amount FROM accepted
+    UNION ALL
+    SELECT period, scope, 'total_expenses', cost_effect FROM accepted
+    UNION ALL
+    SELECT period, scope, unnest(['profit_before_exceptional_items', 'profit_before_extraordinary_items', 'pbt']), amount FROM accepted
+    UNION ALL
+    SELECT period, scope, account, moved_amount FROM accepted WHERE from_account IS NOT NULL
+    UNION ALL
+    SELECT period, scope, from_account, -moved_amount FROM accepted WHERE from_account IS NOT NULL
+),
+adj AS (
+    SELECT period, scope, account, sum(amount) AS adjustment FROM effects GROUP BY period, scope, account
+),
+reported AS (
+    SELECT c.period, c.scope, c.account, max(c.value) AS value
+    FROM current_facts c
+    JOIN engagement_periods e ON e.period = c.period AND e.scope = c.scope
+    WHERE c.period_months = 12
+    GROUP BY c.period, c.scope, c.account
+),
+lines AS (
+    SELECT period, scope, account FROM reported
+    UNION
+    SELECT period, scope, account FROM adj
+)
+SELECT
+    e.engagement_id,
+    l.period,
+    l.scope,
+    l.account,
+    CAST(r.value AS DECIMAL(38, 2)) AS reported,
+    CAST(coalesce(a.adjustment, 0) AS DECIMAL(38, 2)) AS adjustment,
+    CAST(r.value + coalesce(a.adjustment, 0) AS DECIMAL(38, 2)) AS adjusted
+FROM lines l
+JOIN engagement_periods e ON e.period = l.period AND e.scope = l.scope
+LEFT JOIN reported r ON r.period = l.period AND r.scope = l.scope AND r.account = l.account
+LEFT JOIN adj a ON a.period = l.period AND a.scope = l.scope AND a.account = l.account;

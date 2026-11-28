@@ -43,6 +43,14 @@ class PassthroughInvalid(FinError):
     code = "E845"
 
 
+class AdjustmentImportInvalid(FinError):
+    """E847. `fin adjust import`: the walk sheet cannot be read (not CSV or Excel, no such sheet,
+    a missing or unknown column, no rows), or a row is not a valid adjustment. The message names
+    the row. Nothing imported."""
+
+    code = "E847"
+
+
 class CreditTermsInvalid(FinError):
     """E846. `fin engagement open --due-days` or `fin engagement terms`: the credit terms are not
     whole days from 0 to 3650. Nothing changed."""

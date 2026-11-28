@@ -4,6 +4,7 @@
   <h2>{{ "Done" if outcome.ok else "Not done" }}{% if outcome.code %}: {{ outcome.code }}{% endif %}</h2>
   <section>
     {% for line in outcome.lines %}<p>{{ line }}</p>{% endfor %}
+    {% if outcome.code == "E801" %}{% for gate in outcome.lines | gate_names %}<p><a href="/gates?company={{ company | urlencode }}#gate-{{ gate }}">Open gate {{ gate }} on the Gates screen</a></p>{% endfor %}{% endif %}
     {% if outcome.run_id %}<p class="run">run_id {{ outcome.run_id }}</p>{% endif %}
   </section>
 </div>

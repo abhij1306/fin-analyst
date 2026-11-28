@@ -1,0 +1,80 @@
+{% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
+{% if data.empty %}
+{{ no_company() }}
+{% else %}
+{% call head("Bridge", "The latest engagement's EBITDA bridge and adjusted P&L. Only accepted adjustments are applied.") %}
+<nav class="btn-group" aria-label="Bridge view">
+  {% for v in data.views %}
+  <a class="btn" data-size="sm" data-variant="{{ 'primary' if v == data.view else 'outline' }}"{% if v == data.view %} aria-current="page"{% endif %}
+     href="/bridge?company={{ company | urlencode }}&amp;view={{ v }}">{{ "EBITDA bridge" if v == "bridge" else "Adjusted P&L" }}</a>
+  {% endfor %}
+</nav>
+{% endcall %}
+{% if data.no_engagement %}
+{{ no_engagement(data.no_engagement) }}
+{% else %}
+<p class="muted">{{ data.engagement }} · {{ data.unit }}</p>
+{% if data.view == "bridge" %}
+{% for b in data.blocks %}
+<div class="card">
+  <header><h2>{{ b.title }}: EBITDA bridge</h2><p class="muted">{{ data.unit }}</p></header>
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      <thead><tr><th scope="col">Step</th><th scope="col">Status</th><th scope="col">Evidence</th><th scope="col" class="num">Amount</th></tr></thead>
+      <tbody>
+        {% for s in b.steps %}
+        <tr>{% if s.adjustment %}<td data-depth="1">#{{ s.adjustment.adj_id }} {{ s.adjustment.category }}: {{ clip(s.label, 50) }}</td><td>{{ badge(s.adjustment.status) }}</td><td class="sub">{{ clip(s.adjustment.evidence, 40) }}</td>
+          {% else %}<th scope="row">{{ s.label }}</th><td></td><td></td>{% endif %}<td class="num">{{ s.amount }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% if b.note %}<p class="pad muted">{{ b.note }}</p>{% endif %}
+  </section>
+</div>
+<div class="card">
+  <header><h2>{{ b.title }}: not applied</h2><p>Proposed: {{ b.proposed_count }}, {{ b.proposed }}. Proposed and rejected adjustments do not change EBITDA.</p></header>
+  <section class="flush">
+    {% if b.others %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th scope="col" class="num">#</th><th scope="col">Status</th><th scope="col">Category</th><th scope="col">Description</th><th scope="col">Evidence</th><th scope="col" class="num">Amount</th></tr></thead>
+      <tbody>{% for a in b.others %}<tr><td class="num">{{ a.adj_id }}</td><td>{{ badge(a.status) }}</td><td>{{ a.category }}</td><td>{{ clip(a.description, 40) }}</td><td class="sub">{{ clip(a.evidence, 40) }}</td><td class="num">{{ a.amount }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No proposed or rejected adjustments.") }}</div>
+    {% endif %}
+  </section>
+</div>
+{% else %}
+<div class="card"><section>{{ empty("No periods to show.") }}</section></div>
+{% endfor %}
+{% else %}
+<div class="card"><section><p class="muted">No adjustment kind changes the balance sheet or cash flow yet: they are shown as reported below. Tax is not computed for an adjustment, so the adjusted P&L ends at profit before tax.</p></section></div>
+{% for b in data.blocks %}
+<div class="card">
+  <header><h2>{{ b.title }}: profit and loss, adjusted</h2><p class="muted">{{ data.unit }}</p></header>
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      <thead><tr><th scope="col">Line</th><th scope="col" class="num">Reported</th><th scope="col" class="num">Accepted adjustments</th><th scope="col" class="num">Adjusted</th></tr></thead>
+      <tbody>
+        {% for l in b.lines %}<tr><td data-depth="{{ l.depth }}">{{ l.label }}</td><td class="num">{{ l.reported }}</td><td class="num">{{ l.adjustment }}</td><td class="num">{{ l.adjusted }}</td></tr>{% endfor %}
+        {% if b.ebitda %}<tr><th scope="row">EBITDA</th><td class="num">{{ b.ebitda.reported }}</td><td class="num">{{ b.ebitda.adjustment }}</td><td class="num">{{ b.ebitda.adjusted }}</td></tr>{% endif %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+{% else %}
+<div class="card"><section>{{ empty("No P&L figures in the engagement's periods.") }}</section></div>
+{% endfor %}
+{% if data.as_reported.message %}<div class="card"><section>{{ empty("No balance sheet or cash flow to show", data.as_reported.message) }}</section></div>{% endif %}
+{% for block in data.as_reported.blocks %}
+<div class="card">
+  <header><h2>{{ block.title }}</h2><p class="muted">{{ data.unit }}</p></header>
+  <section class="flush"><div class="table-container"><table class="table">
+    <thead><tr><th scope="col">Line</th><th scope="col" class="num">Value</th></tr></thead>
+    <tbody>{% for line in block.lines %}<tr><td data-depth="{{ line.depth }}">{{ line.label }}</td><td class="num">{{ line.value }}</td></tr>{% endfor %}</tbody>
+  </table></div></section>
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endif %}

@@ -22,6 +22,9 @@ from fin.diligence.cli_options import (
     threshold_option,
     tokens_option,
 )
+from fin.paths import data_dir
+from fin.services import diligence as services
+from fin.services.result import show
 
 engagement_app = typer.Typer(
     no_args_is_help=True, help="Diligence engagement: open one, show where it stands, close it."
@@ -71,20 +74,8 @@ def engagement_open(
 ) -> None:
     """Open a diligence engagement for the company (one at a time)."""
 
-    def body(run: Run) -> None:
-        row = engagement.open_engagement(
-            run, company, periods.split(","), threshold, stub, due_days
-        )
-        typer.echo(f"{company}: {engagement.format_engagement(row)}")
-
-    args = {
-        "company": company,
-        "periods": periods,
-        "threshold": threshold,
-        "stub": stub,
-        "due_days": due_days,
-    }
-    execute("engagement open", args, body)
+    terms = services.Terms(periods.split(","), threshold, stub, due_days)
+    show(services.open_engagement(data_dir(), company, terms, via="cli", actor=from_environment()))
 
 
 @engagement_app.command("status")
@@ -105,11 +96,7 @@ def engagement_status(company: CompanyArg, json_output: JsonOption = False) -> N
 def engagement_close(company: CompanyArg) -> None:
     """Close the open engagement. Its queries and adjustments are kept."""
 
-    def body(run: Run) -> None:
-        row = engagement.close_engagement(run, company)
-        typer.echo(f"{company}: {engagement.format_engagement(row)}")
-
-    execute("engagement close", {"company": company}, body)
+    show(services.close_engagement(data_dir(), company, via="cli", actor=from_environment()))
 
 
 @engagement_app.command("terms")

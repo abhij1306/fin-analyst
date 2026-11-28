@@ -66,10 +66,10 @@ Updated: 2026-11-28.
 | 08 | 1 | Add fin fact state for figures the user states | high | done (#120) |
 | 08 | 2 | Refuse direct writes to facts and name the missing input of a metric | | done (#120) |
 | 08 | 3 | Mark stated figures in statements, evidence, reports and gate G1 | high | done (#120) |
-| 09 | 1 | Import adjustments from a sheet | high | todo |
-| 09 | 2 | Add the engagement and bridge screens | high | todo |
-| 09 | 3 | Add the adjusted P&L view and screen | high | todo |
-| 09 | 4 | Complete the Queries and Gates screens | high | todo |
+| 09 | 1 | Import adjustments from a sheet | high | done (#128) |
+| 09 | 2 | Add the engagement and bridge screens | high | done (#128) |
+| 09 | 3 | Add the adjusted P&L view and screen | high | done (#128) |
+| 09 | 4 | Complete the Queries and Gates screens | high | done (#128) |
 | 10 | 1 | Store third-party reference tables apart from company facts | high | todo |
 | 10 | 2 | Map reference lines and compare them with fin's figures | | todo |
 | 10 | 3 | Add the comparison screen and the query and adjustment hand-offs | | todo |

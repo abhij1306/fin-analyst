@@ -1,0 +1,56 @@
+{% from "_ui.html" import head, badge, no_company, no_engagement %}
+{% from "_actions.html" import act %}
+{% if data.empty %}
+{{ no_company() }}
+{% elif data.no_engagement %}
+{{ head("Engagement", "One diligence engagement at a time: its periods, query threshold and stub.") }}
+{% if data.can_open %}
+<div class="card">
+  <header><h2>Open an engagement</h2><p>The annual periods in scope; the threshold and credit terms default to config.toml.</p></header>
+  <section>
+    <form class="form" hx-post="/engagement/open" hx-target="#screen" hx-swap="innerHTML">
+      <input type="hidden" name="company" value="{{ company }}">
+      <div class="field"><label class="label" for="e-periods">Periods</label><input class="input" id="e-periods" name="periods" placeholder="FY24,FY25,FY26" required></div>
+      <div class="field"><label class="label" for="e-threshold">Query threshold in rupees (optional)</label><input class="input" id="e-threshold" name="threshold" inputmode="decimal"></div>
+      <div class="field"><label class="label" for="e-stub">Current-year stub, unaudited (optional)</label><input class="input" id="e-stub" name="stub" placeholder="FY27-YTD-SEP"></div>
+      <div class="field"><label class="label" for="e-days">Credit terms in days (optional)</label><input class="input" id="e-days" name="due_days" inputmode="numeric"></div>
+      <footer><button type="submit" class="btn">Open the engagement</button></footer>
+    </form>
+  </section>
+</div>
+{% else %}
+{{ no_engagement(data.no_engagement) }}
+{% endif %}
+{% else %}
+{% set e = data.engagement %}
+{{ head("Engagement", "Engagement #" ~ e.engagement_id ~ ", opened " ~ (e.opened_at | when)) }}
+<div class="card">
+  <header><h2>Terms</h2><div class="card-action">{{ badge(e.status) }}</div></header>
+  <section class="flush">
+    <div class="table-container"><table class="table"><tbody>
+      <tr><th scope="row">Periods</th><td>{{ e.periods }}</td></tr>
+      <tr><th scope="row">Stub</th><td>{{ (e.stub ~ " (unaudited)") if e.stub else "none" }}</td></tr>
+      <tr><th scope="row">Query threshold</th><td class="num">{{ e.query_threshold }}</td></tr>
+      <tr><th scope="row">Credit terms</th><td>{{ e.invoice_due_days }} days</td></tr>
+    </tbody></table></div>
+  </section>
+</div>
+<div class="card">
+  <header><h2>Queries and adjustments</h2></header>
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      <thead><tr><th scope="col">Queries</th>{% for s in data.queries %}<th scope="col" class="num">{{ s }}</th>{% endfor %}</tr></thead>
+      <tbody><tr><td><a href="/queries?company={{ company | urlencode }}">Open the queries</a></td>{% for s, n in data.queries.items() %}<td class="num">{{ n }}</td>{% endfor %}</tr></tbody>
+    </table></div>
+    <div class="table-container"><table class="table">
+      <thead><tr><th scope="col">Adjustments</th><th scope="col" class="num">Count</th><th scope="col" class="num">EBITDA effect</th></tr></thead>
+      <tbody>{% for s, a in data.adjustments.items() %}<tr><td>{{ badge(s) }}</td><td class="num">{{ a.count }}</td><td class="num">{{ a.amount }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+<div class="card">
+  <header><h2>Gates</h2><p><a href="/gates?company={{ company | urlencode }}">Checklists on the Gates screen</a> · <a href="/bridge?company={{ company | urlencode }}">EBITDA bridge</a></p></header>
+  <section><ul class="checks">{% for g in data.gates %}<li>{{ g.gate }} {{ g.title }}: {{ badge(g.state) }}</li>{% endfor %}</ul></section>
+  <footer>{{ act("engagement-close", e.engagement_id, "Close the engagement", company, ask="Close engagement #" ~ e.engagement_id ~ "? Its queries and adjustments are kept. fin refuses (E801) until gate G4 is approved when there is work in it.", post="/engagement/close") }}</footer>
+</div>
+{% endif %}

@@ -1,6 +1,7 @@
 """What the Home screen shows, from `fin status` data: counts, the next gate and what waits for the
 user. Plain data for the templates; every number comes from `fin.status`."""
 
+import re
 from typing import Any
 
 # Query statuses with a button for the user: approve a draft, mark an approved one sent,
@@ -45,6 +46,32 @@ def tab_counts(status: dict[str, Any]) -> dict[str, int]:
         "gates": sum(1 for state in gates.values() if state != "approved"),
     }
     return {screen: n for screen, n in counts.items() if n}
+
+
+# The command a failing gate line names -> the screen where the user does it, and the link's text.
+# A line naming another command (or none) is offered to Claude in chat instead.
+GATE_FIXES = (
+    ("fin review list", "mappings", "Review the mappings"),
+    ("fin findings", "files", "See the findings on the Files screen"),
+    ("fin ingest", "files", "Load the files on the Files screen"),
+    ("fin query", "queries", "Open the queries"),
+    ("fin adjust", "queries", "Open the adjustments"),
+    ("fin fdd finding", "findings", "Open the FDD findings"),
+)
+COMMAND = re.compile(r"`(fin [^`]*)`")
+
+
+def gate_fix(text: str) -> dict[str, str] | None:
+    """Where the user closes a failing checklist line: {"screen", "label"} from the first command
+    the line names, or None (then the screen offers to ask Claude). A review with an option
+    (`--netdebt`, `--tax`, `--related`, ...) is another kind, not on the Mappings screen."""
+    for command in COMMAND.findall(text):
+        if command.startswith("fin review") and "--" in command:
+            return None
+        for prefix, screen, label in GATE_FIXES:
+            if command.startswith(prefix):
+                return {"screen": screen, "label": label}
+    return None
 
 
 def home(status: dict[str, Any]) -> dict[str, Any]:

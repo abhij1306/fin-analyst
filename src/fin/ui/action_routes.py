@@ -19,6 +19,25 @@ from fin.ui import actions, screens
 from fin.ui.uploads import MAX_REQUEST_BYTES
 
 
+def acted(
+    templates: Jinja2Templates,
+    root: Path,
+    request: Request,
+    screen: str,
+    company: str,
+    outcome: ActionResult,
+) -> HTMLResponse:
+    """The screen again, with the outcome on top and the tab counts sent again."""
+    context = {
+        "company": company,
+        "tab_counts": screens.tab_counts(root, company or None),
+        "data": screens.LOADERS[screen](root, company),
+        "screen": screen,
+        "outcome": outcome,
+    }
+    return templates.TemplateResponse(request, "_acted.html", context)
+
+
 def add_action_routes(
     app: FastAPI,
     root: Path,
@@ -26,14 +45,7 @@ def add_action_routes(
     known: Callable[[Path, str | None], str | None],
 ) -> None:
     def shown(request: Request, screen: str, company: str, outcome: ActionResult) -> HTMLResponse:
-        context = {
-            "company": company,
-            "tab_counts": screens.tab_counts(root, company or None),
-            "data": screens.LOADERS[screen](root, company),
-            "screen": screen,
-            "outcome": outcome,
-        }
-        return templates.TemplateResponse(request, "_acted.html", context)
+        return acted(templates, root, request, screen, company, outcome)
 
     @app.post("/act", response_class=HTMLResponse)
     def act(

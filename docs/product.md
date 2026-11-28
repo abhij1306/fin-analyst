@@ -148,7 +148,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `saved_metrics`, `saved_metric_operands` (tables) and `saved_metrics_wide` (view rewritten by `fin metric`): saved metrics; the shared ones also in `shared/dictionary.duckdb` `saved_metrics`
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - `rebuilt_statements` (temporary view per connection, `fin.rebuilt`) over `rebuilt_ledgers` (`rebuilt.sql`): the statements rebuilt from the trial balance (SPEC-14)
-- Diligence: `engagement`, `accountant_queries`, `adjustments`, `passthrough_customers` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`, `revenue_split`, `passthrough_lines`, `customer_revenue`, `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`, `product_revenue`, `product_pvm`, `product_pvm_summary` (views on the latest engagement; `customers` is a table)
+- Diligence: `engagement`, `accountant_queries`, `adjustments`, `passthrough_customers` (tables) and `engagement_periods`, `adjusted_ebitda`, `adjusted_pl`, `ebitda_bridge`, `ebitda_to_cash`, `revenue_split`, `passthrough_lines`, `customer_revenue`, `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`, `product_revenue`, `product_pvm`, `product_pvm_summary` (views on the latest engagement; `customers` is a table)
 - Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
 
 **Shared**
@@ -374,6 +374,7 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin netdebt show <co> [--period] [--json]`, `fin netdebt propose <co> [file]`, `fin netdebt item propose\|list <co>` (FDD F4) | `/diligence` | Claude proposes classes and items |
 | `fin review confirm\|reject <co> <ids> --netdebt`, `fin netdebt item accept\|reject <co> <ids>` | `/diligence` | Either (when the user says) |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
+| `fin adjust import <co> <file.csv\|xlsx\|xlsm> [--sheet]` (or the walk-sheet upload on the Queries screen) | `/diligence` | Either |
 | `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
 | `fin gate status <co> [--json]` | `/diligence` | Either |
 | `fin gate approve <co> <gate>` | `/diligence` | Human (Claude only when the user says; the PreToolUse hook asks) |
@@ -579,7 +580,7 @@ reclassification between cost accounts; and evidence: a query, a finding or a so
 rejected). Every row added and every status change is appended to the
 audit table `diligence_events`. `config.toml` gets a required `[diligence]` table (`query_threshold`, default
 100000.00 rupees; `adjustment_categories`). Commands: `fin engagement open|status|close`, `fin query
-list|raise|edit|approve|sent|answer|close|withdraw`, `fin adjust propose|list|accept|reject`; every one but
+list|raise|edit|approve|sent|answer|close|withdraw`, `fin adjust propose|import|list|accept|reject`; every one but
 `engagement open` needs an open engagement (E803), except `fin query list` and `fin adjust list`, which print
 "<co> has no open engagement: no queries" (or adjustments; `[]` with `--json`) and exit 0; an invalid adjustment is E804; an unknown id or a status change
 not allowed is E805. fin never sends a query: `fin query sent` records that the user sent it. Rules in `CLAUDE.md`
@@ -1259,6 +1260,27 @@ Questions (SPEC-07):
   databases they change. `fin sql --write` refuses to change the saved metric tables (E504). E506 when a metric
   cannot be saved.
 
+### Diligence in the UI (SPEC-09)
+
+Builder's readings: [decisions/spec-09.md](decisions/spec-09.md).
+
+- **`fin adjust import <co> <file> [--sheet]`** proposes one adjustment per row of a walk sheet (.csv, .xlsx, .xlsm; the
+  first sheet unless `--sheet`). The first filled row is the header: `Period`, `Scope`, `Category`, `Description`,
+  `Revenue effect` and/or `Cost effect` (at least one column, and a value in each row), optionally `Account` and
+  `Source reference` (any case; `_` reads as a space). The EBITDA effect is revenue effect minus cost effect.
+  Each adjustment's evidence is the file and the row's description cell (`walk.xlsx Walk!G5`), then the source
+  reference. Every row is checked as `fin adjust propose` checks it before any is added, so one bad row, an unknown
+  column or a missing sheet is E847: the message names the row (or the column or sheet), nothing is imported and no event is logged. A sheet
+  already imported into the engagement is E847 too (a row's evidence is already an adjustment that is not rejected):
+  importing it twice would count each adjustment twice. The file is archived like an ingested document; one run, one `adjust import` event and one event per adjustment.
+- **`adjusted_pl`** (view, `fin sql`): the P&L of the latest engagement's annual periods, reported and adjusted per
+  account, period and scope (every annual account; the Bridge screen shows the P&L lines, and a balance sheet or
+  cash flow account is there as reported with adjustment 0). Accepted adjustments land on `revenue` and `total_income` (revenue effect),
+  `total_expenses` (cost effect), `profit_before_exceptional_items`, `profit_before_extraordinary_items` and `pbt`
+  (the EBITDA effect), and a
+  reclassification moves `moved_amount` from `from_account` to `account`. Other lines are as reported. Proposed
+  adjustments are not applied. A line with no reported figure has no adjusted figure.
+
 ## Web UI (optional, `fin ui`)
 
 Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: [decisions/web-ui.md](decisions/web-ui.md). The UI is built in four steps; all four steps (foundation, read-only screens, decision buttons and uploads, chat) are here. The CLI does not change, and without the add-on nothing else does either.
@@ -1275,12 +1297,14 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
     customer sectors, tax ledger classes, related party links, net debt classes, bank matches), each with its rows
     as the CLI prints them, or the reason it has none (E803 without an open engagement).
   - Statements: the statements as reported in the databook layout with scope, statement, periods and unit pickers and a source drawer (SPEC-06), or reported vs rebuilt from the trial balance (`?view=rebuilt`; SPEC-14); why there is nothing to show when there is not. Another view, or a picker value not offered, is refused with E001.
-  - Queries: the open engagement's accountant queries and adjustments with status and evidence.
-  - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`).
+  - Engagement: open an engagement (periods, threshold, stub, credit terms; as `fin engagement open`) when there is none; else its terms, query and adjustment counts, the gates (each links to the Gates screen) and **Close** (as `fin engagement close`).
+  - Queries: the open engagement's accountant queries and adjustments with status and evidence; **Raise a query** (amount, period, scope, where the figures are, the question; as `fin query raise`), **Edit** a draft's wording, **Record answer** on a sent query (as `fin query answer`), **Export workbook and email** and **Export Word briefs** (as `fin query export [--brief]`; the files are written to `exports/<co>/<run_id>/`, fin sends nothing), and the walk-sheet import (as `fin adjust import`).
+  - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`). A failing line links to the screen that closes it (a `fin query`, `fin adjust`, `fin review`, `fin findings` or `fin fdd finding` command in the line), or offers **Ask Claude** when no screen does. An E801 refusal anywhere links to the gate it names.
+  - Bridge (money in the display unit, SPEC-06): reported to adjusted EBITDA per period and scope, one step per accepted adjustment with its status and evidence, and the adjustments not applied (proposed, rejected) apart with the proposed sum (as `fin engagement bridge`); `?view=pl` shows `adjusted_pl` side by side (reported, adjustment, adjusted) and the balance sheet and cash flow as reported, with a note that adjustments change only the P&L. Another view is E001.
   - Findings: the engagement's FDD findings (not dropped) with status, severity, amount and flags.
   - Reports: **Export to Excel** (a background job, see "Jobs" below; as `fin export`) and the HTML, Word, PDF and Excel files under `reports/<company>/`; HTML opens in the browser as a sandboxed page (it cannot use the UI's token), the others download. A name that is not one of the listed files is refused with E001.
   - Log: the company's latest 100 runs (newest first) with their problems.
-  - Queries, Gates and Findings say so (E803, or nothing loaded) when the company has no open engagement. 
+  - Queries, Gates, Bridge and Findings say so (E803, or nothing loaded) when the company has no open engagement.
 - **Decisions (step 3)**: the buttons are the user's decisions, each through the service the matching CLI command calls (`fin.services.decisions`), in a run with that command's name (run record, audit log, backup, gate checks, masking, refusals). The run's arguments record `via` (`ui` or `cli`) and `actor`; apart from `via` the run record is the CLI's. A button press is always the user's (`actor` `user`), even when `fin ui` was started from inside Claude Code. The alert shows the lines the CLI prints. The UI never drafts or proposes; Claude does that in chat (step 4). After a button the screen is shown again with an alert: "Done", or "Not done: <code>" with the CLI's message and the run_id.
   - Mappings: Confirm (the proposed account, company scope; held documents are checked again and the metrics refreshed, as `fin review confirm`), Use account (another account, searched over the dictionary's accounts of the statement, as `--account`) and Reject (`fin review reject`). One button confirms every proposal at confidence 0.8 or above; a lower one is marked and confirmed on its own. The other review kinds have Confirm, Use account / sector / tax class where the CLI has that choice, and Reject (`fin review confirm|reject <co> <ids> --<kind>`).
   - Files: Save as is on an open finding (`fin findings accept`); on a finding that names a mapping, Change the mapping (choose another account: `fin map set` with the label and section as the dictionary stores them, same run record). **Delete** a document, in a dialog that says what goes: a run "document delete" (`fin.documents`) copies the company database and the document's files to `backups/<run_id>/`, deletes every version of the file (the documents with its sha256) with their rows in every company table with a `doc_id` (raw values, facts, notes, findings, verify runs and lines) in one transaction, removes its archived original, notes, a reading no other document uses and the inbox copy with the same content, appends a `deletions` row and rebuilds the mapping items waiting for review (`pending.json`) and the shared metrics. A gate whose inputs changed reopens. A doc_id the company does not have is E001. `fin document delete <co> <ids>` does the same from the command line.
@@ -1290,7 +1314,8 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Queries: Approve a draft, Mark sent (a dialog: only if you sent it; fin sends nothing), Close an answered query (dialog), Withdraw (dialog with the reason, as `--reason`); adjustments: Accept, Reject (dialog with the reason). They refuse as the CLI does (E805, and E801 while a gate is not approved).
   - Gates: Approve in a confirmation dialog (`fin gate approve`; refused with E802 while the checklist fails or an earlier gate is not approved).
   - Findings: Mark final in a confirmation dialog, Return to draft (`fin fdd finding final [--undo]`; E971).
-  - Not in the UI: answering a query, raising or proposing anything, and the other review kinds (ledgers, customers, tax, related parties, net debt, matches).
+  - Raise, edit, answer, export and import (above) are the user's own forms, recorded with `actor` `user` and `via` `ui` like the buttons.
+  - Not in the UI: proposing an adjustment one at a time, and the other review kinds (ledgers, customers, tax, related parties, net debt, matches).
   - Every change is a `POST` that needs the token cookie and an `Origin` header naming the server (else E007, nothing runs). A missing reason, an unknown action or a bad id is E008 and starts no run.
 - **Chat (step 4)**: the panel on the right of every screen runs the installed Claude Code headless (`claude -p --output-format stream-json --verbose --include-partial-messages`) in the repo folder, so CLAUDE.md, skills and the client's hooks apply (never `--bare`, never a bypass mode), with `FIN_DATA_DIR` set to the UI's data folder. It uses the user's own Claude Code login; the UI warns when `ANTHROPIC_API_KEY` is set (Claude Code would bill that key) and is for one person on one machine, not for hosting or sharing.
   - One `claude` process per conversation at a time (E011 while one runs); each turn is a process (`--session-id` first, `--resume` after), so a conversation resumes after `fin ui` restarts. Conversations are JSON files in `<data folder>/chat/`; the list and **New chat** are in the panel header. **Stop** ends the process. Text streams in over server-sent events (htmx SSE extension); tool calls show collapsed; errors show with their code.

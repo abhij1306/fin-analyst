@@ -89,6 +89,18 @@ def bridge(
         }
 
 
+def adjustment_rows(run: Run, company: str) -> list[dict[str, Any]]:
+    """Every adjustment of the latest engagement (open or closed), by id: the bridge screen shows
+    each one's status and evidence. E803 without an engagement."""
+    with company_database(run, company) as con:
+        engagement = latest_engagement(con, company)
+        return fetch_dicts(
+            con,
+            "SELECT * FROM adjustments WHERE engagement_id = ? ORDER BY adj_id",
+            [engagement["engagement_id"]],
+        )
+
+
 def missing(row: dict[str, Any], inputs: tuple[str, ...]) -> str:
     """'  (missing: cf_cash_generated)' for the inputs without a value, or ''."""
     names = [ACCOUNTS.get(name, name) for name in inputs if row[name] is None]

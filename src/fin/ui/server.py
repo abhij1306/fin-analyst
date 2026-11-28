@@ -24,6 +24,7 @@ from fin.ui.action_routes import add_action_routes
 from fin.ui.chat_routes import add_chat_routes
 from fin.ui.chat_run import Chat
 from fin.ui.csrf import origin_guard
+from fin.ui.diligence_routes import add_diligence_routes
 from fin.ui.job_routes import WORK, add_job_routes
 from fin.ui.security import new_token, protect
 from fin.ui.setup import STATIC_DIR, TEMPLATE_DIR
@@ -38,8 +39,10 @@ SCREENS = [
         "Files",
         "Mappings",
         "Statements",
+        "Engagement",
         "Queries",
         "Gates",
+        "Bridge",
         "Findings",
         "Reports",
         "Log",
@@ -147,6 +150,7 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
         return report_response(screens.report_file(root, known(root, company) or "", name))
 
     add_action_routes(app, root, templates, known)
+    add_diligence_routes(app, root, templates, known)
     add_chat_routes(app, root, templates, chat)
     add_job_routes(app, root, templates, known, jobs)
     return app
