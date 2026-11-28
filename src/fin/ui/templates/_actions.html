@@ -35,3 +35,24 @@
 </form>
 {% endif %}
 {% endmacro %}
+
+{#- A button that asks for confirmation in a dialog, then posts `fields` to `url` and swaps the answer into
+    `target` (Re-ingest: the jobs card). The dialog closes when the answer arrives. -#}
+{% macro confirm(url, fields, target, label, uid, ask, variant="outline") %}
+<button type="button" class="btn" data-size="sm" data-variant="{{ variant }}" onclick="document.getElementById('d-{{ uid }}').showModal()">{{ label }}</button>
+<dialog id="d-{{ uid }}" class="dialog" aria-labelledby="t-{{ uid }}">
+  <div>
+    <header>
+      <h2 id="t-{{ uid }}">{{ label }}</h2>
+      <p>{{ ask }}</p>
+    </header>
+    <form class="form" hx-post="{{ url }}" hx-target="{{ target }}" hx-swap="outerHTML" hx-on::after-request="this.closest('dialog').close()">
+      {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+      <footer>
+        <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="btn">{{ label }}</button>
+      </footer>
+    </form>
+  </div>
+</dialog>
+{% endmacro %}

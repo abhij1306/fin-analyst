@@ -13,13 +13,23 @@ from fastapi.templating import Jinja2Templates
 from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.extract.addon import ADDON_LABELS
-from fin.services import addon, reports
+from fin.ingest import UNIT_ANSWERS
+from fin.services import addon, ingest, reports
 from fin.services.jobs import Jobs, Work, list_jobs
 from fin.services.result import ActionResult, Progress
+from fin.ui.actions import ITEM_ID
 
 # The job actions and how the page names them.
-LABELS = {"export": "Export to Excel", "addon": "Install a PDF add-on"}
-CHOICES = {"addon": tuple(ADDON_LABELS)}  # the actions that take a choice, and its values
+LABELS = {
+    "export": "Export to Excel",
+    "addon": "Install a PDF add-on",
+    "ingest": "Ingest",
+    "reingest": "Re-ingest",
+    "unit": "Load with the unit",
+}
+# The actions that take a choice: its values and the argument it becomes.
+CHOICES = {"addon": (tuple(ADDON_LABELS), "name"), "unit": (tuple(UNIT_ANSWERS), "unit")}
+ON_ITEM = {"reingest", "unit"}  # the jobs that act on one file: a doc_id, or a held file's name
 
 
 def _export(root: Path, company: str, *, progress: Progress) -> ActionResult:
@@ -30,21 +40,51 @@ def _addon(root: Path, company: str, *, progress: Progress, name: str) -> Action
     return addon.install_addon(root, name, via="ui", actor=USER, progress=progress)
 
 
-WORK: dict[str, Work] = {"export": _export, "addon": _addon}
+def _ingest(root: Path, company: str, *, progress: Progress) -> ActionResult:
+    return ingest.ingest_inbox(root, company, via="ui", actor=USER, progress=progress)
 
 
-def _arguments(action: str, choice: str | None) -> dict[str, Any]:
-    """The job's arguments: its choice, for an action that takes one. E008 for a choice the action
-    does not offer, or a choice given to one that takes none."""
+def _reingest(root: Path, company: str, *, doc_id: int, progress: Progress) -> ActionResult:
+    return ingest.reingest_document(root, company, doc_id, via="ui", actor=USER, progress=progress)
+
+
+def _unit(root: Path, company: str, *, file: str, unit: str, progress: Progress) -> ActionResult:
+    return ingest.load_with_unit(root, company, file, unit, via="ui", actor=USER, progress=progress)
+
+
+WORK: dict[str, Work] = {
+    "export": _export,
+    "addon": _addon,
+    "ingest": _ingest,
+    "reingest": _reingest,
+    "unit": _unit,
+}
+
+
+def job_arguments(
+    root: Path, company: str, action: str, item: str, choice: str | None
+) -> dict[str, Any]:
+    """The job's arguments from the form. E008 for a choice the action does not offer, a choice
+    or an item given to one that takes none, or a document or held file that does not exist."""
+    arguments: dict[str, Any] = {}
     if action in CHOICES:
-        if choice not in CHOICES[action]:
-            raise UiActionInvalid(
-                f"{action}: {choice!r} is not one of {', '.join(CHOICES[action])}"
-            )
-        return {"name": choice}
-    if choice is not None:
+        values, argument = CHOICES[action]
+        if choice not in values:
+            raise UiActionInvalid(f"{action}: {choice!r} is not one of {', '.join(values)}")
+        arguments[argument] = choice
+    elif choice is not None:
         raise UiActionInvalid(f"{action} takes no choice; nothing was started")
-    return {}
+    if action not in ON_ITEM:
+        if item:
+            raise UiActionInvalid(f"{LABELS.get(action, action)} takes no item; nothing started")
+        return arguments
+    if action == "unit":
+        ingest.held_for_unit(root, company, item)  # E008 now, not when the job runs
+        return arguments | {"file": item}
+    if not ITEM_ID.fullmatch(item):
+        raise UiActionInvalid(f"{item!r} is not a document id; nothing was started")
+    ingest.document(root, company, int(item))
+    return arguments | {"doc_id": int(item)}
 
 
 def jobs_context(root: Path, company: str) -> dict[str, Any]:
@@ -72,11 +112,14 @@ def add_job_routes(
         request: Request,
         action: Annotated[str, Form()],
         company: Annotated[str, Form()],
+        item: Annotated[str, Form()] = "",
         choice: Annotated[str | None, Form()] = None,
     ) -> HTMLResponse:
         name = chosen(company)
-        jobs.submit(name, action, _arguments(action, choice))
-        return shown(request, name)
+        jobs.submit(name, action, job_arguments(root, name, action, item, choice))
+        response = shown(request, name)
+        response.headers["HX-Trigger"] = "job-queued"  # the Files screen's rows start to follow it
+        return response
 
     @app.get("/partials/jobs", response_class=HTMLResponse)
     def partial(request: Request, company: str | None = None) -> HTMLResponse:

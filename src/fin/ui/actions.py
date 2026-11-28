@@ -1,4 +1,5 @@
-"""The decisions a person takes in the UI and the upload of files (docs/web-ui-plan.md).
+"""The decisions a person takes in the UI, the deletion of a document and the upload of files
+(docs/web-ui-plan.md, docs/specs/SPEC-03).
 
 Each entry names the service function its CLI command calls (`fin.services`): same run record
 apart from `via`: audit log, backup, gate checks, masking and refusals. The actor is always the
@@ -15,7 +16,7 @@ from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.diligence import gates
 from fin.services import decisions
-from fin.services.files import upload
+from fin.services.files import delete_documents, upload
 from fin.services.result import ActionResult
 
 ITEM_ID = re.compile(r"[0-9]{1,18}")  # a BIGINT id; ASCII digits only
@@ -35,6 +36,7 @@ ACTIONS: dict[str, Action] = {
     "mapping-confirm": Action("mappings", decisions.confirm_mappings),
     "mapping-reject": Action("mappings", decisions.reject_mappings),
     "finding-accept": Action("files", decisions.accept_findings),
+    "document-delete": Action("files", delete_documents),
     "query-approve": Action("queries", decisions.set_query_status, {"target": "approved"}),
     "query-sent": Action("queries", decisions.set_query_status, {"target": "sent"}),
     "query-close": Action("queries", decisions.set_query_status, {"target": "closed"}),

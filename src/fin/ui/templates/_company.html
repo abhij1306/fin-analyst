@@ -1,0 +1,36 @@
+{#- Create a company: its name and the short code its folders and database are named after. The answer is a
+    redirect to its Files screen, or the refusal in the form's outcome area. -#}
+{% macro company_form(uid) %}
+<form class="form" hx-post="/company" hx-target="#company-outcome-{{ uid }}" hx-swap="innerHTML">
+  <div class="field">
+    <label class="label" for="co-name-{{ uid }}">Company name</label>
+    <input class="input" id="co-name-{{ uid }}" name="name" required maxlength="120">
+  </div>
+  <div class="field">
+    <label class="label" for="co-code-{{ uid }}">Short code</label>
+    <input class="input" id="co-code-{{ uid }}" name="code" required maxlength="40" pattern="[a-z0-9][a-z0-9_\-]*">
+    <p class="muted">Lower-case letters, digits, - and _. Its folders are named after it, e.g. inbox/&lt;code&gt;/.</p>
+  </div>
+  <div id="company-outcome-{{ uid }}"></div>
+  {{ caller() if caller else "" }}
+</form>
+{% endmacro %}
+
+{% macro new_company(dialog=false) %}
+{% if dialog %}
+<button type="button" class="btn" data-size="sm" data-variant="outline" onclick="document.getElementById('d-new-company').showModal()">New company</button>
+<dialog id="d-new-company" class="dialog" aria-labelledby="t-new-company">
+  <div>
+    <header><h2 id="t-new-company">New company</h2></header>
+    {% call company_form("dialog") %}
+    <footer>
+      <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn">Create</button>
+    </footer>
+    {% endcall %}
+  </div>
+</dialog>
+{% else %}
+{% call company_form("page") %}<button type="submit" class="btn">Create company</button>{% endcall %}
+{% endif %}
+{% endmacro %}

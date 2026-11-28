@@ -28,8 +28,9 @@
 {% endmacro %}
 
 {% macro no_company() %}
+{% from "_company.html" import new_company %}
 {{ head("fin") }}
-<div class="card"><section>{{ empty("No companies yet", "Put files in inbox/<company>/ and ingest them.") }}</section></div>
+<div class="card"><section>{{ empty("No companies yet", "Create one, then upload its files on the Files screen.") }}{{ new_company() }}</section></div>
 {% endmacro %}
 
 {% macro no_engagement(message) %}

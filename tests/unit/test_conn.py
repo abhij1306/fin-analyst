@@ -7,6 +7,7 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
+import duckdb
 import pytest
 
 from fin.audit.errors import DatabaseLocked, DependencyMissing, ReadOnlyViolation
@@ -118,3 +119,24 @@ def test_a_connection_of_this_process_in_the_other_mode_is_waited_for(db: Path) 
 def test_a_connection_of_this_process_that_stays_open_is_e501(db: Path) -> None:
     with connect(db), pytest.raises(DatabaseLocked), connect(db, write=True, retry=FAST):
         pass
+
+
+def test_a_file_handle_conflict_within_this_process_is_waited_for(
+    db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another thread opening or closing the same file (a page while a job writes): waited for."""
+    real, calls = duckdb.connect, []
+
+    def conflict_once(path: str, read_only: bool) -> duckdb.DuckDBPyConnection:
+        calls.append(path)
+        if len(calls) == 1:
+            raise duckdb.ResourceInUseException(
+                f'Unique file handle conflict: Cannot attach "t" - the database file "{path}" is '
+                'already attached by database "t"'
+            )
+        return real(path, read_only=read_only)
+
+    monkeypatch.setattr(duckdb, "connect", conflict_once)
+    with connect(db, retry=FAST) as con:
+        assert con.execute("SELECT count(*) FROM t").fetchone() is not None
+    assert len(calls) == 2

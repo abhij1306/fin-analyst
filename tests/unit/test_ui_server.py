@@ -151,7 +151,7 @@ def test_every_screen_opens_for_a_company_with_no_data(client: TestClient) -> No
 def test_the_files_screen_lists_what_waits_in_the_inbox(client: TestClient) -> None:
     page = signed_in(client).get("/files?company=acme")
     assert "waiting.xlsx" in page.text
-    assert "Nothing is loaded yet." in page.text
+    assert "waiting in inbox/acme/: press Ingest" in page.text
 
 
 def test_queries_gates_and_findings_say_so_when_there_is_no_engagement(
@@ -203,8 +203,8 @@ def test_the_files_and_log_screens_show_a_loaded_company(
     )
     signed_in(client)
     files = client.get("/partials/files?company=kestrel").text
-    assert "loaded" in files
-    assert "Nothing is loaded yet." not in files
+    assert "Kestrel_Forgings_Financials_FY23-FY25.xlsx" in files
+    assert 'data-tone="ok">loaded<' in files
     log = client.get("/partials/log?company=kestrel").text
     assert "ingest" in log
     assert "E803" in client.get("/partials/gates?company=kestrel").text

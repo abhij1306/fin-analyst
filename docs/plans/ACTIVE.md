@@ -43,10 +43,10 @@ Updated: 2026-11-28.
 | 02 | 1 | Move the decision actions into shared service functions | | done (#118) |
 | 02 | 2 | Pass the actor explicitly and store it as user or ai:provider | high | done (#118) |
 | 02 | 3 | Add background jobs with progress to the UI | | done (#118) |
-| 03 | 1 | Run ingest from the Files screen with one outcome row per file | | todo |
-| 03 | 2 | Show a next step for every ingest failure | | todo |
-| 03 | 3 | Add company creation, re-ingest and delete to the Files screen | | todo |
-| 03 | 4 | Start an assistant reading from a failed file | | todo |
+| 03 | 1 | Run ingest from the Files screen with one outcome row per file | | done (#123) |
+| 03 | 2 | Show a next step for every ingest failure | | done (#123) |
+| 03 | 3 | Add company creation, re-ingest and delete to the Files screen | | done (#123) |
+| 03 | 4 | Start an assistant reading from a failed file | | done (#123) |
 | 04 | 1 | Hold a document with no unit line and ask for the unit | high | done (#124) |
 | 04 | 2 | Read .xls workbooks | | done (#124) |
 | 04 | 3 | Hold only the sheet with unlabeled values and name the cells | | done (#124) |
