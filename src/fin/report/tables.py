@@ -267,9 +267,14 @@ def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
         "No figures loaded.",
     )
     unread = table(
-        ["File", "Statement", "Page", "Reason"],
+        ["File", "Statement", "Page or sheet", "Reason"],
         [
-            [row["file_name"], row["statement"], str(row["page"]), f"{row['code']} {row['reason']}"]
+            [
+                row["file_name"],
+                row["statement"],
+                _page_or_sheet(row),
+                f"{row['code']} {row['reason']}",
+            ]
             for row in data["unread"]
         ],
         "None: fin read every statement page of the loaded documents.",
@@ -339,6 +344,11 @@ def corrected_table(data: dict[str, Any]) -> str:
         ],
         "None: no figure fin read was corrected.",
     )
+
+
+def _page_or_sheet(row: dict[str, Any]) -> str:
+    """Where an unread statement is: its page, or its sheet (an Excel sheet held, E204)."""
+    return f"sheet {row['sheet']}" if row.get("sheet") else str(row["page"])
 
 
 def facts_table(data: dict[str, Any], display_unit: str) -> str:

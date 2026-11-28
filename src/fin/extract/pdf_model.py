@@ -118,6 +118,7 @@ class PdfValue:
     scope: str | None  # standalone | consolidated, None when the title does not say
     section: str  # nearest heading line above the row, "" if none
     note: str | None  # note reference column, if the table has one
+    unit_given: bool = False  # the page names no unit: `unit` is the one the user gave
 
 
 @dataclass(frozen=True)
@@ -188,3 +189,4 @@ class _Page:
     unit: str
     columns: list[Column]
     failed: DocumentFailure | None = None  # why the page was not read
+    unit_given: bool = False  # read in the unit the user gave (no unit line)

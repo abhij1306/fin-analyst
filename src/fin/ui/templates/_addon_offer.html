@@ -1,0 +1,15 @@
+{#- The PDF add-on offer (SPEC-04): some PDF pages were not read and no add-on is chosen. Each
+    button installs one as a job (fin parser use); the jobs card then takes this card's place. -#}
+{% if offer %}
+<div id="addon-offer" class="card">
+  <header><h2>Read the PDF pages fin skipped</h2><p>Some statement pages were not read and no PDF add-on is chosen. Install one, then ingest those files again.</p></header>
+  <section class="pad">
+    {% for o in offer %}
+    <form class="inline" hx-post="/job" hx-target="#addon-offer" hx-swap="outerHTML"{% if o.cloud %} hx-confirm="{{ o.label }} uploads the pages it reads to its cloud service. Install it?"{% endif %}>
+      <input type="hidden" name="action" value="addon"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="choice" value="{{ o.name }}">
+      <button type="submit" class="btn" data-size="sm" data-variant="outline">Install {{ o.label }}</button> <span class="muted">{{ o.about }}</span>
+    </form>
+    {% endfor %}
+  </section>
+</div>
+{% endif %}

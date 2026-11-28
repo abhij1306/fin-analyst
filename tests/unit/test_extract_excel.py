@@ -297,9 +297,10 @@ def test_missing_unit_is_e203(samples: Path) -> None:
 def test_a_missing_unit_says_which_lines_were_above_the_header(samples: Path) -> None:
     with pytest.raises(FinError) as caught:
         extract_workbook(samples / "broken" / "Bluepeak_Polymers_FY2024-25_NO_UNIT.xlsx")
-    seen = caught.value.context
-    assert seen is not None
-    assert seen["sheet"]
+    context = caught.value.context
+    assert context["question"] == "unit"
+    assert context["sheets"] == [s["sheet"] for s in context["seen"]]
+    seen = context["seen"][0]
     assert seen["header_row"] > 1
     assert seen["lines"]
     assert all(isinstance(line, str) for line in seen["lines"])

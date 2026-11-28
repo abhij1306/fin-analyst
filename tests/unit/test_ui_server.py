@@ -224,3 +224,69 @@ def test_the_gates_queries_and_findings_screens_show_an_open_engagement(tmp_path
     assert "credit terms 90 days" in gates  # the engagement's own terms (SPEC-17 item 4)
     assert "No queries." in client.get("/partials/queries?company=acme").text
     assert "No FDD findings." in client.get("/partials/findings?company=acme").text
+
+
+def test_skipped_pdf_pages_offer_a_pdf_add_on_that_installs_as_a_job(
+    clean_root: Callable[..., Path], data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    import fin.services.addon
+    from fin.db.conn import connect
+    from fin.paths import company_db_path
+    from fin.services.jobs import list_jobs
+    from fin.services.result import Done
+
+    clean_root("kestrel")
+    unread = '[{"page": 4, "statement": "cash_flow", "code": "E202", "reason": "no periods"}]'
+    with connect(company_db_path(data_root, "kestrel"), write=True) as con:
+        con.execute("UPDATE documents SET unread_pages = ?", [unread])
+    installed: list[tuple[str, str, str]] = []
+
+    def install(root: Path, name: str, *, via: str, actor: str, progress: object) -> Done:
+        installed.append((name, via, actor))
+        return Done([f"installed {name}"], "run-1")
+
+    monkeypatch.setattr(fin.services.addon, "install_addon", install)
+    client = TestClient(
+        create_app(data_root, TOKEN, PORT), base_url=f"http://{HOST}", follow_redirects=False
+    )
+    signed_in(client)
+    files = client.get("/partials/files?company=kestrel").text
+    assert "Read the PDF pages fin skipped" in files
+    for label in ("Install Docling", "Install LiteParse", "Install LlamaParse"):
+        assert label in files
+    assert "LiteParse: local, nothing leaves this machine" in files
+    assert "LlamaParse uploads the pages it reads to its cloud service" in files  # asked first
+
+    origin = {"Origin": f"http://{HOST}"}
+    form = {"action": "addon", "company": "kestrel"}
+    refused = client.post("/job", data={**form, "choice": "pdfminer"}, headers=origin)
+    assert refused.status_code == 400
+    assert "E008" in refused.text
+    assert list_jobs(data_root, "kestrel") == []
+    started = client.post("/job", data={**form, "choice": "liteparse"}, headers=origin)
+    assert started.status_code == 200
+    assert 'id="jobs"' in started.text
+    for _ in range(300):
+        jobs = list_jobs(data_root, "kestrel")
+        if jobs and jobs[0]["state"] == "done":
+            break
+        time.sleep(0.1)
+    assert installed == [("liteparse", "ui", "user")]
+    assert [(j["action"], j["state"], j["lines"]) for j in list_jobs(data_root, "kestrel")] == [
+        ("addon", "done", ["installed liteparse"])
+    ]
+
+
+def test_no_add_on_is_offered_when_every_page_was_read(
+    clean_root: Callable[..., Path], data_root: Path
+) -> None:
+    clean_root("kestrel")
+    client = TestClient(
+        create_app(data_root, TOKEN, PORT), base_url=f"http://{HOST}", follow_redirects=False
+    )
+    signed_in(client)
+    assert (
+        "Read the PDF pages fin skipped" not in client.get("/partials/files?company=kestrel").text
+    )

@@ -103,10 +103,16 @@ class AddonResult:
 
 
 def read_skipped(
-    engine: Engine, path: Path, skipped: list[SkippedPage], start_month: int, cache_dir: Path
+    engine: Engine,
+    path: Path,
+    skipped: list[SkippedPage],
+    start_month: int,
+    cache_dir: Path,
+    unit: str | None = None,
 ) -> AddonResult:
-    """Read the statement pages pdfplumber skipped with `engine`. Pages it reads give values; the
-    rest are returned in `unread`, with the engine's reason when it tried."""
+    """Read the statement pages pdfplumber skipped with `engine` (`unit`: the one the user gave,
+    for a page that names none). Pages it reads give values; the rest are returned in `unread`,
+    with the engine's reason when it tried."""
     result = AddonResult(engine.NAME)
     by_page: dict[int, list[SkippedPage]] = {}
     for page in skipped:
@@ -117,7 +123,8 @@ def read_skipped(
         if len(statements) > 1:  # two statements on one page (a spread): not told apart
             result.unread.extend(pages)
             continue
-        contexts[number] = _context(_page_lines(path, number), number, pages[0], engine.LABEL)
+        lines = _page_lines(path, number)
+        contexts[number] = _context(lines, number, pages[0], engine.LABEL, unit)
     if not contexts:
         return result
     request = Request(path, sorted(contexts), cache_dir)
@@ -149,7 +156,7 @@ def read_skipped(
 
 
 def read_scanned(
-    engine: Engine, path: Path, start_month: int, cache_dir: Path
+    engine: Engine, path: Path, start_month: int, cache_dir: Path, unit: str | None = None
 ) -> AddonResult | None:
     """Read a scanned PDF's statement pages with the engine's OCR; None when it has more than
     SCANNED_PAGE_LIMIT pages (it stays E104)."""
@@ -171,9 +178,11 @@ def read_scanned(
             continue
         statement = statement_of(title, numbered=True)
         assert statement is not None
-        unit = next((u for u in map(unit_of_text, page.texts) if u is not None), None)
+        named = next((u for u in map(unit_of_text, page.texts) if u is not None), None)
         scope = scope_of(title, numbered=True)
-        context = PageContext(number, statement, scope, unit, is_results(title), engine.LABEL)
+        context = PageContext(
+            number, statement, scope, named, is_results(title), engine.LABEL, given_unit=unit
+        )
         try:
             if page.error is not None:
                 raise page.error
@@ -255,7 +264,9 @@ def _page_lines(path: Path, number: int) -> list[Line]:
         return [line for part in page_parts(pdf.pages[number - 1]) for line in part]
 
 
-def _context(lines: list[Line], number: int, page: SkippedPage, reader: str) -> PageContext:
+def _context(
+    lines: list[Line], number: int, page: SkippedPage, reader: str, given_unit: str | None
+) -> PageContext:
     return PageContext(
         page=number,
         statement=page.statement,
@@ -263,4 +274,5 @@ def _context(lines: list[Line], number: int, page: SkippedPage, reader: str) -> 
         unit=unit_of(lines),
         results=is_results(lines),
         reader=reader,
+        given_unit=given_unit,
     )

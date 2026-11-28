@@ -1,19 +1,26 @@
 """Read one document into the rows fin loads (step 2 of `fin.ingest`): Excel, PDF (with the PDF
 add-on's engine for the pages pdfplumber skipped) or, with a reading, the figures Claude read.
-Nothing here writes to a database; `fin.ingest` stages, checks and commits the rows."""
+Nothing here writes to a database; `fin.ingest` stages, checks and commits the rows.
+
+A statement sheet or page with no unit line holds the document with the question "which unit?"
+(E203 with `question = "unit"` in its context): the user's answer (`GivenUnit`, `fin ingest
+--unit`) is used for those sheets and pages only, and their rows say who gave it. A given unit no
+sheet or page needed is refused (E207)."""
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from fin.actor import CLAUDE
+from fin.actor import CLAUDE, USER
 from fin.audit.errors import (
     DocumentFailure,
     FileUnreadable,
     ReadingInvalid,
+    UnitNotDetected,
+    UnitNotUsed,
     UnsupportedFormat,
     ValueOutOfRange,
 )
@@ -28,8 +35,32 @@ from fin.extract.text import write_notes_markdown
 from fin.extract.units import rupees_per_unit
 from fin.paths import notes_dir
 
-EXCEL_SUFFIXES = (".xlsx", ".xlsm")
+EXCEL_SUFFIXES = (".xlsx", ".xlsm", ".xls")
 MAX_RUPEES = Decimal(10) ** 16  # facts.value is DECIMAL(20, 2); a figure this large is a misread
+
+
+# The answers to "which unit?" (`fin ingest --unit`, the UI's choice) and the unit each names.
+UNIT_ANSWERS = {
+    "lakhs": "lakh",
+    "crores": "crore",
+    "millions": "million",
+    "thousands": "thousand",
+    "rupees": "rupees",
+}
+
+
+@dataclass(frozen=True)
+class GivenUnit:
+    """The unit the user gave for a document whose statements name none, and who entered it."""
+
+    unit: str  # lakh, crore, million, thousand, rupees (a value of UNIT_ANSWERS)
+    by: str  # the actor (fin.actor): 'user', or 'ai:claude' entering the user's answer
+
+    @property
+    def text(self) -> str:
+        """`raw_values.raw_unit` for its rows: shown wherever the figures are sourced."""
+        who = "user" if self.by == USER else "user, entered by Claude"
+        return f"{self.unit} (unit given by {who})"
 
 
 @dataclass(frozen=True)
@@ -61,8 +92,10 @@ class Document:
     notes: list[tuple[str, Path]]  # (section, markdown file)
     notices: list[str]  # things worth logging, e.g. an assumed scope
     warnings: list[str] = field(default_factory=list)  # e.g. a statement page that was skipped
-    # Statement pages fin could not read: page, statement, code, reason (SkippedPage.as_dict).
+    # Statement pages (and Excel sheets held for values with no label) fin could not read: page or
+    # sheet, statement, code, reason (SkippedPage.as_dict, HeldSheet.as_dict).
     unread: list[dict[str, object]] = field(default_factory=list)
+    unit_given: GivenUnit | None = None  # set when the user's unit was used for some rows
 
 
 def files_in(path: Path) -> list[Path]:
@@ -85,53 +118,94 @@ def sha256_of(path: Path) -> str:
         raise FileUnreadable(f"{path.name}: {exc}") from exc
 
 
-def read_document(run: Run, path: Path, company: str, config: Config) -> Document:
-    """Extract the values of an Excel or PDF file. E103 for any other format."""
+def read_document(
+    run: Run, path: Path, company: str, config: Config, unit: GivenUnit | None = None
+) -> Document:
+    """Extract the values of an Excel or PDF file, with `unit` for statements that name none
+    (E203 question without it, E207 when none needed it). E103 for any other format."""
     suffix = path.suffix.lower()
-    start = config.fiscal_year_start_month
     if suffix in EXCEL_SUFFIXES:
-        extraction = extract_workbook(path)
-        months = {
-            (v.sheet, v.cell): resolve_months(
-                v.statement, v.period_end, v.months, start, where=f"{path.name} sheet {v.sheet!r}"
-            )
-            for v in extraction.values
-        }
-        rows = [
-            _row(
-                v,
-                start,
-                months=months[(v.sheet, v.cell)],
-                period=period_of(
-                    v.period_end, months[(v.sheet, v.cell)], start, where=f"{path.name} {v.cell}"
-                ),
-                scope=v.scope or config.default_scope,
-                unit_text=v.unit_text,
-                sheet=v.sheet,
-                cell=v.cell,
-            )
-            for v in extraction.values
-        ]
-        notices = [
-            f"sheet {name!r} names no statement; skipped" for name in extraction.skipped_sheets
-        ]
-        assumed = sorted({v.sheet for v in extraction.values if v.scope is None})
-        if assumed:
-            notices.append(
-                f"sheets {', '.join(assumed)} do not say standalone or consolidated; used "
-                f"defaults.scope = {config.default_scope} from config.toml"
-            )
-        return Document(rows, [], notices)
-    if suffix == ".pdf":
-        return _read_pdf(run, path, company, config)
-    raise UnsupportedFormat(f"{path.name}: {suffix or 'no extension'} files are not supported")
+        document = _read_excel(path, config, unit)
+    elif suffix == ".pdf":
+        document = _read_pdf(run, path, company, config, unit)
+    else:
+        raise UnsupportedFormat(f"{path.name}: {suffix or 'no extension'} files are not supported")
+    if unit is None:
+        return document
+    if not any(r.unit_text == unit.text for r in document.rows):
+        raise UnitNotUsed(
+            f"{path.name}: --unit {unit.unit} was given, but every statement sheet or page names "
+            "its own unit; nothing loaded. Ingest it without --unit"
+        )
+    return replace(document, unit_given=unit)
 
 
-def _read_pdf(run: Run, path: Path, company: str, config: Config) -> Document:
+def _read_excel(path: Path, config: Config, unit: GivenUnit | None) -> Document:
+    """The rows of a workbook; the sheets held for values with no label are listed as unread."""
+    start = config.fiscal_year_start_month
+    extraction = extract_workbook(path, unit.unit if unit else None)
+    months = {
+        (v.sheet, v.cell): resolve_months(
+            v.statement, v.period_end, v.months, start, where=f"{path.name} sheet {v.sheet!r}"
+        )
+        for v in extraction.values
+    }
+    rows = [
+        _row(
+            v,
+            start,
+            months=months[(v.sheet, v.cell)],
+            period=period_of(
+                v.period_end, months[(v.sheet, v.cell)], start, where=f"{path.name} {v.cell}"
+            ),
+            scope=v.scope or config.default_scope,
+            unit_text=unit.text if unit and v.unit_given else v.unit_text,
+            sheet=v.sheet,
+            cell=v.cell,
+        )
+        for v in extraction.values
+    ]
+    notices = [f"sheet {name!r} names no statement; skipped" for name in extraction.skipped_sheets]
+    assumed = sorted({v.sheet for v in extraction.values if v.scope is None})
+    if assumed:
+        notices.append(
+            f"sheets {', '.join(assumed)} do not say standalone or consolidated; used "
+            f"defaults.scope = {config.default_scope} from config.toml"
+        )
+    warnings = [f"{h.error.message} (E204)" for h in extraction.held]
+    return Document(rows, [], notices, warnings, [h.as_dict() for h in extraction.held])
+
+
+def _which_unit(path: Path, pages: list[dict[str, object]]) -> UnitNotDetected | None:
+    """The question "which unit?" for the statement pages with no unit line (E203), or None."""
+    numbers = [p["page"] for p in pages if p["code"] == UnitNotDetected.code]
+    if not numbers:
+        return None
+    return UnitNotDetected(
+        f"{path.name}: which unit? no unit line such as '₹ in Lakhs' on statement pages "
+        f"{', '.join(map(str, numbers))}"
+    ).with_context(question="unit", pages=numbers)
+
+
+def _read_pdf(
+    run: Run, path: Path, company: str, config: Config, unit: GivenUnit | None
+) -> Document:
     """pdfplumber's values, then the PDF add-on's for the statement pages pdfplumber skipped (when
     one is chosen, `fin.extract.fallback`); a scanned results PDF is read by the add-on alone. Fails
-    only when neither reads a statement page."""
-    read = fallback.extract(run, path, f"{company}/{path.name}", config)
+    only when neither reads a statement page. Without `unit`, a statement page with no unit line
+    holds the whole document with the question "which unit?"."""
+    name = f"{company}/{path.name}"
+    try:
+        read = fallback.extract(run, path, name, config, unit.unit if unit else None)
+    except DocumentFailure as exc:
+        question = None if unit else _which_unit(path, list(exc.pages))
+        if question is not None:
+            raise question from exc
+        raise
+    question = None if unit else _which_unit(path, [s.as_dict() for s in read.unread])
+    if question is not None:
+        raise question
+    given = unit.text if unit else ""
     rows = [
         _row(
             v,
@@ -139,7 +213,7 @@ def _read_pdf(run: Run, path: Path, company: str, config: Config) -> Document:
             months=v.months,
             period=v.period,
             scope=v.scope or config.default_scope,
-            unit_text=v.unit,
+            unit_text=given if v.unit_given else v.unit,
             page=v.page,
             bbox=json.dumps(list(v.bbox)),
             read_by=read_by,
@@ -225,7 +299,12 @@ def _reading_row(line: ReadingLine, start_month: int) -> Row:
 
 
 def read_with_reading(
-    run: Run, path: Path, company: str, config: Config, reading: Path
+    run: Run,
+    path: Path,
+    company: str,
+    config: Config,
+    reading: Path,
+    unit: GivenUnit | None = None,
 ) -> Document:
     """fin's own extraction, plus the reading's lines for every statement and scope it did not
     read. When fin cannot read the file at all (E1xx/E2xx), every statement comes from the
@@ -233,7 +312,9 @@ def read_with_reading(
     name = f"{company}/{path.name}"
     lines = read_reading(reading, config.fiscal_year_start_month)
     try:
-        document = read_document(run, path, company, config)
+        document = read_document(run, path, company, config, unit)
+    except UnitNotUsed:
+        raise
     except DocumentFailure as exc:
         run.event(
             "extract",
@@ -262,7 +343,9 @@ def read_with_reading(
             f"{len(lines) - len(used)} reading lines not loaded: fin read those statements itself"
         )
     rows = document.rows + [_reading_row(line, config.fiscal_year_start_month) for line in used]
-    return Document(rows, document.notes, notices, document.warnings, document.unread)
+    return Document(
+        rows, document.notes, notices, document.warnings, document.unread, document.unit_given
+    )
 
 
 def check_range(document: Document, name: str) -> None:

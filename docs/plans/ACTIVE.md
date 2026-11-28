@@ -47,10 +47,10 @@ Updated: 2026-11-28.
 | 03 | 2 | Show a next step for every ingest failure | | todo |
 | 03 | 3 | Add company creation, re-ingest and delete to the Files screen | | todo |
 | 03 | 4 | Start an assistant reading from a failed file | | todo |
-| 04 | 1 | Hold a document with no unit line and ask for the unit | high | todo |
-| 04 | 2 | Read .xls workbooks | | todo |
-| 04 | 3 | Hold only the sheet with unlabeled values and name the cells | | todo |
-| 04 | 4 | Offer a PDF add-on when pages are skipped | | todo |
+| 04 | 1 | Hold a document with no unit line and ask for the unit | high | done (#124) |
+| 04 | 2 | Read .xls workbooks | | done (#124) |
+| 04 | 3 | Hold only the sheet with unlabeled values and name the cells | | done (#124) |
+| 04 | 4 | Offer a PDF add-on when pages are skipped | | done (#124) |
 | 05 | 1 | Add the indirect cash flow labels to the dictionary seed | | todo |
 | 05 | 2 | Require low-confidence mappings to be confirmed one at a time | | todo |
 | 05 | 3 | Recheck after a mapping change and name the mapping behind a finding | | todo |

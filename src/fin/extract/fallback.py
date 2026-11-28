@@ -32,6 +32,17 @@ ENGINES: dict[str, Engine] = {
     liteparse_run.NAME: liteparse_run,
     llamaparse_run.NAME: llamaparse_run,
 }
+# Each choice in a few words: where it runs, whether data leaves the machine, its size (fin parser,
+# the ingest outcome and the web UI's offer).
+ABOUT = {
+    "none": "no PDF add-on: pages pdfplumber skips are listed as not read",
+    "liteparse": "LiteParse: local, nothing leaves this machine; small (models about 50 MB) "
+    "and fast",
+    "docling": "Docling: local, nothing leaves this machine; about 1.4 GB; about 15 s a page "
+    "on CPU",
+    "llamaparse": "LlamaParse: cloud, uploads the pages it reads to LlamaParse; paid per page; "
+    "needs LLAMA_CLOUD_API_KEY",
+}
 
 
 @dataclass(frozen=True)
@@ -48,33 +59,50 @@ def engine(name: str) -> Engine | None:
     return ENGINES.get(name)
 
 
+def offered(scanned: bool) -> list[str]:
+    """The add-ons that could read the pages fin skipped: for a scanned PDF only those whose OCR
+    fin uses."""
+    return [name for name, chosen in ENGINES.items() if chosen.OCR or not scanned]
+
+
+def offer(scanned: bool) -> str:
+    """The outcome's offer when pages were not read and no add-on is chosen."""
+    choices = "; ".join(ABOUT[name] for name in offered(scanned))
+    return (
+        f'no PDF add-on is chosen ([pdf] parser = "none"). One can read these pages: {choices}. '
+        "Install one with `fin parser use <name>` (or on the Files screen of the web UI), then "
+        "ingest the file again (--force if it loaded)"
+    )
+
+
 def cache_dir(root: Path, name: str) -> Path:
     """Where an engine keeps its responses in the data folder (LlamaParse's, by sha256)."""
     return root / "cache" / name
 
 
-def extract(run: Run, path: Path, name: str, config: Config) -> PdfRead:
-    """pdfplumber first; the add-on on what it could not read. When nothing could be read, the
-    pdfplumber error is raised again, listing the pages still unread."""
+def extract(run: Run, path: Path, name: str, config: Config, unit: str | None = None) -> PdfRead:
+    """pdfplumber first; the add-on on what it could not read (`unit`: the one the user gave, for
+    pages with no unit line). When nothing could be read, the pdfplumber error is raised again,
+    listing the pages still unread."""
     start = config.fiscal_year_start_month
     reader = config.pdf_parser
     try:
-        pdf = extract_pdf(path, start)
+        pdf = extract_pdf(path, start, unit)
     except ScannedPdf as exc:
-        found = _read_scanned(run, path, name, config)
+        found = _read_scanned(run, path, name, config, unit)
         _raise_if_empty(exc, found)
         assert found is not None
         return PdfRead([], found.values, reader, found.unread, scanned=True)
     except (NoTablesFound, PeriodsNotDetected, UnitNotDetected, ParseError) as exc:
         if not exc.pages:
             raise
-        found = _read_skipped(run, path, name, config, _skipped_pages(exc.pages))
+        found = _read_skipped(run, path, name, config, _skipped_pages(exc.pages), unit)
         _raise_if_empty(exc, found)
         assert found is not None
         return PdfRead([], found.values, reader, found.unread, scanned=False)
     if not pdf.skipped:
         return PdfRead(pdf.values, [], reader, [], scanned=False)
-    found = _read_skipped(run, path, name, config, pdf.skipped)
+    found = _read_skipped(run, path, name, config, pdf.skipped, unit)
     if found is None:
         return PdfRead(pdf.values, [], reader, pdf.skipped, scanned=False)
     return PdfRead(pdf.values, found.values, reader, found.unread, scanned=False)
@@ -130,7 +158,12 @@ def _not_used(run: Run, name: str, config: Config, pages: list[int]) -> None:
 
 
 def _read_skipped(
-    run: Run, path: Path, name: str, config: Config, skipped: list[SkippedPage]
+    run: Run,
+    path: Path,
+    name: str,
+    config: Config,
+    skipped: list[SkippedPage],
+    unit: str | None,
 ) -> AddonResult | None:
     """The add-on's reading of the skipped statement pages, or None when it is not used."""
     chosen = _usable(config)
@@ -138,12 +171,14 @@ def _read_skipped(
         _not_used(run, name, config, sorted({s.page for s in skipped}))
         return None
     start = config.fiscal_year_start_month
-    found = addon.read_skipped(chosen, path, skipped, start, cache_dir(run.root, chosen.NAME))
+    found = addon.read_skipped(chosen, path, skipped, start, cache_dir(run.root, chosen.NAME), unit)
     _log(run, name, found)
     return found
 
 
-def _read_scanned(run: Run, path: Path, name: str, config: Config) -> AddonResult | None:
+def _read_scanned(
+    run: Run, path: Path, name: str, config: Config, unit: str | None
+) -> AddonResult | None:
     """The add-on's OCR reading of a scanned PDF, or None (add-on not used, its OCR not used, or
     too long: E104)."""
     chosen = _usable(config)
@@ -158,7 +193,7 @@ def _read_scanned(run: Run, path: Path, name: str, config: Config) -> AddonResul
         )
         return None
     start = config.fiscal_year_start_month
-    found = addon.read_scanned(chosen, path, start, cache_dir(run.root, chosen.NAME))
+    found = addon.read_scanned(chosen, path, start, cache_dir(run.root, chosen.NAME), unit)
     if found is None:
         run.event(
             "extract",

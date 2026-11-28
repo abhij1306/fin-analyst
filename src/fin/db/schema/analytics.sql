@@ -78,11 +78,13 @@ CREATE TABLE coverage (
     mapped_share DECIMAL(38, 6)
 );
 
--- Statement pages fin could not read in loaded and held documents (documents.unread_pages).
+-- Statement pages (and Excel sheets: sheet set, page NULL) fin could not read in loaded and held documents
+-- (documents.unread_pages).
 CREATE TABLE unread_pages (
     company VARCHAR NOT NULL,
     file_name VARCHAR NOT NULL,
     page INTEGER,
+    sheet VARCHAR,
     statement VARCHAR,
     code VARCHAR,
     reason VARCHAR

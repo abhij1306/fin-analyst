@@ -13,7 +13,7 @@ from fin.audit.errors import UiActionInvalid
 
 MAX_FILE_BYTES = 50 * 1024 * 1024
 MAX_REQUEST_BYTES = 100 * 1024 * 1024
-SUFFIXES = (".xlsx", ".xlsm", ".pdf")  # what `fin ingest` reads
+SUFFIXES = (".xlsx", ".xlsm", ".xls", ".pdf")  # what `fin ingest` reads
 SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._()&-]{0,150}")
 
 

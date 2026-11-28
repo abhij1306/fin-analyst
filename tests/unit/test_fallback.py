@@ -38,7 +38,7 @@ def test_a_scanned_pdf_is_not_sent_to_an_engine_whose_ocr_fin_does_not_use(
     """LiteParse's OCR dropped a minus sign on a scanned test report: a scanned PDF stays E104 (for
     a Claude reading) when LiteParse is chosen, and LiteParse is never asked."""
 
-    def scanned(path: Path, start: int) -> Any:
+    def scanned(path: Path, start: int, unit: str | None) -> Any:
         raise ScannedPdf("scan.pdf: no text layer")
 
     def convert(request: Request, notices: list[str]) -> Any:

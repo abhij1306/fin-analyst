@@ -220,6 +220,13 @@ class PdfAddonFailed(DocumentFailure):
     code = "E206"
 
 
+class UnitNotUsed(DocumentFailure):
+    """E207. `fin ingest --unit` was given, but every statement sheet or page of the file names its
+    own unit: the answer was not needed, so nothing is loaded."""
+
+    code = "E207"
+
+
 class ValueOutOfRange(DocumentFailure):
     """E890. A figure in the document is too large to store (10**16 rupees or more): a misread
     cell or a wrong unit. The file goes to review/ with the cell named; the next file loads."""

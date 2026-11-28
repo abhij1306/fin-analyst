@@ -42,12 +42,8 @@ REASONS = {
         "Copy the file itself into the folder and scan again",
     ),
     "file_type": (
-        "fin reads Excel workbooks (.xlsx, .xlsm) and PDFs, not this type of file",
+        "fin reads Excel workbooks (.xlsx, .xlsm, .xls) and PDFs, not this type of file",
         "Ask the company for the Excel export",
-    ),
-    "old_excel": (
-        "fin reads .xlsx and .xlsm workbooks, not the older .xls",
-        "Open it in Excel, save it as .xlsx and scan again",
     ),
     "unreadable": (
         "fin cannot open the workbook: it is password protected or damaged",
@@ -122,8 +118,6 @@ def kind_of(path: Path, start_month: int) -> Kind:
         return _excel(path)
     if suffix == ".pdf":
         return _pdf(path, start_month)
-    if suffix == ".xls":
-        return unusable("old_excel")
     if suffix in OTHER_ARCHIVES:
         return unusable("archive_type", "archive")
     return unusable("file_type")

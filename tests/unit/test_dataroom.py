@@ -189,7 +189,7 @@ def test_every_unusable_file_in_the_plan_has_a_reason_and_a_next_step(
         "misc/contract.docx": REASONS["file_type"],
         "misc/more.rar": REASONS["archive_type"],
         "misc/notes.xlsx": REASONS["no_layout"],
-        "misc/old.xls": REASONS["old_excel"],
+        "misc/old.xls": REASONS["unreadable"],
         "reference/fdd_databook.xlsx": REASONS["reference_databook"],
     }
 

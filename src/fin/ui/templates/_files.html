@@ -7,9 +7,10 @@
 <form class="upload" hx-post="/upload" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
   <input type="hidden" name="company" value="{{ company }}">
   <label class="label" for="upload">Upload Excel or PDF</label>
-  <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.pdf">
+  <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.xls,.pdf">
   <button type="submit" class="btn">Upload</button>
 </form>
+{% with offer = data.addon_offer %}{% include "_addon_offer.html" %}{% endwith %}
 <div class="card">
   <header><h2>Loaded documents</h2></header>
   <section class="flush">

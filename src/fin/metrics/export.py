@@ -170,7 +170,7 @@ TABLES: dict[str, list[str]] = {
     "coverage": [
         "company", "scope", "statement", "figures", "mapped", "mapped_share",
     ],
-    "unread_pages": ["company", "file_name", "page", "statement", "code", "reason"],
+    "unread_pages": ["company", "file_name", "page", "sheet", "statement", "code", "reason"],
     **{table: ["company", *columns] for table, _, columns in ANALYTICS_VIEWS},
 }  # fmt: skip
 
@@ -295,7 +295,15 @@ def refresh_analytics(run: Run) -> Refresh:
             rows[table].extend([company, *row] for row in fetched[table])
         for file_name, unread in fetched["unread_pages"]:
             rows["unread_pages"].extend(
-                [company, file_name, p["page"], p["statement"], p["code"], p["reason"]]
+                [
+                    company,
+                    file_name,
+                    p["page"],
+                    p.get("sheet"),
+                    p["statement"],
+                    p["code"],
+                    p["reason"],
+                ]
                 for p in json.loads(unread)
             )
         rows["statements"].extend(_statements(root, company))

@@ -23,11 +23,13 @@ from typing import Annotated
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.errors import DependencyMissing, PdfAddonFailed, UpdateFailed
 from fin.audit.logger import Run, execute
 from fin.config import PARSERS, load_config, set_parser
 from fin.extract import llamaparse_run
-from fin.extract.fallback import engine
+from fin.extract.fallback import ABOUT, engine
+from fin.paths import data_dir
 from fin.ui.extra import kept_extras
 
 REPO = Path(__file__).resolve().parents[2]
@@ -39,12 +41,6 @@ _DOWNLOAD = (
     "e = ENGINES[{name!r}]\n"
     "if e.ready()[1] is not None: e.download_models()\n"
 )
-ABOUT = {
-    "none": "no PDF add-on: pages pdfplumber skips are listed as not read",
-    "docling": "Docling: local; about 1.4 GB; about 15 s a page on CPU",
-    "liteparse": "LiteParse: local; small and fast",
-    "llamaparse": "LlamaParse: cloud; uploads the pages; paid per page; needs LLAMA_CLOUD_API_KEY",
-}
 
 parser_app = typer.Typer(
     no_args_is_help=True,
@@ -149,7 +145,7 @@ def use_command(
     """Choose the PDF add-on: install it (uv sync --extra), download its models, record it in
     config.toml. `none` removes every add-on."""
 
-    def body(run: Run) -> None:
-        typer.echo("\n".join(use(run, name)))
+    from fin.services.addon import install_addon  # the service imports this module
+    from fin.services.result import show
 
-    execute("parser use", {"name": name}, body)
+    show(install_addon(data_dir(), name, via="cli", actor=from_environment()))

@@ -163,7 +163,18 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - All values stored in rupees as exact DECIMAL. Original unit kept in `raw_values`. Display unit set in config.
   A unit line names its unit after "in", "₹", "Rs" or "INR" ("₹ in Lakhs", "INR crores"); "in INR" with no unit
   word after it ("All amounts in INR, unless otherwise stated") means rupees (`fin.extract.units`). A document that
-  failed with E203 on such a line loads when it is ingested again.
+  failed with E203 on such a line loads when it is ingested again. A document with no unit line on a statement
+  page or sheet is held (counted as held, nothing loaded, the file in `review/` with `"question": "which unit?"`):
+  fin never guesses a unit. The user answers and `fin ingest <co> <file> --unit lakhs|crores|millions|thousands|rupees`
+  loads it; the given unit is used only where no unit line was found (a sheet or page with its own line keeps it),
+  each such raw value records `unit given by user` (`, entered by Claude` when Claude Code ran the command), shown by
+  `fin audit` and on evidence pages, and `documents.unit_given` / `unit_given_by` keep the answer and the actor.
+  `--unit` on a document that needed no unit is refused (E207); it takes one file and not `--kind`.
+- Excel workbooks: .xlsx, .xlsm and .xls (the old binary format, read with xlrd into the same reader:
+  `fin.extract.xls`). A sheet with a row of figures that has no label (E204) is held on its own: the other sheets
+  load, the outcome lists it (`not read: <statement> sheet 'X': E204 ... cells C4, D4`) and it is in
+  `unread_pages` with its sheet name, so a Claude reading can fill it. A workbook whose only statement sheets are
+  such sheets fails with E204.
 - Indian fiscal year (Apr–Mar) default; `period_end` stored explicitly.
 - Periods: `FY25` is the year ended 31 March 2025 (12 months); `FY26-Q1`..`FY26-Q4` quarters, `FY26-H1`/`FY26-H2`
   half years, `FY26-9M` nine months (`fin.extract.periods`). A balance sheet's period is the part of the year it
@@ -439,7 +450,11 @@ PDF (E104) of at most 40 pages (a results filing) is OCR'd by Docling or LlamaPa
 fin's title rules; a longer scanned PDF, or any scanned PDF with LiteParse chosen, stays E104. The engine failing, its models failing to download, or LlamaParse without
 its key is a warning (E206, naming the engine) and leaves the pages unread; it never fails a document. With no
 add-on chosen, or the chosen one not installed, pages stay unread and the run logs one notice per document naming
-them and the two ways to read them (`fin parser use <name>`, or a Claude reading). With a reading, the order is
+them and the two ways to read them (`fin parser use <name>`, or a Claude reading). With no add-on chosen, the
+outcome on screen offers the add-ons that can read those pages (Docling and LlamaParse only for a scanned PDF), each
+with what it costs and whether pages leave the machine (`fin.extract.fallback.ABOUT`); the Files screen of the web UI
+shows the same offer while a loaded document or a file in `review/` has skipped PDF pages, and **Install** runs
+`fin parser use <name>` as a background job (the cloud one, LlamaParse, asks first). Then the file is ingested again. With a reading, the order is
 fin -> the add-on -> the reading fills the statements and scopes neither read.
 
 Findings instead of failures (after 1.0.0, not a phase; owner decision 2026-11-07): fin is an analysis tool, not an
@@ -1040,7 +1055,7 @@ uses); else `unknown`. fin does not guess from file names or contents beyond tha
 profile, the period the file states (the export's header period, or the statements' period ends), its duplicates, and
 what will be skipped. A file fin cannot use has a reason and one next step (`fin.dataroom.kinds.REASONS`): a PDF with
 no statement page fin reads, such as a ledger PDF ("ask the company for the Excel export, or have the assistant read
-it"), an .xls, another file type, a damaged or protected workbook, a workbook whose headers fit no profile or profiles
+it"), another file type, a damaged or protected workbook, a workbook whose headers fit no profile or profiles
 of more than one kind, a refused archive. The plan is stored in the company database (`dataroom_files`; the
 database is made if the company has none); `fin dataroom plan <co>` shows it again (`--json` for the assistant and
 the UI). Scanning again adds only what the plan does not have: a content already in it gains the new path as a
@@ -1192,7 +1207,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
 - **Local only**: the server binds 127.0.0.1; a request with another Host, or without the token cookie (HttpOnly, SameSite=Strict, set from the link's token), is refused with E007; no CORS headers; no API documentation pages.
 - **Screens**: a top bar with the company picker and the screen tabs (a tab list: `role="tablist"`, the open screen is `aria-selected`), and a chat panel on the right. The chosen company stays in the link of every tab, including Home, and changing the picker reloads the same screen for that company. Every screen shows what fin's own modules return; a page is `/<screen>?company=<name>` and its partial `/partials/<screen>?company=<name>`.
   - Home: what `fin status` returns: counts, periods and gaps, the next gate, and what waits for the user (each row links to its screen).
-  - Files: loaded documents (version, status, whether Claude read pages), files in the inbox not loaded, and findings on filed data (open and accepted, as `fin findings list`).
+  - Files: loaded documents (version, status, whether Claude read pages), files in the inbox not loaded, and findings on filed data (open and accepted, as `fin findings list`); while PDF pages were skipped and no add-on is chosen, the PDF add-on offer (above).
   - Mappings: the mapping items waiting for review (label, proposed account, confidence, where it is).
   - Statements: the latest fiscal year's statements as reported, or reported vs rebuilt from the trial balance (`?view=rebuilt`; SPEC-14); why there is nothing to show when there is not. Another view is refused with E001.
   - Queries: the open engagement's accountant queries and adjustments with status and evidence.
@@ -1213,5 +1228,5 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - One `claude` process per conversation at a time (E011 while one runs); each turn is a process (`--session-id` first, `--resume` after), so a conversation resumes after `fin ui` restarts. Conversations are JSON files in `<data folder>/chat/`; the list and **New chat** are in the panel header. **Stop** ends the process. Text streams in over server-sent events (htmx SSE extension); tool calls show collapsed; errors show with their code.
   - The user's decisions are denied to Claude with `--disallowedTools` (`fin gate approve`, `fin fdd finding final|draft`, `fin query approve|sent|close|withdraw`, `fin adjust accept|reject`, `fin review confirm|reject`, `fin findings accept`, provisions confirm/reject, net debt item accept/reject, each also as `uv run fin ...`); Claude points to the button. Any other request that is not already allowed is shown in the chat with **Allow once** (the next turn gets `--allowedTools` for exactly that command or file) or **Deny**.
   - **Ask Claude** buttons (every screen, and rows of Mappings, Queries and Findings) and the skill chips `/ask`, `/ingest`, `/diligence`, `/report`, `/status` put text in the message box; the user sends it. Claude missing or not startable is E009, not logged in is E010.
-- **Jobs**: a long action runs as a background job, so the page answers at once. One worker thread runs the jobs one at a time in order; a later one is shown as queued. Each job is a row of `jobs` in audit.duckdb (action, arguments, state, the last progress line, result lines, code, run_id, times); the Jobs card on the Reports screen asks for itself every second while a job is queued or running, and a reload shows the same jobs. States: queued, running, done, refused (the action's error code and message), failed (E012, the run has the traceback), interrupted (the server stopped before it ended: marked at the next `fin ui`; start it again). `POST /job` needs the token cookie and the Origin (E007); an action that is not a job is E008. Today's job: Export to Excel. While a job writes, a page that reads the same database waits for it (as for another command; E501 after the retries).
-- **Uploads**: the Files screen saves .xlsx, .xlsm and .pdf files into `inbox/<company>/` of the chosen company (a run "ui upload", one event per file). The name must be plain (letters, digits, space, `. _ - ( ) &`; a path is cut to its last part; no leading dot, no `..`), at most 50 MB per file and 100 MB per request, and it never overwrites a file already in the inbox; all files are checked first, so a refusal (E008) saves none; before any company exists the upload is refused (E008). The button does not ingest: the screen says the files are waiting and Claude ingests them in chat (step 4).
+- **Jobs**: a long action runs as a background job, so the page answers at once. One worker thread runs the jobs one at a time in order; a later one is shown as queued. Each job is a row of `jobs` in audit.duckdb (action, arguments, state, the last progress line, result lines, code, run_id, times); the Jobs card on the Reports screen asks for itself every second while a job is queued or running, and a reload shows the same jobs. States: queued, running, done, refused (the action's error code and message), failed (E012, the run has the traceback), interrupted (the server stopped before it ended: marked at the next `fin ui`; start it again). `POST /job` needs the token cookie and the Origin (E007); an action that is not a job is E008. Today's jobs: Export to Excel, and Install a PDF add-on (Files screen; the service `fin.services.addon`, which `fin parser use` calls too). While a job writes, a page that reads the same database waits for it (as for another command; E501 after the retries).
+- **Uploads**: the Files screen saves .xlsx, .xlsm, .xls and .pdf files into `inbox/<company>/` of the chosen company (a run "ui upload", one event per file). The name must be plain (letters, digits, space, `. _ - ( ) &`; a path is cut to its last part; no leading dot, no `..`), at most 50 MB per file and 100 MB per request, and it never overwrites a file already in the inbox; all files are checked first, so a refusal (E008) saves none; before any company exists the upload is refused (E008). The button does not ingest: the screen says the files are waiting and Claude ingests them in chat (step 4).
