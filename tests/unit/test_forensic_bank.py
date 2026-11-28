@@ -8,7 +8,7 @@ from decimal import Decimal
 from fin.forensic import settings
 from fin.forensic.bank import Bank, BankLine, Statement
 from fin.forensic.books import Books, Context
-from fin.forensic.families.bank_flows import bank_cash, bank_own_transfer
+from fin.forensic.families.bank_flows import bank_cash, bank_own_transfer, bank_period_end_credit
 from fin.forensic.families.bank_rows import bank_balance_chain
 from fin.forensic.status import state_text
 
@@ -107,6 +107,23 @@ def test_an_own_account_line_is_compared_only_where_the_other_statement_covers_i
     later = line(200, debit=400000, remarks="TRF TO ACCT-0002")
     [flag] = bank_own_transfer(context([statement([later]), other])).flags
     assert "names ACCT-0002; no line of ₹400,000.00 on ACCT-0002 within 3 days" in flag.reason
+
+
+def test_a_period_end_credit_on_an_account_with_no_next_statement_is_named_not_passed() -> None:
+    nxt = (date(2025, 4, 1), date(2026, 3, 31))
+    credit_a = line(0, credit=500000, day=date(2025, 3, 30))
+    credit_b = line(0, credit=500000, day=date(2025, 3, 30), account="ACCT-0002", file_id=2)
+    back_a = line(0, debit=500000, day=date(2025, 4, 2), file_id=3)
+    statements = [statement([credit_a]), statement([credit_b], file_id=2)]
+    following = Statement(3, "s3.xlsx", "FY26", "ACCT-0001", *nxt, ZERO, (back_a,))
+    ctx = context([*statements, following])
+    ctx.books.bank = Bank([*statements, following], {"FY25": (START, END), "FY26": nxt})
+
+    outcome = bank_period_end_credit(ctx)
+
+    assert [(f.account, f.row) for f in outcome.flags] == [("ACCT-0001", 8)]
+    assert outcome.population == 1
+    assert outcome.needs == "ACCT-0002: no FY26 statement to find a reversal in"
 
 
 def test_cash_words_are_the_users() -> None:

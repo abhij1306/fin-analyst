@@ -1269,7 +1269,8 @@ ordered by amount). Defaults, minimum populations and readings: [decisions/foren
   `bank_own_transfer` (a line whose remarks name another of the company's `ACCT-` accounts with no line of the same
   amount on it within 3 days, where that account's statement covers the date), `bank_period_end_credit` (a credit
   in the last `period_end_days` of a period debited again on the account in the first `reversal_days` of the next;
-  cannot run without the next period's statements) and `bank_cash` (one flag per account and month whose lines with a
+  cannot run without the next period's statements; an account with none there is not checked, and the state names
+  it) and `bank_cash` (one flag per account and month whose lines with a
   `cash_words` word add up to the threshold or more, with the deposits, withdrawals and total in the reason and the
   lines in its source: the cash series of `fin forensic flags --test bank_cash` and the Forensic screen). The
   single-row tests flag amounts at or above `min_amount` (a balance break: the difference). A bank flag's account is

@@ -146,9 +146,14 @@ def bank_period_end_credit(ctx: Context) -> Outcome:
     for y in bank.lines(following):
         if y.debit and 0 <= (y.day - first).days < _wider(back):
             debits.setdefault((y.account, y.amount), []).append(y)
+    covered = {s.account for s in bank.of(following)}
+    unchecked: set[str] = set()  # accounts with no statement in the next period: not checked
     flags, near, population = [], 0, 0
     for x in bank.lines(ctx.period):
         if not (x.credit and x.amount >= ctx.min_amount and end - timedelta(days=days) < x.day):
+            continue
+        if x.account not in covered:
+            unchecked.add(x.account)
             continue
         population += 1
         found = sorted(debits.get((x.account, x.amount), []), key=lambda y: (y.day, y.row))
@@ -164,7 +169,12 @@ def bank_period_end_credit(ctx: Context) -> Outcome:
             )
         elif found:
             near += 1
-    return Outcome(flags=flags, near_misses=near, population=population)
+    needs = (
+        f"{', '.join(sorted(unchecked))}: no {following} statement to find a reversal in"
+        if unchecked
+        else None
+    )
+    return Outcome(flags=flags, near_misses=near, population=population, needs=needs)
 
 
 def _cash(words: tuple[str, ...]) -> re.Pattern[str]:
