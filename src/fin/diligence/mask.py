@@ -82,13 +82,16 @@ class Masker:
 
 
 # A party: a value masked as a customer or vendor, or one first masked as an employee or a user
-# whose token a register, orderbook or GSTR-2B line carries as its customer or vendor (Masker.token
-# keeps the first token, so that line has no customer or vendor row of its own).
+# whose token a loaded register, orderbook or GSTR-2B line carries as its customer or vendor
+# (Masker.token keeps the first token, so that line has no customer or vendor row of its own).
 PARTY_TOKENS = """
+WITH loaded AS (SELECT file_id FROM source_files WHERE status = 'loaded')
 SELECT match_key, token FROM mask_values
 WHERE list_contains(?, kind) OR (kind <> 'bank_account' AND token IN (
-    SELECT customer FROM register_lines UNION SELECT vendor FROM register_lines
-    UNION SELECT customer FROM orderbook_lines UNION SELECT vendor FROM gstr2b_lines))
+    SELECT customer FROM register_lines WHERE file_id IN (FROM loaded)
+    UNION SELECT vendor FROM register_lines WHERE file_id IN (FROM loaded)
+    UNION SELECT customer FROM orderbook_lines WHERE file_id IN (FROM loaded)
+    UNION SELECT vendor FROM gstr2b_lines WHERE file_id IN (FROM loaded)))
 ORDER BY token, match_key
 """
 

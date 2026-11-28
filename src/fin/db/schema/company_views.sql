@@ -209,12 +209,13 @@ FROM (VALUES ('revenue', 'revenue', 'Revenue', 1), ('ebitda', 'EBITDA', 'EBITDA'
 -- Totals a document may not print, and the lines summed in their place when it does not: the metrics view uses the
 -- sum (metrics_wide, its `paise` step), and metric_input_accounts lists the lines (stands_in_for) for every metric using the total.
 -- The lines are the accounts whose parent is the total in templates/dictionary/schedule_iii.csv (all adding, sign 1)
--- and the accounts added in review whose parent is the total (review_accounts, with their sign), so the stand-in is
--- the signed sum of every dictionary child; cash (cash and cash
+-- and the accounts added in review whose parent is the total or one of those lines (review_accounts, with their sign;
+-- under a line, part_of is that line), so the stand-in is the signed sum of every dictionary child; cash (cash and cash
 -- equivalents) is not a total, but old-format "Cash and bank balances" stands in for it. part_of: a line
 -- printed that already holds this one; when the document prints it, this line is not added again (old-format
 -- "Cash and bank balances" holds cash and cash equivalents and other bank balances).
 CREATE VIEW stand_ins AS
+WITH base AS (
 SELECT total, account,
     CASE WHEN account IN ('cash', 'other_bank_balances') THEN 'cash_and_bank_balances' END AS part_of, 1 AS sign
 FROM (
@@ -229,10 +230,19 @@ FROM (
         ('cash', ['cash_and_bank_balances'])
     ) AS t(total, accounts)
 )
+)
+FROM base
 UNION ALL
 SELECT r.parent, r.account, NULL, r.sign
 FROM review_accounts r
-WHERE r.parent IN ('total_current_assets', 'total_current_liabilities', 'total_tax_expense');
+WHERE r.parent IN ('total_current_assets', 'total_current_liabilities', 'total_tax_expense')
+UNION ALL
+-- a review account under one of those lines (other_current_assets, say): part of that line, so it is added only
+-- when the document does not print the line
+SELECT b.total, r.account, r.parent, b.sign * r.sign
+FROM review_accounts r
+JOIN base b ON b.account = r.parent AND b.part_of IS NULL
+WHERE b.total IN ('total_current_assets', 'total_current_liabilities', 'total_tax_expense');
 
 -- Where a raw value was printed: `sheet!cell` for Excel, `page N` for PDF.
 CREATE MACRO source_ref(sheet, cell, page) AS coalesce(sheet || '!' || cell, 'page ' || page);

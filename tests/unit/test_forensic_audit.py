@@ -103,6 +103,11 @@ def test_a_register_party_first_masked_as_an_employee_is_a_party(
     mask(company, "EMP-0001", "employee_name", "R. Shah")
     mask(company, "EMP-0002", "employee_name", "Only Staff")
     company.execute(
+        "INSERT INTO source_files VALUES (1, 1, 'registers', 'reg.xlsx', 'x', 'a', 'FY25', ?, ?, "
+        "'audited', 'p', 'loaded', NULL, 'r', now())",
+        list(FY25),
+    )
+    company.execute(
         'INSERT INTO register_lines (file_id, sheet, "row", kind, customer, invoice_no, '
         "invoice_date, amount_inr, run_id) VALUES (1, 'Sales', 2, 'sales', 'EMP-0001', 'S-1', "
         "'2024-05-01', 100, 'r')"
@@ -240,3 +245,21 @@ def test_cannot_run_names_the_foreign_statement_left_out() -> None:
         "a loaded bank statement in rupees for the period; the statement ACCT-0003 (USD) "
         "01-Apr-2024 to 31-Mar-2025: not in rupees, like the thresholds"
     )
+
+
+def test_a_token_on_a_superseded_register_only_is_no_party(
+    company: duckdb.DuckDBPyConnection,
+) -> None:
+    mask(company, "EMP-0001", "employee_name", "R. Shah")
+    company.execute(
+        "INSERT INTO source_files VALUES (1, 1, 'registers', 'reg.xlsx', 'x', 'a', 'FY25', ?, ?, "
+        "'audited', 'p', 'superseded', NULL, 'r', now())",
+        list(FY25),
+    )
+    company.execute(
+        'INSERT INTO register_lines (file_id, sheet, "row", kind, customer, invoice_no, '
+        "invoice_date, amount_inr, run_id) VALUES (1, 'Sales', 2, 'sales', 'EMP-0001', 'S-1', "
+        "'2024-05-01', 100, 'r')"
+    )
+
+    assert Parties(company).token("R. Shah") is None

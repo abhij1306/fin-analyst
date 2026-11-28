@@ -21,6 +21,7 @@ from fin.reconcile import cutoff
 from fin.reconcile.gst import gstr1_vs_sales_register
 from fin.reconcile.payroll_vs_gl import payroll_vs_gl
 from fin.reconcile.recast import spread
+from fin.report.dd_data import _figures
 
 UNIT = SimpleNamespace(unit=1)
 
@@ -193,3 +194,47 @@ def test_a_stand_in_total_is_the_signed_sum_of_every_child_with_review_accounts(
     ).fetchall()
 
     assert rate == Decimal("0.080000")  # (100 - 20) / 1000: the review child, with its sign
+
+
+def test_a_net_without_a_component_is_not_given_to_the_narrative() -> None:
+    nwc = {"period": "FY25", "trade_receivables": Decimal(500), "inventories": None,
+           "other_current_assets": Decimal(0), "trade_payables": Decimal(0),
+           "other_current_liabilities": Decimal(0),
+           "net_working_capital": Decimal(500)}  # fmt: skip
+    data = {"ebitda": [], "revenue_split": [], "walk": [], "other_income": [], "recast": [],
+            "nwc_year_end": [{**nwc, "missing_components": "inventories"},
+                             {**nwc, "period": "FY24", "missing_components": None}]}  # fmt: skip
+
+    figures = _figures(data)
+
+    assert figures["net_working_capital"] == {"FY25": None, "FY24": Decimal(500)}
+    assert figures["nwc_inventories"]["FY25"] is None
+
+
+def test_a_review_account_under_a_line_of_the_total_stands_in_only_without_that_line(
+    company: duckdb.DuckDBPyConnection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    accounts = {
+        "security_deposits": Account("balance_sheet", "other_current_assets", 1, source="review")
+    }
+    monkeypatch.setattr(dictionary, "load_accounts", lambda root: accounts)
+    dictionary.copy_review_accounts(Path("unused"), company)
+    figures = [("FY25", "inventories", 100), ("FY25", "security_deposits", 50),
+               ("FY25", "total_current_liabilities", 100), ("FY24", "inventories", 100),
+               ("FY24", "security_deposits", 50), ("FY24", "other_current_assets", 70),
+               ("FY24", "total_current_liabilities", 100)]  # fmt: skip
+    for period, account, value in figures:
+        end = "2025-03-31" if period == "FY25" else "2024-03-31"
+        company.execute(
+            "INSERT INTO stated_figures (account, fiscal_year, period, period_months, period_end, "
+            "scope, value, reason, actor, status, run_id, stated_at) "
+            "VALUES (?, ?, ?, 12, ?, 'standalone', ?, 'test', 'user', 'stated', 'r', now())",
+            [account, period, period, end, value],
+        )
+
+    ratios = dict(
+        company.execute("SELECT period, current_ratio FROM metrics_wide ORDER BY period").fetchall()
+    )
+
+    # FY25: 100 + 50 (no other current assets printed); FY24: 100 + 70 (the deposit is in the 70)
+    assert ratios == {"FY24": Decimal("1.700000"), "FY25": Decimal("1.500000")}

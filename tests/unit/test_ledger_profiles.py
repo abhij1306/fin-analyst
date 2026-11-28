@@ -7,6 +7,7 @@ import pytest
 
 from fin.audit.errors import LayoutUnknown, SourcePeriodInvalid
 from fin.db.conn import connect
+from fin.db.schema import in_memory
 from fin.diligence.mask import Masker, Parties
 from fin.extract import profiles
 from fin.extract.ledger import read_table
@@ -117,8 +118,7 @@ def test_a_value_masked_as_another_kind_keeps_its_token() -> None:
 
 
 def test_a_short_name_is_found_in_bank_text_only_as_whole_words() -> None:
-    with connect(Path(":memory:"), write=True) as con:
-        con.execute(MASK_VALUES)
+    with in_memory("company") as con:
         masker = Masker(con, "r1")
         masker.file_id = 1
         masker.token("vendor", "Ram Traders")

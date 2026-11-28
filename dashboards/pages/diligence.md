@@ -90,7 +90,8 @@ excluded ledgers is not the complete working capital.
 
 ```sql nwc
 select period, granularity, as_of, basis, trade_receivables, inventories, other_current_assets, trade_payables,
-    other_current_liabilities, net_working_capital, unmapped_ledgers, ledgers_included, ledgers_excluded
+    other_current_liabilities, net_working_capital, missing_components, unmapped_ledgers, ledgers_included,
+    ledgers_excluded
 from analytics.qoe_nwc
 where company = '${inputs.company.value}'
 order by as_of, granularity
@@ -109,6 +110,7 @@ order by as_of, granularity
     <Column id=trade_payables fmt=num0 />
     <Column id=other_current_liabilities fmt=num0 />
     <Column id=net_working_capital fmt=num0 />
+    <Column id=missing_components title="Left out of the net (no ledger)" />
     <Column id=unmapped_ledgers />
     <Column id=ledgers_included />
     <Column id=ledgers_excluded />

@@ -550,7 +550,8 @@ Analysis core (after 1.0.0, not a phase): standard statements and the full metri
   `metric_input_accounts` lists each metric's input accounts and periods for `metric_inputs`. A total a document does
   not print (total current assets and liabilities, total tax expense; `stand_ins`) is the signed sum of every
   dictionary child printed, the accounts the user added in review under it too (`review_accounts`, copied from the
-  dictionary whenever facts are written). Categories:
+  dictionary whenever facts are written; one added under a line of the total, such as other current assets, counts only
+  when that line is not printed). Categories:
   profitability, returns (closing and `*_avg` on average balances), liquidity, solvency, efficiency, cash flow,
   growth (year on year, 3- and 5-year CAGR), earnings quality, per share (EPS as printed), lender (NBFCs and banks,
   only when their accounts exist), trailing twelve months (four consecutive quarters). A metric without its inputs is
@@ -669,7 +670,7 @@ Vouchers (ledgers, party ledgers too, and particulars), bank remarks and referen
 all free text (contract terms, FDD text, query answers, the reasons stored with proposals) are stored as filed or
 written. Party matching: a ledger, a Ledger Vouchers particulars or a bank line that names a register customer or
 vendor is matched to its token through `mask_values` (case and spaces ignored; in bank text, as whole words; a name
-first masked as an employee or user is a party when its token is on a register or GSTR-2B line):
+first masked as an employee or user is a party when its token is on a loaded register, orderbook or GSTR-2B line):
 `mask.Parties`, used by the register vs ledger and bank reconciliations, and the view `related_party_matches`.
 `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), read from the text and from DuckDB's own tokens with comments left out (a comment between the name and `(` does not hide it; `query_table` and `read_duckdb` are refused wherever they appear), and `fin sql` runs with file access closed (no `read_csv`, `read_blob`, `glob`, `COPY` of a file: it cannot read the original files, the logs or the exports), and `fin sql --write` also refuses schema changes (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) and refuses to
 write `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements` and `bank_lines` (E806). One transaction per file; a later file of the
@@ -731,7 +732,7 @@ investments, borrowings, leases and tax are not in it). `nwc_year_end` (and `nwc
 balance row) is one row per loaded trial balance of the latest engagement, the stub included (basis unaudited), balances as the
 statements show them and net = assets - liabilities, with the count of unmapped ledgers. A component with no ledger confirmed
 to its accounts is missing (NULL, never 0; a confirmed ledger with a nil balance is 0): the net is the sum of the known
-components and `missing_components` names the others (also in `nwc_monthly` and `nwc_series`; the report prints them beside the net). `nwc_monthly_ledgers` says, per working
+components and `missing_components` names the others (also in `nwc_monthly`, `nwc_series` and the dashboard's `qoe_nwc`; the report prints them beside the net, and a narrative reference to that net is n/a). `nwc_monthly_ledgers` says, per working
 capital ledger of each Ledger Vouchers period, whether it is `included` in the monthly view: the previous period's trial balance
 is loaded (else "no previous trial balance": an opening is never inferred) and the latest `gl_vs_tb` run has its movement equal to
 the trial balance (else excluded with the reason); `nwc_monthly_lines` / `nwc_monthly` are the included ledgers' opening plus
