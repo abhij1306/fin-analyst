@@ -57,7 +57,7 @@ from fin.audit.errors import (
 )
 from fin.audit.logger import Run
 from fin.config import Config
-from fin.db.conn import connect, utcnow
+from fin.db.conn import connect, transaction, utcnow
 from fin.extract.addon import ADDON_LABELS
 from fin.extract.diagnostics import failure_context
 from fin.extract.fallback import offer
@@ -124,63 +124,58 @@ def _load(
     unmapped: dict[tuple[str, str], None] = {}
     rows = document.rows
     with connect(company_db_path(run.root, company), write=True) as con:
-        con.execute("BEGIN TRANSACTION")
         try:
-            row = con.execute(
-                "SELECT coalesce(max(version), 0) FROM documents WHERE sha256 = ?", [sha256]
-            ).fetchone()
-            version = (row[0] if row else 0) + 1
-            latest = max(rows, key=lambda r: r.period_end)
-            doc = con.execute(
-                "INSERT INTO documents (file_name, sha256, version, fiscal_year, period_end, "
-                "scope, status, archive_path, run_id, ingested_at, reading_sha256, reading_path, "
-                "unread_pages, unit_given, unit_given_by) "
-                "VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?, ?, ?, ?, ?, ?) "
-                "RETURNING doc_id",
-                [
-                    path.name,
-                    sha256,
-                    version,
-                    latest.fiscal_year,
-                    latest.period_end,
-                    ",".join(sorted({r.scope for r in rows})),
-                    archive,
-                    run.run_id,
-                    utcnow(),
-                    *(reading or (None, None)),
-                    json.dumps(document.unread) if document.unread else None,
-                    document.unit_given and document.unit_given.unit,
-                    document.unit_given and document.unit_given.by,
-                ],
-            ).fetchone()
-            assert doc is not None
-            doc_id = doc[0]
-            raw_ids = [
-                raw_id
-                for (raw_id,) in con.execute(
-                    "SELECT nextval('raw_values_seq') FROM range(?)", [len(rows)]
-                ).fetchall()
-            ]
-            raw_values, facts = _staged(run, doc_id, raw_ids, rows, label_map, unmapped)
-            _insert_many(con, "raw_values", RAW_VALUE_COLUMNS, raw_values)
-            _insert_many(con, "facts", FACT_COLUMNS, facts)
-            for section, note in document.notes:
-                con.execute(
-                    "INSERT INTO notes VALUES (?, ?, ?)",
-                    [doc_id, section, note.relative_to(run.root).as_posix()],
-                )
-            supersede(run, company, con, doc_id, sha256)
-            open_findings = check_document(run, company, con, doc_id)
-            con.execute("COMMIT")
+            with transaction(con):
+                row = con.execute(
+                    "SELECT coalesce(max(version), 0) FROM documents WHERE sha256 = ?", [sha256]
+                ).fetchone()
+                version = (row[0] if row else 0) + 1
+                latest = max(rows, key=lambda r: r.period_end)
+                doc = con.execute(
+                    "INSERT INTO documents (file_name, sha256, version, fiscal_year, period_end, "
+                    "scope, status, archive_path, run_id, ingested_at, reading_sha256, "
+                    "reading_path, unread_pages, unit_given, unit_given_by) "
+                    "VALUES (?, ?, ?, ?, ?, ?, 'loaded', ?, ?, ?, ?, ?, ?, ?, ?) "
+                    "RETURNING doc_id",
+                    [
+                        path.name,
+                        sha256,
+                        version,
+                        latest.fiscal_year,
+                        latest.period_end,
+                        ",".join(sorted({r.scope for r in rows})),
+                        archive,
+                        run.run_id,
+                        utcnow(),
+                        *(reading or (None, None)),
+                        json.dumps(document.unread) if document.unread else None,
+                        document.unit_given and document.unit_given.unit,
+                        document.unit_given and document.unit_given.by,
+                    ],
+                ).fetchone()
+                assert doc is not None
+                doc_id = doc[0]
+                raw_ids = [
+                    raw_id
+                    for (raw_id,) in con.execute(
+                        "SELECT nextval('raw_values_seq') FROM range(?)", [len(rows)]
+                    ).fetchall()
+                ]
+                raw_values, facts = _staged(run, doc_id, raw_ids, rows, label_map, unmapped)
+                _insert_many(con, "raw_values", RAW_VALUE_COLUMNS, raw_values)
+                _insert_many(con, "facts", FACT_COLUMNS, facts)
+                for section, note in document.notes:
+                    con.execute(
+                        "INSERT INTO notes VALUES (?, ?, ?)",
+                        [doc_id, section, note.relative_to(run.root).as_posix()],
+                    )
+                supersede(run, company, con, doc_id, sha256)
+                open_findings = check_document(run, company, con, doc_id)
         except duckdb.Error as exc:
-            con.execute("ROLLBACK")
             raise LoadRejected(
                 f"{path.name}: the database refused its rows: {' '.join(str(exc).split())}. "
                 "Nothing loaded"
             ) from exc
-        except BaseException:
-            con.execute("ROLLBACK")
-            raise
     return doc_id, version, list(unmapped), open_findings
 
 

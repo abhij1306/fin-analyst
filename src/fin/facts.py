@@ -45,6 +45,7 @@ from fin.db.conn import connect, no_company_message, transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
 from fin.findings import recheck_held, record
+from fin.ingest_read import MAX_RUPEES  # as E890: a figure this large is a wrong unit
 from fin.map.dictionary import load_accounts
 from fin.metrics.export import refresh_analytics
 from fin.paths import company_db_path
@@ -53,7 +54,6 @@ from fin.query.write import backup
 # FY25, FY26-Q1 ... FY26-Q4, FY26-H1, FY26-H2, FY26-9M (fin.extract.periods).
 PERIOD = re.compile(r"^FY(\d{2})(?:-(Q[1-4]|H[12]|9M))?$")
 LENGTH = {None: 12, "Q": 3, "H": 6, "9": 9}
-TOO_LARGE = Decimal(10) ** 16  # as E890: a figure this large is a wrong unit, not a figure
 # Commas only as thousands separators: 1,234,567 or the Indian 12,34,567 (never "1,2,3").
 GROUPED = (
     re.compile(r"^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d*)?$"),
@@ -134,7 +134,7 @@ def parse_value(text: str) -> Decimal:
             f"value {text!r} has more than two decimals: give it in rupees and paise. Nothing "
             "stated"
         )
-    if abs(value) >= TOO_LARGE:
+    if abs(value) >= MAX_RUPEES:
         raise FigureCannotBeStated(
             f"value {text!r} is 10^16 rupees or more (a wrong unit?): give it in rupees. Nothing "
             "stated"

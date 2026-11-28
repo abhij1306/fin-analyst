@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from openpyxl import Workbook
 from typer.testing import CliRunner
 
 from fin.cli import app
@@ -132,4 +133,45 @@ def test_an_archive_or_a_loaded_row_cannot_be_approved_and_undo_takes_it_back(
     tb = str(ids(data_root)["books/b_trial_balance.xlsx"])
     fin("dataroom", "approve", "acme", tb)
     assert "not approved" in fin("dataroom", "approve", "acme", tb, "--undo")
+    assert "nothing approved is waiting to load" in fin("dataroom", "load", "acme")
+
+
+def test_a_statements_file_held_for_its_unit_is_not_marked_loaded(
+    data_root: Path, tmp_path: Path
+) -> None:
+    fin("init")
+    room = tmp_path / "unitless"
+    room.mkdir()
+    book = Workbook()
+    sheet = book.active
+    assert sheet is not None
+    sheet.title = "Balance Sheet"
+    for line in (["Balance Sheet"], ["Particulars", "Note", "31.03.2025", "31.03.2024"]):
+        sheet.append(line)
+    sheet.append(["Borrowings", "5", 1200.5, 1000])
+    book.save(room / "bs.xlsx")
+    fin("dataroom", "scan", "acme", str(room))
+    file_id = str(ids(data_root)["bs.xlsx"])
+    fin("dataroom", "propose", "acme", file_id, "--kind", "statements", "--reason", "accounts")
+    fin("dataroom", "approve", "acme", file_id)
+
+    assert "which unit?" in fin("dataroom", "load", "acme")
+
+    (row,) = read_plan(data_root, "acme")
+    assert (row.status, row.approved) == ("failed", True)
+    assert row.outcome is not None and row.outcome.startswith("held: bs.xlsx: which unit?")
+    assert counts(data_root) == (0, 0)
+
+
+def test_deleting_a_document_sets_its_plan_row_back_to_planned(data_root: Path, room: Path) -> None:
+    fin("dataroom", "approve", "acme", str(ids(data_root)["statements.pdf"]))
+    fin("dataroom", "load", "acme")
+    with connect(company_db_path(data_root, "acme")) as con:
+        (doc_id,) = con.execute("SELECT doc_id FROM documents").fetchone() or (None,)
+
+    fin("document", "delete", "acme", str(doc_id))
+
+    plan = {r.path: r for r in read_plan(data_root, "acme")}
+    row = plan["statements.pdf"]
+    assert (row.status, row.approved, row.outcome) == ("planned", False, None)
     assert "nothing approved is waiting to load" in fin("dataroom", "load", "acme")
