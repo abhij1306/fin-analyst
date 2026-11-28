@@ -1,7 +1,8 @@
-"""Write statements.xls, the synthetic .xls fixture (SPEC-04): run once with
-`uv run --no-project --with xlwt python tests/fixtures/xls/make_statements_xls.py` (xlwt is not a dependency of
-fin: it only writes this file). A balance sheet whose period cells are Excel dates under a
-"Standalone" heading merged over both value columns, and a profit and loss sheet."""
+"""Write statements.xls, the synthetic .xls fixture (SPEC-04). Run it once with
+`uv run --no-project --with xlwt python tests/fixtures/xls/make_statements_xls.py`
+(xlwt is not a dependency of fin: it only writes this file). A balance sheet whose period cells
+are Excel dates under a "Standalone" heading merged over both value columns, and a profit and
+loss sheet."""
 
 from datetime import date
 from pathlib import Path

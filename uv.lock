@@ -558,7 +558,7 @@ requires-dist = [
     { name = "torchvision", marker = "sys_platform == 'linux' and extra == 'docling'", specifier = "==0.29.2", index = "https://download.pytorch.org/whl/cpu" },
     { name = "typer", specifier = "==0.27.3" },
     { name = "uvicorn", marker = "extra == 'ui'", specifier = "==0.54.0" },
-    { name = "xlrd", specifier = ">=2.0.2" },
+    { name = "xlrd", specifier = "==2.0.2" },
 ]
 provides-extras = ["docling", "liteparse", "llamaparse", "ui"]
 

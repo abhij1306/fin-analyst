@@ -153,9 +153,10 @@ def extract_workbook(path: Path, unit: str | None = None) -> ExcelExtraction:
             values.extend(found)
     if no_unit:
         raise _which_unit(path, no_unit)
-    if not values and held:
-        error = held[0].error
-        raise ParseError(error.message).with_context(held=[h.as_dict() for h in held])
+    if not values and held:  # the file fails, listing every held sheet as not read
+        error = ParseError(held[0].error.message).with_context(sheets=[h.sheet for h in held])
+        error.pages = tuple(h.as_dict() for h in held)
+        raise error
     if not values:
         raise NoTablesFound(
             f"{path.name}: no balance sheet, profit and loss or cash flow values"

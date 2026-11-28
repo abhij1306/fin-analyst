@@ -119,15 +119,23 @@ def sha256_of(path: Path) -> str:
 
 
 def read_document(
-    run: Run, path: Path, company: str, config: Config, unit: GivenUnit | None = None
+    run: Run,
+    path: Path,
+    company: str,
+    config: Config,
+    unit: GivenUnit | None = None,
+    *,
+    ask_unit: bool = True,
 ) -> Document:
     """Extract the values of an Excel or PDF file, with `unit` for statements that name none
-    (E203 question without it, E207 when none needed it). E103 for any other format."""
+    (E203 question without it, E207 when none needed it). E103 for any other format. With
+    `ask_unit` False (a reading fills what fin skips), a PDF page with no unit line stays unread
+    instead of holding the document."""
     suffix = path.suffix.lower()
     if suffix in EXCEL_SUFFIXES:
         document = _read_excel(path, config, unit)
     elif suffix == ".pdf":
-        document = _read_pdf(run, path, company, config, unit)
+        document = _read_pdf(run, path, company, config, unit, ask_unit=ask_unit)
     else:
         raise UnsupportedFormat(f"{path.name}: {suffix or 'no extension'} files are not supported")
     if unit is None:
@@ -188,21 +196,22 @@ def _which_unit(path: Path, pages: list[dict[str, object]]) -> UnitNotDetected |
 
 
 def _read_pdf(
-    run: Run, path: Path, company: str, config: Config, unit: GivenUnit | None
+    run: Run, path: Path, company: str, config: Config, unit: GivenUnit | None, *, ask_unit: bool
 ) -> Document:
     """pdfplumber's values, then the PDF add-on's for the statement pages pdfplumber skipped (when
     one is chosen, `fin.extract.fallback`); a scanned results PDF is read by the add-on alone. Fails
     only when neither reads a statement page. Without `unit`, a statement page with no unit line
-    holds the whole document with the question "which unit?"."""
+    holds the whole document with the question "which unit?" (unless not `ask_unit`)."""
     name = f"{company}/{path.name}"
     try:
         read = fallback.extract(run, path, name, config, unit.unit if unit else None)
     except DocumentFailure as exc:
-        question = None if unit else _which_unit(path, list(exc.pages))
+        question = _which_unit(path, list(exc.pages)) if ask_unit and not unit else None
         if question is not None:
             raise question from exc
         raise
-    question = None if unit else _which_unit(path, [s.as_dict() for s in read.unread])
+    unread = [s.as_dict() for s in read.unread]
+    question = _which_unit(path, unread) if ask_unit and not unit else None
     if question is not None:
         raise question
     given = unit.text if unit else ""
@@ -243,7 +252,7 @@ def _read_pdf(
         f"{s.statement} page {s.page} skipped: {s.error.code} {s.error.message}"
         for s in read.unread
     ]
-    return Document(rows, notes, notices, warnings, [s.as_dict() for s in read.unread])
+    return Document(rows, notes, notices, warnings, unread)
 
 
 def _row(
@@ -312,7 +321,7 @@ def read_with_reading(
     name = f"{company}/{path.name}"
     lines = read_reading(reading, config.fiscal_year_start_month)
     try:
-        document = read_document(run, path, company, config, unit)
+        document = read_document(run, path, company, config, unit, ask_unit=False)
     except UnitNotUsed:
         raise
     except DocumentFailure as exc:

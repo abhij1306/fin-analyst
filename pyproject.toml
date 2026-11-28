@@ -13,7 +13,8 @@ dependencies = [
     "python-docx==1.2.0",
     # 0.27: Docling (the optional add-on) needs typer < 0.28; the lock resolves both together.
     "typer==0.27.3",
-    "xlrd>=2.0.2",
+    # Reads old .xls workbooks into the openpyxl reader (SPEC-04); read-only, runs no macros.
+    "xlrd==2.0.2",
 ]
 
 [project.optional-dependencies]

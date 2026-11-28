@@ -23,11 +23,11 @@ confirmed = false, and is logged with E301. Only a file with nothing readable fa
 is copied to `review/<company>/` with a `.error.json` file giving the code and reason; the next
 file goes on.
 
-A file whose statements name no unit is not loaded but held with the question "which unit?" (E203,
-counted in `run.held`; its `.error.json` has `"question": "unit"`). Ingesting it again with the
-user's answer (`unit`, `fin ingest --unit`) stores the unit and who gave it on the document. When
-statement pages were not read and no PDF add-on is chosen, the outcome offers the add-ons
-(`fin.extract.fallback.offer`).
+A file whose statements name no unit is not loaded but held with the question "which unit?"
+(E203, counted in `run.held`; its `.error.json` has `"question": "which unit?"`). Ingesting it
+again with the user's answer (`unit`, `fin ingest --unit`) stores the unit and who gave it on
+the document. When statement pages were not read and no PDF add-on is chosen, the outcome offers
+the add-ons (`fin.extract.fallback.offer`).
 
 With a reading (`--reading`, `fin.extract.reading`): figures Claude read from the document's pages
 or cells are loaded for each statement and scope neither fin nor the PDF add-on read (all of them

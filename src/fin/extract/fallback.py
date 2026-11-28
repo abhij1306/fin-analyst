@@ -60,9 +60,13 @@ def engine(name: str) -> Engine | None:
 
 
 def offered(scanned: bool) -> list[str]:
-    """The add-ons that could read the pages fin skipped: for a scanned PDF only those whose OCR
-    fin uses."""
-    return [name for name, chosen in ENGINES.items() if chosen.OCR or not scanned]
+    """The add-ons that could read the pages fin skipped and run on this machine: for a scanned PDF
+    only those whose OCR fin uses."""
+    return [
+        name
+        for name, chosen in ENGINES.items()
+        if (chosen.OCR or not scanned) and chosen.unsupported() is None
+    ]
 
 
 def offer(scanned: bool) -> str:

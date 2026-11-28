@@ -4,6 +4,7 @@ the user's answer), a scanned page and skipped pages with no PDF add-on (the add
 .xls workbook, and a row of values with no label (only its sheet held)."""
 
 import json
+import re
 import shutil
 from datetime import date
 from decimal import Decimal
@@ -142,10 +143,18 @@ def test_a_unit_no_sheet_needed_is_refused_with_e207(root: Path, tmp_path: Path)
     assert not company_db_path(root, "acme").exists()
 
 
+def plain(output: str) -> str:
+    """A usage error's text without the colour codes, panel border and line wrapping Typer adds."""
+    text = re.sub(r"\x1b\[[0-9;]*m", "", output).replace("\N{BOX DRAWINGS LIGHT VERTICAL}", " ")
+    return " ".join(text.split())
+
+
 def test_unit_needs_one_file_and_a_known_answer(root: Path, tmp_path: Path) -> None:
-    assert "--unit needs PATH to be the one file" in ingest(str(tmp_path), "--unit", "lakhs")
+    out = plain(ingest(str(tmp_path), "--unit", "lakhs"))
+    assert out.startswith("exit 2") and "--unit needs PATH to be the one file" in out, out
     path = workbook(tmp_path / "bs.xlsx", balance_sheet(None))
-    assert "use one of: lakhs, crores" in ingest(str(path), "--unit", "lakh")
+    out = plain(ingest(str(path), "--unit", "lakh"))
+    assert out.startswith("exit 2") and "use one of: lakhs, crores" in out, out
 
 
 def test_the_unit_sentence_without_a_unit_word_loads_in_rupees(root: Path, tmp_path: Path) -> None:
@@ -196,6 +205,9 @@ def test_values_with_no_label_on_the_only_sheet_fail_naming_the_cells(
 
     assert out.startswith("exit 1\n"), out
     assert "E204: bs.xlsx sheet 'Balance Sheet' row 6: values with no label in cells C6, D6" in out
+    assert "not read: balance_sheet sheet 'Balance Sheet': E204" in out
+    reason = json.loads((root / "review/acme/bs.xlsx.error.json").read_text("utf-8"))
+    assert [u["sheet"] for u in reason["unread_pages"]] == ["Balance Sheet"]
 
 
 def test_an_xls_workbook_is_read_like_an_xlsx(root: Path) -> None:

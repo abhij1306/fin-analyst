@@ -165,7 +165,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
   word after it ("All amounts in INR, unless otherwise stated") means rupees (`fin.extract.units`). A document that
   failed with E203 on such a line loads when it is ingested again. A document with no unit line on a statement
   page or sheet is held (counted as held, nothing loaded, the file in `review/` with `"question": "which unit?"`):
-  fin never guesses a unit. The user answers and `fin ingest <co> <file> --unit lakhs|crores|millions|thousands|rupees`
+  fin never guesses a unit. With `--reading`, such a PDF page is left for the reading to fill instead. The user answers and `fin ingest <co> <file> --unit lakhs|crores|millions|thousands|rupees`
   loads it; the given unit is used only where no unit line was found (a sheet or page with its own line keeps it),
   each such raw value records `unit given by user` (`, entered by Claude` when Claude Code ran the command), shown by
   `fin audit` and on evidence pages, and `documents.unit_given` / `unit_given_by` keep the answer and the actor.

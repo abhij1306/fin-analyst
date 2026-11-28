@@ -12,6 +12,7 @@ from typing import Any
 
 import xlrd
 from openpyxl.workbook.workbook import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
 from xlrd.compdoc import CompDocError
 
 from fin.audit.errors import FileEncrypted, FileUnreadable
@@ -31,20 +32,24 @@ def open_xls(path: Path) -> Workbook:
     book = Workbook()
     book.remove(book.worksheets[0])
     for sheet in source.sheets():
-        target = book.create_sheet(sheet.name)
-        for row in range(sheet.nrows):
-            for column in range(sheet.ncols):
-                value = _value(sheet.cell(row, column), source.datemode)
-                if value is not None:
-                    target.cell(row + 1, column + 1, value)
-        for first_row, end_row, first_column, end_column in sheet.merged_cells:
-            target.merge_cells(
-                start_row=first_row + 1,
-                end_row=end_row,
-                start_column=first_column + 1,
-                end_column=end_column,
-            )
+        _copy_sheet(sheet, book.create_sheet(sheet.name), source.datemode)
     return book
+
+
+def _copy_sheet(sheet: xlrd.sheet.Sheet, target: Worksheet, datemode: int) -> None:
+    """Copy one sheet's saved values and merged ranges into `target`."""
+    for row in range(sheet.nrows):
+        for column in range(sheet.ncols):
+            value = _value(sheet.cell(row, column), datemode)
+            if value is not None:
+                target.cell(row + 1, column + 1, value)
+    for first_row, end_row, first_column, end_column in sheet.merged_cells:
+        target.merge_cells(
+            start_row=first_row + 1,
+            end_row=end_row,
+            start_column=first_column + 1,
+            end_column=end_column,
+        )
 
 
 def _value(cell: xlrd.sheet.Cell, datemode: int) -> Any:
