@@ -119,11 +119,28 @@ def test_settings_and_health_open_before_any_company(
     assert "1 check(s) failed." in health
     assert "failed E001" in health
     assert "<code>./install.sh</code>" in health
-    assert "Update fin" not in health  # a job needs a company
+    assert "Update fin" not in health  # no audit database for jobs before fin init
     settings = client.get("/partials/settings").text
     assert f"<code>{data_root}</code>" in settings
     assert "config.toml cannot be read" in settings
     assert "Install Docling" not in settings
+
+
+def test_update_and_add_ons_run_as_jobs_before_any_company(
+    data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert CliRunner().invoke(cli, ["init"]).exit_code == 0
+    monkeypatch.setattr(fin.services.system, "update", lambda run: [])
+    client = signed_in(data_root)
+    health = client.get("/partials/health").text
+    assert 'name="company" value=""' in health
+    assert "Update fin</button>" in health
+    assert "Install Docling</button>" in client.get("/partials/settings").text
+    assert job(client, "", "update").status_code == 200
+    done = finished_job(data_root, "")
+    assert (done["action"], done["state"], done["lines"]) == ("update", "done", ["update finished"])
+    refused = job(client, "", "export")
+    assert "there is no company yet" in refused.text
 
 
 def test_settings_show_the_config_and_offer_the_add_ons_not_chosen(tmp_path: Path) -> None:

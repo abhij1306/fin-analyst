@@ -22,7 +22,7 @@ from fin.dashboard import last_good_build_dir
 from fin.doctor import run_checks
 from fin.extract.addon import ADDON_LABELS
 from fin.extract.fallback import ABOUT
-from fin.paths import reports_dir
+from fin.paths import audit_db_path, reports_dir
 from fin.services.jobs import list_jobs
 from fin.services.questions import saved_questions
 from fin.ui.actions import ITEM_ID
@@ -35,7 +35,10 @@ WITH_QUERY = ("log",)  # loaders that also take the page's query parameters
 
 
 def _jobs(root: Path, company: str | None) -> dict[str, Any]:
-    return {"jobs": list_jobs(root, company) if company else [], "job_labels": JOB_LABELS}
+    """The jobs card: the company's jobs, or before any company the install's own (company "").
+    `ready` once `fin init` made the audit database the jobs are kept in."""
+    return {"jobs": list_jobs(root, company or ""), "job_labels": JOB_LABELS,
+            "ready": audit_db_path(root).is_file()}  # fmt: skip
 
 
 def settings(root: Path, company: str | None) -> dict[str, Any]:

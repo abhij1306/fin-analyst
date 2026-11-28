@@ -46,6 +46,8 @@ CHOICES = {
 }
 # The jobs that act on one item: a doc_id, a held file's name, or a saved question's query id
 ON_ITEM = {"reingest", "unit", "rerun"}
+# The jobs for the whole install: they run before any company exists, listed under company "".
+INSTALL_WIDE = {"addon", "dashboard", "update"}
 
 
 def _export(root: Path, company: str, *, progress: Progress) -> ActionResult:
@@ -159,8 +161,10 @@ def add_job_routes(
     def shown(request: Request, company: str) -> HTMLResponse:
         return templates.TemplateResponse(request, "_jobs.html", jobs_context(root, company))
 
-    def chosen(company: str | None) -> str:
+    def chosen(company: str | None, install_wide: bool) -> str:
         name = known(root, company)
+        if name is None and install_wide:
+            return ""  # no company yet: the install's own jobs
         if name is None:
             raise UiActionInvalid("there is no company yet; nothing was started")
         return name
@@ -169,11 +173,11 @@ def add_job_routes(
     def job(
         request: Request,
         action: Annotated[str, Form()],
-        company: Annotated[str, Form()],
+        company: Annotated[str, Form()] = "",
         item: Annotated[str, Form()] = "",
         choice: Annotated[str | None, Form()] = None,
     ) -> HTMLResponse:
-        name = chosen(company)
+        name = chosen(company, action in INSTALL_WIDE)
         jobs.submit(name, action, job_arguments(root, name, action, item, choice))
         response = shown(request, name)
         response.headers["HX-Trigger"] = "job-queued"  # the Files screen's rows start to follow it
@@ -203,4 +207,4 @@ def add_job_routes(
 
     @app.get("/partials/jobs", response_class=HTMLResponse)
     def partial(request: Request, company: str | None = None) -> HTMLResponse:
-        return shown(request, chosen(company))
+        return shown(request, chosen(company, install_wide=True))

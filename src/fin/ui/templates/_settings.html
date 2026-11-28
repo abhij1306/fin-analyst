@@ -22,12 +22,12 @@
       <tbody>
         {% for a in data.addons %}
         <tr><td class="fname">{{ a.label }}</td><td>{{ a.about }}</td>
-          <td class="act">{% if company and a.name != data.parser %}<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
-            <input type="hidden" name="action" value="addon"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="choice" value="{{ a.name }}">
+          <td class="act">{% if data.ready and a.name != data.parser %}<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+            <input type="hidden" name="action" value="addon"><input type="hidden" name="company" value="{{ company or '' }}"><input type="hidden" name="choice" value="{{ a.name }}">
             <button type="submit" class="btn" data-size="sm" data-variant="outline">Install {{ a.label }}</button></form>{% elif a.name == data.parser %}<span class="muted">chosen</span>{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table></div>
   </section>
 </div>
-{% if company %}{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}{% endif %}
+{% if data.ready %}{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}{% endif %}

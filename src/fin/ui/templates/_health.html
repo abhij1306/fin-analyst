@@ -1,8 +1,8 @@
 {% from "_ui.html" import head, badge, empty %}
 {% call head("Health", "The checks fin doctor runs, each with its fix.") %}
-{% if company %}
+{% if data.ready %}
 <form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
-  <input type="hidden" name="action" value="update"><input type="hidden" name="company" value="{{ company }}">
+  <input type="hidden" name="action" value="update"><input type="hidden" name="company" value="{{ company or '' }}">
   <button type="submit" class="btn" data-size="sm">Update fin</button>
 </form>
 {% endif %}
@@ -22,4 +22,4 @@
     </table></div>
   </section>
 </div>
-{% if company %}{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}{% endif %}
+{% if data.ready %}{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}{% endif %}
