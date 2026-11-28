@@ -323,6 +323,7 @@ claude
 | `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
 | `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
 | `fin engagement passthrough <co> [--customer ... --source] [--clear]` | `/diligence` | The user's list; Claude records it when given |
+| `fin engagement rate <co> [<CUR> <rate> --as-at <date>]` | `/diligence` | The user's exchange rate for orders not in INR; Claude records it only when given |
 | `fin map customers <co> [file]`, `fin review list\|confirm\|reject <co> --customers` | `/diligence` | Claude proposes sectors; the user decides |
 | `fin analytics <co> [--json]` | `/diligence` | Either |
 | `fin recast run <co> [--period]`, `fin recast contracts <co> [<file> --reading <csv>]` | `/diligence` | Claude runs it; the user accepts or rejects the proposed adjustments |
@@ -874,7 +875,14 @@ FDD orderbook and revenue visibility (F7, `docs/fdd.md`, decisions in `docs/deci
 registers' token for the same customer), order number, order date, value, currency, start, end and billed to date, as at the date in the title
 line ("Orderbook as at 31-Mar-2025"), which must be in an annual period or the stub (E808); `orderbook_lines`, with file + sheet!row. A row with
 no customer, order number or value, or a bad date, is E960 and nothing loads; a blank billed cell is NULL (counted as not billed, listed). Orders
-in a currency other than INR are loaded but have no rupee amount ("not converted"). `fin sql --write` refuses `orderbook_lines` (E806).
+in a currency other than INR are loaded with no rupee amount ("not converted (no rate stated as at <date>)") until the user states a rate:
+`fin engagement rate <co> USD 84.10 --as-at 2025-03-31` (`fin/diligence/rates.py`, the client, 2026-11-27; table `engagement_rates`, E962 for
+a currency, rate or date that cannot be stored) stores rupees per unit for the open engagement, appended with who stated it to
+`engagement_rates` and to the audit table `diligence_events` (kind `rate`); `fin engagement rate <co>` lists the rates in use. A rate applies
+to the orders in its currency of an orderbook as at the same date (view `orderbook_valued`): value and unbilled value times the rate, rounded
+to the paisa, noted "USD converted at <rate> as at <date> (rate stated by the user, #<id>)" in the backlog and the orderbook reconciliation.
+Stating a rate again for the same currency and date replaces it from then on. fin never fetches or assumes a rate.
+`fin sql --write` refuses `orderbook_lines` and `engagement_rates` (E806).
 `fin visibility <co> [--json]` (`fin/reconcile/visibility.py`, view `revenue_visibility` over `backlog_lines`; E961 when no source is loaded)
 shows for the 12 months after the last annual period's end, for each of three sources, the items, what is still to come and the part that falls in
 that year (straight-line by day over the remaining term), with that part as a percentage of the last period's core revenue: the unbilled

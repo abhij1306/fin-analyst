@@ -209,6 +209,7 @@ that writes to a diligence table.
 | `fin map ledgers <co> [file.json]` (Tally ledger → account; the user confirms with `fin review confirm <co> <ids> --ledgers`) | D2 (**built**) |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 (**built**) |
 | `fin engagement passthrough <co> --customer CUST-0001 ... --source "..."` (the user's SI/reseller list, one `--customer` token each; fin prints the tokens it matched) | D4 |
+| `fin engagement rate <co> USD 84.10 --as-at 2025-03-31` (the user's rate for orders in that currency as at the orderbook's date; without a currency, the rates in use) | SPEC-17 |
 | `fin reconcile <co> [name] [--period]` (**built** in D2 for `tb_vs_statements`, in D5 for `bank_vs_invoices` and `bank_vs_tb`), more reconciliations; `fin reconcile <co> match [--propose <file.json>]` and `fin review list|confirm|reject <co> --matches` (**built**, D5) | D2, D4, D5 |
 | `fin query raise <co> --items <recon item ids>` (one issue, many lines) | D4 |
 | `fin adjust propose ... --revenue N --cost N` | D4 |

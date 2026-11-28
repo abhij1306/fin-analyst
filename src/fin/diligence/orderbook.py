@@ -74,19 +74,25 @@ def rows(table: Table, file: dict[str, Any], run_id: str, masker: Masker) -> lis
 def summary(con: duckdb.DuckDBPyConnection, file: dict[str, Any], masker: Masker) -> list[str]:
     """What to show after an orderbook load: orders, masking and what fin cannot count."""
     row = con.execute(
-        "SELECT count(*), count(*) FILTER (WHERE currency <> 'INR'), "
+        "SELECT count(*), count(*) FILTER (WHERE value_inr IS NULL), "
+        "count(*) FILTER (WHERE rate IS NOT NULL), "
         "count(*) FILTER (WHERE billed IS NULL), count(*) FILTER (WHERE end_date IS NULL) "
-        "FROM orderbook_lines WHERE file_id = ?",
+        "FROM orderbook_valued WHERE file_id = ?",
         [file["file_id"]],
     ).fetchone()
     assert row is not None
-    count, foreign, blank, no_end = row
+    count, foreign, converted, blank, no_end = row
     lines = [
         f"orderbook {file['period']}: {count} orders as at {file['period_end'].isoformat()}, "
         f"{masker.added} names newly masked"
     ]
     for n, what in (
-        (foreign, "orders not in INR (not converted: no rupee amount)"),
+        (
+            foreign,
+            "orders not in INR with no rate stated as at that date (no rupee amount; state one "
+            "with `fin engagement rate`)",
+        ),
+        (converted, "orders not in INR converted at the rate the user stated"),
         (blank, "orders with billed to date blank (counted as not billed)"),
         (no_end, "orders with no end date (backlog not spread over a term)"),
     ):

@@ -40,7 +40,7 @@ def test_every_plan_code_has_one_error_class_and_its_exit_code() -> None:
         "E930": 2, "E931": 2, "E932": 2, "E933": 2, "E934": 2,
         "E940": 2, "E941": 2,
         "E950": 2, "E951": 2,
-        "E960": 2, "E961": 2,
+        "E960": 2, "E961": 2, "E962": 2,
         "E970": 2, "E971": 2, "E972": 2,
     }  # fmt: skip
     codes = [cls.code for cls in _subclasses(errors.FinError) if cls.code]

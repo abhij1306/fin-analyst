@@ -42,3 +42,21 @@ Builder's readings ([README](README.md)); the owner confirms or changes them.
 - **Why:** the owner, 2026-11-28: "this is a greenfield build. No migrations, no compatibility code, no fallbacks or
   special cases for earlier users or earlier data". This replaces the spec's "loaded again with `--force`".
 - **How to change it:** `cli/ingest.py: _check_usage` and `loading.py: refuse_duplicate`, if a reload is wanted.
+
+## 2. Orders in another currency (USD) at a rate the user states
+
+Readings by the builder (2026-11-28), not owner decisions.
+
+- **Which rate applies**: the rate stated for the order's currency, the open engagement and the orderbook's as-at date
+  exactly. A rate as at another date does not apply to that orderbook (`fin engagement rate` says so when no loaded
+  order matches): picking the nearest date would be an assumption.
+- **Which currencies**: any three-letter code other than INR, as the spec says ("any other currency stays not converted
+  until a rate is stated the same way").
+- **Stating it again**: rates are appended, never changed; the latest for a currency and date is used. Each one is in
+  `diligence_events` (kind `rate`, status `stated`) with the actor and run, so earlier rates stay in the audit log.
+- **Rounding**: value and unbilled value are converted and rounded to the paisa first; the backlog spreads the rupee
+  amount as it spreads an INR order.
+- **What it feeds**: the backlog and revenue visibility, and the orderbook reconciliation (a converted order without
+  billing can reach the query threshold). A run of that reconciliation made before the rate was stated is stale (its
+  input hash changes), so the gate over it asks for a new run.
+- **Who may state it**: the user. Claude states a rate only when the user gives it; the audit row then says `claude`.

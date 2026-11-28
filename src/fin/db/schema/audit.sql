@@ -150,16 +150,17 @@ CREATE TABLE findings (
     status VARCHAR
 );
 
--- Diligence (fin.diligence): every engagement, accountant query and adjustment added, and every status change.
--- kind: 'engagement', 'query', 'adjustment' or 'gate'; item_id: its id in the company database (engagement_id, query_id
--- or adj_id), or for a gate its name ('G1'); status: its status after the change ('approved' for a gate approval);
+-- Diligence (fin.diligence): every engagement, accountant query and adjustment added, and every status change, and
+-- every exchange rate the user states. kind: 'engagement', 'query', 'adjustment', 'gate' or 'rate'; item_id: its id in
+-- the company database (engagement_id, query_id, adj_id or rate_id; status 'stated' for a rate), or for a gate its
+-- name ('G1'); status: its status after the change ('approved' for a gate approval);
 -- detail: the whole row as it is now (JSON; for a gate, its gate_approvals row).
 CREATE TABLE diligence_events (
     run_id VARCHAR NOT NULL,
     recorded_at TIMESTAMP NOT NULL,
     company VARCHAR NOT NULL,
     engagement_id INTEGER NOT NULL,
-    kind VARCHAR NOT NULL CHECK (kind IN ('engagement', 'query', 'adjustment', 'gate')),
+    kind VARCHAR NOT NULL CHECK (kind IN ('engagement', 'query', 'adjustment', 'gate', 'rate')),
     item_id VARCHAR NOT NULL,
     status VARCHAR NOT NULL,
     detail VARCHAR NOT NULL

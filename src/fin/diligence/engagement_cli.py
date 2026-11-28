@@ -9,7 +9,7 @@ import typer
 
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
-from fin.diligence import bridge, engagement, passthrough
+from fin.diligence import bridge, engagement, passthrough, rates
 from fin.diligence.cli_options import (
     CompanyArg,
     JsonOption,
@@ -172,3 +172,40 @@ def engagement_passthrough(
         "json": json_output,
     }
     execute("engagement passthrough", args, body)
+
+
+@engagement_app.command("rate")
+def engagement_rate(
+    company: CompanyArg,
+    currency: Annotated[
+        str | None, typer.Argument(help="The order currency, e.g. USD. Omit to list the rates.")
+    ] = None,
+    rate: Annotated[
+        str | None, typer.Argument(help="Rupees per unit of the currency, e.g. 84.10.")
+    ] = None,
+    as_at: Annotated[
+        str | None,
+        typer.Option("--as-at", help="The date the rate is as at: the orderbook's, YYYY-MM-DD."),
+    ] = None,
+    json_output: JsonOption = False,
+) -> None:
+    """State the exchange rate an order not in INR is valued at (the user's rate; fin never
+    assumes one), or list the rates stated."""
+    if currency is not None and (rate is None or as_at is None):
+        raise typer.BadParameter(
+            "give the currency, the rate and --as-at, e.g. USD 84.10 --as-at 2025-03-31"
+        )
+
+    def body(run: Run) -> None:
+        if currency is None:
+            rows = rates.list_rates(run, company)
+            text = rates.format_rates(company, rows)
+            result: object = rows
+        else:
+            assert rate is not None and as_at is not None
+            result = rates.state_rate(run, company, currency, rate, as_at)
+            text = rates.format_stated(result)
+        typer.echo(json.dumps(result, indent=2, default=str) if json_output else text)
+
+    args = {"company": company, "currency": currency, "rate": rate, "as_at": as_at}
+    execute("engagement rate", args, body)
