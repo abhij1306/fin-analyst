@@ -174,9 +174,7 @@ def test_the_ui_and_the_cli_leave_the_same_run_record(
     assert ui_run["args"].pop("via") == "ui"
     assert cli_run["args"].pop("via") == "cli"
     assert ui_run == cli_run
-    words = (
-        3 if argv[0] == "fdd" or argv[1] == "item" else 2
-    )  # fdd finding final, netdebt item accept
+    words = 3 if argv[0] == "fdd" or argv[1] == "item" else 2  # fdd finding, netdebt item
     assert ui_run["command"] == " ".join(argv[:words])
     assert pressed.ok == (ran.exit_code == 0)
     if not pressed.ok:

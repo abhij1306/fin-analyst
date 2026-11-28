@@ -17,7 +17,7 @@ from fin.extract.addon import ADDON_LABELS
 from fin.ingest import UNIT_ANSWERS
 from fin.services import addon, dataroom, ingest, questions, reports, system
 from fin.services.jobs import Jobs, Work, list_jobs
-from fin.services.result import ActionResult, Progress
+from fin.services.result import ActionResult, Progress, Refused
 from fin.ui.actions import ITEM_ID
 from fin.uploads import check_length
 
@@ -158,9 +158,15 @@ def add_job_routes(
     known: Callable[[Path, str | None], str | None],
     jobs: Jobs,
 ) -> None:
-    def shown(request: Request, company: str) -> HTMLResponse:
-        context = {"company": company, **jobs_card(root, company)}
-        return templates.TemplateResponse(request, "_jobs.html", context)
+    def shown(request: Request, company: str, polled: bool = False) -> HTMLResponse:
+        """The Jobs card. On the card's own poll (`polled`), job-done is sent when none of the jobs
+        it shows is queued or running: the same read decides both, so a card that stops polling
+        always tells the screen."""
+        card = jobs_card(root, company)
+        response = templates.TemplateResponse(request, "_jobs.html", {"company": company, **card})
+        if polled and not any(j["state"] in ACTIVE for j in card["jobs"]):
+            response.headers["HX-Trigger"] = "job-done"
+        return response
 
     def chosen(company: str | None, install_wide: bool = False) -> str:
         name = known(root, company)
@@ -196,7 +202,7 @@ def add_job_routes(
         folder = dataroom.upload_folder(root, name)
         files = [(f.filename or "", f.file) for f in sent]
         saved = dataroom.save_zip(root, name, folder, files, via="ui", actor=USER)
-        if not saved.ok:
+        if isinstance(saved, Refused):
             error = f"{saved.code}: {saved.message} (run {saved.run_id})"
             return templates.TemplateResponse(
                 request, "_error.html", {"error": error}, status_code=400
@@ -210,9 +216,5 @@ def add_job_routes(
     def partial(request: Request, company: str | None = None) -> HTMLResponse:
         """The card asks for itself only while a job is queued or running (HX-Trigger names the
         card); when none is left, job-done tells the screen's other parts to show the result."""
-        name = chosen(company, install_wide=True)
-        response = shown(request, name)
         polled = request.headers.get("HX-Trigger") == "jobs"
-        if polled and not any(j["state"] in ACTIVE for j in list_jobs(root, name)):
-            response.headers["HX-Trigger"] = "job-done"
-        return response
+        return shown(request, chosen(company, install_wide=True), polled)

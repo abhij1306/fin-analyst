@@ -256,9 +256,11 @@ def plan_groups(rows: list[PlanRow]) -> tuple[list[PlanRow], list[PlanRow], list
 
 
 def awaiting_approval(rows: list[PlanRow]) -> list[PlanRow]:
-    """The files fin can use that the user has not approved and that are not loaded yet."""
+    """The files fin can use that the user has not approved and that are not loaded yet (a failed
+    load can be approved again, as `fin.dataroom.load.waiting` loads every approved row not
+    loaded)."""
     usable, _, _ = plan_groups(rows)
-    return [r for r in usable if not r.approved and r.status == "planned"]
+    return [r for r in usable if not r.approved and r.status != "loaded"]
 
 
 def format_plan(company: str, rows: list[PlanRow]) -> str:

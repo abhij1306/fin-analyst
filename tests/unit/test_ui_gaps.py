@@ -74,8 +74,10 @@ def test_provisions_and_net_debt_items_are_the_users_clicks_on_the_findings_scre
     client: TestClient, root: Path
 ) -> None:
     page = client.get("/partials/findings?company=acme").text
-    assert "Provision for doubtful debts" in page and "shortfall" in page
-    assert 'value="provision-confirm"' in page and 'value="netdebt-item-accept"' in page
+    assert "Provision for doubtful debts" in page
+    assert "shortfall" in page
+    assert 'value="provision-confirm"' in page
+    assert 'value="netdebt-item-accept"' in page
     assert runs(root) == []  # showing them decides nothing
 
     assert "Done" in act(client, "provision-confirm", "1").text
@@ -154,7 +156,8 @@ def test_an_act_with_no_company_is_the_e008_alert_and_never_the_first_company(
     ):
         response = client.post("/act", data=data, headers=ORIGIN)
         assert response.status_code == 200
-        assert "E008" in response.text and "choose the company; nothing changed" in response.text
+        assert "E008" in response.text
+        assert "choose the company; nothing changed" in response.text
     assert runs(root) == []
 
 
@@ -181,5 +184,7 @@ def test_a_data_room_upload_is_saved_in_a_run_of_its_own(
     )  # fmt: skip
     assert queued == [{"folder": args["folder"]}]
     assert (Path(args["folder"]) / "room.zip").is_file()
-    assert refused.status_code == 400 and "E008" in refused.text and "run " in refused.text
+    assert refused.status_code == 400
+    assert "E008" in refused.text
+    assert "run " in refused.text
     assert list((dataroom_dir(root, "acme") / "uploads").iterdir()) == [Path(args["folder"])]

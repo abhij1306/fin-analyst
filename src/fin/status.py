@@ -66,15 +66,15 @@ QUERY_ACTIONABLE = ("draft", "approved", "answered")
 _COMPANY_WAITING = """
 SELECT
     (SELECT count(*) FROM netdebt_classes WHERE status = 'proposed'),
-    (SELECT count(*) FROM reference_lines WHERE status = 'proposed'),
-    (SELECT count(*) FROM provision_ledgers WHERE status = 'proposed')
+    (SELECT count(*) FROM reference_lines WHERE status = 'proposed')
 """
 _ENGAGEMENT_WAITING = """
 SELECT
     (SELECT count(*) FROM related_party_links WHERE engagement_id = $1 AND status = 'proposed'),
     (SELECT count(*) FROM match_proposals WHERE engagement_id = $1 AND status = 'proposed'),
     (SELECT count(*) FROM fdd_findings WHERE engagement_id = $1 AND status = 'draft'),
-    (SELECT count(*) FROM netdebt_items WHERE engagement_id = $1 AND status = 'proposed')
+    (SELECT count(*) FROM netdebt_items WHERE engagement_id = $1 AND status = 'proposed'),
+    (SELECT count(*) FROM provision_ledgers WHERE status = 'proposed')
 """
 
 _SUMMARY = """
@@ -183,7 +183,8 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
 
 def _counts(con: duckdb.DuckDBPyConnection, diligence: dict[str, Any] | None) -> dict[str, int]:
     """What waits for the user in the company database (WAITING); the review kinds count the
-    rows `fin review list --<kind>` lists. Items of an engagement count only while it is open."""
+    rows `fin review list --<kind>` lists. Items of an engagement count only while it is open, and
+    so do provision ledgers: the Findings screen, where they are decided, needs an open one."""
     row = con.execute(_COMPANY_WAITING).fetchone()
     assert row is not None
     counts = {
@@ -192,7 +193,6 @@ def _counts(con: duckdb.DuckDBPyConnection, diligence: dict[str, Any] | None) ->
         "tax": len(tax_ledgers.read(con, True)),
         "netdebt": row[0],
         "reference_lines": row[1],
-        "provisions": row[2],
         "dataroom": len(awaiting_approval(plan_of(con))),
     }
     if diligence is None:
@@ -204,6 +204,7 @@ def _counts(con: duckdb.DuckDBPyConnection, diligence: dict[str, Any] | None) ->
         "matches": found[1],
         "fdd_drafts": found[2],
         "netdebt_items": found[3],
+        "provisions": found[4],
         "queries": sum(diligence["queries"].get(s, 0) for s in QUERY_ACTIONABLE),
         "adjustments": diligence["proposed_adjustments"],
     }

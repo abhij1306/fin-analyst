@@ -13,7 +13,7 @@ from fin.status import WAITING, company_status, format_status
 from tests.engagement_root import engagement_root, with_proposal
 
 # One row waiting for the user per kind, one decided row beside it that must not count, and an
-# item of a closed engagement that must not count either.
+# item of another engagement (id 2, not the open one) that must not count either.
 SEED = [
     "INSERT INTO ledger_accounts (ledger, status, run_id, changed_at) VALUES "
     "('Rent', 'proposed', 'r', $now), ('Cash', 'confirmed', 'r', $now)",
@@ -35,7 +35,8 @@ SEED = [
     "'pending', NULL, NULL, 'r', $now)",
     "INSERT INTO dataroom_files (folder, path, location, kind, duplicates, approved, status, "
     "run_id, scanned_at) VALUES ('d', 'tb.xlsx', 'tb.xlsx', 'trial_balance', [], false, "
-    "'planned', 'r', $now), ('d', 'b.xlsx', 'b.xlsx', 'bank', [], true, 'planned', 'r', $now)",
+    "'failed', 'r', $now), ('d', 'b.xlsx', 'b.xlsx', 'bank', [], true, 'planned', 'r', $now), "
+    "('d', 'gl.xlsx', 'gl.xlsx', 'ledger_vouchers', [], false, 'loaded', 'r', $now)",
     "INSERT INTO fdd_findings (engagement_id, area, title, observation, impact_type, severity, "
     "deal_consideration, evidence, status, created_run_id, created_at, status_run_id, status_at) "
     "VALUES (1, 'qoe', 'T', 'O', 'none', 'low', 'none', 'E', 'draft', 'r', $now, 'r', $now), "
@@ -83,9 +84,10 @@ def test_items_of_an_engagement_count_only_while_it_is_open(root: Path) -> None:
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute("UPDATE engagement SET status = 'closed', closed_at = now()")
     counts = waiting(root)
-    for key in ("related", "matches", "fdd_drafts", "netdebt_items", "queries", "adjustments"):
+    closed = ("related", "matches", "fdd_drafts", "netdebt_items", "queries", "adjustments")
+    for key in (*closed, "provisions"):  # provisions: decided on Findings, which needs one open
         assert counts[key] == 0, key
-    assert counts["provisions"] == counts["ledgers"] == 1  # not tied to an engagement
+    assert counts["ledgers"] == counts["netdebt"] == 1  # company-wide reviews still wait
 
 
 def test_fin_status_prints_what_waits_kind_by_kind(root: Path) -> None:
