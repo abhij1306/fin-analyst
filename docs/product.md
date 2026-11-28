@@ -1074,25 +1074,29 @@ what the company reported. Decisions: [decisions/spec-14-rebuilt.md](decisions/s
 - **Missing is not zero**: a ledger with no confirmed account is never rolled up. One waiting for review marks the
   totals above its proposed account incomplete; one with no proposal marks every total of its year. Each such line
   says how many unmapped ledgers are under it and their amount (debit - credit), and a memo line "Unmapped ledgers"
-  per statement carries the year's whole unmapped amount.
+  under the P&L and the balance sheet carries the year's whole unmapped amount (a balance, so not under the cash
+  flow, whose lines are all marked incomplete). A year with no confirmed ledger has no cash flow totals.
 - **Cash flow (indirect)**, for a year whose previous trial balance (ending the day before it starts) is loaded; the
   first year has none, and says so. Operating: profit for the year, depreciation added back, and the change in each
   working capital account; investing: the change in fixed assets less depreciation (purchases net of disposals),
   investments and other bank balances; financing: borrowings, share capital, leases, and the change in other equity
   less the year's profit ("Other changes in equity"). Opening cash plus the three activities equals closing cash;
-  any difference (an unbalanced trial balance, unmapped ledgers) is an "Unmapped / other" line. Income taxes paid
-  and finance costs paid are "not derivable" with the reason, never estimated (Q11). Which balance sheet account goes
+  any difference (an unbalanced trial balance, unmapped ledgers) is an "Unmapped / other" line. Income taxes paid,
+  finance costs paid, interest and dividends received, sale proceeds of fixed assets and investments, dividends
+  paid and the exchange rate effect are "not derivable" with the reason and where the amount sits instead, never
+  estimated (Q11; `fin.rebuilt.view.NOT_DERIVABLE`). Which balance sheet account goes
   to which line: `fin.rebuilt.view.CASH_LINES`.
 - **`fin statements <co> --rebuilt [--period] [--json]`**: each line's reported (the standalone `standard_statements`
   figure), rebuilt and difference (rebuilt - reported, in SQL; blank when either side has no figure), in the
   documents' unit, with a note after a line that is incomplete or not derivable; the latest fiscal year by default.
-  Then what to ask the company for: a year with no trial balance, or one with group totals only. `--scope
+  A reported "Unmapped / other" line is shown with the rebuilt side blank, and an account reached only by ledgers
+  that are not confirmed has a blank rebuilt figure marked incomplete. Then what to ask the company for: a year with no trial balance, or one with group totals only. `--scope
   consolidated` is refused (the rebuild is standalone). E822 when the company has no engagement, the period is not
   one of its periods, or nothing (or not the period asked for) can be rebuilt.
 - **`fin export`** adds "Rebuilt P&L", "Rebuilt Balance sheet" and "Rebuilt Cash flow" sheets (reported, rebuilt and
   difference per period, and a Notes column) when a year can be rebuilt.
 - **Statements screen** (web UI): the latest fiscal year as reported, or reported vs rebuilt (the same three columns,
-  the notes, and each rebuilt line's trial balance rows on hover).
+  each rebuilt line's trial balance rows, and the notes).
 - **Nothing reported changes**: a difference is for a query or an adjustment with evidence.
 
 ## Actor (SPEC-02)

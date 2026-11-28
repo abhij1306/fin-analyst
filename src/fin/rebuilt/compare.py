@@ -30,7 +30,7 @@ SELECT * FROM (
 WITH r AS (SELECT * FROM rebuilt_statements WHERE ? IS NULL OR period = ?),
 s AS (
     SELECT * FROM standard_statements
-    WHERE scope = 'standalone' AND line_type = 'line' AND period IN (SELECT period FROM r)
+    WHERE scope = 'standalone' AND period IN (SELECT period FROM r)
 )
 SELECT
     coalesce(r.period, s.period) AS period,

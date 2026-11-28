@@ -9,6 +9,7 @@ the planted differences in `PLANTED` (reported - rebuilt).
 
 from pathlib import Path
 
+from fin.actor import USER
 from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
@@ -145,4 +146,4 @@ def map_all(root: Path) -> None:
     ]
     ledgers.propose(run(root), "acme", proposals)
     ids = [row["ledger_id"] for row in ledgers.list_ledgers(run(root), "acme")]
-    ledgers.confirm(run(root), "acme", ids)
+    ledgers.confirm(run(root), "acme", ids, actor=USER)

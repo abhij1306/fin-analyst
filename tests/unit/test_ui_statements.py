@@ -1,6 +1,7 @@
 """The Statements screen (SPEC-14 PR 3): the latest year as reported, and reported, rebuilt and
 difference side by side. Needs the `ui` extra (CI's ui job syncs it); skipped without it."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -39,11 +40,16 @@ def test_the_statements_tab_shows_the_reported_statements(client: TestClient) ->
 def test_the_rebuilt_view_shows_reported_rebuilt_and_difference(client: TestClient) -> None:
     text = client.get("/partials/statements?company=acme&view=rebuilt").text
     assert "<html" not in text
-    assert '<th class="num">Reported</th><th class="num">Rebuilt</th>' in text
+    assert re.findall(r"<th[^>]*>([^<]+)</th>", text)[:4] == [
+        "Line",
+        "Reported",
+        "Rebuilt",
+        "Difference",
+    ]
     row = text.split("Revenue from operations", 1)[1].split("</tr>", 1)[0]
     cells = [c.split("<", 1)[0] for c in row.split('<td class="num">')[1:4]]
     assert cells == ["2,500,000.00", "2,400,000.00", "-100,000.00"]
-    assert 'title="tb_FY25.xlsx Trial Balance!23"' in text
+    assert '<td class="sub">tb_FY25.xlsx Trial Balance!23</td>' in text
     assert "FY25: cash flow" in text
     assert "not derivable: the balances give the tax charged" in text
 

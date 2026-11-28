@@ -1,9 +1,10 @@
 """The SQL of the temporary view `rebuilt_statements` (fin.rebuilt.view makes it per connection).
 
-It reads the schema view `rebuilt_ledgers` and four temporary tables: `statement_accounts` and
+It reads the schema view `rebuilt_ledgers` and five temporary tables: `statement_accounts` and
 `statement_paths` (the dictionary's account tree, from fin.statements), `rebuilt_accounts` (each
-balance sheet and profit and loss account's side and the cash flow line its change goes to) and
-`rebuilt_cash_lines` (each cash flow line's activity).
+balance sheet and profit and loss account's side and the cash flow line its change goes to),
+`rebuilt_cash_lines` (each cash flow line's activity) and `rebuilt_not_derivable` (the cash flow
+lines the balances cannot give, with the reason).
 """
 
 VIEW_SQL = """
@@ -78,7 +79,7 @@ bs_pl AS (
     JOIN statement_accounts a ON a.account = t.account
     JOIN rebuilt_accounts k ON k.account = t.account
     LEFT JOIN loose o ON o.period = t.period
-    WHERE t.ledgers > 0
+    WHERE t.ledgers > 0 OR t.unmapped_ledgers > 0  -- only unconfirmed ledgers: no value, incomplete
 ),
 -- A year has a cash flow when the trial balance of the day before it starts is loaded.
 pairs AS (
@@ -141,12 +142,14 @@ cf_detail AS (
     FROM cf_items i JOIN rebuilt_cash_lines c USING (line)
     GROUP BY ALL
 ),
+-- An activity with no line is zero (no balance under it moved); a year with no line at all (no
+-- confirmed ledger) has no totals: missing is not zero.
 cf_totals AS (
     SELECT q.period,
         coalesce(sum(d.value) FILTER (WHERE d.activity = 'operating'), 0) AS cfo,
         coalesce(sum(d.value) FILTER (WHERE d.activity = 'investing'), 0) AS cfi,
         coalesce(sum(d.value) FILTER (WHERE d.activity = 'financing'), 0) AS cff
-    FROM pairs q LEFT JOIN cf_detail d USING (period)
+    FROM pairs q JOIN cf_detail d USING (period)
     GROUP BY q.period
 ),
 cf_values AS (
@@ -162,9 +165,8 @@ cf_values AS (
     SELECT period, '{other}', closing - opening - (cfo + cfi + cff), 'other', NULL
     FROM cf_totals JOIN cash USING (period)
     WHERE closing - opening - (cfo + cfi + cff) <> 0
-    UNION ALL SELECT period, 'cf_taxes_paid', NULL, 'not_derivable', '{taxes_note}' FROM pairs
     UNION ALL
-    SELECT period, 'cf_finance_cost_paid', NULL, 'not_derivable', '{interest_note}' FROM pairs
+    SELECT q.period, n.line, NULL, 'not_derivable', n.note FROM pairs q, rebuilt_not_derivable n
 ),
 cf_rows AS (
     SELECT v.period, 'cash_flow' AS statement,
@@ -199,8 +201,7 @@ memo AS (
         u.n AS unmapped_ledgers, CAST(u.net AS DECIMAL(38, 2)) AS unmapped,
         CAST(NULL AS VARCHAR) AS sources, CAST(NULL AS VARCHAR) AS note
     FROM unmapped_year u
-    JOIN (VALUES ('balance_sheet'), ('profit_and_loss'), ('cash_flow')) s(statement) ON true
-    WHERE s.statement <> 'cash_flow' OR u.period IN (SELECT period FROM pairs)
+    JOIN (VALUES ('balance_sheet'), ('profit_and_loss')) s(statement) ON true
 )
 SELECT y.period, y.period_months, split_part(y.period, '-', 1) AS fiscal_year, y.period_end,
     'standalone' AS scope, x.statement, x.line_no, x.depth, x.line_type, x.account, x.label,

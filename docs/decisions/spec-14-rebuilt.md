@@ -14,6 +14,15 @@ rebuilt from balances) is applied as given.
   equals closing cash.
 - **How to change it**: `src/fin/rebuilt/sql.py` (`cf_items`) and `NOT_DERIVABLE` in `src/fin/rebuilt/view.py`.
 
+## Every gross flow the balances net is "not derivable"
+
+- **Decision** (reviewer): besides tax and finance costs paid, interest and dividends received, sale proceeds of fixed
+  assets and of investments, dividends paid and the exchange rate effect on cash are "not derivable" lines; each
+  reason says which line holds the amount instead. The activity totals stay as derived: every rupee is in one of
+  them, so they tie to cash, but where an amount sits can differ from the company's classification (interest paid
+  is in operating activities, not financing).
+- **Why**: Q11 (never estimate), and a reader must see that these lines exist but cannot be split out.
+
 ## Purchases of fixed assets are the change in the net block plus depreciation
 
 - **Decision**: `cf_capex` is minus the change in the fixed asset accounts (net block, work in progress,

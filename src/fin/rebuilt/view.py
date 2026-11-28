@@ -11,7 +11,8 @@ has the shape of `standard_statements`, scope standalone, one row per line:
 - Missing is not zero: a ledger with no confirmed account is never rolled up. One waiting for
   review marks the totals above its proposed account incomplete; one with no proposal marks every
   total of its year. `unmapped` (debit - credit) and `unmapped_ledgers` say how much, and a memo
-  line (line_type 'unmapped') per statement carries the year's whole unmapped amount.
+  line (line_type 'unmapped') under the P&L and the balance sheet carries the year's whole
+  unmapped amount (a balance, so not under the cash flow, whose lines are marked incomplete).
 - Cash flow (indirect), for a year whose previous trial balance is loaded: profit for the year,
   depreciation added back, the change in each balance sheet account by `CASH_LINES`; opening
   plus the three activities equals closing cash, and an "Unmapped / other" line carries any
@@ -43,6 +44,18 @@ NOT_DERIVABLE = {
     "balances, not the tax paid; both are in operating activities",
     "cf_finance_cost_paid": "not derivable: the balances give the finance cost charged, not the "
     "interest paid; the charge is in profit for the year",
+    "cf_interest_received": "not derivable: the balances give the interest income, not the "
+    "interest received; the income is in profit for the year",
+    "cf_dividends_received": "not derivable: the balances give the dividend income, not the "
+    "dividends received; the income is in profit for the year",
+    "cf_ppe_sale_proceeds": "not derivable: the balances give the net change in fixed assets, not "
+    "purchases and sales apart; both are in purchase of property and equipment",
+    "cf_investments_sold": "not derivable: the balances give the net change in investments, not "
+    "purchases and sales apart; both are in purchase of investments",
+    "cf_dividends_paid": "not derivable: the balances give the change in other equity, not the "
+    "dividends paid; they are in other changes in equity",
+    "cf_fx_effect": "not derivable: the balances give the change in cash, not the part due to "
+    "exchange rates; it is in the change in each balance",
 }
 # Balance sheet account -> the cash flow line its change goes to. Any other asset goes to other
 # current assets, any other liability to other current liabilities.
@@ -141,6 +154,8 @@ def add_views(con: duckdb.DuckDBPyConnection, root: Path) -> None:
         "INSERT INTO rebuilt_cash_lines VALUES (?, ?)",
         [(line, activity) for activity, lines in ACTIVITIES.items() for line in lines],
     )
+    con.execute("CREATE OR REPLACE TEMP TABLE rebuilt_not_derivable (line VARCHAR, note VARCHAR)")
+    con.executemany("INSERT INTO rebuilt_not_derivable VALUES (?, ?)", list(NOT_DERIVABLE.items()))
     con.execute(
         VIEW_SQL.format(
             retained=RETAINED,
@@ -150,8 +165,6 @@ def add_views(con: duckdb.DuckDBPyConnection, root: Path) -> None:
             other_label=OTHER_LABEL,
             unmapped_label=UNMAPPED_LABEL,
             shown=SHOWN_ROWS,
-            taxes_note=NOT_DERIVABLE["cf_taxes_paid"],
-            interest_note=NOT_DERIVABLE["cf_finance_cost_paid"],
         )
     )
 

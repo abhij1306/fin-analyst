@@ -99,7 +99,16 @@ def test_the_cash_flow_lines_and_what_is_not_derivable(root: Path) -> None:
     assert values["cf_share_issue_proceeds"] == Decimal("100000.00")
     assert values["Other changes in equity (dividends and other movements)"] == Decimal("0.00")
     derivable = {key: (kind, note) for key, _, kind, note in rows if kind == "not_derivable"}
-    assert set(derivable) == {"cf_taxes_paid", "cf_finance_cost_paid"}
+    assert set(derivable) == {
+        "cf_taxes_paid",
+        "cf_finance_cost_paid",
+        "cf_interest_received",
+        "cf_dividends_received",
+        "cf_ppe_sale_proceeds",
+        "cf_investments_sold",
+        "cf_dividends_paid",
+        "cf_fx_effect",
+    }
     assert values["cf_taxes_paid"] is None
     assert derivable["cf_taxes_paid"][1].startswith("not derivable: ")
 
@@ -118,7 +127,9 @@ def test_removing_one_mapping_marks_the_totals_above_it_incomplete(root: Path) -
         )
     result = rebuilt_rows(root, "acme", "FY25")
     bs = lines(result, "FY25", "balance_sheet")
-    assert "trade_receivables" not in {a for a, r in bs.items() if r["rebuilt"] is not None}
+    assert bs["trade_receivables"]["rebuilt"] is None
+    assert bs["trade_receivables"]["incomplete"] is True
+    assert bs["trade_receivables"]["unmapped"] == Decimal("500000.00")
     for total in ("total_current_assets", "total_assets"):
         assert bs[total]["incomplete"] is True
         assert bs[total]["unmapped"] == Decimal("500000.00")
@@ -131,12 +142,26 @@ def test_removing_one_mapping_marks_the_totals_above_it_incomplete(root: Path) -
         for r in result["rows"]
         if r["line_type"] == "unmapped" and r["statement"] == "balance_sheet"
     ]
-    assert (memo["rebuilt"], memo["unmapped_ledgers"]) == (Decimal("500000.00"), 1)
-    assert "incomplete: 1 unmapped ledgers under it, 500,000.00 (debit - credit)" in (
-        format_rebuilt("acme", result)
-    )
+    assert memo["rebuilt"] == Decimal("500000.00")
+    assert memo["unmapped_ledgers"] == 1
+    text = format_rebuilt("acme", result)
+    assert "incomplete: 1 unmapped ledgers under it, 500,000.00 (debit - credit)" in text
     cash_flow = [r for r in result["rows"] if r["statement"] == "cash_flow"]
-    assert cash_flow and all(r["incomplete"] for r in cash_flow)
+    assert cash_flow
+    assert all(r["incomplete"] for r in cash_flow)
+    assert "unmapped" not in {r["line_type"] for r in cash_flow}
+
+
+def test_a_year_with_no_confirmed_ledger_has_no_cash_flow_totals(root: Path) -> None:
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE ledger_accounts SET status = 'proposed'")
+    rows = view(
+        root,
+        "SELECT account, value FROM rebuilt_statements WHERE statement = 'cash_flow' "
+        "AND account IN ('cfo', 'cfi', 'cff', 'net_change_cash', 'opening_cash', 'closing_cash')",
+    )
+    assert all(value is None for _, value in rows)
+    assert {account for account, _ in rows} <= {"opening_cash", "closing_cash"}
 
 
 def test_a_ledger_with_no_proposal_marks_every_total_of_its_year(root: Path) -> None:
@@ -146,7 +171,8 @@ def test_a_ledger_with_no_proposal_marks_every_total_of_its_year(root: Path) -> 
         )
     result = rebuilt_rows(root, "acme", "FY24")
     shown = [r for r in result["rows"] if r["line_type"] == "line"]
-    assert shown and all(r["incomplete"] for r in shown)
+    assert shown
+    assert all(r["incomplete"] for r in shown)
     assert {r["unmapped"] for r in shown} == {Decimal("350000.00")}
 
 
