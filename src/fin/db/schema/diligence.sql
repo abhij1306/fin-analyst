@@ -48,14 +48,15 @@ CREATE TABLE engagement (
 --   withdrawn  dropped before it was closed (`fin query withdraw`), with the reason in note.
 -- origin: 'finding' (raised from findings.finding_id: period, scope, difference and sources copied from it; the
 -- finding itself is not changed), 'recon' (drafted by a reconciliation for a line at or above the threshold; the
--- line's recon_items.query_id links it) or 'manual'. amount: the difference at issue in rupees, NULL when there is
+-- line's recon_items.query_id links it), 'forensic' (raised from forensic flags,
+-- `fin query raise --flags`: forensic_flag_queries links them) or 'manual'. amount: the difference at issue in rupees, NULL when there is
 -- none.
 -- sources: where the figures are, as file + sheet!cell or page references, '; '-separated.
 -- status_run_id / status_at: the run and time of the last status change (or of the raise).
 CREATE TABLE accountant_queries (
     query_id INTEGER PRIMARY KEY DEFAULT nextval('accountant_queries_seq'),
     engagement_id INTEGER NOT NULL,
-    origin VARCHAR NOT NULL CHECK (origin IN ('finding', 'recon', 'manual')),
+    origin VARCHAR NOT NULL CHECK (origin IN ('finding', 'recon', 'manual', 'forensic')),
     finding_id BIGINT,
     period VARCHAR,
     scope VARCHAR CHECK (scope IN ('standalone', 'consolidated')),

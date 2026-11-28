@@ -5,7 +5,9 @@ only source of these values: `load_config` reads it strictly and raises a coded 
 missing (E001) or invalid (E002). There are no fallback values, except that a file without the
 `[pdf]` table (written before the PDF add-on) has chosen none, and a file without the `[fdd]`
 table (or one of its keys) has the plan's stated FDD assumptions (`FDD_DEFAULTS`, docs/fdd.md).
-The one line fin changes is `[pdf] parser`, through `fin parser use <name>` (`set_parser`).
+The one line fin changes is `[pdf] parser`, through `fin parser use <name>` (`set_parser`), and
+a company's `[forensic.companies.<name>]` table, through `fin forensic set`
+(`fin.forensic.settings`).
 """
 
 import re
@@ -185,6 +187,7 @@ class Config:
     coverage_top_n: int = 10  # [fdd]: the top customers and vendors checked for a contract
     fdd: dict[str, Any] = field(default_factory=lambda: dict(FDD_DEFAULTS))  # [fdd], FDD_DEFAULTS
     display_companies: dict[str, Display] = field(default_factory=dict)  # [display.companies.*]
+    forensic: dict[str, Any] = field(default_factory=dict)  # [forensic], fin.forensic.settings
 
     def display_for(self, company: str | None) -> Display:
         """The company's display settings: its [display.companies.<name>] table, else [display]."""
@@ -291,7 +294,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
     # extension has none. The add-on is opt-in, so no [pdf] means none chosen; no [fdd] means the
     # defaults of the default file.
     tables = ("config_version", "display", "defaults", "tolerances", "diligence", "dataroom")
-    optional = tuple(name for name in ("pdf", "fdd") if name in data)
+    optional = tuple(name for name in ("pdf", "fdd", "forensic") if name in data)
     _keys(data, (*tables, *optional), "the file", path)
     pdf = _table(data, "pdf", path) if "pdf" in data else {"parser": "none"}
     version = data["config_version"]
@@ -343,6 +346,8 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
     parser = _choice(pdf, "parser", PARSERS, "pdf", path)
 
     fdd = _fdd(_table(data, "fdd", path) if "fdd" in data else {}, path)
+    # [forensic] is read and checked by fin.forensic.settings (E990), which owns its keys.
+    forensic = _table(data, "forensic", path) if "forensic" in data else {}
 
     return Config(
         display=display,
@@ -359,6 +364,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         coverage_top_n=fdd["coverage_top_n"],
         fdd=fdd,
         display_companies=display_companies,
+        forensic=forensic,
     )
 
 

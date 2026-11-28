@@ -12,10 +12,23 @@ def check_raise_options(
     finding: int | None,
     manual: tuple[Any, Any, Any, Any],
     topic: str | None = None,
+    flags: str | None = None,
 ) -> list[int]:
-    """The item ids of `query raise --items` ([] otherwise); BadParameter for a bad mix of the
-    options. `manual` is (amount, period, scope, source)."""
+    """The item ids of `query raise --items`, or the flag ids of `--flags` ([] otherwise);
+    BadParameter for a bad mix of the options. `manual` is (amount, period, scope, source)."""
     amount, period, _, source = manual
+    if flags is not None:
+        if items is not None or finding is not None or topic is not None:
+            raise typer.BadParameter("--flags raises one query for forensic flags alone")
+        if any(value is not None for value in manual):
+            raise typer.BadParameter(
+                "--flags takes the period, amount and sources from the flags; do not give "
+                "--amount, --period, --scope or --source too"
+            )
+        try:
+            return recon_items.parse_ids(flags)
+        except ValueError:
+            raise typer.BadParameter("give flag ids separated by commas, e.g. 12,13,14") from None
     if topic is not None:
         if items is not None or finding is not None or amount is not None or source is not None:
             raise typer.BadParameter(

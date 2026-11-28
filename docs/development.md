@@ -14,7 +14,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `output/escape.py`: the only escaping of document text: `html`, `markdown_text`, `markdown_cell` (a table cell),
   `excel_book` (formula-looking text saved as text). A test fails on any other escaping and on a saved workbook that
   skips `excel_book`.
-- `audit/errors.py`: error classes and codes (the FDD ones, E9xx, in `audit/errors_fdd.py`, the data-room ones, E814, E815 and E819, in `audit/errors_dataroom.py`, the reference ones, E980 to E982, in `audit/errors_reference.py`, and E830 to E874 in `audit/errors_dd.py`, all re-exported) (E001 to E982). `audit/logger.py`: run records and logging.
+- `audit/errors.py`: error classes and codes (the FDD ones, E9xx, in `audit/errors_fdd.py`, the data-room ones, E814, E815 and E819, in `audit/errors_dataroom.py`, the reference ones, E980 to E982, in `audit/errors_reference.py`, and E830 to E874 in `audit/errors_dd.py`, the forensic ones, E990 to E993, in `audit/errors_forensic.py`, all re-exported) (E001 to E993). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
   database from its schema file.
@@ -43,6 +43,10 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   profile whose headers it has; `REASONS`, each with its next step), `scan.py` (the walk, duplicates, the stored plan,
   `read_plan`, `plan_groups`, `format_plan`), `load.py` (`propose`, `approve`, `load`: the approved rows in one run; a
   reference databook through `reference/store.py`).
+- `forensic/` (SPEC-18, `fin forensic`, CLI `cli/forensic.py`, service `services/forensic.py`, screen
+  `ui/forensic_screen.py`, tables `db/schema/forensic.sql`): `registry.py` (the families and their tests), `settings.py`
+  (`[forensic]` and `fin forensic set`), `books.py` (lines and rebuilt vouchers), `run.py`, `status.py` (states, flags,
+  tuning counts), `handoff.py` (`fin query raise --flags`), `families/` (the tests). See "Add a forensic test".
 - `reference/` (SPEC-10, `fin reference`, CLI `cli/reference.py`, tables and the view `reference_comparison` in
   `db/schema/reference.sql`): `store.py` (`add_reference`: read, archive, store the lines and figures), `lines.py`
   (list, propose, the user's confirm or reject), `compare.py` (the comparison and the threshold), `handoff.py` (a query
@@ -306,6 +310,30 @@ gets a `## <Title>` heading for it, and `{{narrative:<key>}}` in the template pl
 - Test: extend `tests/integration/test_report.py` (the fake Quarto keeps the filled template as the HTML, so assert
   table lines in it). The narrative never contains typed numbers; it uses `{{metric:name:FY25}}`,
   `{{metric:name:FY26-Q1}}` and `{{fact:account:FY25}}` (the lint in `report/lint.py` enforces it).
+
+## Add a forensic test
+
+A forensic test (SPEC-18) is a function `f(ctx) -> Outcome` in a family module of `src/fin/forensic/families/`. The
+registry finds every module there; the runner, the flags table, `fin forensic status|flags`, the Forensic screen, the
+settings, the run log and the eval bundle take a new test with no edit to shared code.
+
+1. Pick the family module (or add one: a new file in `families/` with `SETTINGS` and `TESTS` tuples). Add a
+   `ForensicTest(name, title, settings, run, kinds=("ledger_vouchers",))` to its `TESTS`: `settings` names the keys
+   the test reads (they go into its input hash, so a change makes its runs stale), `kinds` the loaded file kinds it
+   needs (a period without them is "cannot run"). Test names are unique across families.
+2. Add each new setting to the module's `SETTINGS` as `Setting(key, kind, default, reason)`; `default=None` is an
+   input the user keeps (the test cannot run until it is set). The reason is the source of the default; add the
+   reading to `docs/decisions/forensic.md`.
+3. Write the test over `ctx` (`fin.forensic.books.Context`): `ctx.lines` (the period's Ledger Vouchers lines),
+   `ctx.books.vouchers(period)` (vouchers rebuilt from every ledger block, `whole` when debits equal credits),
+   `ctx.settings`, `ctx.threshold`, `ctx.min_amount`, `ctx.account(ledger)`. Return `Outcome(flags, population,
+   near_misses)`, `Outcome.too_few(count, minimum)` below the minimum population, or `Outcome.cannot(needs)`. A flag
+   is `line.flag(reason)` (or a `Flag` with the source in words); give the reason in words, never a score, and count a
+   case within 20% of a threshold as a near miss. Never read `particulars`.
+4. Plant one flagged row and one near miss in `mock/generator/data.py` (`FORENSIC`), regenerate the mock (`uv run
+   --with xlwt python -m mock.generator`) and check `tests/unit/test_forensic_mock.py`; a routine mock row that flags
+   means the default is too loose. Cases the mock cannot reach go in `tests/unit/test_forensic_families.py`.
+5. Add the test to the list in `docs/product.md` ("Forensic tests").
 
 ## Change the PDF parser
 

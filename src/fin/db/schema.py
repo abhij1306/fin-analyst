@@ -58,6 +58,7 @@ SCHEMA_FILES = {
         "dataroom.sql",
         "rebuilt.sql",
         "reference.sql",
+        "forensic.sql",
     ],
 }
 

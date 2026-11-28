@@ -30,4 +30,24 @@
     </table></div>
   </section>
 </div>
+{% if data.forensic %}
+<div class="card" id="forensic-settings">
+  <header><h2>Forensic tests</h2><p>What the forensic tests of {{ company }} read (<code>[forensic.companies.{{ company }}]</code> in config.toml, else <code>[forensic]</code>, else the default). A change makes the runs it feeds stale. Type <code>default</code> to go back to the default; a list is comma-separated.</p></header>
+  {% if data.forensic.problem %}<section><div class="alert" data-variant="destructive"><section><p>{{ data.forensic.problem | code }}</p></section></div></section>{% endif %}
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Setting</th><th>Value</th><th>From</th><th>Default</th><th>Why</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for s in data.forensic.rows %}
+        <tr><td class="fname"><code>{{ s.key }}</code></td><td>{{ s.value }}</td><td>{{ s.from }}</td><td class="muted">{{ s.default }}</td><td>{{ s.reason }}</td>
+          <td class="act"><form class="inline" hx-post="/forensic/set" hx-target="#screen" hx-swap="innerHTML">
+            <input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="key" value="{{ s.key }}">
+            <input type="text" class="input" name="value" aria-label="New value for {{ s.key }}" placeholder="{{ s.kind }}">
+            <button type="submit" class="btn" data-size="sm" data-variant="outline">Set</button></form></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+{% endif %}
 {% if data.ready %}{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}{% endif %}

@@ -332,8 +332,54 @@ def render(books: b.Books) -> str:
         _items(books),
         _quiet(books),
         _setup(),
+        _forensic(),
     ]
     return "\n".join(line for part in parts for line in part).rstrip() + "\n"
+
+
+def _forensic() -> list[str]:
+    """The forensic tests' flags on the mock set (SPEC-18): planted, near misses, and rows of the
+    books a test rightly flags."""
+    out = [
+        "## Forensic tests (SPEC-18)",
+        "",
+        "With every period's trial balance and Ledger Vouchers loaded, ledgers mapped as above, "
+        f"the query threshold of {d.QUERY_THRESHOLD:,} and an approval limit of "
+        f"{d.APPROVAL_LIMIT:,} (`fin forensic set corvane approval_limits ...`), "
+        "`fin forensic run corvane` flags exactly these rows (test, period, voucher, ledger) and "
+        "no near miss. je_benford reports too few entries in every period (no Tally group has "
+        "1,000 lines); the stub has too few lines for je_rare_ledger and je_unusual_pair.",
+        "",
+    ]
+    tests = sorted({p.test for p in d.FORENSIC} | {e[0] for e in d.FORENSIC_EXISTING})
+    for test in tests:
+        flagged = [
+            [
+                b.period_of(p.when),
+                p.number if test != "je_gap" else flag,
+                "-" if test == "je_gap" else flag,
+                f"planted: {p.why}",
+            ]
+            for p in d.FORENSIC
+            if p.test == test
+            for flag in p.flags
+        ] + [[e[1], e[2], e[3], e[4]] for e in d.FORENSIC_EXISTING if e[0] == test]
+        near = [
+            [b.period_of(p.when), p.number, p.why]
+            for p in d.FORENSIC
+            if p.test == test and not p.flags and p.why.startswith("near")
+        ]
+        out += [f"### {test}", ""]
+        out += (
+            _table(["Period", "Voucher", "Ledger", "Why"], sorted(flagged))
+            if flagged
+            else ["Flags nothing."]
+        )
+        if near:
+            out += ["", "Near misses (not flagged):", ""]
+            out += _table(["Period", "Voucher", "Why"], sorted(near))
+        out.append("")
+    return out
 
 
 def extra_texts() -> dict[str, str]:

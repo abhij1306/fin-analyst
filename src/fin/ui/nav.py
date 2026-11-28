@@ -7,7 +7,16 @@ NAV = [
     ("Analysis", ["Questions", "Reports", "Dashboards"]),
     (
         "Diligence",
-        ["Engagement", "Differences", "Queries", "Gates", "Bridge", "Findings", "References"],
+        [
+            "Engagement",
+            "Differences",
+            "Forensic",
+            "Queries",
+            "Gates",
+            "Bridge",
+            "Findings",
+            "References",
+        ],
     ),
     ("System", ["Settings", "Health", "Log"]),
 ]

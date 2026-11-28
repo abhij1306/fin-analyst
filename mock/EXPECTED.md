@@ -13,23 +13,23 @@ Paths are under `mock/dataroom/` (the same tree is in `mock/zipped/corvane_datar
 | `02_auditor/corvane_fy24_audited_statements.xlsx` | the auditor | statements | 3 statements, 50 lines per year, 2 year(s), unit lakhs | FY24 with FY23 |
 | `02_auditor/corvane_fy25_annual_report_audited.pdf` | the auditor | statements | 3 statements, 50 lines per year, 2 year(s), unit lakhs | version 2 of FY25: audited, with notes (pages 5) |
 | `01_company/trial_balances/corvane_tb_fy23_2023-05-10.xlsx` | the company (management) | trial_balance | 31 ledgers, grand total 39,110,000 |  |
-| `01_company/trial_balances/corvane_tb_fy24_2024-05-12.xlsx` | the company (management) | trial_balance | 30 ledgers, grand total 50,918,000 |  |
-| `01_company/trial_balances/corvane_tb_fy25_v1_2025-04-15.xlsx` | the company (management) | trial_balance | 31 ledgers, grand total 75,765,000 | version 1: before the auditor's adjustment |
-| `01_company/trial_balances/corvane_tb_fy25_v2_2025-06-20.xlsx` | the company (management) | trial_balance | 33 ledgers, grand total 76,065,000 | version 2, sent again after the audit: supersedes v1 |
-| `01_company/trial_balances/corvane_tb_fy26_h1_2025-10-15.xlsx` | the company (management) | trial_balance | 31 ledgers, grand total 54,714,000 | the stub: unaudited management accounts |
-| `01_company/ledgers/corvane_ledger_vouchers_fy23.xlsx` | the company (management) | ledger_vouchers | 414 entries (opening and closing rows not loaded) |  |
-| `01_company/ledgers/corvane_ledger_vouchers_fy24.xlsx` | the company (management) | ledger_vouchers | 414 entries (opening and closing rows not loaded) |  |
-| `01_company/ledgers/corvane_ledger_vouchers_fy25.xlsx` | the company (management) | ledger_vouchers | 426 entries (opening and closing rows not loaded) |  |
-| `01_company/ledgers/corvane_ledger_vouchers_fy26_h1.xlsx` | the company (management) | ledger_vouchers | 226 entries (opening and closing rows not loaded) |  |
+| `01_company/trial_balances/corvane_tb_fy24_2024-05-12.xlsx` | the company (management) | trial_balance | 31 ledgers, grand total 50,918,000 |  |
+| `01_company/trial_balances/corvane_tb_fy25_v1_2025-04-15.xlsx` | the company (management) | trial_balance | 32 ledgers, grand total 76,334,000 | version 1: before the auditor's adjustment |
+| `01_company/trial_balances/corvane_tb_fy25_v2_2025-06-20.xlsx` | the company (management) | trial_balance | 34 ledgers, grand total 76,634,000 | version 2, sent again after the audit: supersedes v1 |
+| `01_company/trial_balances/corvane_tb_fy26_h1_2025-10-15.xlsx` | the company (management) | trial_balance | 31 ledgers, grand total 54,612,000 | the stub: unaudited management accounts |
+| `01_company/ledgers/corvane_ledger_vouchers_fy23.xlsx` | the company (management) | ledger_vouchers | 558 entries (opening and closing rows not loaded) |  |
+| `01_company/ledgers/corvane_ledger_vouchers_fy24.xlsx` | the company (management) | ledger_vouchers | 614 entries (opening and closing rows not loaded) |  |
+| `01_company/ledgers/corvane_ledger_vouchers_fy25.xlsx` | the company (management) | ledger_vouchers | 644 entries (opening and closing rows not loaded) |  |
+| `01_company/ledgers/corvane_ledger_vouchers_fy26_h1.xlsx` | the company (management) | ledger_vouchers | 326 entries (opening and closing rows not loaded) |  |
 | `01_company/billing/corvane_registers_fy23_to_fy26_h1.xlsx` | the company (management) | registers | Sales Register: 88 invoices, Purchase Register: 14 invoices | 1-Apr-2022 to 30-Sep-2025; fin labels it FY23-FY26 |
 | `01_company/billing/corvane_orderbook_2025-03-31.xlsx` | the company (management) | orderbook | 4 rows |  |
 | `01_company/hr/corvane_employee_master_2025-03-31.xlsx` | the company (management) | payroll | 9 rows | amounts are annual: `fin payroll confirm-unit ... --annual` |
 | `01_company/gst/corvane_gstr1_fy25.xlsx` | the company (management) | gst (gstr1) | 12 rows |  |
 | `01_company/gst/corvane_gstr3b_fy25.xlsx` | the company (management) | gst (gstr3b) | 12 rows | the plan names profile gstr1 (the first that matches): load it with --profile gstr3b |
 | `01_company/contracts/bellwether_renewal_2025-26.pdf` | the company (management) | skipped (no statement page) | nothing: Claude reads it when asked (`fin recast contracts`) | a contract: Claude reads it (fin recast contracts) |
-| `03_bank/icici_004105012345_fy24.xlsx` | the bank | bank | 94 transactions, account masked |  |
-| `03_bank/icici_004105012345_fy25.xlsx` | the bank | bank | 95 transactions, account masked |  |
-| `03_bank/icici_004105012345_fy26_h1.xlsx` | the bank | bank | 51 transactions, account masked |  |
+| `03_bank/icici_004105012345_fy24.xlsx` | the bank | bank | 175 transactions, account masked |  |
+| `03_bank/icici_004105012345_fy25.xlsx` | the bank | bank | 182 transactions, account masked |  |
+| `03_bank/icici_004105012345_fy26_h1.xlsx` | the bank | bank | 99 transactions, account masked |  |
 | `01_company/bank/icici_004105012345_fy25.xlsx` | the company (management) | bank (duplicate) | nothing new: the same bytes as `03_bank/icici_004105012345_fy25.xlsx` (one plan row, a duplicate) | the company forwarded the bank's file |
 | `04_adviser/saltmarsh_databook_corvane_fy23-fy25.xlsx` | a third-party adviser | reference_databook | reference figures: 12 P&L lines x 3 years | FY25 from the provisional statements |
 
@@ -37,18 +37,18 @@ Paths are under `mock/dataroom/` (the same tree is in `mock/zipped/corvane_datar
 
 - FY25 statements: the provisional workbook (company, 30-Apr-2025) is version 1; the audited annual report PDF (auditor) is version 2 and **current**. They differ by the auditor's adjustment AJ-1 of 300,000 (Bad and Doubtful Debts / Provision for Doubtful Debts):
   - cf_change_receivables: provisional (8,850,000), audited (8,550,000)
-  - cf_op_profit_before_wc: provisional 22,900,000, audited 22,600,000
-  - cf_pbt: provisional 21,913,000, audited 21,613,000
-  - ebitda: provisional 22,900,000, audited 22,600,000
-  - other_equity: provisional 29,971,000, audited 29,671,000
-  - other_expenses: provisional 6,840,000, audited 7,140,000
-  - pat: provisional 16,435,000, audited 16,135,000
-  - pbt: provisional 21,913,000, audited 21,613,000
-  - total_assets: provisional 42,080,000, audited 41,780,000
+  - cf_op_profit_before_wc: provisional 22,929,000, audited 22,629,000
+  - cf_pbt: provisional 21,113,000, audited 20,813,000
+  - ebitda: provisional 22,929,000, audited 22,629,000
+  - other_equity: provisional 29,371,000, audited 29,071,000
+  - other_expenses: provisional 6,811,000, audited 7,111,000
+  - pat: provisional 15,835,000, audited 15,535,000
+  - pbt: provisional 21,113,000, audited 20,813,000
+  - total_assets: provisional 41,280,000, audited 40,980,000
   - total_current_assets: provisional 40,064,000, audited 39,764,000
-  - total_equity: provisional 30,971,000, audited 30,671,000
-  - total_equity_and_liabilities: provisional 42,080,000, audited 41,780,000
-  - total_expenses: provisional 28,207,000, audited 28,507,000
+  - total_equity: provisional 30,371,000, audited 30,071,000
+  - total_equity_and_liabilities: provisional 41,280,000, audited 40,980,000
+  - total_expenses: provisional 29,007,000, audited 29,307,000
   - trade_receivables: provisional 10,974,000, audited 10,674,000
   Ingested after the provisional one, the audited PDF is held with 13 open findings (E404 cross_document, each naming the PDF page and the workbook cell). `fin findings accept` on them (the user's call) loads it, and it becomes current: the latest document for the period. FY24 in both FY25 documents agrees with the FY24 audited workbook.
 - FY25 trial balance: v1 (15-Apr-2025) then v2 (20-Jun-2025, **current**, supersedes v1). They differ in:
@@ -65,13 +65,13 @@ Paths are under `mock/dataroom/` (the same tree is in `mock/zipped/corvane_datar
 |---|---|---|---|---|---|
 | Revenue from operations | 30,240,000 | 37,152,000 | 50,040,000 | 19,740,000 | 50,040,000 |
 | Other income | 60,000 | 72,000 | 80,000 | 40,000 | 80,000 |
-| EBITDA (PBT + finance costs + depreciation) | 8,380,000 | 13,120,000 | 22,600,000 | 5,564,000 | 22,900,000 |
-| Profit before tax | 7,275,000 | 11,973,000 | 21,613,000 | 5,150,000 | 21,913,000 |
-| Profit for the year | 5,456,000 | 8,980,000 | 16,135,000 | 5,150,000 | 16,435,000 |
+| EBITDA (PBT + finance costs + depreciation) | 8,380,000 | 13,120,000 | 22,629,000 | 5,564,000 | 22,929,000 |
+| Profit before tax | 7,275,000 | 11,973,000 | 20,813,000 | 5,950,000 | 21,113,000 |
+| Profit for the year | 5,456,000 | 8,980,000 | 15,535,000 | 5,950,000 | 15,835,000 |
 | Trade receivables | 1,770,000 | 2,124,000 | 10,674,000 | 4,066,000 | 10,974,000 |
-| Cash and cash equivalents | 9,446,000 | 18,362,000 | 28,590,000 | 33,104,000 | 28,590,000 |
+| Cash and cash equivalents | 9,446,000 | 18,362,000 | 28,590,000 | 33,304,000 | 28,590,000 |
 | Borrowings | 4,800,000 | 3,600,000 | 2,400,000 | 1,800,000 | 2,400,000 |
-| Total assets | 13,366,000 | 22,674,000 | 41,780,000 | 39,784,000 | 42,080,000 |
+| Total assets | 13,366,000 | 22,674,000 | 40,980,000 | 39,984,000 | 41,280,000 |
 
 FY24 is as printed (after the statement reclassification below). The stub is the management trial balance; no statements are filed for it.
 
@@ -120,6 +120,7 @@ Intended ledger mappings:
 | Computer Equipment | ppe_net |
 | Consultancy Fees | other_expenses |
 | Depreciation | depreciation |
+| Donations | other_expenses |
 | Foreign Exchange Gain | other_income |
 | Gratuity Expense | employee_expense |
 | Halcyon Freight Systems Pvt Ltd | trade_receivables |
@@ -147,7 +148,157 @@ Intended ledger mappings:
 | Saranga Advisory LLP | trade_payables |
 | Security Deposit - Office | other_current_assets |
 | Share Capital | share_capital |
+| Staff Welfare | other_expenses |
 | Subscription Revenue | revenue |
 | Term Loan - Axis Bank | lt_borrowings |
 
 Tax classes: Output CGST = gst_output, Output SGST = gst_output, Input CGST = gst_input, Input SGST = gst_input, Provision for Income Tax = income_tax
+
+## Forensic tests (SPEC-18)
+
+With every period's trial balance and Ledger Vouchers loaded, ledgers mapped as above, the query threshold of 100,000 and an approval limit of 500,000 (`fin forensic set corvane approval_limits ...`), `fin forensic run corvane` flags exactly these rows (test, period, voucher, ledger) and no near miss. je_benford reports too few entries in every period (no Tally group has 1,000 lines); the stub has too few lines for je_rare_ledger and je_unusual_pair.
+
+### je_duplicate
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | JV/25/006 | Cloud Hosting | planted: the same lines as JV/25/007 |
+| FY25 | JV/25/006 | Rent | planted: the same lines as JV/25/007 |
+| FY25 | JV/25/007 | Cloud Hosting | planted: the same lines as JV/25/006 |
+| FY25 | JV/25/007 | Rent | planted: the same lines as JV/25/006 |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY25 | JV/25/008 | near miss: as JV/25/009, a day apart |
+| FY25 | JV/25/009 | near miss: as JV/25/008, a day apart |
+
+### je_gap
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | JV/25/013 | - | planted: JV/25/013 is missing from JV/25/001 to JV/25/023 |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY24 | JV/24/010 | near miss: JV/24/009 is missing from a series of 19 numbers |
+
+### je_period_end
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | AJ-1 | Bad and Doubtful Debts | the auditor's adjustment on the year's last day; no entry on the ledger in FY24's last days |
+| FY25 | AJ-1 | Provision for Doubtful Debts | the auditor's adjustment on the year's last day; no entry on the ledger in FY24's last days |
+| FY25 | JV/25/012 | Cloud Hosting | planted: in the last 5 days; none on these ledgers in FY24's |
+| FY25 | JV/25/012 | Rent | planted: in the last 5 days; none on these ledgers in FY24's |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY25 | JV/25/014 | near miss: 6 days before the year end |
+
+### je_rare_ledger
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY23 | OO/220810 | Office Relocation Expenses | a one-off cost, the office relocation |
+| FY25 | AJ-1 | Bad and Doubtful Debts | a ledger used once, by the auditor's adjustment |
+| FY25 | AJ-1 | Provision for Doubtful Debts | a ledger used once, by the auditor's adjustment |
+| FY25 | JV/25/022 | Donations | planted: a new ledger with one line |
+| FY25 | OO/241118 | Legal and Professional Fees | a one-off cost, the legal settlement |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY24 | JV/24/001 | near miss: Staff Welfare has 3 lines |
+| FY24 | JV/24/002 | near miss: Staff Welfare has 3 lines |
+| FY24 | JV/24/003 | near miss: Staff Welfare has 3 lines |
+
+### je_reversed
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | JV/25/015 | Computer Equipment | planted: reversed by JV/26/001 on 4 April |
+| FY25 | JV/25/015 | Depreciation | planted: reversed by JV/26/001 on 4 April |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY25 | JV/25/016 | near miss: reversed by JV/26/002 on 16 April, day 16 |
+
+### je_round
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | JV/25/001 | Cloud Hosting | planted: a multiple of 10,00,000 |
+| FY25 | JV/25/001 | Rent | planted: a multiple of 10,00,000 |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY25 | JV/25/002 | near miss: 9,00,000 is not a multiple |
+
+### je_sensitive
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | AJ-1 | Provision for Doubtful Debts | the auditor's journal credits the doubtful debts provision, mapped to trade receivables |
+| FY25 | JV/25/017 | Bellwether Clinics LLP | planted: a journal between two customers |
+| FY25 | JV/25/017 | Halcyon Freight Systems Pvt Ltd | planted: a journal between two customers |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY25 | JV/25/018 | near miss: below the query threshold |
+
+### je_under_limit
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | JV/25/010 | Cloud Hosting | planted: 1% below the stated limit of 5,00,000 |
+| FY25 | JV/25/010 | Rent | planted: 1% below the stated limit of 5,00,000 |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY25 | JV/25/011 | near miss: 2.2% below the limit |
+
+### je_unusual_pair
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | AJ-1 | Bad and Doubtful Debts | the only voucher debiting other expenses and crediting trade receivables |
+| FY25 | CN-2412-01 | Subscription Revenue | the only credit note: revenue debited, trade receivables credited |
+| FY25 | JV/25/019 | Interest on Term Loan | planted: finance cost debited against other expenses, once |
+| FY25 | P-CN-2412-01 | Halcyon Freight Systems Pvt Ltd | the only refund to a customer: trade receivables debited, cash credited |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY25 | JV/25/020 | near miss: the reverse pair, in two vouchers |
+| FY25 | JV/25/021 | near miss: the reverse pair, in two vouchers |
+
+### je_weekend
+
+| Period | Voucher | Ledger | Why |
+|---|---|---|---|
+| FY25 | JV/25/003 | Cloud Hosting | planted: a Sunday |
+| FY25 | JV/25/003 | Rent | planted: a Sunday |
+| FY25 | JV/25/005 | Cloud Hosting | planted: a holiday (15 August) |
+| FY25 | JV/25/005 | Rent | planted: a holiday (15 August) |
+
+Near misses (not flagged):
+
+| Period | Voucher | Why |
+|---|---|---|
+| FY25 | JV/25/004 | near miss: a Saturday (not a weekend day by default) |

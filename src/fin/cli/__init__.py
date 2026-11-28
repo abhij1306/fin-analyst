@@ -22,6 +22,7 @@ from fin.cli import ui  # noqa: F401
 from fin.cli import dataroom  # noqa: F401
 from fin.cli import reference  # noqa: F401
 from fin.cli import questions  # noqa: F401
+from fin.cli import forensic  # noqa: F401
 # isort: on
 
 __all__ = ["app"]

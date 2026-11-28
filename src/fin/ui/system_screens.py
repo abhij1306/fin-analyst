@@ -23,6 +23,7 @@ from fin.doctor import run_checks
 from fin.extract.addon import ADDON_LABELS
 from fin.extract.fallback import ABOUT
 from fin.paths import audit_db_path, reports_dir
+from fin.services.forensic import read_settings
 from fin.services.questions import saved_questions
 from fin.ui.actions import ITEM_ID
 from fin.ui.job_routes import jobs_card
@@ -55,8 +56,17 @@ def settings(root: Path, company: str | None) -> dict[str, Any]:
         "parser": config.pdf_parser if config else None,
         "problem": problem,
         "addons": [{"name": n, "label": t, "about": ABOUT[n]} for n, t in ADDON_LABELS.items()],
+        "forensic": _forensic(root, company) if config and company else None,
         **_jobs(root, company),
     }
+
+
+def _forensic(root: Path, company: str) -> dict[str, Any]:
+    """The company's forensic settings (`fin forensic settings`), or why they cannot be read."""
+    try:
+        return {"rows": read_settings(root, company)}
+    except FinError as error:
+        return {"rows": [], "problem": f"{error.code}: {error.message}"}
 
 
 def health(root: Path, company: str | None) -> dict[str, Any]:

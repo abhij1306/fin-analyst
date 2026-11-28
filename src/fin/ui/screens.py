@@ -31,6 +31,7 @@ from fin.ui.actions import MAX_IDS
 from fin.ui.differences_screen import differences_screen
 from fin.ui.diligence_screens import screen_run, with_engagement
 from fin.ui.file_rows import company_name, file_rows
+from fin.ui.forensic_screen import forensic_screen
 from fin.ui.job_routes import jobs_card
 from fin.ui.statements_screen import statements_screen
 
@@ -212,6 +213,7 @@ LOADERS: dict[str, Loader] = {
     "bridge": diligence_screens.bridge_screen,
     "references": references_screen,
     "differences": differences_screen,
+    "forensic": forensic_screen,
     "reports": reports_screen,
     **system_screens.LOADERS,
 }

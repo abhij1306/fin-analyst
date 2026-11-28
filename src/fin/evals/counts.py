@@ -23,6 +23,8 @@
 - `payroll`: loaded payroll files by the unit the user confirmed (or "not confirmed").
 - `bank_matches`: lines of the latest `bank_vs_invoices` runs by kind and match pass, and the match
   proposals by status.
+- `forensic`: the latest forensic run of each test and period (`fin.forensic.status.tuning`): the
+  outcome, thresholds, population, flagged and just-outside counts; no rows, ledgers or parties.
 """
 
 import json
@@ -40,6 +42,7 @@ from fin.evals.golden import (
     RECON_KINDS,
     Check,
 )
+from fin.forensic.status import tuning
 from fin.map.review import open_items, read_pending
 from fin.paths import audit_db_path
 
@@ -231,6 +234,7 @@ def counts(root: Path, company: str, con: duckdb.DuckDBPyConnection) -> dict[str
         },
         "registers": dict(con.execute(_REGISTERS).fetchall()),
         "payroll": dict(con.execute(_PAYROLL).fetchall()),
+        "forensic": tuning(con),
     }
 
 
