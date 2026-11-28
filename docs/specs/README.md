@@ -25,7 +25,8 @@ PR that changes the behaviour.
 Specs 00 to 12 are numbered in build order. Specs 13 to 15 are what the client asked for on 2026-11-28; their CLI
 rows depend on little and start early (see [plans/ACTIVE.md](../plans/ACTIVE.md)). Spec 16 is optional and on hold:
 no row of it is built until the owner says so; it stays the last to be built. Spec 17 holds the changes from the
-client's answers.
+client's answers. Specs 18 to 21 are the forensic layer, one PR each; owner decisions and readings:
+[decisions/forensic.md](../decisions/forensic.md).
 
 | # | Spec | Answers | Depends on |
 |---|---|---|---|
@@ -47,6 +48,10 @@ client's answers.
 | 15 | [One list of differences](SPEC-15-discrepancies.md) | client request 3 | 10, 14 |
 | 16 | [AI providers and API keys](SPEC-16-ai-providers.md) (**on hold**) | owner, 2026-11-28 | 02, 03, 05 |
 | 17 | [Changes from the client's answers](SPEC-17-client-answers.md) | client answers 1, 6, 9, 10, 12 | none (PR 5: 15) |
+| 18 | [Forensic foundation and journal-entry tests](SPEC-18-forensic-journal-tests.md) | owner's forensic plan, X1 | mock set (#141) |
+| 19 | [Bank row and flow checks](SPEC-19-forensic-bank.md) | X3, without the PDF file checks | 18 |
+| 20 | [Counterparty and scheme tests, GSTR-2B and earnings-quality measures](SPEC-20-forensic-counterparty.md) | X4 | 18 |
+| 21 | [Forensic section in the FDD report](SPEC-21-forensic-report.md) | X6, the report section only | 18, 19, 20 |
 
 Specs 00, 01, 07, 08 and 12 depend on nothing and can start together.
 
@@ -80,3 +85,21 @@ Seen in the client run but too thin to design from; raise with the client first.
 - **Peers.** The client's notes name "direct peers"; fin's peer comparison (`fin report --peers`) was not used.
 - **The golden evaluation** did not run. [client-handoff.md](../client-handoff.md) needs a second attempt once
   specs 01, 03 and 04 are in.
+
+## Forensic backlog
+
+Not built now (owner, 2026-11-28; [decisions/forensic.md](../decisions/forensic.md)).
+
+- **X2: Tally Edit Log and narration.** Who created, altered or deleted each voucher, and narration tests (missing or
+  generic narration, keywords). Waits for the column headings of the client's Edit Log export and of a Day Book with
+  narration (human task H7, asked in the next client handoff); not buildable from documentation alone.
+- **X5: public-record evidence.** Company, director, charge, GST filing and court records beside the books. Owner:
+  "no public record checks needed for now will deiced later".
+- **Slides.** A pptx version of the FDD report; would need its own shorter template.
+- **A ranking proposal** (owner: "keep ordering for now and keep a proposal for ranking system in backlog will
+  revisit later"). Under the no-scores rule a ranking could be: an ordering of flags by amount, by how many tests
+  flag the same entry, or by period; a filter (at or above the threshold, on a sensitive account); a grouping of
+  flags on one voucher or party. It could not be: a number or grade per entry or party, a weighted blend of tests, a
+  "risk" label, or anything that reads as a judgement of the company. Any ranking shows its rule beside the list.
+
+Out of scope entirely: statutory audit and peer comparison (owner, 2026-11-28).

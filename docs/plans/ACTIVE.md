@@ -18,6 +18,8 @@ Updated: 2026-11-28.
 | H4 | Get the column headings (not the data) of the client's real register, ledger, trial balance and GST summary exports | SPEC-13 PR 2 | todo |
 | H6 | Get the adviser's FDD inquiry list from the client; it goes in the client's data folder, never the repo | SPEC-17 PR 3 | todo |
 | H5 | Say when SPEC-16 (AI providers) may start; it is on hold | SPEC-16 | todo |
+| H7 | In the next client handoff, ask for the column headings (not the data) of the Tally Edit Log export and of a Day Book with narration | forensic backlog X2 | todo |
+| H8 | Get the column headings (not the data) of one GSTR-2B Excel download from the portal | SPEC-20 PR 1 | todo |
 
 ## Current focus
 
@@ -27,6 +29,8 @@ Updated: 2026-11-28.
   10 PR 1 and 2, 15 PR 1 and 2, whose CLI rows do not wait for the UI.
 - SPEC-17 PR 1 to 4 depend on nothing and can start with the first wave; PR 5 waits for SPEC-15 PR 1.
 - On hold: SPEC-16, until the owner says so (owner, 2026-11-28).
+- Forensic layer (owner, 2026-11-28: build before the end-to-end test): SPEC-18 after the mock set (#141) merges, then
+  SPEC-19 and SPEC-20 together, then SPEC-21. One PR per spec.
 
 ## Rows
 
@@ -103,5 +107,9 @@ Updated: 2026-11-28.
 | 17 | 5 | Show the recast against the books in the differences list | | done (#134) |
 | review | data | System review of data intake and integrity across #116 to #134 | | done (#136) |
 | review | ui | Cross-PR system review of the web UI: seams, invariants and dead ends | high | done (#138) |
+| 18 | 1 | Add the forensic flags, settings, status and Forensic screen with the journal-entry tests | high | todo |
+| 19 | 1 | Add the bank row and flow checks to the forensic tests | | todo |
+| 20 | 1 | Add the counterparty tests, the accrual and period-end measures and the GSTR-2B reconciliation | high | todo |
+| 21 | 1 | Add the forensic area and the forensic section of the FDD report | high | todo |
 | review | docguard | Refuse `fin sql --write` on documents and the reference tables (owner, 2026-11-28) | | done (#139) |
 | review | uigaps | Close the web UI gaps the system review left open | high | done (#142) |
