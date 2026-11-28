@@ -102,3 +102,4 @@ Updated: 2026-11-28.
 | 17 | 4 | Make credit terms 90 days by default and settable per engagement | high | done (#119) |
 | 17 | 5 | Show the recast against the books in the differences list | | done (#134) |
 | review | data | System review of data intake and integrity across #116 to #134 | | done (#136) |
+| review | ui | Cross-PR system review of the web UI: seams, invariants and dead ends | high | done (#138) |

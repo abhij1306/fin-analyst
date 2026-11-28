@@ -14,7 +14,10 @@
   <input type="hidden" name="action" value="export"><input type="hidden" name="company" value="{{ company }}">
   <button type="submit" class="btn" data-size="sm">Export to Excel</button>
 </form>
-{{ ask(company, "/report " ~ company ~ " ", "Write the narrative in chat", "outline") }}
+{{ ask(company, "/report " ~ company ~ " ", "Write the health narrative in chat", "outline") }}
+{% for kind, label in [("diligence", "diligence"), ("fdd", "FDD")] %}
+{{ ask(company, "Please write the " ~ label ~ " report narrative for " ~ company ~ " (fin report " ~ company ~ " --" ~ kind ~ "), then render it.", "Write the " ~ label ~ " narrative in chat", "outline") }}
+{% endfor %}
 {% endcall %}
 {% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
 {% if data.narratives %}

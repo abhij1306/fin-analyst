@@ -218,6 +218,7 @@ def test_the_reports_screen_lists_the_narratives_with_their_sections(tmp_path: P
     listing = signed_in(root).get("/partials/reports?company=acme").text
     assert '<td class="fname">standalone/narrative.md</td><td>Summary, Growth</td>' in listing
     assert '"prefill": "/report acme "' in listing  # the narrative is written in chat
+    assert "fin report acme --diligence" in listing and "fin report acme --fdd" in listing
 
 
 @pytest.mark.timeout(180)  # an ingested company and a job

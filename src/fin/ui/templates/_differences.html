@@ -14,7 +14,7 @@
   <noscript><button type="submit" class="btn" data-size="sm">Show</button></noscript>
 </form>
 {% if not data.nodes %}
-<div class="card"><section>{{ empty("No differences", "Run the reconciliations first (fin reconcile " ~ company ~ "), or there is nothing over the threshold.") }}<p class="pad">{{ ask(company, "Please run the reconciliations for " ~ company ~ " (fin reconcile " ~ company ~ ") and tell me what differs.", "Ask the assistant to run them", "outline") }}</p></section></div>
+<div class="card"><section>{{ empty("No differences", "Run the reconciliations first (fin reconcile " ~ company ~ "), or there is nothing over the threshold.") }}{% if not data.over %}<p class="pad">{{ ask(company, "Please run the reconciliations for " ~ company ~ " (fin reconcile " ~ company ~ ") and tell me what differs.", "Ask the assistant to run them", "outline") }}</p>{% endif %}</section></div>
 {% else %}
 <form class="card" hx-get="/partials/differences-ask" hx-target="#differences-outcome" aria-label="Differences">
   <input type="hidden" name="company" value="{{ company }}">
