@@ -730,7 +730,8 @@ Service-period recast (D6, decisions in `docs/decisions/d6-recast.md`): `fin rec
 register line's Amount in Rs (before GST) over its service start and end dates by month (by service day, each month's share rounded once on the
 running total so the months add to the amount) and compares each annual period's recast with the register's amount by invoice date. It is a reconciliation
 named `service_recast` in `recon_runs`/`recon_items` (`fin/reconcile/recast.py`; levels `period` (left = recast, right = booked,
-difference = the revenue effect), `month`, `schedule` (per invoice whose recast and booked amounts differ) and `invoice` with kind
+difference = the revenue effect; with no register line dated in the period booked is missing, not 0), each period and schedule
+side naming its register rows (file sheet!row), `month`, `schedule` (per invoice whose recast and booked amounts differ) and `invoice` with kind
 `undated`: a sales invoice with no usable service dates, recognised on its invoice date, listed; at or above the threshold it is for
 `fin query raise --items`). The command proposes one `recast` adjustment per period for the difference (revenue effect = EBITDA
 effect, account `revenue`, evidence `service_recast FY25 (recon #n)`); running again replaces a stale proposal of its own (rejected,
@@ -1183,7 +1184,8 @@ Every difference the reconciliations found, in one place, from the headline down
 
 - **`discrepancies`** (temporary view, `fin.discrepancies.view`; in `fin sql` too): one row per line that differs
   (kinds `difference`, `left_only`, `right_only`, `fx`) in the latest run of each reconciliation of the latest
-  engagement, at four levels: headline (`tb_vs_statements`: trial balance against the statements), account
+  engagement, at four levels: headline (`tb_vs_statements`: trial balance against the statements; `service_recast`:
+  the recognition difference, below), account
   (`gl_vs_tb` per ledger, `payroll_vs_gl`), party (the sales and purchase registers' customer and vendor lines) and
   transaction (their invoice lines, and `bank_vs_invoices`' match, receipt and invoice lines). Each reference figure
   that differs from fin's (`reference_comparison`, SPEC-10: fin minus the reference) is a headline row too, with id
@@ -1194,6 +1196,16 @@ Every difference the reconciliations found, in one place, from the headline down
   a foreign-currency line without a rupee value has a blank difference (missing is not zero), and so has its parent's
   explained amount. Each row carries its two sources, note, threshold, whether it is over the threshold, its query and
   status, and whether a query can be raised on it.
+- **Recast against the books** (SPEC-17 item 5, decisions in [decisions/spec-17.md](decisions/spec-17.md)): per annual
+  period that `fin recast run` ran for, the period's recast line is a headline row keyed `revenue` and labelled
+  "recognition difference" (column `label`): books (the sales register by invoice date) against recast, difference =
+  books - recast, the recast's stored sides swapped into that sign. The recast's schedule lines (each invoice whose
+  recast and booked amounts in the period differ) are transaction rows under it, so they explain it in full. Month
+  roll-ups and undated invoices are not rows. A period with no register line dated in it shows the books missing and no
+  difference (missing is not zero, nor a full-amount difference). Each side names its register rows (file sheet!row).
+  These rows are not queried from here: the period's difference becomes a
+  `recast` adjustment (`fin recast run`). The CLI, the sheet's Kind column and the screen show the label instead of
+  the kind.
 - **`fin discrepancies <co> [--level headline|account|party|transaction] [--over-threshold] [--json]`**: the rows ranked
   by the size of the difference, in the display unit (converted in SQL). E803 without an open engagement.
 - **`fin export`** adds a "Differences" sheet when there are differences (one row per difference, with the line it is under and its query).

@@ -89,3 +89,31 @@ Readings by the builder (2026-11-28), not owner decisions.
   engagement number.
 - **Existing data folders**: `config.toml` is the user's file; one written before keeps the value written there
   (re-run setup or edit it). New data folders get 90.
+
+## 5. The recast against the books
+
+Readings by the builder (2026-11-28), not owner decisions.
+
+- **Revenue in the books**: the sales register's amount (before GST) by invoice date, which is what `fin recast run`
+  already compares the recast with. The client said the company books revenue on billing (answer 9), so revenue by
+  invoice date is the books' recognition. The trial balance's revenue line is not used: it is already the
+  `tb_vs_statements` headline, and a second comparison would be a second computation of the recast.
+- **One computation**: the row reads the latest `service_recast` run of the period (`recon_items`), as SPEC-15
+  reads every reconciliation; no recast runs in the view. A period with no recast run has no row (not a zero).
+- **Sign and sides**: books - recast, as the spec says; the run stores recast - booked, so the view swaps the sides and
+  the sign (and left_only and right_only) for this source only.
+- **Its children**: the recast's schedule lines (one per invoice whose recast and booked amounts differ in the period),
+  under the period row of the same run; they add up to it. Month roll-ups and undated invoices are not rows (an
+  undated invoice is recognised on its invoice date, so it is no part of the difference).
+- **Key and label**: the headline row is keyed `revenue` (the stored key is the period) and every row of it carries
+  `label` "recognition difference", shown instead of the kind. It is not under or over the trial balance's revenue
+  row: the two compare different things.
+- **No query from the list**: these rows are not marked "can be queried"; the difference is by design and becomes a
+  `recast` adjustment with evidence (`fin recast run`, gate G3).
+- **A period the register does not cover** (reviewer, 2026-11-28): when no register line is dated in the period, the
+  recast stores booked as missing (not 0) and the row shows the books missing with no difference, not the whole recast
+  as a difference. The recast's adjustment amount is unchanged (it is recast - 0 as before; D6).
+- **Where the figures come from** (reviewer, 2026-11-28): the recast's period and schedule lines name the register rows
+  (file sheet!row) behind each side, so both amounts of every row trace to the register.
+- **How to change it**: `sources()` and the `lines` and `run_parent` steps of `VIEW_SQL` in
+  `src/fin/discrepancies/view.py`.

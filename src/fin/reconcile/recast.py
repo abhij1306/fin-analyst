@@ -9,10 +9,12 @@ recast, right is booked; difference = recast - booked is the period's revenue ef
 a `recast` adjustment (`fin.reconcile.recast_run`). Only the annual periods of the engagement are
 recast; the stub is not. Lines, per period:
 
-- period: the recast against booked for the period (the revenue effect); a roll-up, listed;
+- period: the recast against booked for the period (the revenue effect); a roll-up, listed. With
+  no register line dated in the period, booked is missing (None), not zero;
 - month: the same per month of the period; a roll-up, listed;
 - schedule: per invoice number whose recast and booked amounts in the period differ; a roll-up,
   listed. The differences of these lines add up to the period's;
+- each period and schedule side names the register rows (file sheet!row) it adds up;
 - invoice, kind undated: a sales invoice with no usable service dates. Its amount is recognised on
   the invoice date. At or above the threshold it needs a query (`fin query raise --items`); below
   it, it is listed. The note names a contract Claude read for the customer or invoice, as evidence
@@ -43,6 +45,7 @@ NAME = "service_recast"
 CATEGORY = "recast"  # the category of the adjustments it proposes
 SUPERSEDED = "superseded by recast run"  # the reason on a proposal fin replaces
 CENT = Decimal("0.01")
+Ref = tuple[str, str, int]  # a register row: file name, sheet, row
 
 
 @dataclass
@@ -132,6 +135,8 @@ class _Tally:
     booked: dict[str, Decimal] = field(default_factory=dict)
     counts: dict[str, list[int]] = field(default_factory=dict)  # month -> [recast, booked lines]
     schedule: dict[str, list[Decimal]] = field(default_factory=dict)  # invoice -> [recast, booked]
+    # invoice -> its register rows (file, sheet, row) in the recast and in booked
+    refs: dict[str, tuple[list[Ref], list[Ref]]] = field(default_factory=dict)
     notes: dict[str, set[str]] = field(default_factory=dict)
     undated: dict[str, Sale] = field(default_factory=dict)
 
@@ -153,13 +158,18 @@ def _tally_line(tally: _Tally, row: tuple[Any, ...]) -> None:
     invoice_day, start, end, amount = row[5], row[6], row[7], row[8]
     month = month_of(invoice_day)
     ok = usable(start, end)
+    ref = (row[1], row[2], row[3])
+    recast_refs, booked_refs = tally.refs.setdefault(number, ([], []))
     if month in tally.inside:
+        booked_refs.append(ref)
         if not ok:
             _add_undated(tally, number, row)
         tally.booked[month] = tally.booked.get(month, ZERO) + amount
         tally.counts.setdefault(month, [0, 0])[1] += 1
         tally.schedule.setdefault(number, [ZERO, ZERO])[1] += amount
     shares = spread(amount, start, end) if ok else {month: amount}
+    if tally.inside.intersection(shares):
+        recast_refs.append(ref)
     for key, share in shares.items():
         if key not in tally.inside:
             continue
@@ -193,7 +203,18 @@ def _schedule_lines(tally: _Tally) -> list[dict[str, Any]]:
         left, right = tally.schedule[number]
         if left != right:
             note = "; ".join(sorted(tally.notes.get(number, ()))) or None
-            lines.append(make_line("schedule", number, left, right, None, None, note=note))
+            recast_refs, booked_refs = tally.refs[number]
+            lines.append(
+                make_line(
+                    "schedule",
+                    number,
+                    left,
+                    right,
+                    rows_text(recast_refs),
+                    rows_text(booked_refs),
+                    note=note,
+                )
+            )
     return lines
 
 
@@ -245,14 +266,17 @@ def compute(
     for row in rows:
         _tally_line(tally, row)
     first_file, sources = min(r[0] for r in rows), (rows[0][1], rows[0][2])
+    recast_refs = [ref for pair in tally.refs.values() for ref in pair[0]]
+    booked_refs = [ref for pair in tally.refs.values() for ref in pair[1]]
     lines = [
         make_line(
             "period",
             period,
             sum(tally.recast.values(), ZERO),
-            sum(tally.booked.values(), ZERO),
-            "recast of the register's service periods",
-            count_text(*sources, sum(c[1] for c in tally.counts.values())),
+            # no register line dated in the period: the books are missing, not zero
+            sum(tally.booked.values(), ZERO) if booked_refs else None,
+            rows_text(recast_refs),
+            rows_text(booked_refs),
         )
     ]
     lines += _month_lines(months, tally, sources)

@@ -24,6 +24,7 @@ from fin.db.schema import ensure_database
 from fin.diligence import gates
 from fin.diligence.adjustments import Evidence, list_adjustments, propose
 from fin.diligence.sources import ingest_source
+from fin.discrepancies.rows import discrepancy_rows
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.score import run_eval
 from fin.map.dictionary import load_seed
@@ -126,7 +127,11 @@ def test_a_line_billed_up_front_recasts_into_the_right_periods(root: Path) -> No
     assert abs(Decimal(period_line(fy25)["left_amount"]) - (recognised + 200000)) <= Decimal("0.05")
     assert period_line(fy25)["right_amount"] == Decimal("560000.00")  # booked by invoice date
     assert Decimal(period_line(fy25)["difference"]) + Decimal(period_line(fy26)["difference"]) == 0
-    assert period_line(fy26)["right_amount"] == 0
+    # no register line is dated in FY26: the books are missing there, not zero
+    assert period_line(fy26)["right_amount"] is None
+    assert period_line(fy26)["right_source"] is None
+    assert "reg.xlsx" in period_line(fy25)["left_source"]
+    assert "reg.xlsx" in period_line(fy25)["right_source"]
     months = {x["key"]: x["left_amount"] for x in fy26["lines"] if x["level"] == "month"}
     assert list(months) == ["2025-04"]
     adjustments = list_adjustments(run(root), "acme")
@@ -142,6 +147,30 @@ def test_a_line_billed_up_front_recasts_into_the_right_periods(root: Path) -> No
             adjustment["source_ref"]
             == f"service_recast {result['period']} (recon #{result['recon_id']})"
         )
+
+
+def test_a_period_with_no_booked_line_shows_the_books_missing_in_the_differences(
+    root: Path,
+) -> None:
+    run_recast(run(root), "acme", None)
+
+    found = discrepancy_rows(root, "acme")["rows"]
+    recast = [r for r in found if r["reconciliation"] == "service_recast"]
+    heads = {r["period"]: r for r in recast if r["level"] == "headline"}
+    children = [r for r in found if r["parent_id"] == heads["FY26"]["item_id"]]
+
+    # FY26 has recast revenue (service billed in FY25) but no register line dated in it
+    assert heads["FY26"]["left_amount"] is None
+    assert heads["FY26"]["right_amount"] > 0
+    assert heads["FY26"]["kind"] == "right_only"
+    assert heads["FY26"]["difference"] is None
+    assert heads["FY26"]["unexplained"] is None
+    # each invoice was booked in FY25: its FY26 books amount is a known zero, traced to its rows
+    assert children
+    assert all(r["left_amount"] == 0 for r in children)
+    assert all("reg.xlsx" in r["right_source"] for r in children)
+    fy25 = heads["FY25"]
+    assert fy25["difference"] == fy25["left_amount"] - fy25["right_amount"]
 
 
 def test_a_line_without_service_dates_is_listed_and_queried_at_the_threshold(root: Path) -> None:
