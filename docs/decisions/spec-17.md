@@ -60,3 +60,14 @@ Readings by the builder (2026-11-28), not owner decisions.
   billing can reach the query threshold). A run of that reconciliation made before the rate was stated is stale (its
   input hash changes), so the gate over it asks for a new run.
 - **Who may state it**: the user. Claude states a rate only when the user gives it; the audit row then says `claude`.
+
+## 3. The user's own inquiry list
+
+Readings by the builder (2026-11-28), not owner decisions.
+
+- **Where**: `<data folder>/templates/inquiries.toml`, as the spec says. It replaces fin's list whole; the two are not
+  merged. A topic the user's list leaves out shows no questions (its inquiries still show).
+- **Checks**: the same as fin's list (topics from `[fdd] inquiry_topics`, a non-empty list of questions each). A list
+  that cannot be read or fails a check stops `fin query checklist` with E910 naming the file; fin does not fall back
+  to its own list.
+- **Naming it**: the output's first line, and `list` and `path` in `--json`.

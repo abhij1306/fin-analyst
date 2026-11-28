@@ -3,8 +3,10 @@
 An inquiry is an ordinary `accountant_queries` row (origin 'manual', no amount, the note
 INQUIRY_SOURCE as its sources) plus a row in `inquiries` (db/schema/fdd_inquiries.sql) that names
 its topic. It follows the query life cycle (`fin.diligence.queries`) and the query export. Claude
-drafts inquiries from the standard checklist (`templates/fdd/inquiries.toml`); the user approves
-them. `collect` is the data function the FDD report (F8) calls.
+drafts inquiries from the checklist the user keeps in the data folder (`<data folder>/templates/
+inquiries.toml`, SPEC-17 item 3) when there is one, else from fin's standard checklist
+(`templates/fdd/inquiries.toml`); the user approves them. `collect` is the data function the FDD
+report (F8) calls.
 """
 
 import tomllib
@@ -23,6 +25,16 @@ from fin.diligence.engagement import company_database, require_open
 
 TEMPLATE = Path(__file__).resolve().parents[3] / "templates" / "fdd" / "inquiries.toml"
 INQUIRY_SOURCE = "management inquiry (no source document)"
+OWN_LIST = Path("templates") / "inquiries.toml"  # under the data folder
+
+
+def checklist_path(root: Path) -> tuple[Path, str]:
+    """(path, label) of the inquiry checklist to draft from: the user's list in the data folder
+    when the file is there, else fin's standard one. The label names it for the output."""
+    own = root / OWN_LIST
+    if own.is_file():
+        return own, f"the data folder's list ({OWN_LIST.as_posix()})"
+    return TEMPLATE, "fin's standard list (templates/fdd/inquiries.toml)"
 
 
 def check_topic(topic: str, topics: tuple[str, ...]) -> None:
@@ -40,7 +52,9 @@ def standard_questions(topics: tuple[str, ...], path: Path = TEMPLATE) -> dict[s
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        raise InquiryInvalid(f"cannot read the inquiry checklist {path}: {exc}") from exc
+        raise InquiryInvalid(f"cannot read the inquiry checklist {path}: {exc}").with_context(
+            path=str(path)
+        ) from exc
     out: dict[str, list[str]] = {}
     for topic, table in data.items():
         questions = table.get("questions") if isinstance(table, dict) else None
@@ -50,9 +64,9 @@ def standard_questions(topics: tuple[str, ...], path: Path = TEMPLATE) -> dict[s
             and all(isinstance(q, str) and q.strip() for q in questions)
         ):
             raise InquiryInvalid(
-                f"{path.name}: {topic!r} is not one of [fdd] inquiry_topics or has no list of "
-                "questions; fix the template"
-            )
+                f"{path}: {topic!r} is not one of [fdd] inquiry_topics or has no list of "
+                "questions; fix the list"
+            ).with_context(path=str(path), topic=topic)
         out[topic] = questions
     return out
 
@@ -114,20 +128,28 @@ def collect(
     return out
 
 
-def checklist(run: Run, company: str) -> list[dict[str, Any]]:
-    """`collect` for the open engagement, with the standard questions on the topics that have no
-    active inquiry yet (`standard`, else empty)."""
+def checklist(run: Run, company: str) -> dict[str, Any]:
+    """{"list": which checklist was read (label), "path": its file, "topics": `collect` for the
+    open engagement, with the checklist's questions on the topics that have no active inquiry yet
+    (`standard`, else empty)}. E910 when the checklist cannot be used (`standard_questions`)."""
     topics = load_config(run.root).fdd["inquiry_topics"]
-    standard = standard_questions(topics)
+    path, label = checklist_path(run.root)
+    standard = standard_questions(topics, path)
     with company_database(run, company) as con:
         engagement = require_open(con, company)
         data = collect(con, engagement["engagement_id"], topics)
-    return [{**d, "standard": [] if d["active"] else standard.get(d["topic"], [])} for d in data]
+    return {
+        "list": label,
+        "path": str(path),
+        "topics": [
+            {**d, "standard": [] if d["active"] else standard.get(d["topic"], [])} for d in data
+        ],
+    }
 
 
-def format_checklist(data: list[dict[str, Any]]) -> str:
-    out = []
-    for d in data:
+def format_checklist(result: dict[str, Any]) -> str:
+    out = [f"questions from {result['list']}"]
+    for d in result["topics"]:
         count = len([q for q in d["queries"] if q["status"] != "withdrawn"])
         out.append(f"{d['topic']}: {count} inquiries" if d["active"] else f"{d['topic']}: none yet")
         for q in d["queries"]:

@@ -1,5 +1,6 @@
-"""`fin query checklist <co>`: the inquiry topics with their queries and status, and the standard
-questions on the topics with none (docs/fdd.md F2). The logic is in `inquiries.py`."""
+"""`fin query checklist <co>`: the inquiry topics with their queries and status, and the checklist's
+questions on the topics with none (docs/fdd.md F2; the data folder's list when present, SPEC-17).
+The logic is in `inquiries.py`."""
 
 import json
 from typing import Annotated, Any
@@ -19,7 +20,8 @@ def register(query_app: typer.Typer, company_arg: Any) -> None:
         json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
     ) -> None:
         """Each inquiry topic with its queries and their status; the topics with none show the
-        standard FDD questions for Claude to adapt and draft (`fin query raise --topic`)."""
+        checklist's questions for Claude to adapt and draft (`fin query raise --topic`). The
+        checklist is templates/inquiries.toml in the data folder when present, else fin's."""
 
         def body(run: Run) -> None:
             data = inquiries.checklist(run, company)

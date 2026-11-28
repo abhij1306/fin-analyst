@@ -19,7 +19,9 @@ Owner source: the plan in `docs/fdd.md` F2 (2026-11-25). The entries are the bui
   nothing from it; Claude adapts the wording to the company and drafts, the user approves.
 - **Why**: the wording needs the company's facts (policies, parties) and every query is the user's to approve. The
   question lists are general FDD practice, not tailored to the client. [Client question 12](../client-questions.md).
-- **How to change it**: edit `templates/fdd/inquiries.toml`; topics: `config.toml [fdd] inquiry_topics`.
+- **How to change it**: edit `templates/fdd/inquiries.toml`, or put the user's own list in the data folder as
+  `templates/inquiries.toml` (SPEC-17 item 3, [spec-17.md](spec-17.md) §3: used instead when present); topics:
+  `config.toml [fdd] inquiry_topics`.
 
 ## Topics and the gate
 

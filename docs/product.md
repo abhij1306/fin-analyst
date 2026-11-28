@@ -865,9 +865,11 @@ inquiry_topics` (revenue_recognition, cut_off, mis_kpi, accounting_policies, cap
 contingencies, other; E910 otherwise). It is a row of `accountant_queries` (origin `manual`, amount empty) plus a row of
 `inquiries` (`db/schema/fdd_inquiries.sql`, refused by `fin sql --write`, E806), so approve, sent, answer, close and withdraw,
 the draft check of gate G2 and `fin query export` (email, workbook, brief: the topic in the title, no amount line) work as for
-every query; `fin query list` shows `inquiry: <topic>`. `templates/fdd/inquiries.toml` is the standard checklist per topic;
-`fin query checklist <co> [--json]` prints each topic with its inquiries, their status and answers, and for a topic with no
-active inquiry (none, or only withdrawn) the standard questions, which Claude adapts and drafts; fin raises nothing itself. The FDD
+every query; `fin query list` shows `inquiry: <topic>`. `templates/fdd/inquiries.toml` is the standard checklist per topic; a
+`templates/inquiries.toml` in the data folder (the user's own list, same format and checks, E910; the client, 2026-11-27) is used
+instead when present, and is never committed. `fin query checklist <co> [--json]` first names the list it read, then prints each
+topic with its inquiries, their status and answers, and for a topic with no active inquiry (none, or only withdrawn) the list's
+questions (none for a topic the list leaves out), which Claude adapts and drafts; fin raises nothing itself. The FDD
 report (F8) reads this through `fin.diligence.inquiries.collect(con, engagement_id, topics)`.
 
 FDD orderbook and revenue visibility (F7, `docs/fdd.md`, decisions in `docs/decisions/fdd-f7.md`). `fin ingest <co> <file> --kind orderbook`
