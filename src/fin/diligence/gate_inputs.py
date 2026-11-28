@@ -44,6 +44,7 @@ GATE_INPUTS: dict[str, dict[str, tuple[str, ...]]] = {
             "evidence",
             "final_amount",
         ),
+        "fdd_finding_flags": ("flag_id",),  # through fdd_finding_rows.flag_ids
         "netdebt_classes": ("ledger", "debt_class", "status"),
         "tax_ledgers": ("ledger", "tax_class", "status"),
         "related_party_links": ("party", "link_kind", "target", "status"),

@@ -10,10 +10,11 @@ adjustments, gate_approvals, the source file tables source_files, trial_balance,
 ledger_entries, ledger_blocks, register_lines, payroll_lines, payroll_units, bank_statements,
 bank_lines, passthrough_customers, contracts, samples, sample_lines, walkthroughs, gst_returns,
 gstr2b_lines, the FDD tables provision_ledgers, inquiries, orderbook_lines, engagement_rates,
-disclosure_files, disclosures, related_party_links, netdebt_classes, netdebt_items and
-fdd_findings, the forensic tables forensic_runs, forensic_flags and forensic_flag_queries, the
-ledger mappings ledger_accounts and tax_ledgers, and the reconciliations recon_runs, recon_items,
-query_items) is refused with E806 before the backup: those tables change only through
+disclosure_files, disclosures, related_party_links, netdebt_classes, netdebt_items,
+fdd_findings and fdd_finding_flags, the forensic tables forensic_runs, forensic_flags and
+forensic_flag_queries, the ledger mappings ledger_accounts and tax_ledgers, and the
+reconciliations recon_runs, recon_items, query_items) is refused with E806 before the backup:
+those tables change only through
 `fin engagement|query|adjust|gate`, `fin ingest --kind`, `fin map ledgers` with `fin review
 --ledgers`, `fin reconcile`, `fin forensic run`, `fin recast`, `fin sample`, `fin walkthrough` and
 the FDD commands,
@@ -68,7 +69,7 @@ DILIGENCE_TABLE = re.compile(
     r"|tax_ledgers"
     r"|disclosure_files|disclosures|related_party_links"
     r"|netdebt_classes|netdebt_items|fdd_findings|forensic_runs|forensic_flags"
-    r"|forensic_flag_queries)\b"
+    r"|forensic_flag_queries|fdd_finding_flags)\b"
 )
 
 # The figures: loaded by `fin ingest`, mapped by `fin review`, stated by `fin fact state`, never

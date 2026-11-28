@@ -4,7 +4,7 @@ from the books, never typed."""
 from collections.abc import Iterable
 from datetime import date
 
-from mock.generator import bank_extra
+from mock.generator import bank_extra, expected_report
 from mock.generator import books as b
 from mock.generator import data as d
 from mock.generator import data_counterparty as cp
@@ -339,6 +339,7 @@ def render(books: b.Books) -> str:
         _forensic(),
         bank_extra.section(books),
         _counterparty(books),
+        expected_report.section(books),
     ]
     return "\n".join(line for part in parts for line in part).rstrip() + "\n"
 

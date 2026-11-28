@@ -57,6 +57,7 @@ SEEDS = [
     "deal_consideration, evidence, status, created_run_id, created_at, status_run_id, status_at) "
     "VALUES (1, 'qoe', 't', 'o', 'ebitda', 'low', 'none', 'e', 'draft', "
     f"{AUDIT}, {AUDIT})",
+    "INSERT INTO fdd_finding_flags (finding_id, flag_id) VALUES (1, 1)",
     "INSERT INTO netdebt_classes (ledger, debt_class, status, reason, run_id, changed_at) "
     f"VALUES ('Loan', 'debt', 'proposed', 'r', {AUDIT})",
     "INSERT INTO tax_ledgers (ledger, status, tax_class, run_id, changed_at) "

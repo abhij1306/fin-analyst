@@ -223,10 +223,14 @@ the report reads every workstream's data function through `fin.report.fdd_data.c
   A final finding shows the amount, source and response snapshotted when it was made final, flagged "changed since
   final" when the live evidence differs; a rejected linked adjustment or item, or a withdrawn query, is flagged.
   `fin fdd finding propose|list|update|drop <co>` (Claude); `fin fdd finding final <co> <id>` (the user's word only).
+  Area `forensic` (SPEC-21): `--area forensic --flags <ids>` links the forensic flags the finding rests on
+  (`fdd_finding_flags`); its amount still comes from the links above (a query raised on those flags, say), never
+  summed from flags. The Forensic screen's finding hand-off asks the assistant to propose it.
 - `fin report <co> --fdd [--render]`: key findings by severity; quality of earnings (D1, D7); working capital; net
   debt and debt-like items (F4); revenue, contracts and visibility (F1, F7, D9); walkthroughs (F1); provisions and
   payroll (F3); tax (F6); contingencies and commitments (F5); related parties (F5); inquiries and their answers
-  (F2); gate states; scope and limitations (what fin did not do: actuarial valuation, legal review, site visits);
+  (F2); forensic tests (SPEC-21, `fin.report.forensic_section`: each test's state, its flags at or above the
+  threshold, at most 20 per test, the queries on flags and the forensic findings; never left out); gate states; scope and limitations (what fin did not do: actuarial valuation, legal review, site visits);
   sources appendix. A section whose data is not loaded says so. Review fix (owner's review, 2026-11-26): the report
   also shows what F1, F5 and F6 collect: contract lock-in left, notice period and auto-renew, walkthrough exception
   lines, related party pricing and loans, deferred tax movement and MAT credit, and the GST returns' totals

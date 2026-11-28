@@ -463,3 +463,67 @@ Near misses (not flagged):
 | QSD/25/X02 | difference | 1,300,000 | 1,500,000 | (200,000) | reported at a lower taxable value |
 | TDL/24/0611 | matched | 600,000 | 600,000 | 0 | vendor names differ |
 | TDL/24/0907 | matched | 600,000 | 600,000 | 0 | vendor names differ |
+
+
+## The FDD report's Forensic tests section (SPEC-21)
+
+With everything above loaded and `fin forensic run corvane` run, `fin report corvane --fdd` has a Forensic tests section before Reconciliations and queries: every registered test for every period with its state as above (ran, stale, too few entries, cannot run and what it needs, or not run), then per test its flags at or above the query threshold of 100,000, largest amount first and at most 20, each with its file and sheet!row, then the queries raised on flags and the final forensic findings (drafts too with --drafts). A party is its token; a ledger is named as filed. Flags of each test and period (the flagged count of its State; tests and periods not listed flag nothing):
+
+| Test | Period | Flags |
+|---|---|---|
+| bank_balance_chain | FY25 | 1 |
+| bank_cash | FY24 | 1 |
+| bank_cash | FY25 | 2 |
+| bank_cash | FY26-YTD-SEP | 1 |
+| bank_date_gap | FY26-YTD-SEP | 1 |
+| bank_date_order | FY25 | 1 |
+| bank_duplicate | FY25 | 2 |
+| bank_own_transfer | FY25 | 1 |
+| bank_period_end_credit | FY25 | 1 |
+| bank_round | FY25 | 3 |
+| bank_round_trip | FY25 | 1 |
+| cp_capitalised | FY26-YTD-SEP | 3 |
+| cp_credit_note | FY25 | 1 |
+| cp_loan_no_trade | FY26-YTD-SEP | 1 |
+| cp_new_vendor | FY25 | 1 |
+| cp_setoff | FY25 | 2 |
+| cp_under_limit | FY26-YTD-SEP | 1 |
+| cp_vendor_spike | FY25 | 1 |
+| je_duplicate | FY25 | 4 |
+| je_gap | FY25 | 1 |
+| je_period_end | FY25 | 4 |
+| je_rare_ledger | FY23 | 1 |
+| je_rare_ledger | FY25 | 4 |
+| je_reversed | FY25 | 2 |
+| je_round | FY25 | 2 |
+| je_sensitive | FY25 | 3 |
+| je_under_limit | FY25 | 2 |
+| je_under_limit | FY26-YTD-SEP | 2 |
+| je_unusual_pair | FY25 | 3 |
+| je_weekend | FY25 | 4 |
+
+The planted journals' flags, in the order the section lists them within their test (the rows of the books a test rightly flags fall between them by amount; a voucher's two lines in the order the test flagged them):
+
+| Test | Voucher | Ledger | Amount |
+|---|---|---|---|
+| je_duplicate | JV/25/006 | Cloud Hosting | 120,000 |
+| je_duplicate | JV/25/006 | Rent | 120,000 |
+| je_duplicate | JV/25/007 | Cloud Hosting | 120,000 |
+| je_duplicate | JV/25/007 | Rent | 120,000 |
+| je_gap | JV/25/013 | - | - |
+| je_period_end | JV/25/012 | Cloud Hosting | 140,000 |
+| je_period_end | JV/25/012 | Rent | 140,000 |
+| je_rare_ledger | JV/25/022 | Donations | 110,000 |
+| je_reversed | JV/25/015 | Computer Equipment | 450,000 |
+| je_reversed | JV/25/015 | Depreciation | 450,000 |
+| je_round | JV/25/001 | Cloud Hosting | 1,000,000 |
+| je_round | JV/25/001 | Rent | 1,000,000 |
+| je_sensitive | JV/25/017 | Bellwether Clinics LLP | 250,000 |
+| je_sensitive | JV/25/017 | Halcyon Freight Systems Pvt Ltd | 250,000 |
+| je_under_limit | JV/25/010 | Cloud Hosting | 495,000 |
+| je_under_limit | JV/25/010 | Rent | 495,000 |
+| je_unusual_pair | JV/25/019 | Interest on Term Loan | 150,000 |
+| je_weekend | JV/25/005 | Cloud Hosting | 230,000 |
+| je_weekend | JV/25/005 | Rent | 230,000 |
+| je_weekend | JV/25/003 | Cloud Hosting | 210,000 |
+| je_weekend | JV/25/003 | Rent | 210,000 |

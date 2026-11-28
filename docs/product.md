@@ -1055,11 +1055,11 @@ figures (never 0). `net_debt_lines` lists each ledger (file + sheet!row) and ite
 
 FDD findings report (F8, `docs/fdd.md`; decisions in `docs/decisions/fdd-f8.md`): an FDD finding has an area (the
 report section: qoe, working_capital, net_debt, revenue, walkthroughs, provisions, tax, contingencies,
-related_parties, inquiries, other), a title, an observation, an optional implication, an impact type (ebitda,
+related_parties, inquiries, forensic, other), a title, an observation, an optional implication, an impact type (ebitda,
 net_debt, working_capital, revenue, disclosure, none), a severity (high, medium, low), a deal consideration (price,
 spa_protection, condition_precedent, further_work, none) and evidence (file + page, fin output, query). Claude
 proposes one with `fin fdd finding propose <co> --area --title --observation --severity --impact --deal --evidence
-[--implication] [--adjustment N | --netdebt-item N | --recon N] [--query N]` (E970) and changes or drops it while it is
+[--implication] [--adjustment N | --netdebt-item N | --recon N] [--query N] [--flags IDS]` (E970) and changes or drops it while it is
 a draft (`fin fdd finding update <co> <id> ...`, `fin fdd finding drop <co> <ids>`; E971). The amount is never typed:
 it is the linked adjustment's or net debt item's amount, a reconciliation run's lines at or above the threshold (sum
 of their absolute differences), else the linked query's amount, shown with where it comes from; the linked query's
@@ -1072,6 +1072,15 @@ or buy/don't-buy language (E970). Only the user marks a finding final (`fin fdd 
 [--all] [--json]` lists them by severity. Table `fdd_findings` (`db/schema/fdd_findings.sql`, view
 `fdd_finding_rows`), refused by `fin sql --write` (E806); every change is a run event.
 
+A finding of area `forensic` (SPEC-21) rests on forensic flags: `--flags 12,13` (ids from `fin forensic flags`) links
+them in `fdd_finding_flags` (refused by `fin sql --write`, E806), and `fin fdd finding list` shows them. A forensic
+finding needs at least one flag and only a forensic finding takes flags; a flag given must be of the open engagement
+and of the latest run of its test and period (E970 otherwise); a link already stored stays when the test runs again
+(`update --flags` replaces the links). The flags are evidence, not an amount: the amount comes from the other links as
+for any finding (a query raised on the flags with `--query`, say), never from the flags added up, since one entry
+can be flagged by two tests. The Forensic screen's **Ask the assistant to propose a finding** asks the assistant in
+chat to run this command; only the user marks the finding final.
+
 `fin report <co> --fdd [--drafts] [--render] [--scope S]` builds the FDD report of the latest engagement on the
 diligence report's machinery (E873 without an engagement): the first run writes `fdd_narrative.md`, the next lints it
 and renders `fdd.html`, `fdd.docx`, `fdd.pdf` and `fdd_data.json` (every value, the references, the gate states and
@@ -1081,7 +1090,12 @@ adjustments, EBITDA to cash); working capital; net debt and debt-like items (F4)
 (revenue split, contract coverage of the top customers and vendors with lock-in left, notice period and auto-renew, revenue visibility, the recast); walkthroughs (F1; each sample's lines with an exception and the exception lines Claude recorded, labelled not verified);
 provisions and payroll (receivables ageing, indicative gratuity with its assumptions; F3); tax (tax charge with net deferred tax, its movement and the MAT credit, the GST returns' totals as filed, and the GST
 reconciliations; F6); contingencies and commitments, and related parties (Claude's readings, labelled not verified,
-the related parties' transactions in the books, their pricing against other customers and vendors, and their loans with the implied rate; F5); management inquiries and their answers (F2); reconciliations and
+the related parties' transactions in the books, their pricing against other customers and vendors, and their loans with the implied rate; F5); management inquiries and their answers (F2); forensic tests (SPEC-21:
+each registered test per period with its state as `fin forensic status` gives it, the date it ran and its population;
+per test the flags at or above the threshold, largest amount first and at most 20 with the rest counted, each with
+its voucher, ledger as filed, party token, amount, file and sheet!row, reason and query; the queries raised on flags
+with their status; the forensic findings, final ones or with `--drafts` the drafts too; with no forensic run the section
+says so; no score, rating or "risk" word); reconciliations and
 queries; basis, gates and scope (with the scope and limitations: no actuarial valuation, leave encashment, legal
 review, site visits or MIS/KPI reconciliation); data findings and mappings; the sources appendix. A section whose data
 is not loaded says so. Only final findings are in it; `--drafts` adds the drafts and labels the copy a draft. The
@@ -1507,7 +1521,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Questions: the questions asked of the company's data and saved (`fin sql --question`; read runs with a result), newest first, the latest 100: question, SQL, rows, when. **Open evidence** shows the evidence page (sandboxed, as a report), **Download** saves it, **Run again** is a job that runs the same SQL again with a new evidence page (a run "sql" with `rerun_of`). **Ask a question** puts `/ask` in the chat box: Claude writes the SQL. An id the company does not have is E001.
   - Dashboards: **Build the dashboard** (a job, as `fin dashboard --build`: `fin.dashboard.build()`) and the last good build in a frame. The Evidence site is built under the base path `/dashboard-site` (`dashboards/evidence.config.yaml`), which is where the UI serves `<data>/dashboard/build`; the dev server (`fin dashboard`) is at `http://localhost:3000/dashboard-site`. A page outside the build is E001.
   - Settings (opens without a company): the data folder, the display settings the company's numbers are shown with (unit, decimals, negatives, caption: `[display]`, or the company's own `[display.companies.<name>]`; read-only here, the Statements screen picks another unit for a view), config.toml's PDF add-on (or why config.toml cannot be read), and **Install** for each PDF add-on (the add-on job, as `fin parser use`). Other AI providers are on hold (SPEC-16). With a company, the forensic settings (SPEC-18): each with its value, where it comes from, its default and why, and **Set** (as `fin forensic set`; `default` resets it).
-  - Forensic (SPEC-18, SPEC-20): each test's state per period (as `fin forensic status`), the period-end revenue of each period (SPEC-20), **Run the forensic tests** (a job, as `fin forensic run`), and the flags by test, largest first, each opening to its reason, source file and sheet!row, voucher, account and party token, with its query and status. Flags of a current run at or above the threshold and in no open query can be ticked (one period at a time) to open the chat with a request to draft one query (`fin query raise --flags`); E008 otherwise. The user approves it on the Queries screen.
+  - Forensic (SPEC-18, SPEC-20): each test's state per period (as `fin forensic status`), the period-end revenue of each period (SPEC-20), **Run the forensic tests** (a job, as `fin forensic run`), and the flags by test, largest first, each opening to its reason, source file and sheet!row, voucher, account and party token, with its query and status. Ticked flags of a current run at or above the threshold and in no open query (one period at a time) open the chat with a request to draft one query (`fin query raise --flags`); E008 otherwise. The user approves it on the Queries screen. Flags of a current run (stale ones excepted) can be ticked, of any period, for **Ask the assistant to propose a finding** (SPEC-21): the chat opens with a request to run `fin fdd finding propose --area forensic --flags` (with `--query` when every ticked flag is in the same query, of any status but withdrawn); E008 for none ticked or a flag of a stale run. Only the user marks the finding final, on the Findings screen.
   - Health (opens without a company): `fin doctor`'s checks, each with its fix, and **Update fin** (a job, as `fin update`: refused when doctor fails afterwards, with its problems).
   - Log: the company's latest 100 runs (newest first) with who ran each (the run's `actor`, or "not recorded") and their problems, filtered by command and by actor; a figure's trail (`fin audit`) by fact id, or by metric and period (E504 for a fact id that is not a number or a figure the company does not have).
   - Queries, Gates, Bridge, Findings and Differences say so (E803, or nothing loaded) when the company has no open engagement; Queries, Gates, Findings and Differences then link to the Engagement screen, where one is opened (Bridge shows the latest engagement, closed or not).
