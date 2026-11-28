@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from fin.db.conn import connect
 from fin.paths import audit_db_path, company_db_path
+from fin.ui.diligence_screens import MISSING, bridge_screen
 from fin.ui.server import create_app
 from fin.ui.views import gate_fix
 from tests.diligence_ui_fixtures import ROWS, build_root, write_walk
@@ -171,6 +172,20 @@ def test_the_bridge_shows_the_adjusted_pl_beside_the_reported_one(
     assert "profit and loss, adjusted" in pl.lower()
     assert "balance sheet, as reported" in pl.lower()
     assert client.get("/bridge?company=acme&view=nope").status_code != 200
+
+
+def test_a_year_without_ebitda_shows_n_a_not_a_dash_that_reads_as_zero(root: Path) -> None:
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "INSERT INTO engagement (periods, query_threshold, status, opened_run_id, opened_at) "
+            "VALUES ('FY24,FY25', 100000, 'open', 'r0', now())"
+        )
+
+    blocks = {b["title"]: b for b in bridge_screen(root, "acme")["blocks"]}
+
+    assert [s["amount"] for s in blocks["standalone FY24"]["steps"]] == [MISSING, MISSING]
+    assert [s["amount"] for s in blocks["standalone FY25"]["steps"]] == ["1.5", "1.5"]
+    assert MISSING == "n/a"
 
 
 def test_an_engagement_opens_once_and_closes_from_the_screen(client: TestClient) -> None:

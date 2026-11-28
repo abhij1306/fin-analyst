@@ -425,3 +425,12 @@ def test_a_stub_loads_labelled_unaudited_and_is_not_reconciled(root: Path, tmp_p
     run_root = run(root)
     with pytest.raises(ReconNotPossible, match="no annual period"):
         recon.tb_vs_statements(run_root, "acme")
+
+
+def test_a_zero_on_one_side_only_is_never_matched() -> None:
+    # A stated or filed zero with no ledger mapped to it is a missing ledger, not a match.
+    shown = (Decimal("0.00"), "stated #1")
+    assert recon._line("tb.xlsx", "finance_cost", None, shown)["kind"] == "right_only"
+    total = [Decimal("0.00"), [], []]
+    assert recon._line("tb.xlsx", "finance_cost", total, None)["kind"] == "left_only"
+    assert recon._line("tb.xlsx", "finance_cost", total, shown)["kind"] == "matched"

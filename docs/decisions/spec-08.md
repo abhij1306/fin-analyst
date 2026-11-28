@@ -59,3 +59,14 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
   is not closed, withdrawn or rejected is refused with E409: that difference is queried. fin cannot tell a misread
   from a wish to tie in other cases; the help, `/ingest` and this rule say so, and the actor is recorded.
 - **How to change it**: `src/fin/facts.py: correct, _UNDER_QUERY_SQL`.
+
+## tb_vs_statements compares a stated figure
+
+- **Decision** (system review, 2026-11-28): `tb_vs_statements` reads every standalone figure of `current_facts`, a
+  figure the user stated included, with the source `stated #<id>`, as `fin statements`, `fin statements --rebuilt`
+  and `fin reference compare` do. Before, its source join dropped a stated figure, so the trial balance line showed
+  as `left_only` (the statement "missing") in the reconciliation and the Differences list while the rebuilt view
+  compared it with the stated figure.
+- **Why**: one set of reported figures for every comparison; a stated figure is a figure in use (this file, above),
+  and G1 lists it for the user before approving.
+- **How to change it**: `src/fin/diligence/recon.py: statement_figures`.

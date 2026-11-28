@@ -11,7 +11,7 @@ from typing import Any
 
 from fin.config import Display
 from fin.display import PER_SHARE, number, percent
-from fin.statements import OTHER_LABEL, ROUNDING_NOTE, STATEMENTS, TITLES, marks
+from fin.statements import OTHER_LABEL, ROUNDING_NOTE, STATEMENTS, TITLES, marks, text_marks
 
 EXTRAS = {"of_revenue": "% of revenue", "yoy": "YoY %"}
 
@@ -98,7 +98,9 @@ def databook(
 
 def format_databook(company: str, tables: list[dict[str, Any]]) -> str:
     """Plain text: per table a caption with the unit, a header of the columns, and one row per
-    line; a subtotal is marked "=", a rounded total "*" (ROUNDING_NOTE under the table)."""
+    line; a subtotal is marked "=", a rounded total "*" (ROUNDING_NOTE under the table). A
+    figure's marks (`text_marks`: stated, corrected, read by AI) follow its line, with its
+    period."""
     out: list[str] = []
     for table in tables:
         if out:
@@ -115,7 +117,12 @@ def format_databook(company: str, tables: list[dict[str, Any]]) -> str:
                 mark = "*"
             label = f"{mark} " + "  " * line["depth"] + line["label"]
             cells = "".join(f"{c['text']:>{w}}" for c, w in zip(line["cells"], widths, strict=True))
-            out.append((f"{label:<52}" + cells).rstrip())
+            notes = [
+                f"  ({c['period']}: {mark})"
+                for c in line["cells"]
+                for mark in text_marks(c.get("marks", []))
+            ]
+            out.append((f"{label:<52}" + cells).rstrip() + "".join(notes))
         if table["rounding"]:
             out.append(f"* {ROUNDING_NOTE}")
     return "\n".join(out)

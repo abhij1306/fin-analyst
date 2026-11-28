@@ -18,6 +18,8 @@ from fin.paths import company_db_path
 from fin.statements import TITLES, latest_annual_period, statement_rows
 
 BRIDGE_VIEWS = ("bridge", "pl")
+# A figure fin does not have, as `fin engagement bridge` shows it: with brackets a zero is a dash.
+MISSING = "n/a"
 AS_REPORTED = ("balance_sheet", "cash_flow")  # no adjustment kind changes them yet
 
 
@@ -37,8 +39,9 @@ def with_engagement(root: Path, company: str, load: Callable[[], dict[str, Any]]
 
 
 def money(value: Decimal | None, display: Display) -> str:
-    """A rupee value in the display unit (converted in SQL, fin.display); "-" when missing."""
-    return number(shown(value, display), display, blank="-")
+    """A rupee value in the display unit (converted in SQL, fin.display); MISSING when there is
+    none."""
+    return number(shown(value, display), display, blank=MISSING)
 
 
 def _engagement(root: Path, company: str) -> dict[str, Any]:
@@ -126,7 +129,7 @@ def _as_reported(root: Path, company: str, display: Display) -> dict[str, Any]:
         if not out or out[-1]["key"] != key:
             title = f"{r['scope']} {r['period']}: {TITLES[r['statement']].lower()}, as reported"
             out.append({"key": key, "title": title, "lines": []})
-        value = number(r["shown"], display, r["unit"] == PER_SHARE, blank="-")
+        value = number(r["shown"], display, r["unit"] == PER_SHARE, blank=MISSING)
         out[-1]["lines"].append({"label": r["label"], "depth": r["depth"], "value": value})
     return {"message": None, "blocks": out}
 
