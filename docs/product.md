@@ -732,7 +732,7 @@ investments, borrowings, leases and tax are not in it). `nwc_year_end` (and `nwc
 balance row) is one row per loaded trial balance of the latest engagement, the stub included (basis unaudited), balances as the
 statements show them and net = assets - liabilities, with the count of unmapped ledgers. A component with no ledger confirmed
 to its accounts is missing (NULL, never 0; a confirmed ledger with a nil balance is 0): the net is the sum of the known
-components and `missing_components` names the others (also in `nwc_monthly`, `nwc_series` and the dashboard's `qoe_nwc`; the report prints them beside the net, and a narrative reference to that net is n/a). `nwc_monthly_ledgers` says, per working
+components and `missing_components` names the others (also in `nwc_monthly`, `nwc_series` and the dashboard's `qoe_nwc`; the report prints them beside the net). `nwc_monthly_ledgers` says, per working
 capital ledger of each Ledger Vouchers period, whether it is `included` in the monthly view: the previous period's trial balance
 is loaded (else "no previous trial balance": an opening is never inferred) and the latest `gl_vs_tb` run has its movement equal to
 the trial balance (else excluded with the reason); `nwc_monthly_lines` / `nwc_monthly` are the included ledgers' opening plus

@@ -21,7 +21,6 @@ from fin.reconcile import cutoff
 from fin.reconcile.gst import gstr1_vs_sales_register
 from fin.reconcile.payroll_vs_gl import payroll_vs_gl
 from fin.reconcile.recast import spread
-from fin.report.dd_data import _figures
 
 UNIT = SimpleNamespace(unit=1)
 
@@ -194,21 +193,6 @@ def test_a_stand_in_total_is_the_signed_sum_of_every_child_with_review_accounts(
     ).fetchall()
 
     assert rate == Decimal("0.080000")  # (100 - 20) / 1000: the review child, with its sign
-
-
-def test_a_net_without_a_component_is_not_given_to_the_narrative() -> None:
-    nwc = {"period": "FY25", "trade_receivables": Decimal(500), "inventories": None,
-           "other_current_assets": Decimal(0), "trade_payables": Decimal(0),
-           "other_current_liabilities": Decimal(0),
-           "net_working_capital": Decimal(500)}  # fmt: skip
-    data = {"ebitda": [], "revenue_split": [], "walk": [], "other_income": [], "recast": [],
-            "nwc_year_end": [{**nwc, "missing_components": "inventories"},
-                             {**nwc, "period": "FY24", "missing_components": None}]}  # fmt: skip
-
-    figures = _figures(data)
-
-    assert figures["net_working_capital"] == {"FY25": None, "FY24": Decimal(500)}
-    assert figures["nwc_inventories"]["FY25"] is None
 
 
 def test_a_review_account_under_a_line_of_the_total_stands_in_only_without_that_line(

@@ -223,8 +223,6 @@ def _figures(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for row in data["nwc_year_end"]:
         for name, column in _NWC_COLUMNS.items():
             out[name][row["period"]] = row[column]
-        if row["missing_components"]:  # a net without a component is not the net: n/a in prose
-            out["net_working_capital"][row["period"]] = None
     return out
 
 
