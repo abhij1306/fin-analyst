@@ -100,7 +100,11 @@ def test_an_option_the_mode_ignores_is_refused(
     result = run(*(a.format(file=tmp_path / "b.xlsx") for a in args))
 
     assert result.exit_code == 2
-    assert said in " ".join(result.output.split())
+    # Typer draws a usage error in a coloured box that wraps the message: the words, in order
+    text = re.sub(r"\x1b\[[0-9;]*m", "", result.output).replace(
+        "\N{BOX DRAWINGS LIGHT VERTICAL}", " "
+    )
+    assert said in " ".join(text.split())
 
 
 def test_the_docs_name_every_command_and_only_real_ones() -> None:

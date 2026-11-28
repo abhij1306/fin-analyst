@@ -29,7 +29,8 @@ DIGIT = re.compile(r"\d")  # any Unicode digit
 # A masked value (fin.diligence.mask.PREFIX: CUST-0001, EMP-0012, ACCT-0001, ...): an identity,
 # not a number.
 # The FDD report and its findings allow them (fin.report.lint.lint_fdd, fin.fdd.findings).
-TOKEN = r"\b(?:CUST|VEND|USER|EMP|ECODE|ACCT)-\d+\b"  # noqa: S105 (a pattern, not a secret)
+# A pattern, not a secret.
+TOKEN = r"\b(?:CUST|VEND|USER|EMP|ECODE|ACCT)-\d+\b"  # noqa: S105
 FDD_ALLOWED = re.compile(FIGURE.pattern + "|" + TOKEN)
 FIGURE_EXAMPLE = "{{figure:adjusted_ebitda:FY25}}"
 HEADING = re.compile(r"^## (.+)$")

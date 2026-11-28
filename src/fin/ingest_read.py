@@ -145,7 +145,8 @@ def read_document(
             f"{path.name}: --unit {unit.unit} was given, but every statement sheet or page names "
             "its own unit; nothing loaded. Ingest it without --unit"
         )
-    return replace(document, unit_given=unit)  # NOSONAR: replace returns the type it is given
+    # dataclasses.replace returns the type it is given (Sonar S5886 reads it as any dataclass)
+    return replace(document, unit_given=unit)  # NOSONAR
 
 
 def _read_excel(path: Path, config: Config, unit: GivenUnit | None) -> Document:

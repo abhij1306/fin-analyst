@@ -22,7 +22,7 @@ import duckdb
 from fin.audit.errors import FddFindingInvalid, FddFindingUnknown
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
-from fin.db.rows import fetch_dicts
+from fin.db.rows import fetch_dicts, fetch_one
 from fin.diligence.engagement import company_database, require_open, rupees
 from fin.report.lint import FDD_ALLOWED, JUDGING, phrase, typed_number_lines
 
@@ -101,12 +101,13 @@ def propose(run: Run, company: str, fields: dict[str, Any]) -> dict[str, Any]:
         _check(con, engagement_id, dict.fromkeys(LINKS) | values)
         columns = [*CHOICES, *TEXTS, "evidence", *LINKS]
         now = utcnow()
-        (finding_id,) = con.execute(
+        (finding_id,) = fetch_one(
+            con,
             f"INSERT INTO fdd_findings (engagement_id, {', '.join(columns)}, status, "
             "created_run_id, created_at, status_run_id, status_at) VALUES "
             f"(?, {', '.join('?' for _ in columns)}, 'draft', ?, ?, ?, ?) RETURNING finding_id",
             [engagement_id, *(values.get(c) for c in columns), run.run_id, now, run.run_id, now],
-        ).fetchone()
+        )
         _log(run, company, finding_id, f"proposed ({fields['severity']}, {fields['area']})")
         return _rows(con, engagement_id, [finding_id])[0]
 

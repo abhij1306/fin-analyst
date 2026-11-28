@@ -22,6 +22,7 @@ from pathlib import Path
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing
 from fin.audit.logger import Run
 from fin.db.conn import connect
+from fin.db.rows import fetch_one
 from fin.metrics.export import refresh_analytics
 from fin.paths import (
     archive_dir,
@@ -105,7 +106,7 @@ def company_mappings(root: Path, company: str) -> int:
 def row_counts(root: Path, company: str) -> dict[str, int]:
     with connect(company_db_path(root, company)) as con:
         return {
-            table: con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]  # noqa: S608
+            table: fetch_one(con, f"SELECT count(*) FROM {table}")[0]  # noqa: S608
             for table in COUNTED_TABLES
         }
 

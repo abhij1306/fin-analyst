@@ -178,7 +178,7 @@ ORDER BY x.statement, x.account
 
 
 def _row(kind: str, period: str, source: str, **values: str) -> dict[str, str]:
-    row = dict.fromkeys((*COLUMNS, *OPTIONAL), "")
+    row: dict[str, str] = dict.fromkeys((*COLUMNS, *OPTIONAL), "")
     row.update(kind=kind, period=period, source=source, **values)
     return row
 

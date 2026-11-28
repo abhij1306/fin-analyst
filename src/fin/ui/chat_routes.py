@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Form, Request, Response
+from fastapi import FastAPI, Form, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
@@ -148,7 +148,7 @@ class ChatRoutes:
         self.chat.stop(str(chat_store.load(self.root, conv)["id"]))
         return Response(status_code=204)
 
-    def stream(self, request: Request, conv: str) -> StreamingResponse:
+    def stream(self, conv: str) -> StreamingResponse:
         chosen = chat_store.load(self.root, conv)
         return StreamingResponse(
             self._events(conv, chosen),

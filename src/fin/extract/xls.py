@@ -8,11 +8,12 @@ value columns covers them as in a .xlsx."""
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 import xlrd
 from openpyxl.workbook.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
+from xlrd.biffh import XLRDError
 from xlrd.compdoc import CompDocError
 
 from fin.audit.errors import FileEncrypted, FileUnreadable
@@ -23,7 +24,7 @@ def open_xls(path: Path) -> Workbook:
     E101 when it cannot be read."""
     try:
         source = xlrd.open_workbook(str(path), formatting_info=True, on_demand=False)
-    except xlrd.XLRDError as exc:
+    except XLRDError as exc:
         if "encrypted" in str(exc).lower():
             raise FileEncrypted(f"{path.name}: the workbook is password protected") from exc
         raise FileUnreadable(f"{path.name}: not a readable .xls workbook ({exc})") from exc
@@ -58,11 +59,12 @@ def _value(cell: xlrd.sheet.Cell, datemode: int) -> Any:
     if kind in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK):
         return None
     if kind == xlrd.XL_CELL_DATE:
-        return datetime(*xlrd.xldate_as_tuple(cell.value, datemode))
+        mode = cast(Literal[0, 1], datemode)  # 0: dates from 1900, 1: from 1904
+        return datetime(*xlrd.xldate_as_tuple(float(cell.value), mode))
     if kind == xlrd.XL_CELL_BOOLEAN:
         return bool(cell.value)
     if kind == xlrd.XL_CELL_ERROR:
-        return xlrd.error_text_from_code.get(cell.value, "#ERROR")
+        return xlrd.error_text_from_code.get(int(cell.value), "#ERROR")
     if kind == xlrd.XL_CELL_NUMBER and float(cell.value).is_integer():
         return int(cell.value)  # Excel stores every number as a float: 1200 is read as 1200
     return cell.value

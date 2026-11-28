@@ -66,7 +66,8 @@ mistake, instead of a sentence the next builder has to remember.
    `temp-race`, `guard-bypass`, `cli-contract`, `error-code`, `complexity`, `docs-drift`,
    `test-left-behind`, `weak-test`, `ci-config`, `install`, `accessibility`, `other:<word>`.
 2. **Retro, at the end of each spec.** The orchestrator runs it; the owner is not needed.
-   - Count the categories of the spec's PRs (`node tools/tally_categories.mjs`, from SPEC-00), and list anything
+   - Count the categories of the spec's PRs (`gh pr list --state merged --json number,body | node tools/tally_categories.mjs`,
+     from SPEC-00), and list anything
      that reached `main` or a client: a fix PR, a red run on `main`, a new Sonar issue.
    - A category seen in two PRs, or anything that escaped, gets a row in
      [plans/RECURRING.md](plans/RECURRING.md) with what now prevents it. Prefer, in order: a type, a lint rule, a CI

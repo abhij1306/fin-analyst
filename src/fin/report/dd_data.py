@@ -27,7 +27,7 @@ import duckdb
 
 from fin.audit.errors import DiligenceReportUnavailable
 from fin.db.conn import connect
-from fin.db.rows import fetch_dicts
+from fin.db.rows import fetch_dicts, fetch_one
 from fin.db.schema import ensure_database
 from fin.diligence import gates
 from fin.paths import company_db_path
@@ -310,11 +310,12 @@ def collect(root: Path, company: str, scope: str) -> dict[str, Any]:
                 "WHERE status <> 'confirmed' "
                 "GROUP BY status ORDER BY status",
             ),
-            "facts_not_confirmed": con.execute(
+            "facts_not_confirmed": fetch_one(
+                con,
                 "SELECT count(*) FROM facts f JOIN documents d ON d.doc_id = f.doc_id "
                 "WHERE d.status = 'loaded' AND NOT f.confirmed AND f.scope = ?",
                 [scope],
-            ).fetchone()[0],
+            )[0],
             "periods_shown": everything,
         }
     data["figures"] = _figures(data)

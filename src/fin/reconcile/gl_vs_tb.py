@@ -131,7 +131,8 @@ def gl_vs_tb(
     mapping = _confirmed(con)
     lines: list[dict[str, Any]] = []
     retained: list[str] = []
-    for ledger in sorted({*closing, *moved, *(before or {})}):
+    ledgers: set[str] = {*closing, *moved, *(before or {})}
+    for ledger in sorted(ledgers):
         account, statement = mapping.get(ledger, (None, None))
         if ledger not in closing and ledger not in moved and statement != "balance_sheet":
             continue  # only in the prior trial balance: a closed profit and loss ledger

@@ -56,11 +56,11 @@ def _account_to_add(
     """The new account to add when confirming `item` (its proposal, with `name` and `parent`
     when given), or None when it was already added by confirming another item the same way."""
     proposed = item["new_account"]
-    name = name or item["account"]
+    chosen: str = name or item["account"]
     definition = {**proposed, "parent": parent or proposed["parent"]}
-    if name in accounts and name == item["account"] and parent is None:
+    if chosen in accounts and chosen == item["account"] and parent is None:
         return None  # another item with the same new account was confirmed first
-    return new_account_row(accounts, name, definition, item["statement"])
+    return new_account_row(accounts, chosen, definition, item["statement"])
 
 
 def _resolve_account(

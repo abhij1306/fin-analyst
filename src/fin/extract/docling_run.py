@@ -12,6 +12,9 @@ are missing at first use, `convert` downloads them there and says so in a notice
 Macs: PyTorch has no macOS x86_64 build.
 """
 
+# The engine is an optional extra, not installed for the type check (ci.yml typecheck job).
+# pyright: reportMissingImports=false
+
 import importlib.util
 import logging
 import os
@@ -24,9 +27,9 @@ from fin.audit.errors import PdfAddonFailed
 from fin.extract.addon import Found, PageRead, Request, subset
 from fin.extract.pdf_tables import Cell, Table, top_left
 
-NAME = "docling"
-LABEL = "Docling"
-MODULE = "docling.document_converter"
+NAME: str = "docling"
+LABEL: str = "Docling"
+MODULE: str = "docling.document_converter"
 OCR = True  # reads short scanned PDFs (held to the answer key in the docling tests)
 # The models fin's Docling pipeline uses, as `docling-tools models download` names their folders.
 MODEL_FOLDERS = (

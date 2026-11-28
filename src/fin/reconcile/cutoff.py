@@ -32,6 +32,7 @@ from typing import Any
 import duckdb
 
 from fin.audit.errors import CutoffCannotRun
+from fin.db.rows import fetch_one
 from fin.diligence.stub import fiscal_start
 from fin.reconcile.base import ZERO, Computed, make_line, rows_text
 
@@ -222,11 +223,12 @@ def _coverage(
                 "start date: not tested",
             )
         )
-    last = con.execute(
+    last = fetch_one(
+        con,
         "SELECT max(r.invoice_date) FROM register_lines r JOIN source_files s USING (file_id) "
         "WHERE s.engagement_id = ? AND s.status = 'loaded' AND r.kind = ?",
         [engagement["engagement_id"], window.kind],
-    ).fetchone()[0]
+    )[0]
     if last is not None and last < end:
         out.append(
             make_line(

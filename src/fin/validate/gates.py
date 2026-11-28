@@ -53,6 +53,7 @@ from typing import TYPE_CHECKING, Any
 
 import duckdb
 
+from fin.audit.errors import UnexpectedError
 from fin.config import load_config
 from fin.extract.units import RUPEES_PER_UNIT
 from fin.map.dictionary import Account, load_accounts
@@ -176,7 +177,11 @@ def _lines(
     none of them. The accounts in `flip` are added with the opposite of their dictionary sign."""
     lines: list[tuple[str, Decimal]] = []
     for child in children.get(account, []):
-        sign = -tree[child].sign if child in flip else tree[child].sign
+        sign = tree[child].sign
+        if sign is None:  # only a top line has none, and a top line is no one's child
+            raise UnexpectedError(f"account {child} is under {account} but has no sign")
+        if child in flip:
+            sign = -sign
         if child in values:
             lines.append((child, sign * values[child]))
         else:

@@ -49,3 +49,17 @@ Builder's readings of [SPEC-00](../specs/SPEC-00-guardrails.md), not owner decis
   option is documented when its flag appears anywhere in docs/product.md. The reverse check covers commands only: an
   option name in prose cannot be tied to one command. "An option the mode ignores is refused" is tested on the
   commands that have modes (ingest, report).
+
+## The type check over all of src/fin
+
+- **Decision**: CI's first pyright run reported 54 errors in files this PR had not touched. They are fixed in code:
+  a single row that must exist (an aggregate, `INSERT ... RETURNING`) is read through `fin.db.rows.fetch_one`,
+  which raises E012 instead of handing back None; the other fixes narrow types without changing behaviour. The three
+  PDF add-on adapters carry `# pyright: reportMissingImports=false`: their engines are optional extras that the
+  typecheck job does not install, and nothing else in those files is exempt.
+- **Why**: the spec asks for a green type check job, with the fixes in the PR that turns it on.
+
+## The categories tally reads gh's JSON from standard input
+
+- **Decision**: `gh pr list --state merged --json number,body | node tools/tally_categories.mjs`. The script starts no
+  program, so it does not depend on what PATH finds (Sonar S4036).

@@ -90,8 +90,9 @@ def propose(
     )
 
 
+# One parameter per CLI option: Typer reads the options from them (docs/decisions/spec-00.md).
 @finding_app.command("update")
-def update(  # noqa: PLR0913  # NOSONAR: one parameter per CLI option
+def update(  # NOSONAR  # noqa: PLR0913
     company: Company,
     finding_id: Annotated[int, typer.Argument(help="The draft finding's id.")],
     area: Area = None,

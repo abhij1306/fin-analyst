@@ -100,9 +100,10 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Data:
         'ORDER BY r.file_id, r.sheet, r."row"',
         [eid],
     ).fetchall():
-        if cur != "INR" and amount is None:
-            cur = "INR"  # only the rupee amount is known
-        own = inr if cur == "INR" else Decimal(amount).quantize(CENT)
+        if cur == "INR" or amount is None:
+            cur, own = "INR", inr  # without its own amount, only the rupee amount is known
+        else:
+            own = Decimal(amount).quantize(CENT)
         if first <= day <= last:
             invoices.append(Invoice((fid, sheet, row), day, cur, own, inr, party, number))
     booked = [

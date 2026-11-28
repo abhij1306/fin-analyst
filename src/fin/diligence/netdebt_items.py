@@ -20,7 +20,7 @@ import duckdb
 from fin.audit.errors import NetDebtItemInvalid, NetDebtItemUnknown
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
-from fin.db.rows import fetch_dicts
+from fin.db.rows import fetch_dicts, fetch_one
 from fin.diligence.engagement import company_database, require_open, rupees
 
 
@@ -43,7 +43,8 @@ def propose(
                 "nothing stored"
             )
         now = utcnow()
-        (item_id,) = con.execute(
+        (item_id,) = fetch_one(
+            con,
             "INSERT INTO netdebt_items (engagement_id, period, amount, description, evidence, "
             "status, created_run_id, created_at, status_run_id, status_at) "
             "VALUES (?, ?, ?, ?, ?, 'proposed', ?, ?, ?, ?) RETURNING item_id",
@@ -52,7 +53,7 @@ def propose(
                 " ".join(description.split()), " ".join(evidence.split()),
                 run.run_id, now, run.run_id, now,
             ],
-        ).fetchone()  # fmt: skip
+        )  # fmt: skip
         _log(run, company, item_id, f"proposed {period} {amount}")
         return _items(con, engagement["engagement_id"], [item_id])[0]
 
