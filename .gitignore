@@ -37,3 +37,6 @@ logs/
 !tests/fixtures/sample-financials/**/*.xlsx
 !tests/fixtures/sample-financials/**/*.pdf
 !tests/fixtures/xls/*.xls
+!mock/**/*.xlsx
+!mock/**/*.xls
+!mock/**/*.pdf
