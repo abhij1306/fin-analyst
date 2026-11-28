@@ -6,7 +6,8 @@ mislead, on documents fin already loads.
   new module there, with no edit to shared code).
 - `settings`: `config.toml [forensic]` (thresholds with their defaults and reasons, the user's
   inputs), per company in `[forensic.companies.<name>]`; `fin forensic set` writes it.
-- `books`: the Ledger Vouchers lines of the engagement's periods and the vouchers rebuilt from them.
+- `books`: the Ledger Vouchers lines of the engagement's periods and the vouchers rebuilt from them;
+  `bank`: the bank statements and their lines (SPEC-19).
 - `run`: runs tests and keeps every run and its flags; `status` lists each test's state;
   `handoff`: `fin query raise --flags`.
 

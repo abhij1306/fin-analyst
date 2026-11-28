@@ -9,7 +9,9 @@ the bridge, gates and findings).
 
 - `dataroom/`: the documents, in one folder per source.
 - `zipped/corvane_dataroom.zip`: the same tree as one archive (`fin dataroom scan corvane mock/zipped`).
-- `extra/`: the adviser's walk sheet (`fin adjust import`) and a management reply (evidence).
+- `extra/`: the adviser's walk sheet (`fin adjust import`), a management reply (evidence) and, in `extra/bank/`,
+  two statements of a second bank account with planted cases for the bank forensic tests (SPEC-19; not in the books
+  or the data room: load them only for those tests).
 - `EXPECTED.md`: the answer key: what fin should store per file, which version is current, the
   headline figures, and each deliberate diligence item with its amount and where fin shows it.
 - `generator/`: the Python that writes all of the above from one data definition

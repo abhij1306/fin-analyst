@@ -4,10 +4,10 @@ Each (test, period) gets a forensic_runs row and its flags. Earlier runs and the
 query keeps the flags it was raised on); the latest is current. A test reports "cannot run" when a
 file it reads is not loaded for the period or an input it needs is not set, and "too few entries"
 below its minimum population. The input hash is the test's settings, the query threshold, the
-loaded Ledger Vouchers and trial balances and the confirmed mappings: when any changes, the run is
-stale. Each run logs, per test, the thresholds used, the population, the flagged count and the
-count just outside a threshold, with no ledger or party name (owner, 2026-11-28: "tune later but
-keep logs").
+loaded Ledger Vouchers and trial balances and the confirmed mappings (a bank test's: the loaded
+bank statements and the register parties): when any changes, the run is stale. Each run logs, per
+test, the thresholds used, the population, the flagged count and the count just outside a
+threshold, with no ledger or party name (owner, 2026-11-28: "tune later but keep logs").
 """
 
 import hashlib
@@ -29,7 +29,11 @@ from fin.forensic.books import Books, Context, load
 from fin.forensic.registry import ForensicTest, Outcome, tests
 from fin.reconcile import periods_of
 
-KIND_NAMES = {"ledger_vouchers": "Ledger Vouchers", "trial_balance": "trial balance"}
+KIND_NAMES = {
+    "ledger_vouchers": "Ledger Vouchers",
+    "trial_balance": "trial balance",
+    "bank": "bank statement",
+}
 UNCONFIRMED = "; the ledger's mapping is not confirmed"
 
 
@@ -96,7 +100,7 @@ def _store(
             len(outcome.flags),
             sum(over),
             outcome.near_misses,
-            test_hash(test, ctx.settings, ctx.threshold, books.data_hash),
+            test_hash(test, ctx.settings, ctx.threshold, books.hash_for(test)),
             run.run_id,
             datetime.now(UTC).replace(tzinfo=None),
         ],
@@ -104,9 +108,9 @@ def _store(
     if row is None:  # pragma: no cover - RETURNING always gives the row
         raise RuntimeError("no forensic run id returned")
     for flag, is_over in zip(outcome.flags, over, strict=True):
-        account = books.accounts.get(flag.ledger or "")
-        confirmed = account is not None if flag.ledger else None
-        reason = flag.reason + (UNCONFIRMED if flag.ledger and not confirmed else "")
+        account = flag.account or books.accounts.get(flag.ledger or "")
+        confirmed = account is not None if flag.ledger and not flag.account else None
+        reason = flag.reason + (UNCONFIRMED if confirmed is False else "")
         con.execute(
             'INSERT INTO forensic_flags (forensic_run_id, test, period, file_id, sheet, "row", '
             "page, source, voucher_type, voucher_no, entry_date, ledger, account, "
@@ -127,7 +131,7 @@ def _store(
                 flag.ledger,
                 account or flag.ledger,
                 confirmed,
-                parties.token(flag.ledger),
+                flag.party or parties.token(flag.ledger),
                 flag.amount,
                 reason,
                 is_over,
@@ -179,7 +183,8 @@ def log_line(result: dict[str, Any]) -> str:
         return head + f"cannot run: needs {result['needs']}"
     if result["outcome"] == "too_few":
         return head + f"too few entries: {result['population']} of {result['minimum']} needed"
-    return head + (
+    text = head + (
         f"ran, {result['flagged']} flagged ({result['over_threshold']} at or above the "
         f"threshold) of {result['population']}; {result['near_misses']} just outside"
     )
+    return text + (f"; cannot run for {result['needs']}" if result["needs"] else "")

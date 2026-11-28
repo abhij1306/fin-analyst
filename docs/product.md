@@ -1236,7 +1236,7 @@ Every difference the reconciliations found, in one place, from the headline down
 
 ### Forensic tests (SPEC-18, `fin forensic`)
 
-Tests over the Ledger Vouchers of the open engagement's periods. A flag is an entry for the company to explain: it
+Tests over the Ledger Vouchers and the bank statements of the open engagement's periods. A flag is an entry for the company to explain: it
 becomes a query the user approves; nothing is changed to clear it, and no test scores or rates an entry (flags are only
 ordered by amount). Defaults, minimum populations and readings: [decisions/forensic.md](decisions/forensic.md).
 
@@ -1246,7 +1246,8 @@ ordered by amount). Defaults, minimum populations and readings: [decisions/foren
   voucher, ledger, its confirmed account or the ledger itself with "mapping not confirmed" in the reason, the party as
   its token, the amount: none for a voucher gap, never 0, and the reason in words) and `forensic_flag_queries`. Every
   run is kept; the latest per test and period is current. A run is **stale** when a loaded trial balance or Ledger
-  Vouchers file, a confirmed ledger mapping, the query threshold or a setting it reads changed since. `fin sql --write`
+  Vouchers file, a confirmed ledger mapping, the query threshold or a setting it reads changed since; a bank test's
+  run when a loaded bank statement, the register parties, the threshold or a setting it reads changed since. `fin sql --write`
   refuses the three tables (E806); `party` is masked.
 - **Tests** (each in a family module of `src/fin/forensic/families/`): `je_round`, `je_weekend`, `je_duplicate`,
   `je_period_end`, `je_reversed`, `je_sensitive`, `je_under_limit` (single lines, journal vouchers only, amounts at or
@@ -1255,6 +1256,24 @@ ordered by amount). Defaults, minimum populations and readings: [decisions/foren
   group; each needs a minimum population). Below it a test reports **too few entries** with the count and the minimum
   and flags nothing; without a file it reads (the previous or next period, a trial balance) or an input the user keeps
   (`approval_limits`) it reports **cannot run** and what it needs.
+- **Bank tests** (SPEC-19; `families/bank_rows.py`, `families/bank_flows.py`, on the lines of every loaded bank
+  statement, Excel or PDF alike): per account and statement, `bank_balance_chain` (a row whose balance is not the
+  balance above, the statement's opening for the first row, plus its credit less its debit: the flag names the row
+  and the balance expected; a row with no balance restarts the chain and is counted, not flagged; a statement with no
+  row balances is "cannot run" for it, and the period's state says so), `bank_date_order` (a row dated before the
+  row above), `bank_duplicate` (rows of one statement with the same date, side, amount, remarks and reference),
+  `bank_round` (an account's months with three or more lines that are multiples of `round_unit`: the lines) and
+  `bank_date_gap` (more than `gap_days` with no line inside a statement's period: no amount, like a voucher gap);
+  and the flows, `bank_round_trip` (money out and the same amount back, or in then out, on one account within
+  `flow_days`: the first line, naming the party's token when both lines' remarks name the same register party),
+  `bank_own_transfer` (a line whose remarks name another of the company's `ACCT-` accounts with no line of the same
+  amount on it within 3 days, where that account's statement covers the date), `bank_period_end_credit` (a credit
+  in the last `period_end_days` of a period debited again on the account in the first `reversal_days` of the next;
+  cannot run without the next period's statements) and `bank_cash` (one flag per account and month whose lines with a
+  `cash_words` word add up to the threshold or more, with the deposits, withdrawals and total in the reason and the
+  lines in its source: the cash series of `fin forensic flags --test bank_cash` and the Forensic screen). The
+  single-row tests flag amounts at or above `min_amount` (a balance break: the difference). A bank flag's account is
+  the statement's `ACCT-` token (no mapping); remarks are not printed.
 - **`fin forensic run <co> [--test T] [--period P]`** runs the tests (E991 for an unknown test or a period not in the
   engagement). The run log holds one line per test and period: the outcome, the flagged and at-or-above-threshold
   counts, the population and the count just outside a threshold, with no ledger or party name.
@@ -1263,7 +1282,8 @@ ordered by amount). Defaults, minimum populations and readings: [decisions/foren
   [--over-threshold] [--json]`**: the flags of the latest runs, largest amount first (a gap last), each with its source,
   whether its run is stale and its query.
 - **Settings**: `config.toml [forensic]` (every company) and `[forensic.companies.<name>]` (one company) hold the
-  thresholds and the user's inputs (approval limits, holidays, weekend days, journal types, sensitive accounts); a value
+  thresholds and the user's inputs (approval limits, holidays, weekend days, journal types, sensitive accounts, the
+  bank tests' `gap_days`, `flow_days` and `cash_words`); a value
   not given is the default (E990 for a bad key or value). `fin forensic settings <co> [--json]` shows each with its
   value, where it comes from, its default and why; `fin forensic set <co> <key> <value>` changes the company's value
   (`default` removes it; a list is comma-separated), keeps every other line of config.toml, logs the actor and makes

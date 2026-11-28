@@ -24,7 +24,8 @@ if TYPE_CHECKING:
 class Flag:
     """One flagged row: its lineage (file_id + sheet + row, or page), the voucher, the ledger as
     filed, the amount (None for a voucher gap, never 0) and the reason in words. The runner adds the
-    account, the party token and whether the amount is at or above the query threshold."""
+    account, the party token and whether the amount is at or above the query threshold. A bank
+    test gives the account itself (the statement's `ACCT-` token, no mapping) and the party."""
 
     file_id: int | None
     sheet: str | None
@@ -37,12 +38,15 @@ class Flag:
     voucher_no: str | None = None
     entry_date: date | None = None
     page: int | None = None
+    account: str | None = None
+    party: str | None = None
 
 
 @dataclass
 class Outcome:
     """'ran' (with its flags, maybe none), 'too_few' (population below minimum; nothing flagged)
-    or 'cannot_run' (needs: what is missing). near_misses: rows just outside a threshold."""
+    or 'cannot_run' (needs: what is missing). near_misses: rows just outside a threshold. A test
+    that ran may set needs too: what it could not test (a statement with no row balances)."""
 
     outcome: str = "ran"
     flags: list[Flag] = field(default_factory=list)

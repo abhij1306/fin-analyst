@@ -17,7 +17,7 @@ from fin.audit.logger import Run
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open
 from fin.forensic import settings as forensic_settings
-from fin.forensic.books import current_hash
+from fin.forensic.books import without_lines
 from fin.forensic.registry import tests
 from fin.forensic.run import test_hash
 from fin.reconcile import periods_of
@@ -35,9 +35,9 @@ def current_hashes(
 ) -> dict[str, str]:
     """test -> the input hash a run made now would have."""
     values = forensic_settings.resolve(root, company)
-    data = current_hash(con, engagement)
+    books = without_lines(con, engagement)
     threshold = Decimal(engagement["query_threshold"])
-    return {name: test_hash(t, values, threshold, data) for name, t in tests().items()}
+    return {name: test_hash(t, values, threshold, books.hash_for(t)) for name, t in tests().items()}
 
 
 def latest_runs(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> dict[tuple, dict]:
@@ -92,6 +92,8 @@ def state_text(row: dict[str, Any]) -> str:
         text = f"ran: {row['flagged']} flagged, {row['over_threshold']} at or above the threshold"
         if row.get("not_whole"):
             text += f"; {row['not_whole']} vouchers not whole, left out"
+        if row.get("needs"):
+            text += f"; cannot run for {row['needs']}"
     return (
         f"stale (data or settings changed since; last {text})" if row["state"] == "stale" else text
     )

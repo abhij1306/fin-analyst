@@ -10,7 +10,7 @@ import pytest
 from fin.actor import USER
 from fin.audit.errors import ForensicFlagNotQueryable, ForensicFlagUnknown
 from fin.db.conn import connect
-from fin.forensic import settings
+from fin.forensic import registry, settings
 from fin.forensic.handoff import raise_from_flags
 from fin.forensic.status import tuning
 from fin.paths import company_db_path
@@ -88,7 +88,7 @@ def test_flags_carry_their_source_account_and_are_largest_first(ran: tuple[Path,
 def test_each_test_and_period_has_a_state(ran: tuple[Path, Done]) -> None:
     rows = states(ran[0])
 
-    assert len(rows) == 11 * len(data.PERIODS)
+    assert len(rows) == len(registry.tests()) * len(data.PERIODS)
     assert rows[("je_round", "FY25")]["text"] == ("ran: 2 flagged, 2 at or above the threshold")
     assert rows[("je_benford", "FY25")]["text"].startswith("too few entries: ")
     assert rows[("je_gap", "FY24")]["text"] == "too few entries: 19 of 20 needed"
@@ -126,11 +126,15 @@ def test_a_setting_change_makes_its_tests_stale_and_keeps_their_flags(fresh: Pat
     assert states(fresh)[("je_round", "FY25")]["state"] == "ran"
 
 
-def test_a_mapping_change_makes_every_run_stale(fresh: Path) -> None:
+def test_a_mapping_change_makes_every_journal_run_stale(fresh: Path) -> None:
     with connect(company_db_path(fresh, CO), write=True) as con:
         con.execute("UPDATE ledger_accounts SET account = 'other_income' WHERE ledger = 'Rent'")
 
-    assert {r["state"] for r in states(fresh).values() if r["outcome"]} == {"stale"}
+    rows = states(fresh).values()
+    assert {r["state"] for r in rows if r["outcome"] and r["family"].startswith("journal")} == {
+        "stale"
+    }
+    assert {r["state"] for r in rows if r["family"].startswith("bank")} == {"cannot_run"}  # no bank
 
 
 def test_another_ledger_vouchers_file_makes_the_runs_stale(tmp_path: Path) -> None:

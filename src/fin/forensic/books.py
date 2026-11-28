@@ -16,7 +16,8 @@ from typing import Any
 
 import duckdb
 
-from fin.forensic.registry import Flag
+from fin.forensic import bank as forensic_bank
+from fin.forensic.registry import Flag, ForensicTest
 from fin.reconcile import periods_of
 from fin.reconcile.base import loaded_file
 
@@ -94,6 +95,13 @@ class Books:
     data_hash: str
     loaded: dict[str, set[str]] = field(default_factory=dict)  # period -> loaded file kinds
     _vouchers: dict[str, list[Voucher]] = field(default_factory=dict)
+    bank: forensic_bank.Bank | None = None  # the bank statements (SPEC-19)
+    bank_hash: str = ""
+
+    def hash_for(self, test: ForensicTest) -> str:
+        """The data a test reads, as one hash: the bank statements for a bank test, else the
+        Ledger Vouchers, trial balances and confirmed mappings."""
+        return self.bank_hash if "bank" in test.kinds else self.data_hash
 
     def previous(self, period: str) -> str | None:
         """The loaded period that ends last before this one starts."""
@@ -170,9 +178,9 @@ def _hash(con: duckdb.DuckDBPyConnection, file_ids: list[int]) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def current_hash(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> str:
-    """The data hash without reading the lines (`fin forensic status`)."""
-    return load(con, engagement, lines=False).data_hash
+def without_lines(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Books:
+    """The books with their hashes and no lines (`fin forensic status`)."""
+    return load(con, engagement, lines=False)
 
 
 def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], lines: bool = True) -> Books:
@@ -204,9 +212,11 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], lines: bool
         ),
         _hash(con, sorted([f[0] for f in files.values()] + list(trial.values()))),
         kinds,
+        bank_hash=forensic_bank.bank_hash(con, eid),
     )
     if not lines:
         return books
+    books.bank = forensic_bank.load(con, engagement)
     for period, (file_id, name, _, _) in files.items():
         books.lines[period] = [
             Line(file_id, name, *row)
