@@ -298,8 +298,8 @@ def test_missing_cash_flow_gives_null_lines_not_zeros(engaged: Path) -> None:
         "adjusted_cash_conversion": "0.458724",
     }
     text = squeezed(fin("engagement", "bridge", "kestrel", "--period", "FY24").stdout)
-    assert "Working capital change - (missing: cf_cash_generated)" in text
-    assert "Other operating items - (missing: cf_cash_generated)" in text
+    assert "Working capital change n/a (missing: cf_cash_generated)" in text
+    assert "Other operating items n/a (missing: cf_cash_generated)" in text
 
 
 def test_taxes_paid_not_mapped(engaged: Path) -> None:

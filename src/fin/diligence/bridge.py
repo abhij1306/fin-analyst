@@ -4,8 +4,8 @@ The figures are the views in db/schema/diligence_views.sql (`adjusted_ebitda`, `
 `ebitda_to_cash`, also queryable with `fin sql`), for the latest engagement, open or closed. This
 module only reads and formats them. Text: money in the display unit (config.toml [display]), as
 `fin statements` shows it, converted by the `display_value` SQL macro (fin.display), ratios as
-percentages; a line without a value shows "-" and names its missing inputs. `--json`: the view
-rows, money in rupees, and the display settings.
+percentages; a line without a value shows "n/a" (a dash would read as a zero) and names its
+missing inputs. `--json`: the view rows, money in rupees, and the display settings.
 """
 
 from dataclasses import asdict
@@ -96,12 +96,12 @@ def missing(row: dict[str, Any], inputs: tuple[str, ...]) -> str:
 
 
 def _line(label: str, value: Any, display: Display, note: str = "") -> str:
-    shown = "-" if value is None else number(converted(value, display), display)
+    shown = "n/a" if value is None else number(converted(value, display), display)
     return f"  {label:<56} {shown:>16}{note}"
 
 
 def _ratio(label: str, value: Any, note: str) -> str:
-    shown = "-" if value is None else f"{value:.2%}"
+    shown = "n/a" if value is None else f"{value:.2%}"
     return f"  {label:<56} {shown:>16}{note}"
 
 

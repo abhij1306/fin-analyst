@@ -68,12 +68,12 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
         "acme consolidated FY26: EBITDA to cash (₹)",
         "EBITDA 1,500,000.00",
         "Non-cash and other items -20,000.00",
-        "Working capital change - (missing: cf_cash_generated)",
+        "Working capital change n/a (missing: cf_cash_generated)",
         "Taxes paid -300,000.00",
-        "Other operating items - (missing: cf_cash_generated)",
+        "Other operating items n/a (missing: cf_cash_generated)",
         "Cash from operations 900,000.00",
-        "Capex - (missing: cf_capex)",
-        "Free cash flow - (missing: cf_capex)",
+        "Capex n/a (missing: cf_capex)",
+        "Free cash flow n/a (missing: cf_capex)",
         "Cash conversion (CFO / EBITDA) 60.00%",
         "Adjusted cash conversion (CFO / adjusted EBITDA) 56.25%",
     ]
@@ -108,6 +108,6 @@ def test_a_bridge_without_reported_ebitda_names_the_missing_input() -> None:
     lines = format_bridge(result).splitlines()
 
     assert lines[3:5] == [
-        "  Reported EBITDA" + " " * 41 + "-".rjust(17) + "  (missing: ebitda)",
+        "  Reported EBITDA" + " " * 41 + "n/a".rjust(17) + "  (missing: ebitda)",
         f"  {message}",
     ]
