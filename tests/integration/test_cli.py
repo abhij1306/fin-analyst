@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -6,6 +7,7 @@ from typer.testing import CliRunner
 
 from fin.cli import app
 from fin.config import DEFAULT_CONFIG_TOML
+from fin.doctor import REPO
 
 runner = CliRunner()
 
@@ -87,6 +89,8 @@ def _all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     monkeypatch.setattr("fin.doctor.tool_version", versions.get)
     monkeypatch.setattr("fin.doctor.sys.version_info", (3, 12, 13, "final", 0))
+    monkeypatch.setattr("fin.doctor.uv_python_dir", lambda: Path(sys.base_prefix).resolve())
+    monkeypatch.setattr("fin.doctor.in_temp_folder", lambda path: False)
 
 
 def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -97,16 +101,18 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
     assert result.exit_code == 0
     assert result.stdout.splitlines() == [
         "ok    python: 3.12.13",
+        "ok    python source: uv's own Python",
         "ok    uv: 0.11.28",
         "ok    node: 24.11.1",
         "ok    quarto: 1.8.25",
         "ok    poppler: 24.2.0",
+        f"ok    repo folder: {REPO}",
         f"ok    data folder: {data_root}",
         "ok    config: display unit crores",
         "ok    audit schema: present",
         "ok    dictionary schema: present",
         "ok    pdf parser: none (optional; `uv run fin parser use <name>` or /parser)",
-        "ok    web ui: not installed (optional; `uv run fin ui setup`)",
+        "ok    web ui: not installed (`./install.sh` or `uv run fin ui setup`)",
         "all checks passed",
     ]
 

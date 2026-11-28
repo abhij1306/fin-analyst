@@ -30,7 +30,7 @@ def ui_command(
     def body(run: Run) -> None:
         if not ui_setup.installed():
             raise UiUnavailable(
-                "the web UI is not installed: run `uv run fin ui setup` (or ./install.sh --ui)"
+                "the web UI is not installed: run `uv run fin ui setup` (or ./install.sh)"
             )
         from fin.ui.server import serve  # needs the ui extra, checked above
 

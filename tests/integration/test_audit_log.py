@@ -3,6 +3,7 @@
 
 import json
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from fin.audit.errors import GuardBlocked
 from fin.audit.logger import Run, execute
 from fin.cli import app
 from fin.db.conn import connect
+from fin.doctor import REPO
 
 runner = CliRunner()
 
@@ -47,6 +49,8 @@ def _all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     monkeypatch.setattr("fin.doctor.tool_version", versions.get)
     monkeypatch.setattr("fin.doctor.sys.version_info", (3, 12, 13, "final", 0))
+    monkeypatch.setattr("fin.doctor.uv_python_dir", lambda: Path(sys.base_prefix).resolve())
+    monkeypatch.setattr("fin.doctor.in_temp_folder", lambda path: False)
 
 
 def test_doctor_writes_runs_events_and_jsonl(
@@ -83,28 +87,36 @@ def test_doctor_writes_runs_events_and_jsonl(
     )
     assert events == [
         (1, "check", "info", None, "python: 3.12.13"),
-        (2, "check", "info", None, "uv: 0.11.28"),
-        (3, "check", "info", None, "node: 24.11.1"),
-        (4, "check", "info", None, "quarto: 1.8.25"),
-        (5, "check", "info", None, "poppler: 24.2.0"),
-        (6, "check", "info", None, f"data folder: {data_root}"),
-        (7, "check", "info", None, "config: display unit crores"),
-        (8, "check", "info", None, "audit schema: present"),
-        (9, "check", "info", None, "dictionary schema: present"),
+        (2, "check", "info", None, "python source: uv's own Python"),
+        (3, "check", "info", None, "uv: 0.11.28"),
+        (4, "check", "info", None, "node: 24.11.1"),
+        (5, "check", "info", None, "quarto: 1.8.25"),
+        (6, "check", "info", None, "poppler: 24.2.0"),
+        (7, "check", "info", None, f"repo folder: {REPO}"),
+        (8, "check", "info", None, f"data folder: {data_root}"),
+        (9, "check", "info", None, "config: display unit crores"),
+        (10, "check", "info", None, "audit schema: present"),
+        (11, "check", "info", None, "dictionary schema: present"),
         (
-            10,
+            12,
             "check",
             "info",
             None,
             "pdf parser: none (optional; `uv run fin parser use <name>` or /parser)",
         ),
-        (11, "check", "info", None, "web ui: not installed (optional; `uv run fin ui setup`)"),
+        (
+            13,
+            "check",
+            "info",
+            None,
+            "web ui: not installed (`./install.sh` or `uv run fin ui setup`)",
+        ),
     ]
 
     records = jsonl_records(data_root, run_id)
     assert [(r["table"], r.get("record"), r.get("seq")) for r in records] == [
         ("runs", "start", None),
-        *[("events", None, seq) for seq in range(1, 12)],
+        *[("events", None, seq) for seq in range(1, 14)],
         ("runs", "end", None),
     ]
     assert [r["message"] for r in records if r["table"] == "events"] == [e[4] for e in events]

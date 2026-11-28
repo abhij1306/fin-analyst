@@ -1,11 +1,14 @@
-# macOS checks (the product's only target): install.sh twice, fin doctor, a smoke ingest.
+# macOS checks: install.sh twice with no sudo and a broken python3 first on PATH, fin doctor, a smoke ingest.
 # The test suite runs on Linux in ci.yml.
-# macOS runners can queue for a long time, so this runs after merges to main and on demand; PRs use ci.yml.
+# macOS runners can queue for a long time, so this runs after merges to main, on demand, and on a PR that
+# changes the install.
 name: macOS
 
 on:
   push:
     branches: [main]
+  pull_request:
+    paths: [install.sh, Brewfile, .github/workflows/macos.yml]
   workflow_dispatch:
 
 concurrency:
@@ -27,27 +30,45 @@ jobs:
       - uses: actions/checkout@v5
       - name: Use a temporary data folder
         run: echo "FIN_DATA_DIR=$RUNNER_TEMP/fin-data" >> "$GITHUB_ENV"
+      # The client's Mac: no terminal for a sudo password, and an old python3 first on PATH. A sudo or
+      # python3 found on PATH fails loudly here, so an install step that needs either fails the job.
+      - name: No sudo, and a broken python3 first on PATH
+        run: |
+          mkdir -p "$RUNNER_TEMP/trap"
+          for tool in sudo python3 python; do
+            printf '#!/bin/sh\necho "%s from PATH was called: the install must not need it" >&2\nexit 1\n' "$tool" > "$RUNNER_TEMP/trap/$tool"
+            chmod +x "$RUNNER_TEMP/trap/$tool"
+          done
+          echo "$RUNNER_TEMP/trap" >> "$GITHUB_PATH"
       - name: First install
         run: ./install.sh
+      - name: The web UI is installed by default and the install ends with its link
+        run: |
+          .venv/bin/python -c "import fastapi"
+          tail -n 1 "$FIN_DATA_DIR/logs/install.log" | grep -q "uv run fin ui"
+          test -x "$HOME/.local/bin/quarto"
       # logs/ is left out of the comparison: every fin command appends its own run log there.
       - name: Snapshot state
         run: |
           eval "$(brew shellenv)"
-          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum -a 256 config.toml); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/before.txt"
+          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum -a 256 config.toml); git status --porcelain; brew bundle check --file=Brewfile; readlink "$HOME/.local/bin/quarto"; } > "$RUNNER_TEMP/before.txt"
       - name: Second install
         run: ./install.sh
       - name: Second run changed nothing
         run: |
           eval "$(brew shellenv)"
-          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum -a 256 config.toml); git status --porcelain; brew bundle check --file=Brewfile; } > "$RUNNER_TEMP/after.txt"
+          { (cd "$FIN_DATA_DIR" && find . -not -path './logs/*' | sort && shasum -a 256 config.toml); git status --porcelain; brew bundle check --file=Brewfile; readlink "$HOME/.local/bin/quarto"; } > "$RUNNER_TEMP/after.txt"
           diff -u "$RUNNER_TEMP/before.txt" "$RUNNER_TEMP/after.txt"
           grep -q "all Brewfile dependencies already installed" "$FIN_DATA_DIR/logs/install.log"
+          grep -q "already installed ($HOME/.local/bin/quarto)" "$FIN_DATA_DIR/logs/install.log"
           grep -q "kept     config.toml (already present, not changed)" "$FIN_DATA_DIR/logs/install.log"
           grep -q "kept     shared/audit.duckdb" "$FIN_DATA_DIR/logs/install.log"
       - name: fin doctor passes
         run: |
           eval "$(brew shellenv)"
-          uv run --frozen fin doctor
+          uv run --frozen fin doctor | tee "$RUNNER_TEMP/doctor.txt" # NOSONAR: uv refuses --no-build for the editable project install
+          grep -q "ok    python source: uv's own Python" "$RUNNER_TEMP/doctor.txt"
+          grep -q "ok    web ui: installed" "$RUNNER_TEMP/doctor.txt"
       - name: Smoke ingest and query
         run: |
           eval "$(brew shellenv)"

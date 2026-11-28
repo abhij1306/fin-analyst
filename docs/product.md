@@ -55,11 +55,11 @@ Nothing in this section is behaviour until its PR changes the sections below.
 | Reports | Quarto | HTML, docx, Typst PDF (no LaTeX) |
 | Dashboards | Evidence | Node LTS, local dev server |
 | Tests / lint | pytest, ruff | |
-| CI | GitHub Actions | Linux on every push (including the Linux install in an `ubuntu:24.04` container); macOS on main and on demand |
-| System deps | macOS: Homebrew `Brewfile`; Linux: `install.sh` (apt-get and pinned downloads) | uv, node, quarto, poppler |
+| CI | GitHub Actions | Linux on every PR and main push (including the Linux install in an `ubuntu:24.04` container); macOS on main, on demand and on a PR that changes the install |
+| System deps | macOS: Homebrew `Brewfile` and Quarto's release tarball; Linux: `install.sh` (apt-get and pinned downloads) | uv, node, quarto, poppler |
 
-Python dependencies are pinned exactly in `uv.lock`. Homebrew cannot pin versions, so on macOS `install.sh` takes its current
-uv, node, quarto and poppler; on Linux it takes uv and node (the newest 24.x) as they are released, quarto as the pinned
+Python dependencies are pinned exactly in `uv.lock`, and run on uv's own Python 3.12 (`.python-version`). Homebrew cannot pin versions, so on macOS `install.sh` takes its current
+uv, node and poppler, and quarto as the pinned release tarball named in `install.sh`, unpacked in the home folder (no sudo); on Linux it takes uv and node (the newest 24.x) as they are released, quarto as the pinned
 `.deb` version named in `install.sh`, and poppler from apt. `fin doctor` checks minimum versions for uv, node and quarto. CI pins the tested
 Node and Quarto versions. Upgrade deliberately, never implicitly.
 
@@ -269,30 +269,50 @@ E401-E405 are findings (the document is held); setup, database and output errors
 **Install (end user)**
 
 ```
-git clone <repo-url> && cd fin-analyst
+git clone <repo-url> ~/fin-analyst && cd ~/fin-analyst
 ./install.sh             # or ./install.sh --parser docling|liteparse|llamaparse for the optional PDF add-on
 claude
 ```
 
-`install.sh` (idempotent, logs to `logs/install.log`):
+Clone into a folder the user chooses (default `~/fin-analyst`), never a temporary one: `install.sh` warns when the
+repo is inside `/tmp`, `/var/tmp`, `/var/folders` (with their `/private` forms on macOS) or `$TMPDIR`, and so
+does `fin doctor` (`repo folder`).
+
+`install.sh` (idempotent, logs to `logs/install.log`; `--no-ui` leaves out the web UI):
 
 1. Check the OS and architecture: macOS (arm64, x86_64) or Debian/Ubuntu Linux (x86_64, aarch64). Any other Linux
    stops here with the list of tools to install by hand.
 2. macOS: install Homebrew if missing (asks first). Linux: nothing (root, or sudo, is needed for step 3).
-3. macOS: `brew bundle --file=Brewfile` (uv, node, quarto, poppler); tried up to 3 times, a minute apart, since GitHub
-   release downloads sometimes fail for a minute or two. Linux: only what is missing or too old, as `doctor`'s
-   minimums define it: poppler-utils, curl and xz-utils with `apt-get` (tried up to 3 times, 30 s apart); uv from its
+3. macOS: `brew bundle --file=Brewfile` (uv, node, poppler); then Quarto, unless one at `doctor`'s minimum is
+   found (`~/.local/bin` first, then PATH): the pinned release tarball, checked against its published SHA-256,
+   unpacked into `~/.local/opt/quarto-<version>` and linked from `~/.local/bin/quarto`, with no sudo (the Homebrew
+   cask runs an installer that needs a password, which an agent has no terminal to type in). fin looks for tools in
+   `~/.local/bin` before PATH (`fin.systools`). Linux: only what is missing or too old, as `doctor`'s
+   minimums define it: poppler-utils, curl and xz-utils with `apt-get`; uv from its
    GitHub release; node (newest 24.x, from nodejs.org, linked into `/usr/local/bin`); quarto from its pinned GitHub
    release `.deb`. Downloads are checked against the published SHA-256. A kept tool is never replaced, and a second run
    prints `all system dependencies already installed`. As root it runs `apt-get` directly; otherwise it uses `sudo`
    (`sudo -n` when there is no terminal).
-4. `uv sync --frozen` (with `--extra <name>` for the PDF add-on `--parser <name>` names, or `config.toml`'s
+   A failed `brew bundle` (a minute apart) or `apt-get` (30 s apart) is tried again, up to 3 times, only when its
+   output shows a network failure (a name lookup, a refused, reset or timed-out connection, an HTTP 5xx). Any other
+   failure, such as a password prompt with no terminal or a missing permission, stops at once with the failing
+   command and what to do.
+3a. uv's own Python: `UV_PYTHON_PREFERENCE=only-managed` for every uv command of the install, `uv python install`
+   of the version in `.python-version`, so a `python3` on PATH is never used. A `.venv` made from another Python
+   (its `pyvenv.cfg` `home` outside `uv python dir`) is removed and made again.
+4. `uv sync --frozen --extra ui` (the web UI, left out with `--no-ui`, which removes it when installed) (with `--extra <name>` for the PDF add-on `--parser <name>` names, or `config.toml`'s
    `[pdf] parser` without the flag; `--parser none` removes it).
 5. `npm ci --prefix dashboards`
-5a. `./install.sh --ui` also installs the optional web UI (the `ui` extra, added to the sync of step 4); a later run without the flag keeps it when it is already installed.
 6. `uv run fin init` — creates data folder, config, databases from the schema files; then, with `--parser` or an
    add-on in `config.toml`, `uv run fin parser use <name>` downloads its models and records it.
 7. `uv run fin doctor` — checks every dependency, version, folder permission, that the databases exist and are not from an older fin.
+8. With no PDF add-on chosen, it names the three add-ons with their cost and the command for each; nothing is
+   installed without a choice. The last line is the command that opens the web UI (`cd <repo> && uv run fin ui`,
+   which opens http://127.0.0.1:8765 with a link token made at start), or, with `--no-ui`, how to install it.
+
+`fin doctor` also checks the install's choices, as warnings with the fix: `python source` (fin runs on uv's own
+Python: `sys.base_prefix` inside `uv python dir`; fix: run `./install.sh`), `repo folder` (not in a temporary
+folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (installed or not).
 
 **Update:** `fin update`
 
@@ -367,7 +387,7 @@ verify and update.
 - **CI** (`.github/workflows/ci.yml`, Linux, every PR and main push): ruff, the file-size check (`tools/check_file_size.mjs`: source files under 6,000 tokens), pytest, `shellcheck install.sh`; one job ingests the synthetic companies once, renders a report (Quarto) and builds the Evidence dashboard (node 24). A `pdf-addon` job per engine syncs its extra: Docling and LiteParse restore their model caches and
 run the tests marked `docling` / `liteparse` (the real engine on synthetic PDFs); LlamaParse checks its fixture's
 shape against the SDK and never calls the API (its live test skips without `LLAMA_CLOUD_API_KEY`); the other jobs run
-without the extras. An `install-linux` job runs `install.sh` twice as root in an `ubuntu:24.04` container (a second run changes nothing), then `fin doctor` and a smoke ingest. `macos.yml` (main and on demand): `install.sh` twice, `fin doctor` and a smoke ingest; and, for
+without the extras. An `install-linux` job runs `install.sh` twice as root in an `ubuntu:24.04` container with a broken `python3` first on PATH (a second run changes nothing), then `fin doctor`, a smoke ingest and `--no-ui`. `macos.yml` (main, on demand, and a PR that changes `install.sh`, `Brewfile` or `macos.yml`): `install.sh` twice with a `sudo` and a `python3` on PATH that fail when called, `fin doctor` and a smoke ingest; and, for
 Docling and LiteParse, `install.sh --parser <name>`, the real-engine tests and `--parser none`.
 - **Releases**: semantic version tags, `CHANGELOG.md` written at release.
 
@@ -1202,7 +1222,7 @@ Questions (SPEC-07):
 Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: [decisions/web-ui.md](decisions/web-ui.md). The UI is built in four steps; all four steps (foundation, read-only screens, decision buttons and uploads, chat) are here. The CLI does not change, and without the add-on nothing else does either.
 
 - **Look**: Inter (variable woff2, OFL) and Basecoat are vendored, so the UI works offline. Every screen has the same anatomy: a page header (title, one-line description, the primary action when there is one), then Basecoat cards (header with title and description, the table or form below; a wide table scrolls inside its card, never the page). Status values are Basecoat badges with one tone each (`fin.ui.format`: ok, warn, bad, neutral). Timestamps read "26 Nov 2026, 13:18"; figures are right-aligned with tabular numbers; long text is cut to one line and opens on click; a run's problems are one badge ("13 warnings") that opens the grouped list. The top bar has the company select and the tabs, with the number of things waiting on Files, Mappings, Queries and Gates. Checked in Chromium and WebKit at 1366, 1440 and 1920 wide.
-- **Install**: `./install.sh --ui` or `uv run fin ui setup` (`uv sync --frozen --extra ui`: FastAPI, Jinja2, uvicorn, python-multipart for uploads; the chosen PDF add-on is kept). No frontend build and no npm: pages are HTML rendered by the server, with htmx and the Basecoat component CSS and JS (shadcn/ui as plain HTML classes) vendored under `src/fin/ui/static/vendor/` (versions and licences in `VENDOR.md`). `fin parser use`, `fin update` and `install.sh` keep the `ui` extra once installed. `fin doctor` has a `web ui` line (installed or not; never a failure).
+- **Install**: `./install.sh` (by default; `--no-ui` leaves it out) or `uv run fin ui setup` (`uv sync --frozen --extra ui`: FastAPI, Jinja2, uvicorn, python-multipart for uploads; the chosen PDF add-on is kept). No frontend build and no npm: pages are HTML rendered by the server, with htmx and the Basecoat component CSS and JS (shadcn/ui as plain HTML classes) vendored under `src/fin/ui/static/vendor/` (versions and licences in `VENDOR.md`). `fin parser use`, `fin update` and `install.sh` keep the `ui` extra once installed. `fin doctor` has a `web ui` line (installed or not; never a failure).
 - **`fin ui`**: starts the server on 127.0.0.1 (default port 8765, `--port`), prints and opens a link with a random token, stops on Ctrl-C. Without the extra it stops with E006 and says how to install it; a busy port is E006 too.
 - **Local only**: the server binds 127.0.0.1; a request with another Host, or without the token cookie (HttpOnly, SameSite=Strict, set from the link's token), is refused with E007; no CORS headers; no API documentation pages.
 - **Screens**: a top bar with the company picker and the screen tabs (a tab list: `role="tablist"`, the open screen is `aria-selected`), and a chat panel on the right. The chosen company stays in the link of every tab, including Home, and changing the picker reloads the same screen for that company. Every screen shows what fin's own modules return; a page is `/<screen>?company=<name>` and its partial `/partials/<screen>?company=<name>`.

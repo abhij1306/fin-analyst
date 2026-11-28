@@ -1,4 +1,6 @@
+import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -8,10 +10,15 @@ from fin.cli import app
 from fin.config import set_parser
 from fin.db.conn import connect
 from fin.doctor import (
+    REPO,
+    TEMP_ROOTS,
     Check,
     check_audit_schema,
     check_pdf_parser,
+    check_python_source,
+    check_repo_folder,
     check_tool,
+    in_temp_folder,
     parse_version,
     run_checks,
 )
@@ -57,7 +64,7 @@ def test_tool_version_timeout_fails_that_check_and_the_rest_still_run(
     data_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     CliRunner().invoke(app, ["init"])
-    monkeypatch.setattr("fin.doctor.shutil.which", lambda tool: tool)
+    monkeypatch.setattr("fin.systools.which", lambda tool: tool)
 
     def hang(command: list[str], **kwargs: object) -> None:
         raise subprocess.TimeoutExpired(command, 60)
@@ -148,3 +155,57 @@ def test_llamaparse_says_whether_the_key_is_set_never_its_value(
         "LlamaParse's cloud"
     )
     assert "llx-secret-value" not in str(present.as_dict())
+
+
+def test_python_source_is_ok_on_uvs_own_python(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("fin.doctor.uv_python_dir", lambda: Path(sys.base_prefix).resolve().parent)
+    assert check_python_source() == Check("python source", True, "uv's own Python")
+
+
+def test_python_source_warns_on_a_python_from_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("fin.doctor.uv_python_dir", lambda: tmp_path / "uv-python")
+    check = check_python_source()
+    assert check.ok
+    assert check.warning
+    assert check.detail.endswith("is not uv's own Python (one found on PATH was used)")
+    assert check.fix == "run ./install.sh (it makes .venv again with uv's own Python)"
+
+
+def test_python_source_warns_when_uv_does_not_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("fin.doctor.uv_python_dir", lambda: None)
+    check = check_python_source()
+    assert check.ok
+    assert check.warning
+    assert "did not answer" in check.detail
+
+
+def test_repo_in_a_temporary_folder_warns(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    repo = tmp_path / "workspace" / "fin-analyst"
+    assert in_temp_folder(repo)
+    assert in_temp_folder(Path("/var/folders/x1/T/fin-analyst"))
+    monkeypatch.setattr("fin.doctor.REPO", repo)
+    check = check_repo_folder()
+    assert check.ok
+    assert check.warning
+    assert check.detail == f"{repo} is in a temporary folder, which the system or an app can delete"
+    assert check.fix is not None
+    assert "~/fin-analyst" in check.fix
+
+
+def test_repo_in_a_chosen_folder_is_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
+    monkeypatch.setattr("fin.doctor.tempfile.gettempdir", lambda: str(tmp_path / "tmp"))
+    chosen = Path("/srv/clients/fin-analyst")  # outside every temporary folder
+    assert not in_temp_folder(chosen)
+    monkeypatch.setattr("fin.doctor.REPO", chosen)
+    assert check_repo_folder() == Check("repo folder", True, str(chosen))
+
+
+def test_install_script_temp_roots_match_doctor() -> None:
+    script = (REPO / "install.sh").read_text(encoding="utf-8")
+    found = re.search(r"^TEMP_ROOTS=\((.*)\)$", script, re.MULTILINE)
+    assert found, "install.sh has no TEMP_ROOTS"
+    assert tuple(found.group(1).split()) == TEMP_ROOTS

@@ -29,7 +29,7 @@ Browser (HTML + htmx, server-rendered) <-> fin ui (Python server, 127.0.0.1 only
                                               '- claude -p (installed Claude Code, user's own login) -> fin commands
 ```
 
-- **Optional add-on**, like the PDF add-on: a `ui` extra in pyproject (`uv sync --extra ui`); `./install.sh --ui`
+- **Optional add-on**, like the PDF add-on: a `ui` extra in pyproject (`uv sync --extra ui`); `./install.sh` (by default since SPEC-12; `--no-ui` leaves it out)
   installs it. Pages are HTML rendered by the server (Jinja2 templates) with htmx for partial updates and
   server-sent events for streaming; no React, no npm packages, no frontend build. Components: **Basecoat** (basecoatui.com, MIT,
   github.com/hunvreus/basecoat), the shadcn/ui design system as plain HTML classes (`btn`, `card`, `table`,
@@ -77,7 +77,7 @@ buttons prefill the chat with the item.
 
 1. **ui-foundation**: this plan as `docs/web-ui-plan.md` plus `docs/decisions/web-ui.md`; the `ui` extra; the
    page layout (base template, vendored htmx and CSS), top bar, company picker, empty chat panel and the Home screen
-   (status data); `fin ui`; `install.sh --ui`; local-only protections; `fin doctor` line; CI job that runs the
+   (status data); `fin ui`; `install.sh` (UI by default since SPEC-12); local-only protections; `fin doctor` line; CI job that runs the
    server tests (pytest with the extra). Add `.html` templates to tools/check_file_size.mjs and skip `vendor/`.
 2. **ui-screens**: read-only screens: Files, Mappings, Queries, Gates, Findings, Reports (open HTML, download
    Word/PDF/Excel), Log; pages and partials over existing modules; tests per page.

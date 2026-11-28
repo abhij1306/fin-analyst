@@ -78,9 +78,9 @@ Updated: 2026-11-28.
 | 11 | 3 | Add the Questions screen and Log filters | | todo |
 | 11 | 4 | Add FDD finding drafts and the dashboard build | | todo |
 | 11 | 5 | Group the navigation and add the command coverage table with its test | | todo |
-| 12 | 1 | Install Quarto without sudo on macOS and stop retrying non-network failures | high | todo |
-| 12 | 2 | Use uv's managed Python and warn about temporary folders | high | todo |
-| 12 | 3 | Install the UI by default and end the install with its link | high | todo |
+| 12 | 1 | Install Quarto without sudo on macOS and stop retrying non-network failures | high | done (#125) |
+| 12 | 2 | Use uv's managed Python and warn about temporary folders | high | done (#125) |
+| 12 | 3 | Install the UI by default and end the install with its link | high | done (#125) |
 | 13 | 1 | Scan a data room into a plan: unpack, drop duplicates, name each file's kind | high | done (#117) |
 | 13 | 2 | Load an approved data-room plan in one run | | done (#117) |
 | 13 | 3 | Show and approve the data-room plan on the Files screen | | todo |

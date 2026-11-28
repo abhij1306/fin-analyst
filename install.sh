@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Install fin-analyst on macOS or Linux (Debian/Ubuntu). Safe to run again: it only installs what is missing.
-# Steps (docs/product.md §10): check the OS -> system tools (macOS: Homebrew and brew bundle; Linux: apt-get and
-# pinned downloads) -> uv sync -> npm ci -> fin init -> fin doctor.
+# Steps (docs/product.md §10): check the OS -> system tools (macOS: Homebrew, brew bundle and the pinned Quarto in
+# the home folder; Linux: apt-get and pinned downloads) -> uv's own Python -> uv sync -> npm ci -> fin init ->
+# fin doctor -> the web UI's link.
 #
-# Usage: ./install.sh [--parser docling|liteparse|llamaparse|none] [--ui]
+# Usage: ./install.sh [--parser docling|liteparse|llamaparse|none] [--no-ui]
 #   --parser NAME  install that optional PDF add-on, with its models (or none: remove it), and record
 #                  it in config.toml ([pdf] parser), through `fin parser use NAME`:
 #                  docling (local, about 1.4 GB, not on Intel Macs), liteparse (local, small),
 #                  llamaparse (cloud, needs LLAMA_CLOUD_API_KEY)
 #   no flag        keep what config.toml says (none for a new install)
-#   --ui           also install the optional web UI (the `ui` extra; start it with `uv run fin ui`). A
-#                  later run without the flag keeps it if it is already installed.
+#   --no-ui        leave out the web UI (the `ui` extra, installed by default; removes it if installed)
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,9 +21,9 @@ die() {
   exit 1
 }
 
-USAGE="usage: ./install.sh [--parser docling|liteparse|llamaparse|none] [--ui]"
+USAGE="usage: ./install.sh [--parser docling|liteparse|llamaparse|none] [--no-ui]"
 PARSER_FLAG=""
-UI_FLAG=""
+NO_UI=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --parser)
@@ -35,8 +35,8 @@ while [[ $# -gt 0 ]]; do
       PARSER_FLAG="${1#--parser=}"
       shift
       ;;
-    --ui)
-      UI_FLAG=1
+    --no-ui)
+      NO_UI=1
       shift
       ;;
     *) die "unknown option: $1 ($USAGE)" ;;
@@ -56,8 +56,14 @@ step() {
 MIN_UV="0.11"
 MIN_NODE="24"
 MIN_QUARTO="1.7"
-QUARTO_VERSION="1.10.19" # pinned .deb from GitHub releases (the version CI renders reports with)
+QUARTO_VERSION="1.10.19" # pinned GitHub release (the version CI renders reports with): .deb on Linux, tarball on macOS
+QUARTO_HOME="$HOME/.local/opt/quarto-$QUARTO_VERSION" # macOS: unpacked here, linked from ~/.local/bin (no sudo)
+USER_BIN="$HOME/.local/bin"                           # fin looks here before PATH (src/fin/systools.py)
 NODE_LINE="v24.x"        # the newest release of that line from nodejs.org
+
+# Folders the system may empty (macOS also uses TMPDIR, under /var/folders); fin doctor warns about the same
+# (TEMP_ROOTS in src/fin/doctor.py; a test keeps them equal).
+TEMP_ROOTS=(/tmp /private/tmp /var/tmp /private/var/tmp /var/folders /private/var/folders)
 
 LINUX_MANUAL="Install by hand: uv >= $MIN_UV, node >= $MIN_NODE with npm, quarto >= $MIN_QUARTO, poppler (pdftoppm), curl; then run ./install.sh again."
 
@@ -98,6 +104,57 @@ else
   step "fin-analyst install: $(. /etc/os-release && echo "$PRETTY_NAME") on $ARCH, repo $REPO_DIR, data $DATA_DIR"
 fi
 
+in_temp_folder() { # in_temp_folder DIR: DIR is inside a folder the system may empty
+  local dir="$1" root
+  for root in "${TEMP_ROOTS[@]}" "${TMPDIR:-}"; do
+    root="${root%/}"
+    [[ -n "$root" ]] || continue
+    if [[ "$dir" == "$root" || "$dir" == "$root"/* ]]; then return 0; fi
+  done
+  return 1
+}
+if in_temp_folder "$REPO_DIR"; then
+  echo "install: WARNING: $REPO_DIR is in a temporary folder, which the system or an app can delete. Clone fin into a folder you choose (for example ~/fin-analyst) and run ./install.sh there." >&2
+fi
+
+# A failed step is tried again only when its output shows a network failure (a name lookup, a refused, reset or
+# timed-out connection, an HTTP 5xx from a mirror or GitHub). Anything else, such as a password prompt with no
+# terminal to ask in or a missing permission, stops at once with the command and what to do.
+NETWORK_PATTERN='Could not resolve|Temporary failure (in name resolution|resolving)|Failed to connect|Could not connect|Connection (refused|reset|failed)|timed out|Network is unreachable|returned error: 5[0-9][0-9]|HTTP/[0-9.]+ 5[0-9][0-9]|curl: \((6|7|18|28|35|52|56)\)|SSL_ERROR|Hash Sum mismatch|Failed to fetch [^ ]+ +5[0-9][0-9] '
+PERMISSION_PATTERN='password|a terminal is required|askpass|Sorry, try again|sudo access|must be run as root|Permission denied|Operation not permitted|not writable'
+
+run_retrying() { # run_retrying PAUSE_SECONDS COMMAND...: up to 3 attempts, again only after a network failure
+  local pause="$1" attempt status out hint
+  shift
+  out="$(mktemp)"
+  for attempt in 1 2 3; do
+    status=0
+    "$@" 2>&1 | tee "$out" || status=$?
+    if [[ $status -eq 0 ]]; then
+      rm -f "$out"
+      return 0
+    fi
+    # A password or permission failure stops even when its output also looks like a network one
+    # (sudo: "timed out reading password").
+    hint=""
+    if grep -Eqi "$PERMISSION_PATTERN" "$out"; then
+      hint="it needs a password or a permission it does not have, and there may be no terminal to ask in; run ./install.sh yourself in a terminal (on Linux as root or with sudo)"
+    elif ! grep -Eqi "$NETWORK_PATTERN" "$out"; then
+      hint="see the lines above"
+    fi
+    if [[ -n "$hint" ]]; then
+      rm -f "$out"
+      die "'$*' failed (exit $status) and it is not a network failure: $hint. Fix that and run ./install.sh again."
+    fi
+    if [[ $attempt -eq 3 ]]; then
+      rm -f "$out"
+      die "'$*' failed 3 times with a network error; check the network and run ./install.sh again"
+    fi
+    echo "'$*' failed with a network error (attempt $attempt of 3); trying again in $pause seconds" >&2
+    sleep "$pause"
+  done
+}
+
 # 2-3. System tools
 install_macos_deps() {
   # 2. Homebrew (ask before installing)
@@ -123,19 +180,49 @@ install_macos_deps() {
   echo "brew: $(brew --version | head -n 1)"
 
   # 3. System dependencies
-  step "Installing system dependencies (Brewfile: uv, node, quarto, poppler)"
+  step "Installing system dependencies (Brewfile: uv, node, poppler)"
   if brew bundle check --file="$REPO_DIR/Brewfile" >/dev/null; then
     echo "all Brewfile dependencies already installed"
   else
-    # GitHub release downloads (the quarto cask) sometimes answer 504 for a minute or two; brew's own
-    # retries come within seconds, so try the whole bundle again after a pause before giving up.
-    for attempt in 1 2 3; do
-      brew bundle install --file="$REPO_DIR/Brewfile" && break
-      [[ $attempt -lt 3 ]] || die "brew bundle failed 3 times; check the network and run ./install.sh again"
-      echo "brew bundle failed (attempt $attempt of 3); trying again in 60 seconds"
-      sleep 60
-    done
+    # Downloads sometimes fail for a minute or two; brew's own retries come within seconds, so a network
+    # failure tries the whole bundle again after a pause.
+    run_retrying 60 brew bundle install --file="$REPO_DIR/Brewfile"
   fi
+
+  # Quarto: the pinned release tarball in the home folder. Its Homebrew cask runs an installer that needs
+  # sudo, which has no terminal to ask for a password in when an agent runs this script.
+  step "Checking Quarto (pinned $QUARTO_VERSION in $QUARTO_HOME, no sudo)"
+  export PATH="$USER_BIN:$PATH"
+  if tool_ok quarto "$MIN_QUARTO"; then
+    echo "quarto $(quarto --version) already installed ($(command -v quarto))"
+  else
+    install_quarto_macos
+  fi
+}
+
+install_quarto_macos() {
+  local file="quarto-$QUARTO_VERSION-macos.tar.gz" sum bin top
+  local release="https://github.com/quarto-dev/quarto-cli/releases/download/v$QUARTO_VERSION"
+  echo "installing quarto $QUARTO_VERSION (GitHub release tarball)"
+  TMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "${TMP_DIR:-}"' EXIT
+  fetch "$release/$file" "$TMP_DIR/$file"
+  fetch "$release/quarto-$QUARTO_VERSION-checksums.txt" "$TMP_DIR/quarto-sums.txt"
+  sum="$(grep " $file\$" "$TMP_DIR/quarto-sums.txt" | cut -d ' ' -f 1)"
+  [[ -n "$sum" ]] || die "no checksum for $file in the Quarto release"
+  check_sum "$TMP_DIR/$file" "$sum"
+  mkdir "$TMP_DIR/unpacked"
+  tar -xzf "$TMP_DIR/$file" -C "$TMP_DIR/unpacked"
+  bin="$(find "$TMP_DIR/unpacked" -maxdepth 3 -path '*/bin/quarto' | head -n 1)"
+  [[ -n "$bin" ]] || die "no bin/quarto in $file"
+  top="$(dirname "$(dirname "$bin")")"
+  mkdir -p "$(dirname "$QUARTO_HOME")" "$USER_BIN"
+  rm -rf "$QUARTO_HOME"
+  mv "$top" "$QUARTO_HOME"
+  ln -sf "$QUARTO_HOME/bin/quarto" "$USER_BIN/quarto"
+  hash -r # bash remembers an older quarto found on PATH by the check above
+  tool_ok quarto "$MIN_QUARTO" || die "quarto did not run from $USER_BIN/quarto after the install; run ./install.sh again"
+  echo "quarto $(quarto --version) installed in $QUARTO_HOME, linked from $USER_BIN/quarto"
 }
 
 # version_ge FOUND MINIMUM: dotted numbers, FOUND >= MINIMUM
@@ -159,7 +246,13 @@ fetch() { # fetch URL FILE
 
 check_sum() { # check_sum FILE EXPECTED_SHA256
   local path="$1" expected="$2"
-  [[ "$(sha256sum "$path" | cut -d ' ' -f 1)" == "$expected" ]] || die "checksum mismatch for $path; run ./install.sh again"
+  local found
+  if [[ "$OS" == Darwin ]]; then
+    found="$(shasum -a 256 "$path" | cut -d ' ' -f 1)"
+  else
+    found="$(sha256sum "$path" | cut -d ' ' -f 1)"
+  fi
+  [[ "$found" == "$expected" ]] || die "checksum mismatch for $path; run ./install.sh again"
 }
 
 install_linux_deps() {
@@ -189,14 +282,8 @@ install_linux_deps() {
   fi
 
   apt_get() {
-    # mirrors can fail for a minute or two; try the command again after a pause
-    local subcommand="$1" attempt
-    for attempt in 1 2 3; do
-      "${sudo_cmd[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "$@" && return 0
-      [[ $attempt -lt 3 ]] || die "apt-get $subcommand failed 3 times; check the network and run ./install.sh again"
-      echo "apt-get $subcommand failed (attempt $attempt of 3); trying again in 30 seconds"
-      sleep 30
-    done
+    # mirrors can fail for a minute or two: a network failure is tried again after a pause
+    run_retrying 30 "${sudo_cmd[@]}" env DEBIAN_FRONTEND=noninteractive apt-get "$@"
   }
 
   if [[ ${#apt_pkgs[@]} -gt 0 ]]; then
@@ -264,11 +351,26 @@ fi
 
 cd "$REPO_DIR"
 
+# uv's own Python, whatever python3 is on PATH (an old or wrong-architecture one broke an install).
+export UV_PYTHON_PREFERENCE=only-managed
+PYTHON_VERSION="$(tr -d '[:space:]' <.python-version)"
+step "Installing uv's own Python $PYTHON_VERSION (uv python install)"
+uv python install "$PYTHON_VERSION"
+PYTHON="$(uv python find "$PYTHON_VERSION")" || die "uv installed Python $PYTHON_VERSION but cannot find it"
+UV_PYTHON_DIR="$(uv python dir)"
+# A .venv made from another Python (an earlier attempt) is made again from uv's own.
+if [[ -f .venv/pyvenv.cfg ]]; then
+  VENV_HOME="$(sed -n 's/^home *= *//p' .venv/pyvenv.cfg)"
+  if [[ "$VENV_HOME" != "$UV_PYTHON_DIR"/* ]]; then
+    echo "removing .venv: it was made with $VENV_HOME, not uv's own Python"
+    rm -rf .venv
+  fi
+fi
+
 # The PDF add-on: the flag, or what config.toml already says (a plain sync would remove it).
-# config.toml is read as TOML (uv is installed by now; --no-project needs no sync).
 parser_in_config() {
   [[ -f "$DATA_DIR/config.toml" ]] || { echo none; return; }
-  uv run --no-project python -I -c '
+  "$PYTHON" -I -c '
 import sys, tomllib
 with open(sys.argv[1], "rb") as f:
     print(tomllib.load(f).get("pdf", {}).get("parser", "none"))
@@ -283,15 +385,10 @@ if [[ "$PARSER" == docling && "$OS" == Darwin && "$ARCH" == x86_64 ]]; then
 fi
 echo "PDF add-on: $PARSER"
 
-# The optional web UI: the flag, or already installed (a plain sync would remove it).
-if [[ -z "$UI_FLAG" && -x .venv/bin/python ]] && .venv/bin/python -I -c 'import fastapi' >/dev/null 2>&1; then
-  UI_FLAG=1
-fi
-
 # 4. Python environment (exact versions from uv.lock)
 EXTRAS=()
 [[ "$PARSER" == none ]] || EXTRAS+=(--extra "$PARSER")
-[[ -z "$UI_FLAG" ]] || EXTRAS+=(--extra ui)
+[[ -n "$NO_UI" ]] || EXTRAS+=(--extra ui)
 step "Syncing Python environment (uv sync --frozen ${EXTRAS[*]:-})"
 uv sync --frozen ${EXTRAS[@]+"${EXTRAS[@]}"} # (bash 3.2 on macOS: an empty array needs this form)
 
@@ -314,5 +411,19 @@ fi
 step "Checking installation (fin doctor)"
 uv run fin doctor
 
-[[ -z "$UI_FLAG" ]] || echo "Web UI installed: start it with 'uv run fin ui'"
+if [[ "$PARSER" == none ]]; then
+  echo
+  echo "PDF add-on: none. PDF pages pdfplumber cannot read stay unread until you choose one (nothing is installed"
+  echo "without your choice; later: uv run fin parser use NAME):"
+  echo "  ./install.sh --parser liteparse    your machine; small (its model about 50 MB); fast"
+  echo "  ./install.sh --parser docling      your machine; about 1.4 GB; about 15 s a page; not on Intel Macs"
+  echo "  ./install.sh --parser llamaparse   LlamaIndex's cloud: pages are uploaded; paid per page; needs LLAMA_CLOUD_API_KEY"
+fi
+
 step "Install complete. Log: $LOG_FILE"
+if [[ -n "$NO_UI" ]]; then
+  echo "Web UI left out (--no-ui); install it with: uv run fin ui setup"
+else
+  # The link carries a token made when the UI starts, so the install prints the command that opens it.
+  echo "Open the web UI: $(printf 'cd %q && uv run fin ui' "$REPO_DIR")  (opens http://127.0.0.1:8765 in your browser)"
+fi

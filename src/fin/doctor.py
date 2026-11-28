@@ -2,14 +2,15 @@
 database schemas (docs/product.md §10)."""
 
 import importlib
+import os
 import re
-import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from fin import installhint
+from fin import installhint, systools
 from fin.audit.errors import (
     DatabaseLocked,
     DataFolderNotWritable,
@@ -28,6 +29,20 @@ PYTHON_VERSION = (3, 12)
 DATA_FOLDER = "data folder"  # the name of that check
 PDF_PARSER = "pdf parser"  # the name of the PDF add-on's check
 WEB_UI = "web ui"  # the name of the optional web UI's check
+PYTHON_SOURCE = "python source"  # the name of the check that Python is uv's own
+REPO_FOLDER = "repo folder"  # the name of the check that the repo is not in a temporary folder
+REPO = Path(__file__).resolve().parents[2]
+# Folders the system may empty, besides TMPDIR; install.sh warns about the same (TEMP_ROOTS there,
+# tests/unit/test_doctor.py keeps them equal). They are only compared with the repo's path, never
+# written to, hence the suppressions of the publicly-writable-folder rule (S5443).
+TEMP_ROOTS = (
+    "/tmp",  # NOSONAR
+    "/private/tmp",  # NOSONAR
+    "/var/tmp",  # NOSONAR
+    "/private/var/tmp",  # NOSONAR
+    "/var/folders",
+    "/private/var/folders",
+)
 RUN_INIT = "run `uv run fin init`"  # the fix when the data folder, config or a schema is missing
 
 # Homebrew and apt cannot pin exact versions, so system tools have minimums. install.sh checks the
@@ -57,7 +72,7 @@ class Check:
 
 def tool_version(tool: str) -> str | None:
     """Return the `--version` output of `tool`, or None if it is not on PATH."""
-    exe = shutil.which(tool)
+    exe = systools.which(tool)
     if exe is None:
         return None
     result = subprocess.run(
@@ -96,6 +111,71 @@ def check_python() -> Check:
     )
 
 
+def uv_python_dir() -> Path | None:
+    """Where uv keeps its own Pythons (`uv python dir`), or None when uv does not answer."""
+    uv = systools.which("uv")
+    if uv is None:
+        return None
+    try:
+        result = subprocess.run(
+            [uv, "python", "dir"], capture_output=True, text=True, check=False, timeout=60
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    found = result.stdout.strip()
+    return Path(found).resolve() if result.returncode == 0 and found else None
+
+
+def check_python_source() -> Check:
+    """fin runs on uv's own Python (install.sh: `UV_PYTHON_PREFERENCE=only-managed`), not a Python
+    found on PATH. Another Python 3.12 works, so it is a warning."""
+    base = Path(sys.base_prefix).resolve()
+    managed = uv_python_dir()
+    if managed is None:
+        return Check(
+            PYTHON_SOURCE,
+            True,
+            "`uv python dir` did not answer, so fin cannot tell whether Python is uv's own",
+            fix=installhint.missing("uv"),
+            warning=True,
+        )
+    if base.is_relative_to(managed):
+        return Check(PYTHON_SOURCE, True, "uv's own Python")
+    return Check(
+        PYTHON_SOURCE,
+        True,
+        f"{base} is not uv's own Python (one found on PATH was used)",
+        fix="run ./install.sh (it makes .venv again with uv's own Python)",
+        warning=True,
+    )
+
+
+def in_temp_folder(path: Path) -> bool:
+    """`path` is inside a folder the system may empty (TEMP_ROOTS, TMPDIR, the temp folder)."""
+    # TMPDIR is only compared with the repo's path, never written to.
+    roots = [*TEMP_ROOTS, tempfile.gettempdir(), os.environ.get("TMPDIR", "")]  # NOSONAR
+    candidates = {path, path.resolve()}
+    for root in filter(None, roots):
+        for folder in {Path(root), Path(root).resolve()}:
+            if any(c == folder or folder in c.parents for c in candidates):
+                return True
+    return False
+
+
+def check_repo_folder() -> Check:
+    """The repo is not in a temporary folder, which the system or an app can delete."""
+    if in_temp_folder(REPO):
+        return Check(
+            REPO_FOLDER,
+            True,
+            f"{REPO} is in a temporary folder, which the system or an app can delete",
+            fix="clone fin into a folder you choose (for example ~/fin-analyst) and run "
+            "./install.sh there",
+            warning=True,
+        )
+    return Check(REPO_FOLDER, True, str(REPO))
+
+
 def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
     try:
         output = tool_version(tool)
@@ -113,7 +193,7 @@ def check_tool(tool: str, minimum: tuple[int, ...]) -> Check:
             False,
             "not found on PATH",
             DependencyMissing.code,
-            installhint.missing(),
+            installhint.missing(tool),
         )
     found = parse_version(output)
     if found is None:
@@ -153,7 +233,7 @@ def check_poppler() -> Check:
             "poppler",
             True,
             "pdftoppm not found on PATH: Claude cannot read PDF pages as images for readings",
-            fix=installhint.missing(),
+            fix=installhint.missing("pdftoppm"),
             warning=True,
         )
     found = parse_version(output)
@@ -189,7 +269,7 @@ def check_pdf_parser(root: Path) -> Check:
 def check_web_ui() -> Check:
     """The optional web UI (`fin ui`): installed or not, never a failure."""
     if not extra_installed():
-        return Check(WEB_UI, True, "not installed (optional; `uv run fin ui setup`)")
+        return Check(WEB_UI, True, "not installed (`./install.sh` or `uv run fin ui setup`)")
     return Check(WEB_UI, True, "installed (`uv run fin ui`)")
 
 
@@ -266,8 +346,10 @@ def run_checks(root: Path) -> list[Check]:
     tools = [check_tool(tool, minimum) for tool, minimum in TOOL_MINIMUMS.items()]
     return [
         check_python(),
+        check_python_source(),
         *tools,
         check_poppler(),
+        check_repo_folder(),
         check_data_folder(root),
         check_config(root),
         check_audit_schema(root),
