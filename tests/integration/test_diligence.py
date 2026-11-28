@@ -60,7 +60,8 @@ def test_engagement_opens_once_and_closes(root: Path, audit_query: Any) -> None:
 
     assert opened.exit_code == 0, opened.output
     assert opened.stdout.startswith(
-        "bluepeak: engagement #1 open: periods FY24,FY25, query threshold ₹100,000.00, opened "
+        "bluepeak: engagement #1 open: periods FY24,FY25, query threshold ₹100,000.00, credit "
+        "terms 90 days, opened "
     )
     again = fin("engagement", "open", "bluepeak", "--periods", "FY25", "--threshold", "5000")
     assert again.exit_code == 2

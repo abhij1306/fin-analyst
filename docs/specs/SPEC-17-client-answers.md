@@ -14,9 +14,9 @@ list, keep credit terms on the engagement, and show the recast against the books
    reports, like the fields masked today ([masking.md](../decisions/masking.md), option 3). The same number gets
    the same token in every file, so statements of one account still join. The saved parse of a bank PDF
    (`cache/bank/*.json`) holds the token too, not the number. The original PDF and its evidence crops show the
-   number as filed; that limit is stated in the docs. No migration: bank statements loaded before are loaded again
-   with `--force` (the same file is otherwise refused as a duplicate, E105), and their old saved parses are
-   removed.
+   number as filed; that limit is stated in the docs. No migration (greenfield, the owner, 2026-11-28): a company whose bank
+   statements were loaded before is deleted (`fin delete <co>`, which also removes its saved parses) and its files
+   ingested again.
 2. **USD orders are valued** (answer 10). An orderbook order in USD is converted at a rate the user states for the
    engagement and its as-at date (`fin engagement rate <co> USD <rate> --as-at <date>`), recorded with the actor in
    the audit log. Converted amounts are marked with the rate used. With no rate stated the order stays "not

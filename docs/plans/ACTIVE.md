@@ -96,8 +96,8 @@ Updated: 2026-11-28.
 | 16 | 4 | Put the chat behind a backend interface | high | deferred |
 | 16 | 5 | Add the API chat backend with fin's tools | high | deferred |
 | 16 | 6 | Move the skills' instructions into provider-neutral prompts | high | deferred |
-| 17 | 1 | Mask bank account numbers | high | todo |
-| 17 | 2 | Value USD orders at a rate the user states | high | todo |
-| 17 | 3 | Read the inquiry list from the data folder when present | | todo |
-| 17 | 4 | Make credit terms 90 days by default and settable per engagement | high | todo |
+| 17 | 1 | Mask bank account numbers | high | done (#119) |
+| 17 | 2 | Value USD orders at a rate the user states | high | done (#119) |
+| 17 | 3 | Read the inquiry list from the data folder when present | | done (#119) |
+| 17 | 4 | Make credit terms 90 days by default and settable per engagement | high | done (#119) |
 | 17 | 5 | Show the recast against the books in the differences list | | todo |

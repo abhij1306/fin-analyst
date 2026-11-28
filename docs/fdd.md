@@ -73,7 +73,8 @@ Commands: `fin query raise --topic`, `fin query checklist <co> [--json]`. Data f
 - A query can be an inquiry: `fin query raise <co> --topic <topic> --question "..."` with no amount or source. Topics
   from `[fdd] inquiry_topics`: revenue_recognition, cut_off, mis_kpi, accounting_policies, capitalisation,
   provisions, related_parties, tax, contingencies, other.
-- `templates/fdd/inquiries.toml`: a standard FDD inquiry checklist per topic that Claude adapts to the company
+- `templates/fdd/inquiries.toml` (or the user's own `templates/inquiries.toml` in the data folder, which wins when
+  present; SPEC-17): a standard FDD inquiry checklist per topic that Claude adapts to the company
   (it drafts; the user approves, as for every query). `fin query checklist <co>` shows each topic with its queries and
   their status, and the topics with none.
 - Inquiries follow the query life cycle (approve, sent, answer, close) and appear in `fin query export` (email and

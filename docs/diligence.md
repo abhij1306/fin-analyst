@@ -131,13 +131,13 @@ and every gate approval.
 |---|---|---|
 | `engagement` (changed, **built**) | adds stub: period name (e.g. `FY27-YTD-SEP`), start and end date | D2 |
 | `source_files` (**built**) | file_id, kind (`trial_balance`, `ledger_vouchers`, `registers`, `bank`, `payroll`, `contract`), file name, sha256, archive path, period covered (from the export header), basis (audited year or unaudited stub), profile, status | D2 |
-| `mask_values` (**built**) | field kind (customer, vendor, user, employee name, employee code), token, match key (the name, case and spaces ignored), real value, first file_id. Never printed; read only by `fin query export` | D2 |
+| `mask_values` (**built**) | field kind (customer, vendor, user, employee name, employee code, bank account number), token, match key (the name, case and spaces ignored), real value, first file_id. Never printed; read only by `fin query export` | D2 |
 | `ledger_accounts` (**built**) | Tally ledger (as filed), group, parent group, status (pending, proposed, confirmed, rejected), mapped Schedule III account with its statement and side (proposed by Claude, confirmed by the user in review, `fin review ... --ledgers`), confidence, reason. Present in TB / in Ledger Vouchers is read from those tables (`fin map ledgers` shows it) | D2 |
 | `trial_balance` (**built**) | file_id, sheet, row, period, row type (group or ledger), group, ledger, closing debit, closing credit. No opening or movement columns: the export has none | D2 |
 | `ledger_entries` (**built**) | file_id, sheet, row, ledger (from the block header), date, particulars, voucher type, voucher no, debit, credit | D2 |
 | `ledger_blocks` (**built**) | file_id, sheet, row, ledger: one per ledger block in a Ledger Vouchers export, with or without voucher lines; G1's "every ledger is in the Ledger Vouchers" reads it | D2 |
 | `register_lines` (**built**) | file_id, sheet, row, kind (sales/purchase), bill id, purchase id, customer id, customer (token, sales), vendor id, vendor (token, purchase), location, invoice no, contract start, contract end, invoice date, order type, product, service start, service end, quantity, rate, amount, currency, currency rate, amount in Rs (before GST), service type, handler and submitted-by (tokens) | D3 |
-| `bank_statements` (**built**) | file_id, bank, account, currency, period, opening and closing balance (from the header or the rows), debit and credit totals, line count, ties, reader (excel or the PDF add-on), saved-parse path | D3 |
+| `bank_statements` (**built**) | file_id, bank, account (token `ACCT-0001`), currency, period, opening and closing balance (from the header or the rows), debit and credit totals, line count, ties, reader (excel or the PDF add-on), saved-parse path | D3 |
 | `bank_lines` (**built**) | file_id, sheet or page, row, bank, account, currency, date, remarks (names as tokens), reference, debit, credit, balance | D3 |
 | `payroll_lines` (**built**) | file_id, sheet, row, snapshot date, employee name and code (tokens), designation, department, vertical, sub-vertical, joining date, resign date, gross salary and CTC (annual, unit confirmed by the user). No month column | D3 |
 | `recon_runs`, `recon_items` (**built** for `tb_vs_statements`, `bank_vs_invoices`, `bank_vs_tb`; D5 added `fx`, `match_pass`, `currency`, `amount_inr`, `note`, `recon_match_lines` and `match_proposals`) | each reconciliation run (name, period, scope, left file, threshold, hash of its inputs, unmapped count) and its lines (`matched`, `difference`, `left_only`, `right_only`, `unmapped`; D5 adds `fx`), each with both sources, both amounts, the difference and its query | D2, D4, D5 |
@@ -186,7 +186,8 @@ changed, with what changed, or an earlier gate not approved), `open` (never appr
 
 | CLI | Claude Code | Who |
 |---|---|---|
-| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold N]`, `status`, `close` | `/diligence` | Either; `close` needs G4 |
+| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold N] [--due-days N]`, `status`, `close` | `/diligence` | Either; `close` needs G4 |
+| `fin engagement terms <co> --due-days N` (the engagement's credit terms; G2 reopens until bank_vs_invoices runs again) | `/diligence` | The user's value |
 | `fin engagement bridge <co> [--period] [--scope] [--json]` | `/diligence` | Either |
 | `fin query list\|raise\|edit\|approve\|sent\|answer\|close\|withdraw <co>` | `/diligence` | Claude drafts; approve, sent, close when the user says |
 | `fin adjust propose\|list\|accept\|reject <co>` | `/diligence` | Claude proposes; accept/reject (need G2) when the user says |
@@ -209,6 +210,7 @@ that writes to a diligence table.
 | `fin map ledgers <co> [file.json]` (Tally ledger → account; the user confirms with `fin review confirm <co> <ids> --ledgers`) | D2 (**built**) |
 | `fin payroll confirm-unit <co> <file> --annual\|--monthly` (the user says which) | D3 (**built**) |
 | `fin engagement passthrough <co> --customer CUST-0001 ... --source "..."` (the user's SI/reseller list, one `--customer` token each; fin prints the tokens it matched) | D4 |
+| `fin engagement rate <co> USD 84.10 --as-at 2025-03-31` (the user's rate for orders in that currency as at the orderbook's date; without a currency, the rates in use) | SPEC-17 |
 | `fin reconcile <co> [name] [--period]` (**built** in D2 for `tb_vs_statements`, in D5 for `bank_vs_invoices` and `bank_vs_tb`), more reconciliations; `fin reconcile <co> match [--propose <file.json>]` and `fin review list|confirm|reject <co> --matches` (**built**, D5) | D2, D4, D5 |
 | `fin query raise <co> --items <recon item ids>` (one issue, many lines) | D4 |
 | `fin adjust propose ... --revenue N --cost N` | D4 |
@@ -488,7 +490,7 @@ for the company's accountant, and proposed adjustments to EBITDA. A difference i
 becomes a query, not a fix. Claude drafts; you decide. fin never sends anything. Plan:
 this file.
 
-- `fin engagement open <company> --periods FY24,FY25,FY26 [--threshold N] [--stub FY27-YTD-SEP]`: one open
+- `fin engagement open <company> --periods FY24,FY25,FY26 [--threshold N] [--stub FY27-YTD-SEP] [--due-days N]`: one open
   engagement per company, with the years in scope, the query threshold in rupees (default `query_threshold` in
   `config.toml`) and optionally a current-year stub: the year to date after the last year (here April to
   September of FY27), from unaudited management data. The stub is labelled "unaudited management accounts"
@@ -589,7 +591,7 @@ this file.
   `bank_lines`, each row with its file and sheet!row (Excel) or page and row (PDF). Remarks and reference are stored
   as filed. A statement covers part of one period of the engagement (it must not cross
   a year end, E808). A PDF is read by the PDF add-on you chose (`fin parser use`; E816 when there is none): its
-  tables are saved in the data folder as `cache/bank/<sha256>.json`, so the same file is never parsed twice and
+  tables are saved in the data folder as `cache/bank/<company>/<sha256>.json`, so the same file is never parsed twice and
   every row traces to that parse. LlamaParse uploads the pages to its cloud and needs `LLAMA_CLOUD_API_KEY` in
   the environment (a missing key or a failed call is E206; nothing loaded); use Docling or LiteParse for statements
   that must not leave your Mac. A statement whose opening + credits − debits is not its closing balance is a

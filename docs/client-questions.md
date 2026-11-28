@@ -39,8 +39,8 @@ fin's maintainers act on the answer.
    the books' receivables include GST. Default: before GST. Used in: [fdd-f3.md](decisions/fdd-f3.md), "Receivable ageing".
    Answer:
 
-6. **What are your usual credit terms?** An unpaid invoice counts as overdue after this many days. Default: 30
-   (`config.toml [diligence] invoice_due_days`). Used in: [d5-bank-match.md](decisions/d5-bank-match.md) 4.
+6. **What are your usual credit terms?** An unpaid invoice counts as overdue after this many days. Default: 90
+   since the client's answer (`config.toml [diligence] invoice_due_days`; per engagement `--due-days`). Used in: [d5-bank-match.md](decisions/d5-bank-match.md) 4.
    Answer:
 
 7. **Do your books record one combined Receipt voucher for several part payments (or foreign-currency receipts) of one

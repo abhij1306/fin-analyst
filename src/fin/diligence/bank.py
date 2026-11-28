@@ -20,20 +20,26 @@ reads the file, then in ONE transaction adds the `source_files` row (the period 
 that holds every date of the statement; E808 otherwise), the `bank_statements` row, the
 `bank_lines` (remarks and reference as filed) and the
 findings. Any error rolls it back. Raises E101-E105, E204, E206, E803, E807, E808, E816-E818.
+
+The account number is masked in that transaction (`mask_statement`, `fin.diligence.bank_mask`):
+`bank_statements`, `bank_lines`, findings and the summary carry its token (`ACCT-0001`), and
+every known account number in remarks and reference, of this file and those loaded before (in
+`bank_lines` and in the saved parses of the company's PDFs), is replaced by its token.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from fin.audit.errors import BankHeaderMissing, ParseError, SourcePeriodInvalid
+from fin.audit.errors import BankHeaderMissing, LayoutUnknown, ParseError, SourcePeriodInvalid
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, transaction
 from fin.diligence import bank_checks, bank_pdf
+from fin.diligence.bank_mask import hide_numbers, mask_text, remask_lines, remask_parses
 from fin.diligence.bank_raw import Raw, RawRow
 from fin.diligence.engagement import require_open
 from fin.diligence.loading import (
@@ -44,6 +50,7 @@ from fin.diligence.loading import (
     log_load,
     refuse_duplicate,
 )
+from fin.diligence.mask import ACCOUNT, Masker
 from fin.diligence.stub import UNAUDITED
 from fin.extract.ledger import amount, cell_text, parse_date, read_table
 from fin.extract.periods import fiscal_year_of
@@ -243,12 +250,28 @@ def bank_period(
 
 
 def excel_raw(path: Path, profile: str | None) -> Raw:
-    """An Excel statement as a `Raw`. E101/E102, E807, E808; E204 when two sheets hold a table."""
-    table = read_table(path, KIND, profile)
+    """An Excel statement as a `Raw`. E101/E102, E807 (the title lines it lists with long numbers
+    hidden: they may hold the account number), E808; E204 when two sheets hold a table."""
+    try:
+        table = read_table(path, KIND, profile)
+    except LayoutUnknown as exc:
+        raise LayoutUnknown(hide_numbers(exc.message)).with_context(file=path.name) from None
     if len({r.sheet for r in table.rows}) > 1:
         raise ParseError(f"{path.name}: one bank statement per file; its sheets each hold a table")
     rows = [RawRow(r.sheet, None, r.row, r.cells) for r in table.rows]
     return Raw(table.profile, table.start, table.end, list(table.lines), rows, "excel", None)
+
+
+def mask_statement(st: Statement, masker: Masker) -> tuple[Statement, dict[str, str]]:
+    """(the statement with its account number as its token and every known account number in its
+    remarks and reference as a token; the known numbers: number -> token)."""
+    token = masker.token(ACCOUNT, st.account)
+    tokens = masker.accounts()
+    lines = [
+        replace(x, remarks=mask_text(x.remarks, tokens), reference=mask_text(x.reference, tokens))
+        for x in st.lines
+    ]
+    return replace(st, account=token, lines=lines), tokens
 
 
 def _insert(run: Run, con: Any, st: Statement, file_id: int, raw: Raw) -> None:
@@ -283,7 +306,7 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
         require_open(con, company)
         refuse_duplicate(con, name, sha256)
     if path.suffix.lower() == ".pdf":
-        raw = bank_pdf.read_pdf(run, config, path, sha256, profile)
+        raw = bank_pdf.read_pdf(run, config, path, sha256, profile, company)
     else:
         raw = excel_raw(path, profile)
     st = read_statement(raw, name)
@@ -300,12 +323,23 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
             (period, basis, st.start, st.end, st.profile.name),
         )
         file_id = file["file_id"]
+        masker = Masker(con, run.run_id)
+        masker.file_id = file_id
+        st, tokens = mask_statement(st, masker)
+        remask_lines(con, tokens)  # an account named in the lines of an earlier statement
         _insert(run, con, st, file_id, raw)
+        parses = [
+            p
+            for (p,) in con.execute(
+                "SELECT parse_path FROM bank_statements WHERE parse_path IS NOT NULL"
+            ).fetchall()
+        ]
         found = tie_findings(st, name)
         record(
             run, company, con, found, "file_id = ? AND check_name = 'bank_tie'", [file_id], file_id
         )
         checked = bank_checks.record_all(run, company, con, engagement["engagement_id"])
+    remask_parses(run.root, parses, tokens)  # after the commit: tokens the database keeps
     head = (
         f"loaded as source file_id {file_id} (bank {period}, profile {st.profile.name}, read by "
         f"{raw.reader})"

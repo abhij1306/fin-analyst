@@ -6,7 +6,7 @@
 {{ head("Gates") }}
 {{ no_engagement(data.no_engagement) }}
 {% else %}
-{{ head("Gates", "Engagement #" ~ data.engagement_id ~ ". Only you approve a gate.") }}
+{{ head("Gates", "Engagement #" ~ data.engagement_id ~ " · credit terms " ~ data.invoice_due_days ~ " days. Only you approve a gate.") }}
 {% for g in data.gates %}
 <div class="card">
   <header>

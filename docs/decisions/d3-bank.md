@@ -41,6 +41,8 @@ Only decisions that affect the analysis or what the user sees. Plan: docs/dilige
 - **Decision:** remarks and reference have known masked names replaced by tokens; no new tokens are made from bank
   text. The account number is shown as filed (not on the plan's masked list; needed to chain statements).
 - **How to change it:** `bank.py: _insert` (mask `account` there if wanted).
+- **Superseded 2026-11-27** by the client's answer 1 ([client-answers.md](client-answers.md), [masking.md](masking.md)):
+  the account number is a token (`ACCT-0001`); statements of one account still chain on it.
 
 ## 7. Currency
 - **Decision:** one profile per bank serves INR and USD accounts; amounts stay in the account's currency (no FX; D5).

@@ -99,14 +99,48 @@ def test_checklist_shows_topics_with_none_and_their_standard_questions(root: Pat
     first = raise_one(root, "tax")
     withdrawn = raise_one(root, "cut_off")
     queries.set_status(run(root), "acme", [withdrawn["query_id"]], "withdrawn", note="dup")
-    data = {d["topic"]: d for d in inquiries.checklist(run(root), "acme")}
+    result = inquiries.checklist(run(root), "acme")
+    data = {d["topic"]: d for d in result["topics"]}
+    assert result["list"] == "fin's standard list (templates/fdd/inquiries.toml)"
     assert list(data) == list(FDD_DEFAULTS["inquiry_topics"])
     assert data["tax"]["active"] and data["tax"]["standard"] == []
     assert [q["query_id"] for q in data["tax"]["queries"]] == [first["query_id"]]
     assert not data["cut_off"]["active"] and data["cut_off"]["standard"]  # withdrawn: none active
     assert data["revenue_recognition"]["queries"] == [] and data["revenue_recognition"]["standard"]
-    text = inquiries.format_checklist(list(data.values()))
+    text = inquiries.format_checklist(result)
     assert "tax: 1 inquiries" in text and "cut_off: none yet" in text
+    assert text.startswith("questions from fin's standard list")
+
+
+def test_a_list_in_the_data_folder_is_drafted_from_and_named(root: Path) -> None:
+    own = root / "templates" / "inquiries.toml"
+    own.parent.mkdir(parents=True, exist_ok=True)
+    own.write_text('[tax]\nquestions = ["Which tax years are still open?"]\n', encoding="utf-8")
+
+    result = inquiries.checklist(run(root), "acme")
+
+    data = {d["topic"]: d for d in result["topics"]}
+    assert result["list"] == "the data folder's list (templates/inquiries.toml)"
+    assert result["path"] == str(own)
+    assert data["tax"]["standard"] == ["Which tax years are still open?"]
+    assert data["cut_off"]["standard"] == []  # not on the user's list: nothing from fin's
+    text = inquiries.format_checklist(result)
+    assert "questions from the data folder's list" in text
+    assert "  standard: Which tax years are still open?" in text
+
+
+@pytest.mark.parametrize(
+    "body", ['[weather]\nquestions = ["x"]\n', "[tax]\nquestions = []\n", "[tax\n"]
+)
+def test_a_bad_list_in_the_data_folder_stops_with_e910(root: Path, body: str) -> None:
+    own = root / "templates" / "inquiries.toml"
+    own.parent.mkdir(parents=True, exist_ok=True)
+    own.write_text(body, encoding="utf-8")
+
+    with pytest.raises(FinError) as caught:
+        inquiries.checklist(run(root), "acme")
+
+    assert caught.value.code == "E910" and "inquiries.toml" in str(caught.value)
 
 
 def test_collect_is_the_report_data_function(root: Path) -> None:

@@ -3,8 +3,8 @@ re-exported by `fin.audit.errors`, so import them from there like every other er
 
 - E950-E951 (FDD F6 GST and income tax: a GST return row that cannot be loaded; a tax ledger
   class proposal or review that is not valid) stop the command: exit 2.
-- E960-E961 (FDD orderbook: an orderbook row that cannot be read; `fin visibility` with no backlog
-  source loaded) stop the command: exit 2.
+- E960-E962 (FDD orderbook: an orderbook row that cannot be read; `fin visibility` with no backlog
+  source loaded; an exchange rate that cannot be stored) stop the command: exit 2.
 - E901-E903 (FDD walkthroughs, fin.sampling: a sample that cannot be drawn, a walkthrough file that
   cannot be used, an unknown sample id) stop the command: exit 2.
 - E910 (FDD inquiries, fin.diligence.inquiries: an unknown topic or an unusable checklist template)
@@ -110,6 +110,14 @@ class VisibilityUnavailable(FinError):
     is loaded for the latest engagement. Nothing shown."""
 
     code = "E961"
+
+
+class RateInvalid(FinError):
+    """E962. `fin engagement rate`: a currency that is not three letters or is INR, a rate that is
+    not a number above 0 with at most six decimals, or an as-at date that cannot be read. Nothing
+    stored."""
+
+    code = "E962"
 
 
 # E950-E959: GST and income tax (fin.fdd, docs/fdd.md F6). Stop the command.

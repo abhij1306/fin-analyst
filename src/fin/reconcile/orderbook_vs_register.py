@@ -5,8 +5,10 @@ register's billing in the period, matched by customer token (the orderbook has a
 register no order reference). Two kinds of line, level 'order':
 
 - an order whose customer has no sales register line in the period: left_only, left the order
-  value, the note the billed to date the orderbook says; an order not in INR has no rupee amount
-  (listed, never reaches the threshold);
+  value in rupees, the note the billed to date the orderbook says; an order not in INR counts at
+  the rate the user stated for its currency as at the orderbook's date (`fin engagement rate`,
+  view orderbook_valued), and with no such rate has no rupee amount (listed, never reaches the
+  threshold);
 - a customer (not a pass-through customer) with sales register billing in the period and no order
   on the orderbook: right_only, right the billing. If the orderbook lists open orders only, a
   finished order is not on it: the note says so (client question 10,
@@ -60,8 +62,8 @@ def orderbook_vs_register(
             "--kind registers`); nothing recorded"
         )
     orders = con.execute(
-        'SELECT sheet, "row", customer, order_no, value, currency, billed FROM orderbook_lines '
-        'WHERE file_id = ? ORDER BY sheet, "row"',
+        'SELECT sheet, "row", customer, order_no, value, currency, billed, value_inr, rate_note '
+        'FROM orderbook_valued WHERE file_id = ? ORDER BY sheet, "row"',
         [book[0]],
     ).fetchall()
     passthrough = {
@@ -72,18 +74,16 @@ def orderbook_vs_register(
     }
     ordered = {o[2] for o in orders}
     lines = []
-    for sheet, row, customer, order_no, value, currency, billed in orders:
+    for sheet, row, customer, order_no, value, currency, billed, value_inr, rate_note in orders:
         if customer in billing:
             continue
         shown = "blank" if billed is None else f"{currency} {billed:,.2f}"
-        foreign = (
-            f"; order value {currency} {value:,.2f}, not converted" if currency != "INR" else ""
-        )
+        foreign = f"; order value {currency} {value:,.2f}; {rate_note}" if rate_note else ""
         lines.append(
             make_line(
                 "order",
                 f"{order_no} ({customer})",
-                value if currency == "INR" else None,
+                value_inr,
                 None,
                 rows_text([(book[1], sheet, row)]),
                 None,

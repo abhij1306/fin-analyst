@@ -4,7 +4,8 @@
 
 -- Orderbook (fin.diligence.orderbook): one row per customer order as the company's orderbook lists it as at as_at; file +
 -- sheet + row lineage. customer is a token (the same as the registers'). value and billed are in the order's currency
--- as filed (currency 'INR' unless the file says otherwise; only INR rows count in rupees); billed is NULL when the
+-- as filed (currency 'INR' unless the file says otherwise; another currency counts in rupees only at a rate the user
+-- stated, orderbook_valued); billed is NULL when the
 -- cell was blank (counted as not billed, and flagged). order_date, start_date and end_date are NULL when blank.
 CREATE TABLE orderbook_lines (
     file_id INTEGER NOT NULL,
@@ -23,16 +24,57 @@ CREATE TABLE orderbook_lines (
     PRIMARY KEY (file_id, sheet, "row")
 );
 
+-- Exchange rates the user states for an engagement (`fin engagement rate <co> USD 84.10 --as-at 2025-03-31`,
+-- fin.diligence.rates; SPEC-17 item 2): rupees per unit of the currency, as at a date. fin never fetches or assumes a
+-- rate. Rows are appended; the latest stated for a currency and date is the one used (engagement_rates_current).
+-- actor: who stated it (fin.actor: 'user', or 'ai:claude' when Claude ran the command for the user).
+CREATE SEQUENCE engagement_rates_seq START 1;
+CREATE TABLE engagement_rates (
+    rate_id INTEGER PRIMARY KEY DEFAULT nextval('engagement_rates_seq'),
+    engagement_id INTEGER NOT NULL,
+    currency VARCHAR NOT NULL,
+    rate DECIMAL(20, 6) NOT NULL CHECK (rate > 0),
+    as_at DATE NOT NULL,
+    actor VARCHAR NOT NULL CHECK (actor = 'user' OR actor LIKE 'ai:%'),
+    run_id VARCHAR NOT NULL,
+    stated_at TIMESTAMP NOT NULL
+);
+
+CREATE VIEW engagement_rates_current AS
+SELECT * FROM engagement_rates
+QUALIFY row_number() OVER (PARTITION BY engagement_id, currency, as_at ORDER BY rate_id DESC) = 1;
+
+-- Each orderbook line with its value in rupees: an INR order as filed; an order in another currency converted at the rate
+-- the user stated for its engagement, currency and the orderbook's as-at date (rate, rate_id), rounded to the paisa; with
+-- no such rate value_inr and unbilled_inr are NULL ("not converted"). unbilled: value less billed to date, never below 0.
+CREATE VIEW orderbook_valued AS
+SELECT o.*, f.file_name, f.engagement_id, f.status AS file_status, r.rate, r.rate_id,
+    CASE WHEN o.currency = 'INR' THEN o.value
+         WHEN r.rate IS NOT NULL THEN CAST(round(o.value * r.rate, 2) AS DECIMAL(20, 2)) END AS value_inr,
+    CASE WHEN o.currency = 'INR' THEN greatest(o.value - coalesce(o.billed, 0), 0)
+         WHEN r.rate IS NOT NULL
+         THEN CAST(round(greatest(o.value - coalesce(o.billed, 0), 0) * r.rate, 2) AS DECIMAL(20, 2)) END
+        AS unbilled_inr,
+    CASE WHEN o.currency = 'INR' THEN NULL
+         WHEN r.rate IS NULL THEN 'order in ' || o.currency || ': not converted (no rate stated as at '
+             || strftime(o.as_at, '%Y-%m-%d') || ')'
+         ELSE o.currency || ' converted at ' || CAST(r.rate AS VARCHAR) || ' as at '
+             || strftime(o.as_at, '%Y-%m-%d') || ' (rate stated by the user, #' || CAST(r.rate_id AS VARCHAR) || ')'
+    END AS rate_note
+FROM orderbook_lines o JOIN source_files f USING (file_id)
+LEFT JOIN engagement_rates_current r
+    ON r.engagement_id = f.engagement_id AND r.currency = o.currency AND r.as_at = o.as_at AND o.currency <> 'INR';
+
 -- Days two inclusive date ranges share (0 when they do not meet).
 CREATE MACRO overlap_days(s1, e1, s2, e2) AS
     greatest(0, date_diff('day', greatest(s1, s2), least(e1, e2)) + 1);
 
 -- The latest loaded orderbook file of the latest engagement (latest as-at date, then latest file).
 CREATE VIEW orderbook_current AS
-SELECT o.*, f.file_name, f.engagement_id
-FROM orderbook_lines o JOIN source_files f USING (file_id)
-WHERE f.status = 'loaded' AND f.kind = 'orderbook'
-  AND f.file_id = (SELECT s.file_id FROM source_files s WHERE s.kind = 'orderbook' AND s.status = 'loaded'
+SELECT o.* EXCLUDE (file_status)
+FROM orderbook_valued o
+WHERE o.file_status = 'loaded'
+  AND o.file_id = (SELECT s.file_id FROM source_files s WHERE s.kind = 'orderbook' AND s.status = 'loaded'
       AND s.engagement_id = (SELECT max(engagement_id) FROM engagement)
       ORDER BY s.period_end DESC, s.file_id DESC LIMIT 1);
 
@@ -55,8 +97,9 @@ FROM p;
 -- what is still to be earned or billed after the as-at date of the source, covered_next_year the part of it that falls in
 -- the year after the period end when it is spread straight-line over the item's remaining term (by days). NULL means it
 -- could not be computed; note says why. Sources, never added together (an order can also be in a contract):
---   orderbook          unbilled orderbook value (value less billed to date, never below 0) of the latest orderbook,
---                      INR orders only, spread from the later of its start date and the day after the as-at date to
+--   orderbook          unbilled orderbook value in rupees (orderbook_valued.unbilled_inr: an order in another currency
+--                      only at a rate the user stated, else no amount) of the latest orderbook,
+--                      spread from the later of its start date and the day after the as-at date to
 --                      its end date; no end date: not spread; term over (it ended by the as-at date): 0, both
 --                      still to come and in the next year (the unbilled value of an ended order is not backlog);
 --   billed_not_earned  sales register lines (core customers) invoiced up to the period end whose service period runs
@@ -68,21 +111,22 @@ CREATE VIEW backlog_lines AS
 WITH b AS (SELECT * FROM visibility_basis)
 SELECT 'orderbook' AS source, o.file_name || ' ' || o.sheet || '!' || o."row" AS ref, o.customer AS counterparty,
     coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1)::DATE AS term_start, o.end_date AS term_end,
-    CASE WHEN o.currency <> 'INR' THEN CAST(NULL AS DECIMAL(20, 2))
+    CASE WHEN o.unbilled_inr IS NULL THEN CAST(NULL AS DECIMAL(20, 2))
          WHEN o.end_date < coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1) THEN 0
-         ELSE greatest(o.value - coalesce(o.billed, 0), 0) END AS remaining_amount,
-    CASE WHEN o.currency <> 'INR' THEN CAST(NULL AS DECIMAL(20, 2))
+         ELSE o.unbilled_inr END AS remaining_amount,
+    CASE WHEN o.unbilled_inr IS NULL THEN CAST(NULL AS DECIMAL(20, 2))
          WHEN o.end_date IS NULL THEN NULL
          WHEN o.end_date < coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1) THEN 0
-         ELSE CAST(round(greatest(o.value - coalesce(o.billed, 0), 0)
+         ELSE CAST(round(o.unbilled_inr
              * overlap_days(coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1), o.end_date, b.year_start, b.year_end)
              / (date_diff('day', coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1), o.end_date) + 1), 2)
              AS DECIMAL(20, 2)) END AS covered_next_year,
-    CASE WHEN o.currency <> 'INR' THEN 'order in ' || o.currency || ': not converted'
-         WHEN o.end_date IS NULL THEN 'no end date: not spread'
-         WHEN o.end_date < coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1) THEN 'term over'
-         WHEN o.billed IS NULL THEN 'billed to date blank: counted as not billed'
-         WHEN o.billed > o.value THEN 'billed more than the order value' END AS note
+    CASE WHEN o.unbilled_inr IS NULL THEN o.rate_note
+         ELSE nullif(concat_ws('; ', o.rate_note,
+             CASE WHEN o.end_date IS NULL THEN 'no end date: not spread'
+                  WHEN o.end_date < coalesce(greatest(o.start_date, o.as_at + 1), o.as_at + 1) THEN 'term over'
+                  WHEN o.billed IS NULL THEN 'billed to date blank: counted as not billed'
+                  WHEN o.billed > o.value THEN 'billed more than the order value' END), '') END AS note
 FROM orderbook_current o, b
 WHERE o.engagement_id = b.engagement_id
 UNION ALL

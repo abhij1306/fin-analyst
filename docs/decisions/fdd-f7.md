@@ -8,7 +8,8 @@ Builder readings of `docs/fdd.md` F7; the owner confirms or changes them. Format
   engagement or its stub (E808 otherwise), as for a payroll snapshot, and gives the file's period. A later file for the same
   period replaces the earlier. "Latest orderbook" is the loaded file with the latest as-at date. Value and billed to date are kept in the
   order's currency; only INR orders have a rupee amount. An order in another currency is loaded and shown ("not converted") but
-  has no backlog amount and never reaches a threshold. A blank billed-to-date cell is stored as NULL, counted as not billed and
+  has no backlog amount and never reaches a threshold. *Superseded in part by SPEC-17 item 2 ([spec-17.md](spec-17.md) §2): with a
+  rate the user states (`fin engagement rate`) such an order counts at that rate; with none it stays "not converted".* A blank billed-to-date cell is stored as NULL, counted as not billed and
   listed.
 - **Why**: the plan gives a currency column but no rate, and the registers' rupee amounts come from the company's own rate; inventing
   a rate would be a silent assumption. A blank billed cell and "not billed" differ, so it is flagged rather than turned into 0.

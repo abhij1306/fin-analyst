@@ -9,7 +9,8 @@ from fin import __version__
 from fin.audit.logger import Run
 from fin.config import SCOPES
 from fin.diligence.adjust_cli import adjust_app
-from fin.diligence.cli import engagement_app, gate_app, query_app
+from fin.diligence.cli import gate_app, query_app
+from fin.diligence.engagement_cli import engagement_app
 from fin.map.commands import map_app, review_app
 from fin.metrics.export import refresh_analytics
 from fin.parser import parser_app

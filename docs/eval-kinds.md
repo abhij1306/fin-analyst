@@ -33,7 +33,7 @@ What each kind's value is (the person works out the derived ones from the docume
 | `tb_ledger` | closing debit less closing credit (debit positive) |
 | `tb_vs_statements` | trial balance ledgers mapped to the account, rolled up, less the audited standalone figure |
 | `stub` | stub trial balance ledgers mapped to the account, as the statements show it (income and liabilities positive) |
-| `bank_closing` | the closing balance printed on the statement, in the account's currency, tying or not (`ledger` is the account number; `period` the statement's end date) |
+| `bank_closing` | the closing balance printed on the statement, in the account's currency, tying or not (`ledger` is the account number's token, `ACCT-0001`, as `fin eval init` lists it; `period` the statement's end date) |
 | `register_total` | Amount in Rs (before GST) summed over every invoice row of the sheet, total row left out, duplicates counted (`ledger` is `sales` or `purchase`) |
 | `payroll_total` | the gross salary or CTC column summed over the snapshot's employees, annual rupees as in the file (`ledger` is `gross_salary` or `ctc`) |
 | `gst_return` | a GST return month's figure as filed (`ledger` is the return, month and field: `gstr1 2024-05 taxable_value`, `gstr3b 2024-05 itc`) |

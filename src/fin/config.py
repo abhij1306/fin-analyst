@@ -83,10 +83,12 @@ adjustment_categories = [
 # Bank matching (fin reconcile): a receipt matches an invoice when their dates are at most
 # match_window_days apart (passes 2 and 3); a foreign-currency receipt takes its booked rupee
 # value from a Ledger Vouchers receipt at most fx_window_days from its bank date; an unmatched
-# invoice is overdue after invoice_due_days.
+# invoice is overdue after invoice_due_days (credit terms; the client, 2026-11-27: 90 days). An
+# engagement copies it when it opens; `fin engagement open --due-days` or `fin engagement terms`
+# sets another value for one engagement.
 match_window_days = 60
 fx_window_days = 7
-invoice_due_days = 30
+invoice_due_days = 90
 
 [fdd]
 # FDD extension (docs/fdd.md). coverage_top_n: how many of the top customers (core revenue) and
@@ -133,7 +135,7 @@ class Config:
     pdf_parser: str = "none"  # [pdf] parser: the PDF add-on for the pages pdfplumber skips
     match_window_days: int = 60  # [diligence]: date window of bank matching passes 2 and 3
     fx_window_days: int = 7  # [diligence]: window for a receipt's booked rupee value
-    invoice_due_days: int = 30  # [diligence]: an unmatched invoice is overdue after this
+    invoice_due_days: int = 90  # [diligence]: an unmatched invoice is overdue after this
     coverage_top_n: int = 10  # [fdd]: the top customers and vendors checked for a contract
     fdd: dict[str, Any] = field(default_factory=lambda: dict(FDD_DEFAULTS))  # [fdd], FDD_DEFAULTS
 

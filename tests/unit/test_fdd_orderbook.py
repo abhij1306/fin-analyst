@@ -111,7 +111,8 @@ def test_the_orderbook_backlog_is_the_unbilled_value_spread_over_its_remaining_t
     assert ob["remaining_amount"] == Decimal(900000 + 500000 + 150000)
     assert ob["covered_next_year"] == Decimal(900000) + o2
     notes = {n["note"] for n in _notes(full)}
-    assert {"order in USD: not converted", "no end date: not spread"} <= notes
+    usd = "order in USD: not converted (no rate stated as at 2025-03-31)"
+    assert {usd, "no end date: not spread"} <= notes
 
 
 def _notes(root: Path) -> list[dict[str, Any]]:

@@ -113,8 +113,15 @@ def month_of(day: date) -> str:
 
 
 def input_hash(computed: Computed, threshold: Decimal) -> str:
-    """sha256 of what a reconciliation compared: its lines, files and the threshold."""
-    value = [computed.lines, computed.left_file_id, computed.right_file_id, str(threshold)]
+    """sha256 of what a reconciliation compared: its lines, files, the threshold and the credit
+    terms it aged invoices with (bank_vs_invoices), so a change to any of them makes a run stale."""
+    value = [
+        computed.lines,
+        computed.left_file_id,
+        computed.right_file_id,
+        str(threshold),
+        computed.due_days,
+    ]
     text = json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 

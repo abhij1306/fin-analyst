@@ -43,7 +43,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   table `diligence_events`), `queries.py` (accountant queries and their status flow, `TRANSITIONS`),
   `export.py` with `export_data.py`, `export_xlsx.py`, `export_docs.py` (`fin query export`: the one reader of
   `mask_values`; E858–E861) and `answers.py` (`query answer --file`),
-  `adjustments.py` (adjustments to EBITDA, revenue and costs with evidence, E804; `resolve_effects` makes the EBITDA effect revenue minus cost), `passthrough.py` (`fin engagement passthrough`: the user's pass-through customers, E845; the views are `db/schema/diligence_split_views.sql`), `customers.py` (customer sectors: sync, propose, confirm, reject, E868; `fin map customers`, `fin review --customers`), `analytics.py` (`fin analytics`, E869; the views are `db/schema/diligence_analytics.sql`; the report section is `report/customers.py`), `bridge.py` (`fin engagement bridge`: reads and
+  `adjustments.py` (adjustments to EBITDA, revenue and costs with evidence, E804; `resolve_effects` makes the EBITDA effect revenue minus cost), `passthrough.py` (`fin engagement passthrough`: the user's pass-through customers, E845; the views are `db/schema/diligence_split_views.sql`), `rates.py` (`fin engagement rate`: exchange rates the user states for orders not in INR, E962; the view is `orderbook_valued` in `db/schema/fdd_orderbook.sql`), `customers.py` (customer sectors: sync, propose, confirm, reject, E868; `fin map customers`, `fin review --customers`), `analytics.py` (`fin analytics`, E869; the views are `db/schema/diligence_analytics.sql`; the report section is `report/customers.py`), `bridge.py` (`fin engagement bridge`: reads and
   formats the EBITDA bridge and EBITDA-to-cash walk views), `provisions.py` (FDD F3, `docs/fdd.md`: provision ledgers proposed by Claude and confirmed by the user, E920-E923, and `collect`, the receivables ageing and indicative gratuity figures for `fin provisions show` and the FDD report; CLI `cli/provisions.py`; schema `db/schema/fdd_bsheet.sql`), `netdebt.py` and `netdebt_items.py` (FDD F4: net debt classes proposed by Claude and confirmed by the user in `fin review --netdebt`, debt-like items accepted or rejected by the user, E930-E934, and `collect`, the `net_debt` figures for `fin netdebt show` and the FDD report (`fin report --fdd`); CLI `cli/netdebt.py`; schema `db/schema/fdd_netdebt.sql`), `gates.py` (`fin gate status|approve`: the `GATES`
   registry with each gate's checklist and inputs, the approved/reopened/open states, `require` (E801) and
   approval (E802)), `cli.py` (the `fin engagement`, `fin query` and `fin gate` Typer groups; `adjust_cli.py` the `fin adjust` group; `cli_options.py` the option parsers and argument types they share; `cli_checks.py` checks the options of `fin query raise`). Tables: `db/schema/diligence.sql`; views: `db/schema/diligence_views.sql`.
@@ -53,7 +53,8 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   rows, snapshot period, the monthly-amounts check, `fin payroll confirm-unit`, G1's payroll line; the CLI is
   the group-sum finding), `mask.py` (tokens for the client's fields, `mask_values`; `Parties` matches ledger and bank names to tokens), `bank.py` (`--kind bank`: a bank statement as
   a `Statement`, the tie check, the load), `bank_pdf.py` (a PDF statement: the chosen PDF add-on's tables, saved
-  once per sha256 in `cache/bank/`, read with the same profiles), `bank_raw.py`, `bank_checks.py` (overlap and
+  once per company and sha256 in `cache/bank/<company>/`, read with the same profiles), `bank_raw.py`, `bank_mask.py` (account numbers as `ACCT-` tokens, in the
+  tables and the saved parse), `bank_checks.py` (overlap and
   balance gap findings, G1's bank line). Tables: `db/schema/sources.sql`.
   `ledgers.py` (`ledger_accounts`: Tally ledger to account, proposed by Claude, confirmed in review; an account's
   side), `recon.py` (`tb_vs_statements`: `recon_runs`, `recon_items`, draft queries at or above the threshold,
@@ -78,7 +79,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `sampling/`: FDD F1 samples and walkthroughs: `draw.py` (`fin sample`), `walkthrough.py` (`fin walkthrough`); CLI `cli/fdd_contracts.py`
   (also `fin contracts coverage`); schema `db/schema/fdd_contracts.sql`; golden kinds `evals/fdd_contracts.py`.
   F2's inquiries: `diligence/inquiries.py` (a query with a topic; `collect` for the FDD report), `diligence/inquiry_cli.py` (`fin query checklist`),
-  `templates/fdd/inquiries.toml`, schema `db/schema/fdd_inquiries.sql`.
+  `templates/fdd/inquiries.toml` (or `<data folder>/templates/inquiries.toml`, `checklist_path`), schema `db/schema/fdd_inquiries.sql`.
   F3's cut-off tests are reconciliations too: `cutoff.py` (`sales_cutoff`, `purchase_cutoff`, in `RECONCILIATIONS`;
   windows copied onto the engagement from `config.toml [fdd]`).
 - `fdd/`: the FDD extension (`docs/fdd.md`). F6: `gst.py` (GST return summaries, `--kind gst`, loaded through

@@ -318,11 +318,13 @@ claude
 | `fin audit <co> [metric period \| --fact id]` | `/audit` | Either |
 | `fin delete <co> [--yes]` | — | Either (typed confirmation, or `--yes` when the user asked) |
 | `fin update` | — | Human |
-| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold]`, `fin engagement status\|close <co>` | `/diligence` | Either (`close` needs gate G4 approved) |
+| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold] [--due-days N]`, `fin engagement status\|close <co>` | `/diligence` | Either (`close` needs gate G4 approved) |
+| `fin engagement terms <co> --due-days N` | `/diligence` | The user's credit terms; Claude changes them only when asked |
 | `fin engagement bridge <co> [--period] [--scope] [--json]` (views `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`) | `/diligence` | Either |
 | `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
 | `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
 | `fin engagement passthrough <co> [--customer ... --source] [--clear]` | `/diligence` | The user's list; Claude records it when given |
+| `fin engagement rate <co> [<CUR> <rate> --as-at <date>]` | `/diligence` | The user's exchange rate for orders not in INR; Claude records it only when given |
 | `fin map customers <co> [file]`, `fin review list\|confirm\|reject <co> --customers` | `/diligence` | Claude proposes sectors; the user decides |
 | `fin analytics <co> [--json]` | `/diligence` | Either |
 | `fin recast run <co> [--period]`, `fin recast contracts <co> [<file> --reading <csv>]` | `/diligence` | Claude runs it; the user accepts or rejects the proposed adjustments |
@@ -585,7 +587,8 @@ date in another format is never dropped); and the outcome lists the trial balanc
 Vouchers ledgers not in the trial balance. Masking (`fin/diligence/mask.py`, `docs/decisions/masking.md`): only the
 client's fields are tokens: the registers' customer, vendor, handler and submitted-by and the orderbook's customer
 (`CUST-0001`, `VEND-0001`, `USER-0001`; the same value keeps its first token in every file, whatever kind it is
-found as later) and payroll's employee name and code (`EMP-0001`, `ECODE-0001`). The trial balance and Ledger
+found as later) and payroll's employee name and code (`EMP-0001`, `ECODE-0001`), and a bank statement's account
+number (`ACCT-0001`, below). The trial balance and Ledger
 Vouchers (ledgers, party ledgers too, and particulars), bank remarks and reference, the other register columns and
 all free text (contract terms, FDD text, query answers, the reasons stored with proposals) are stored as filed or
 written. Party matching: a ledger, a Ledger Vouchers particulars or a bank line that names a register customer or
@@ -773,7 +776,12 @@ above the threshold in rupees (`difference`, `left_only`, `right_only`; a foreig
 past `invoice_due_days` at the period end is `not_yet_due`, listed. The view `customer_collections` gives, per period and
 customer, invoiced, received (matched in full), partly paid (invoices in a group whose receipts differ from them: the invoice amount) and open rupees (invoiced = received + partly paid + open), collection days (matched invoices only) and the overdue ageing of open invoices.
 `fin reconcile <co> bank_vs_tb` (`bank.py`) compares the INR statements ending on a period's last day with the trial
-balance's cash and bank ledgers. G2 requires both through the D4 checks (`fin/reconcile/checks.py`). The engagement copies `match_window_days`, `fx_window_days`, `invoice_due_days` and `fiscal_start_month` from `config.toml` when it opens. E854-E855. Golden check kinds:
+balance's cash and bank ledgers. G2 requires both through the D4 checks (`fin/reconcile/checks.py`). The engagement copies `match_window_days`, `fx_window_days`, `invoice_due_days` and `fiscal_start_month` from `config.toml` when it opens.
+Credit terms belong to the engagement (the client, 2026-11-27): `invoice_due_days` defaults to 90; `fin engagement open --due-days N` sets
+another value for one engagement and `fin engagement terms <co> --due-days N` changes the open one's (E846 outside 0 to 3650 days; the
+change is in `diligence_events`). `fin engagement status` and the Gates screen show them. Overdue and the ageing read the engagement's
+value, stored on each bank_vs_invoices run (`recon_runs.due_days`) and part of its input hash, so a change makes the run stale and
+gate G2 reopens until it runs again. Data folders whose `config.toml` was written before keep the value written there. E854-E855. Golden check kinds:
 `bank_unmatched`, `invoice_unmatched`, `fx_line`, `customer_received`, `customer_partly_paid`, `bank_vs_tb`.
 
 Payroll (D3, `docs/decisions/d3-payroll.md`): `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot, one
@@ -796,13 +804,21 @@ Bank statements (D3, bank; decisions in `docs/decisions/d3-bank.md`): `fin inges
 `bank_axis` (kind `bank`: the table's columns, `bank`, default `currency`, and `[header]` regular expressions for the
 account, currency, opening and closing balance in the lines around the table) read INR and USD accounts alike; an
 Excel file is read by `extract/ledger.read_table`, a PDF by `diligence/bank_pdf.py`: the chosen `[pdf] parser` reads
-every page once, its tables and text lines are saved as `cache/bank/<sha256>.json` (a second ingest of the same bytes
-never calls the parser; `bank_statements.parse_path` and the rows' page + row trace to it), and the same profile reads
+every page once, its tables and text lines are saved as `cache/bank/<company>/<sha256>.json` (with each account number as its
+token, also a number a later statement makes known; a saved parse holding a token the company does not know is E818; `fin delete` removes the folder; a second ingest of the same bytes, or one after a failed load, never calls the parser; `bank_statements.parse_path` and the rows' page + row trace to it), and the same profile reads
 the saved parse (a table with the profile's header starts the transactions, a headerless table of the same width
 continues them). Tables `bank_statements` (one per file: bank, account, currency, period, opening and closing
 balance with where each came from, totals, `ties`, reader, parse path) and `bank_lines` (sheet or page, row, date,
 remarks and reference as filed, debit, credit, balance), money in the account's own
-currency. The period of `source_files` is the engagement period (or the stub) holding all the statement's dates
+currency. The account number is masked (the client, 2026-11-27; `diligence/bank_mask.py`): it is stored once in
+`mask_values` (kind `bank_account`) and `bank_statements`, `bank_lines`, findings, `fin` output, logs, saved parses,
+exports and reports carry its token `ACCT-0001`; the same number gets the same token in every file, so the statements of
+one account still chain. A known account number in remarks or reference (a transfer between the company's own
+accounts) is its token too, also in the lines loaded before that account was. A statement no profile reads (E807)
+lists its title lines with every run of nine or more digits shown as "[number not shown]". Only `fin query export` writes the real
+number, for the accountant. The original file in the archive, the PDF and its evidence crops show the number as filed,
+and so does a file name that contains it. Bank statements loaded before this change hold the number: re-ingest them
+(`fin delete <co>`, then load again; that also removes their saved parses). The period of `source_files` is the engagement period (or the stub) holding all the statement's dates
 (E808 across a year end); bank files are never superseded (the same bytes again are E105). A statement whose opening
 + credits − debits is not its closing balance is a finding (`bank_tie`, rows kept as filed); `diligence/bank_checks.py`
 records `bank_overlap` and `bank_balance_gap` findings across the statements of one account after every load. G1 adds
@@ -856,9 +872,11 @@ inquiry_topics` (revenue_recognition, cut_off, mis_kpi, accounting_policies, cap
 contingencies, other; E910 otherwise). It is a row of `accountant_queries` (origin `manual`, amount empty) plus a row of
 `inquiries` (`db/schema/fdd_inquiries.sql`, refused by `fin sql --write`, E806), so approve, sent, answer, close and withdraw,
 the draft check of gate G2 and `fin query export` (email, workbook, brief: the topic in the title, no amount line) work as for
-every query; `fin query list` shows `inquiry: <topic>`. `templates/fdd/inquiries.toml` is the standard checklist per topic;
-`fin query checklist <co> [--json]` prints each topic with its inquiries, their status and answers, and for a topic with no
-active inquiry (none, or only withdrawn) the standard questions, which Claude adapts and drafts; fin raises nothing itself. The FDD
+every query; `fin query list` shows `inquiry: <topic>`. `templates/fdd/inquiries.toml` is the standard checklist per topic; a
+`templates/inquiries.toml` in the data folder (the user's own list, same format and checks, E910; the client, 2026-11-27) is used
+instead when present, and is never committed. `fin query checklist <co> [--json]` first names the list it read, then prints each
+topic with its inquiries, their status and answers, and for a topic with no active inquiry (none, or only withdrawn) the list's
+questions (none for a topic the list leaves out), which Claude adapts and drafts; fin raises nothing itself. The FDD
 report (F8) reads this through `fin.diligence.inquiries.collect(con, engagement_id, topics)`.
 
 FDD orderbook and revenue visibility (F7, `docs/fdd.md`, decisions in `docs/decisions/fdd-f7.md`). `fin ingest <co> <file> --kind orderbook`
@@ -866,7 +884,14 @@ FDD orderbook and revenue visibility (F7, `docs/fdd.md`, decisions in `docs/deci
 registers' token for the same customer), order number, order date, value, currency, start, end and billed to date, as at the date in the title
 line ("Orderbook as at 31-Mar-2025"), which must be in an annual period or the stub (E808); `orderbook_lines`, with file + sheet!row. A row with
 no customer, order number or value, or a bad date, is E960 and nothing loads; a blank billed cell is NULL (counted as not billed, listed). Orders
-in a currency other than INR are loaded but have no rupee amount ("not converted"). `fin sql --write` refuses `orderbook_lines` (E806).
+in a currency other than INR are loaded with no rupee amount ("not converted (no rate stated as at <date>)") until the user states a rate:
+`fin engagement rate <co> USD 84.10 --as-at 2025-03-31` (`fin/diligence/rates.py`, the client, 2026-11-27; table `engagement_rates`, E962 for
+a currency, rate or date that cannot be stored) stores rupees per unit for the open engagement, appended with who stated it to
+`engagement_rates` and to the audit table `diligence_events` (kind `rate`); `fin engagement rate <co>` lists the rates in use. A rate applies
+to the orders in its currency of an orderbook as at the same date (view `orderbook_valued`): value and unbilled value times the rate, rounded
+to the paisa, noted "USD converted at <rate> as at <date> (rate stated by the user, #<id>)" in the backlog and the orderbook reconciliation.
+Stating a rate again for the same currency and date replaces it from then on. fin never fetches or assumes a rate.
+`fin sql --write` refuses `orderbook_lines` and `engagement_rates` (E806).
 `fin visibility <co> [--json]` (`fin/reconcile/visibility.py`, view `revenue_visibility` over `backlog_lines`; E961 when no source is loaded)
 shows for the 12 months after the last annual period's end, for each of three sources, the items, what is still to come and the part that falls in
 that year (straight-line by day over the remaining term), with that part as a percentage of the last period's core revenue: the unbilled
@@ -1027,7 +1052,7 @@ table and no `[dataroom]` table in config.toml: re-create it with `uv run fin in
 
 Who took an action is passed in by the interface, never read deeper down: the web UI passes `user`; the CLI passes
 `ai:claude` when Claude Code runs it (`CLAUDECODE` is set) and `user` otherwise (`fin.actor`). It is stored as `user`
-or `ai:<provider>`: `mapping_decisions.actor` (proposals are always `ai:claude`; `on_request` is true when an AI
+or `ai:<provider>`: `mapping_decisions.actor`, `engagement_rates.actor` (proposals are always `ai:claude`; `on_request` is true when an AI
 confirmed, edited or rejected because the user asked), the `actor` argument of every decision's run, and `read_by` of
 what an AI read (`ai:claude`: facts from a reading, contracts, walkthroughs, disclosures). Status, eval counts, evidence
 and the listings test the `ai:` prefix, and output names `ai:claude` "Claude". Data loaded by an earlier fin stored

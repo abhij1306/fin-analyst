@@ -3,7 +3,8 @@
 -- link. Every row keeps its lineage: the file (sha256, archive path) and sheet + row.
 -- Masked names (the client's instruction, docs/decisions/masking.md): the registers' customer, vendor, handler and
 -- submitted-by, the orderbook's customer and payroll's employee name and code are stored as tokens (CUST-0001,
--- VEND-0001, USER-0001, EMP-0001, ECODE-0001); the books and bank statements keep names as filed. mask_values holds
+-- VEND-0001, USER-0001, EMP-0001, ECODE-0001), and a bank statement's account number too (ACCT-0001, the client,
+-- 2026-11-27: bank_statements, bank_lines); the books and bank text keep names as filed. mask_values holds
 -- the real values and is never printed (`fin sql` refuses to read it, E810).
 
 CREATE SEQUENCE source_files_seq START 1;
@@ -39,15 +40,16 @@ CREATE TABLE source_files (
 );
 
 -- The real value behind each token, stored once per kind: the same name gets the same token in every file.
--- kind: customer, vendor, user, employee_name or employee_code. match_key: the value in lower case with spaces
--- collapsed; a ledger or a bank line naming a customer or vendor is matched to its token by it (party matching).
--- real_value is read only by the accountant export (D8); never printed.
+-- kind: customer, vendor, user, employee_name, employee_code or bank_account. match_key: the value in lower case with
+-- spaces collapsed; a ledger or a bank line naming a customer or vendor is matched to its token by it (party matching).
+-- real_value is read only by the accountant export (D8); never printed. first_file_id: the file whose load made it;
+-- NULL for a bank account number masked when its PDF's parse was saved (fin.diligence.bank_mask), before any load.
 CREATE TABLE mask_values (
     token VARCHAR PRIMARY KEY,
     kind VARCHAR NOT NULL,
     real_value VARCHAR NOT NULL,
     match_key VARCHAR NOT NULL,
-    first_file_id INTEGER NOT NULL,
+    first_file_id INTEGER,
     run_id VARCHAR NOT NULL,
     UNIQUE (kind, match_key)
 );
@@ -167,7 +169,7 @@ CREATE TABLE register_lines (
 -- first row's balance minus its movement and its last row's balance ('rows'). ties: opening + credits - debits =
 -- closing; a statement that does not tie has an open finding (check_name 'bank_tie') and stays as filed. Money is in
 -- the account's own currency (INR or USD). reader: 'excel', or the PDF add-on that read it (docling, liteparse,
--- llamaparse); parse_path: the saved parse of a PDF (cache/bank/<sha256>.json, relative to the data folder).
+-- llamaparse); parse_path: the saved parse of a PDF (cache/bank/<company>/<sha256>.json, relative to the data folder).
 CREATE TABLE bank_statements (
     file_id INTEGER PRIMARY KEY,
     bank VARCHAR NOT NULL,
@@ -274,7 +276,7 @@ CREATE TABLE recon_runs (
     input_hash VARCHAR NOT NULL,
     unmapped INTEGER NOT NULL,
     as_of DATE,  -- bank_vs_invoices: the period's last day, the date open invoices are aged to
-    due_days INTEGER,  -- bank_vs_invoices: invoice_due_days from config.toml at the run
+    due_days INTEGER,  -- bank_vs_invoices: the engagement's invoice_due_days (credit terms) at the run
     run_id VARCHAR NOT NULL,
     created_at TIMESTAMP NOT NULL
 );

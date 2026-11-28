@@ -16,7 +16,7 @@ from fin.evals.score import run_eval
 from tests.bank_fixtures import CLOSING, write_statement
 from tests.engagement_root import engagement_root
 
-ACCOUNT = "123456789012"
+ACCOUNT = "ACCT-0001"  # the account number's token (SPEC-17 item 1)
 
 
 @pytest.fixture

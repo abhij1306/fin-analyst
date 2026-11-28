@@ -15,6 +15,10 @@ class RawRow:
     cells: dict[str, Any]  # field -> cell value (text for a PDF)
 
 
+# A PDF parse: page number -> {"tables": [grid of text], "texts": [lines]}.
+Pages = dict[str, dict[str, Any]]
+
+
 @dataclass(frozen=True)
 class Raw:
     profile: Profile
