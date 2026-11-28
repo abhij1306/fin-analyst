@@ -126,7 +126,7 @@ def test_the_reconciliation_counts_a_converted_order(root: Path) -> None:
     ("currency", "rate", "as_at"),
     [("INR", "1", "2025-03-31"), ("US", RATE, "2025-03-31"), ("USD", "0", "2025-03-31"),
      ("USD", "84.1234567", "2025-03-31"), ("USD", "abc", "2025-03-31"),
-     ("USD", RATE, "31-03-2025")],
+     ("USD", RATE, "31-03-2025"), ("USD", RATE, "2025-W13-1"), ("USD", RATE, "20250331")],
 )  # fmt: skip
 def test_a_rate_that_cannot_be_stored_is_refused(
     root: Path, currency: str, rate: str, as_at: str

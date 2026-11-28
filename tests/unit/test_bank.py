@@ -318,7 +318,7 @@ def test_a_pdf_needs_a_pdf_parser(root: Path, tmp_path: Path) -> None:
 
 
 def save_parse(root: Path, pdf: Path, *, misread: bool = False) -> Path:
-    saved = bank_pdf.saved_parse(root, sha256_of(pdf))
+    saved = bank_pdf.saved_parse(root, "acme", sha256_of(pdf))
     saved.parent.mkdir(parents=True, exist_ok=True)
     saved.write_text(recorded_parse(sha256_of(pdf), misread=misread), encoding="utf-8")
     return saved
@@ -336,7 +336,7 @@ def test_a_pdf_statement_loads_from_its_saved_parse_with_page_lineage(
     assert "ties" in lines[1]
     assert rows(
         root,
-        "SELECT bank, account, reader, parse_path LIKE 'cache/bank/%.json', ties, line_count "
+        "SELECT bank, account, reader, parse_path LIKE 'cache/bank/acme/%.json', ties, line_count "
         "FROM bank_statements",
     ) == [("Axis", "ACCT-0001", "liteparse", True, True, 4)]
     assert rows(
@@ -356,7 +356,7 @@ def test_a_pdf_statement_loads_from_its_saved_parse_with_page_lineage(
 
 def test_a_saved_parse_with_no_table_says_how_to_parse_again(root: Path, tmp_path: Path) -> None:
     pdf = write_bank_pdf(tmp_path / "s.pdf", "no table")
-    saved = bank_pdf.saved_parse(root, sha256_of(pdf))
+    saved = bank_pdf.saved_parse(root, "acme", sha256_of(pdf))
     saved.parent.mkdir(parents=True, exist_ok=True)
     empty = {"1": {"tables": [], "texts": ["Axis Bank"]}}
     saved.write_text(json.dumps({"engine": "liteparse", "sha256": "x", "pages": empty}))
@@ -402,13 +402,13 @@ def test_a_pdf_is_parsed_once_per_sha256(
     config = dataclasses.replace(load_config(root), pdf_parser="liteparse")
     run = Run("ingest", {}, root)
 
-    masking = (company_db_path(root, "acme"), profiles_for("bank"))
+    masking = ("acme", profiles_for("bank"))
     first, path = bank_pdf.read_parse(run, config, pdf, sha256_of(pdf), masking)
     second, _ = bank_pdf.read_parse(run, config, pdf, sha256_of(pdf), masking)
 
     assert calls == [1]
     assert first == second  # the saved tokens read back as the numbers, in memory
-    assert path.startswith("cache/bank/")
+    assert path.startswith("cache/bank/acme/")
     saved = (root / path).read_text(encoding="utf-8")
     assert json.loads(saved)["engine"] == "liteparse"
     assert "917020012345678" not in saved
@@ -447,4 +447,4 @@ def test_llamaparse_without_a_key_raises_and_loads_nothing(
     with pytest.raises(PdfAddonFailed, match="LLAMA_CLOUD_API_KEY"):
         load(root, pdf, parser="llamaparse")
     assert rows(root, "SELECT count(*) FROM source_files") == [(0,)]
-    assert not bank_pdf.saved_parse(root, sha256_of(pdf)).exists()
+    assert not bank_pdf.saved_parse(root, "acme", sha256_of(pdf)).exists()

@@ -448,8 +448,8 @@ class BankHeaderMissing(FinError):
 
 
 class BankParseUnreadable(FinError):
-    """E818. The saved parse of a bank PDF (`cache/bank/<sha256>.json`) cannot be read. Nothing
-    loaded; delete the file to parse the PDF again."""
+    """E818. The saved parse of a bank PDF (`cache/bank/<company>/<sha256>.json`) cannot be read,
+    or holds a token the company has no number for. Nothing loaded; delete it to parse again."""
 
     code = "E818"
 

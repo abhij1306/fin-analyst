@@ -118,6 +118,7 @@ def test_delete_removes_exports_evals_and_cached_parses_and_backs_them_up(
         root / "evals/kestrel/golden.csv",
         root / f"cache/bank/{sha}.json",
         root / f"cache/llamaparse/{sha}-p1.json",
+        root / "cache/bank/kestrel/abcd.json",  # a bank parse holds the company's tokens
     ]
     other = root / "cache/bank/ffff.json"
     for path in [*kept, other]:

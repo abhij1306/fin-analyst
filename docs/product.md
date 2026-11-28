@@ -804,8 +804,8 @@ Bank statements (D3, bank; decisions in `docs/decisions/d3-bank.md`): `fin inges
 `bank_axis` (kind `bank`: the table's columns, `bank`, default `currency`, and `[header]` regular expressions for the
 account, currency, opening and closing balance in the lines around the table) read INR and USD accounts alike; an
 Excel file is read by `extract/ledger.read_table`, a PDF by `diligence/bank_pdf.py`: the chosen `[pdf] parser` reads
-every page once, its tables and text lines are saved as `cache/bank/<sha256>.json` (with each account number as its
-token; a second ingest of the same bytes, or one after a failed load, never calls the parser; `bank_statements.parse_path` and the rows' page + row trace to it), and the same profile reads
+every page once, its tables and text lines are saved as `cache/bank/<company>/<sha256>.json` (with each account number as its
+token, also a number a later statement makes known; a saved parse holding a token the company does not know is E818; `fin delete` removes the folder; a second ingest of the same bytes, or one after a failed load, never calls the parser; `bank_statements.parse_path` and the rows' page + row trace to it), and the same profile reads
 the saved parse (a table with the profile's header starts the transactions, a headerless table of the same width
 continues them). Tables `bank_statements` (one per file: bank, account, currency, period, opening and closing
 balance with where each came from, totals, `ties`, reader, parse path) and `bank_lines` (sheet or page, row, date,

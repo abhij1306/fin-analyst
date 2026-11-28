@@ -23,8 +23,8 @@ findings. Any error rolls it back. Raises E101-E105, E204, E206, E803, E807, E80
 
 The account number is masked in that transaction (`mask_statement`, `fin.diligence.bank_mask`):
 `bank_statements`, `bank_lines`, findings and the summary carry its token (`ACCT-0001`), and
-every known account number in remarks and reference, of this file and those loaded before, is
-replaced by its token.
+every known account number in remarks and reference, of this file and those loaded before (in
+`bank_lines` and in the saved parses of the company's PDFs), is replaced by its token.
 """
 
 import re
@@ -39,7 +39,7 @@ from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, transaction
 from fin.diligence import bank_checks, bank_pdf
-from fin.diligence.bank_mask import hide_numbers, mask_text, remask_lines
+from fin.diligence.bank_mask import hide_numbers, mask_text, remask_lines, remask_parses
 from fin.diligence.bank_raw import Raw, RawRow
 from fin.diligence.engagement import require_open
 from fin.diligence.loading import (
@@ -306,7 +306,7 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
         require_open(con, company)
         refuse_duplicate(con, name, sha256)
     if path.suffix.lower() == ".pdf":
-        raw = bank_pdf.read_pdf(run, config, path, sha256, profile, db)
+        raw = bank_pdf.read_pdf(run, config, path, sha256, profile, company)
     else:
         raw = excel_raw(path, profile)
     st = read_statement(raw, name)
@@ -328,11 +328,18 @@ def ingest_bank(run: Run, config: Config, company: str, path: Path, profile: str
         st, tokens = mask_statement(st, masker)
         remask_lines(con, tokens)  # an account named in the lines of an earlier statement
         _insert(run, con, st, file_id, raw)
+        parses = [
+            p
+            for (p,) in con.execute(
+                "SELECT parse_path FROM bank_statements WHERE parse_path IS NOT NULL"
+            ).fetchall()
+        ]
         found = tie_findings(st, name)
         record(
             run, company, con, found, "file_id = ? AND check_name = 'bank_tie'", [file_id], file_id
         )
         checked = bank_checks.record_all(run, company, con, engagement["engagement_id"])
+    remask_parses(run.root, parses, tokens)  # after the commit: tokens the database keeps
     head = (
         f"loaded as source file_id {file_id} (bank {period}, profile {st.profile.name}, read by "
         f"{raw.reader})"

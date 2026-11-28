@@ -4,6 +4,7 @@ Removed, relative to the data folder:
 - `companies/<company>.duckdb` (and its `.wal`)
 - `inbox/<company>/`, `archive/<company>/`, `review/<company>/`, `notes/<company>/`,
   `reports/<company>/`, `exports/<company>/`, `evals/<company>/`
+- `cache/bank/<company>/`, the saved parses of its bank PDFs (they hold its account tokens)
 - the saved PDF parses of the company's files (`cache/<engine>/<sha256>...`, found through the
   sha256 of its documents and source files; not those of a file another company loaded too)
 - the evidence pages of the company's queries (`evidence/<query_id>.html` and its crops folder),
@@ -53,6 +54,7 @@ def company_paths(root: Path, company: str) -> list[Path]:
         reports_dir(root, company),
         exports_dir(root, company),
         company_evals_dir(root, company),
+        root / "cache" / "bank" / company,  # saved bank parses hold the company's tokens
         *_cache_files(root, company),
     ]
     with connect(audit_db_path(root)) as con:

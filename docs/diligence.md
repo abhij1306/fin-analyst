@@ -591,7 +591,7 @@ this file.
   `bank_lines`, each row with its file and sheet!row (Excel) or page and row (PDF). Remarks and reference are stored
   as filed. A statement covers part of one period of the engagement (it must not cross
   a year end, E808). A PDF is read by the PDF add-on you chose (`fin parser use`; E816 when there is none): its
-  tables are saved in the data folder as `cache/bank/<sha256>.json`, so the same file is never parsed twice and
+  tables are saved in the data folder as `cache/bank/<company>/<sha256>.json`, so the same file is never parsed twice and
   every row traces to that parse. LlamaParse uploads the pages to its cloud and needs `LLAMA_CLOUD_API_KEY` in
   the environment (a missing key or a failed call is E206; nothing loaded); use Docling or LiteParse for statements
   that must not leave your Mac. A statement whose opening + credits − debits is not its closing balance is a

@@ -22,13 +22,16 @@ Builder's readings ([README](README.md)); the owner confirms or changes them.
 - **How to change it:** `mask.py: Masker.token`.
 
 ### The saved parse of a PDF
-- **Decision:** `cache/bank/<sha256>.json` is written with tokens. The numbers are found with the bank profiles' account
+- **Decision:** `cache/bank/<company>/<sha256>.json` is written with tokens. It is kept per company (a token means
+  something only in its company's `mask_values`) and `fin delete` removes the folder, also the parses of failed loads; a
+  saved parse holding a token the company has no number for is refused (E818) rather than read with another account's
+  number. A number a later statement makes known is replaced in the earlier saved parses too, after the load commits. The numbers are found with the bank profiles' account
   patterns and made tokens in their own short transaction just before the parse is saved, so a load that fails later
   (E808, for example) still leaves a saved parse fin can read again without calling the parser. Such a token has no
   `first_file_id` (NULL): it was made from a saved parse, before any file loaded.
 - **Why:** the spec asks that the saved parse hold the token; parsing again after every failed load would cost a
   LlamaParse call each time.
-- **How to change it:** `bank_pdf.py: read_parse`, `bank_mask.py: mask_parse, unmask_parse`.
+- **How to change it:** `bank_pdf.py: read_parse`, `bank_mask.py: mask_parse, unmask_parse, remask_parses`.
 
 ### What still shows the number
 - **Decision:** the original file (archive, inbox), a PDF evidence crop, and a file name that contains the number show it

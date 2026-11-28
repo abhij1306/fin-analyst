@@ -8,13 +8,14 @@ is found by the bank profiles' `[header] account` pattern; wherever that number 
 whole number (another statement's remarks or reference: a transfer between the company's own
 accounts), it is replaced by its token too.
 
-The saved parse of a bank PDF (`cache/bank/<sha256>.json`) is written with tokens
+The saved parse of a bank PDF (`cache/bank/<company>/<sha256>.json`) is written with tokens
 (`mask_parse`, before it is saved, in its own short transaction: the token outlives a load that
 fails afterwards, so the saved parse can be read again); reading it turns the tokens back into the
 numbers in memory only (`unmask_parse`), so the profile's pattern finds the account. The original
 file in the archive and its evidence crops show the number as filed.
 """
 
+import json
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -22,6 +23,7 @@ from typing import Any
 
 import duckdb
 
+from fin.audit.errors import BankParseUnreadable
 from fin.audit.logger import Run
 from fin.db.conn import connect, transaction
 from fin.diligence.bank_raw import Pages
@@ -69,25 +71,46 @@ def numbers_in(pages: Pages, profiles: list[Profile]) -> set[str]:
 
 def mask_parse(run: Run, db: Path, pages: Pages, profiles: list[Profile]) -> Pages:
     """The parse as it is saved: each account number found made a token (stored in `mask_values`
-    in one transaction) and replaced by it."""
-    numbers = numbers_in(pages, profiles)
-    if not numbers:
-        return pages
+    in one transaction), and every known account number replaced by its token."""
     with connect(db, write=True) as con, transaction(con):
         masker = Masker(con, run.run_id)
-        tokens = {n: masker.token(ACCOUNT, n) for n in sorted(numbers)}
+        for number in sorted(numbers_in(pages, profiles)):
+            masker.token(ACCOUNT, number)
+        tokens = masker.accounts()
     return _map_pages(pages, lambda text: mask_text(text, tokens))
 
 
-def unmask_parse(db: Path, pages: Pages) -> Pages:
-    """A saved parse with its tokens as the account numbers again, in memory, to be read."""
+def unmask_parse(db: Path, pages: Pages, where: str) -> Pages:
+    """A saved parse with its tokens as the account numbers again, in memory, to be read. E818
+    when it holds a token the company has no number for (`where`: the file and its saved parse)."""
     with connect(db) as con:
         numbers = {token: key for key, token in Masker(con, "").accounts().items()}
+    unknown: set[str] = set()
 
     def real(text: str) -> str:
+        for token in TOKEN.findall(text):
+            if token not in numbers:
+                unknown.add(token)
         return TOKEN.sub(lambda m: numbers.get(m.group(0), m.group(0)), text)
 
-    return _map_pages(pages, real)
+    out = _map_pages(pages, real)
+    if unknown:
+        raise BankParseUnreadable(
+            f"{where} holds {', '.join(sorted(unknown))}, which this company has no account "
+            "number for; delete the saved parse to parse the PDF again. Nothing loaded"
+        ).with_context(tokens=sorted(unknown))
+    return out
+
+
+def remask_parses(root: Path, paths: list[str], tokens: dict[str, str]) -> None:
+    """Replace every known account number in the company's saved parses (`paths`, relative to
+    the data folder): a number in an earlier statement's lines masked by a later load."""
+    for rel in paths:
+        saved = root / rel
+        data = json.loads(saved.read_text(encoding="utf-8"))
+        masked = data | {"pages": _map_pages(data["pages"], lambda t: mask_text(t, tokens))}
+        if masked != data:
+            saved.write_text(json.dumps(masked), encoding="utf-8")
 
 
 def hide_numbers(text: str) -> str:

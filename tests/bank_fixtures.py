@@ -172,7 +172,7 @@ def write_bank_pdf(path: Path, tag: str = "") -> Path:
 
 
 def recorded_parse(sha256: str, *, misread: bool = False) -> str:
-    """The saved parse (`cache/bank/<sha256>.json`) as JSON."""
+    """The saved parse (`cache/bank/<company>/<sha256>.json`) as JSON."""
     return json.dumps(
         {"engine": "liteparse", "sha256": sha256, "pages": pdf_pages(misread=misread)}
     )

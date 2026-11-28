@@ -169,7 +169,7 @@ CREATE TABLE register_lines (
 -- first row's balance minus its movement and its last row's balance ('rows'). ties: opening + credits - debits =
 -- closing; a statement that does not tie has an open finding (check_name 'bank_tie') and stays as filed. Money is in
 -- the account's own currency (INR or USD). reader: 'excel', or the PDF add-on that read it (docling, liteparse,
--- llamaparse); parse_path: the saved parse of a PDF (cache/bank/<sha256>.json, relative to the data folder).
+-- llamaparse); parse_path: the saved parse of a PDF (cache/bank/<company>/<sha256>.json, relative to the data folder).
 CREATE TABLE bank_statements (
     file_id INTEGER PRIMARY KEY,
     bank VARCHAR NOT NULL,

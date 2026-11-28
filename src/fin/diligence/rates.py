@@ -23,6 +23,7 @@ from fin.diligence.engagement import company_database, require_open
 from fin.map.review import _current_actor
 
 CURRENCY = re.compile(r"^[A-Z]{3}$")
+ISO_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # fromisoformat also takes 2025-W13-1 and 20250331
 RATE_LIMIT = Decimal(10) ** 14  # engagement_rates.rate is DECIMAL(20,6)
 
 
@@ -46,6 +47,8 @@ def parse_rate(currency: str, rate: str, as_at: str) -> tuple[str, Decimal, date
             "decimals, e.g. 84.10); nothing stored"
         ).with_context(rate=rate)
     try:
+        if not ISO_DAY.match(as_at.strip()):
+            raise ValueError(as_at)
         day = date.fromisoformat(as_at.strip())
     except ValueError as exc:
         raise RateInvalid(

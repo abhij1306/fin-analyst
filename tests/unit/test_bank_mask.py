@@ -5,19 +5,21 @@ known number in bank text is masked whichever statement loads first; an account 
 kind."""
 
 import dataclasses
+import json
 from pathlib import Path
 from typing import Any
 
 import duckdb
 import pytest
 
-from fin.audit.errors import SourcePeriodInvalid
+from fin.audit.errors import BankParseUnreadable, SourcePeriodInvalid
 from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
 from fin.db.conn import connect, transaction, utcnow
 from fin.db.schema import ensure_database
 from fin.diligence.bank import ingest_bank
-from fin.diligence.bank_mask import hide_numbers, mask_text, numbers_in
+from fin.diligence.bank_mask import hide_numbers, mask_text, numbers_in, remask_parses
+from fin.diligence.bank_pdf import saved_parse
 from fin.diligence.mask import ACCOUNT, Masker
 from fin.extract import fallback
 from fin.extract.profiles import profiles_for
@@ -146,7 +148,7 @@ def test_a_saved_parse_holds_tokens_and_outlives_a_failed_load(
         con.execute("UPDATE engagement SET periods = 'FY24'")
     with pytest.raises(SourcePeriodInvalid):
         load(root, pdf, parser="liteparse")
-    saved = (root / "cache" / "bank" / f"{sha256_of(pdf)}.json").read_text(encoding="utf-8")
+    saved = saved_parse(root, "acme", sha256_of(pdf)).read_text(encoding="utf-8")
     assert PDF_ACCOUNT not in saved
     assert "ACCT-0001" in saved
 
@@ -159,6 +161,39 @@ def test_a_saved_parse_holds_tokens_and_outlives_a_failed_load(
     assert rows(root, "SELECT first_file_id, account FROM mask_values, bank_statements") == [
         (None, "ACCT-0001")
     ]
+
+
+def test_a_number_masked_later_is_masked_in_an_earlier_saved_parse(root: Path) -> None:
+    saved = saved_parse(root, "acme", "abcd")
+    saved.parent.mkdir(parents=True)
+    page = {"tables": [[["05/04/2024", f"TRF TO {SECOND}", "500.00"]]], "texts": ["A/c ACCT-0001"]}
+    saved.write_text(json.dumps({"engine": "liteparse", "pages": {"1": page}}), encoding="utf-8")
+
+    remask_parses(root, [saved.relative_to(root).as_posix()], {SECOND: "ACCT-0002"})
+
+    text = saved.read_text(encoding="utf-8")
+    assert SECOND not in text
+    assert "TRF TO ACCT-0002" in text
+    assert "A/c ACCT-0001" in text
+
+
+def test_a_saved_parse_with_a_token_the_company_does_not_know_is_refused(
+    root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # e.g. a parse left by a failed load of a company deleted since: its token would name
+    # another account in the new database
+    calls: list[int] = []
+    monkeypatch.setitem(fallback.ENGINES, "liteparse", fake_engine(calls))
+    pdf = write_bank_pdf(tmp_path / "s.pdf")
+    saved = saved_parse(root, "acme", sha256_of(pdf))
+    saved.parent.mkdir(parents=True)
+    pages = json.loads(json.dumps(pdf_pages()).replace(PDF_ACCOUNT, "ACCT-0007"))
+    saved.write_text(json.dumps({"engine": "liteparse", "pages": pages}), encoding="utf-8")
+
+    with pytest.raises(BankParseUnreadable, match="ACCT-0007"):
+        load(root, pdf, parser="liteparse")
+    assert calls == []
+    assert rows(root, "SELECT count(*) FROM bank_statements") == [(0,)]
 
 
 def test_an_account_number_is_its_own_kind(root: Path) -> None:

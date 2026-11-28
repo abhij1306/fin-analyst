@@ -2,11 +2,13 @@
 
 The statement's pages go to the engine in `[pdf] parser` (Docling or LiteParse on this Mac,
 LlamaParse in the cloud: README, "Install"), every page, once per file: its tables (grids of
-text) and text lines are saved in the data folder as `cache/bank/<sha256>.json`, keyed by the
-file's sha256, with each account number as its token (`fin.diligence.bank_mask`). Ingesting
-the same file again, or after a failed load, reads that saved parse and calls the engine no more;
-every loaded row traces to it (`bank_statements.parse_path`; `bank_lines` page and row). Delete
-the file to parse again. LlamaParse's key comes only from the environment
+text) and text lines are saved in the data folder as `cache/bank/<company>/<sha256>.json`,
+keyed by the company and the file's sha256, with each account number as the company's token
+(`fin.diligence.bank_mask`). Ingesting the same file again, or after a failed load, reads that
+saved parse and calls the engine no more; every loaded row traces to it
+(`bank_statements.parse_path`; `bank_lines` page and row). Delete the file to parse again; a
+saved parse holding a token the company has no number for is E818. LlamaParse's key comes only
+from the environment
 (`fin.extract.llamaparse_run`); a missing key or a failed call raises E206 and nothing is loaded.
 
 `rows_of` reads the saved parse with a bank profile, the same profiles as the Excel statements:
@@ -35,24 +37,26 @@ from fin.extract.addon import Request, page_count
 from fin.extract.fallback import cache_dir, engine
 from fin.extract.ledger import is_data, parse_date
 from fin.extract.profiles import Profile, load_profile, norm, profiles_for
+from fin.paths import company_db_path
 
 HEADER_SEARCH_ROWS = 8  # a table's column header is looked for in its first rows
 SHOWN_ROWS = 12  # header lines listed when no profile matches
 
 
-def saved_parse(root: Path, sha256: str) -> Path:
-    return root / "cache" / "bank" / f"{sha256}.json"
+def saved_parse(root: Path, company: str, sha256: str) -> Path:
+    return root / "cache" / "bank" / company / f"{sha256}.json"
 
 
 def read_parse(
-    run: Run, config: Config, path: Path, sha256: str, masking: tuple[Path, list[Profile]]
+    run: Run, config: Config, path: Path, sha256: str, masking: tuple[str, list[Profile]]
 ) -> tuple[dict[str, Any], str]:
     """(the parse of the PDF with its account numbers, its path relative to the data folder): the
     saved one (tokens turned back into the numbers in memory), else the engine's, saved with the
     numbers the `profiles` find as tokens. E816 (no add-on, a page not read), E206 (the engine
-    failed), E818. `masking`: (the company database, the bank profiles to find numbers with)."""
-    db, profiles = masking
-    saved = saved_parse(run.root, sha256)
+    failed), E818. `masking`: (the company, the bank profiles to find numbers with)."""
+    company, profiles = masking
+    db = company_db_path(run.root, company)
+    saved = saved_parse(run.root, company, sha256)
     rel = saved.relative_to(run.root).as_posix()
     if saved.is_file():
         try:
@@ -67,7 +71,7 @@ def read_parse(
         run.event(
             "ingest", f"{path.name}: saved parse {rel} used, no parser called", file=path.name
         )
-        return data | {"pages": unmask_parse(db, data["pages"])}, rel
+        return data | {"pages": unmask_parse(db, data["pages"], f"{path.name}: {rel}")}, rel
     chosen = engine(config.pdf_parser)
     if chosen is None:
         raise BankPdfUnreadable(
@@ -216,7 +220,7 @@ def _period(lines: list[str], profile: Profile) -> tuple[Any, Any] | None:
 
 
 def read_pdf(
-    run: Run, config: Config, path: Path, sha256: str, profile_name: str | None, db: Path
+    run: Run, config: Config, path: Path, sha256: str, profile_name: str | None, company: str
 ) -> Raw:
     """A PDF statement as a `Raw` (account numbers as filed, in memory). See the module
     docstring; E807 when no profile of the kind reads the tables (checked first for a profile
@@ -225,7 +229,7 @@ def read_pdf(
     for profile in candidates:
         if profile.kind != "bank":
             raise LayoutUnknown(f"column profile {profile.name!r} reads {profile.kind}, not bank")
-    data, rel = read_parse(run, config, path, sha256, (db, candidates))
+    data, rel = read_parse(run, config, path, sha256, (company, candidates))
     pages: Pages = data["pages"]
     if not any(p["tables"] for p in pages.values()):
         raise BankPdfUnreadable(
