@@ -252,7 +252,8 @@ WHERE CASE d.periods
 -- input comes from (metric_input_accounts.input_period). When a total that has stand-in lines is not reported, its
 -- row has fact_id NULL and the reported lines summed in its place follow (rows with stands_in_for set appear only
 -- then; a line held in another reported line, as cash in cash and bank balances, does not). EBITDA's PBT before exceptional items lists only the lines that period uses (metric_input_accounts
--- exceptional).
+-- exceptional). stated_id is set (fact_id NULL, value the stated value) when the input is a figure the user stated
+-- (current_facts.stated_id).
 CREATE VIEW metric_inputs AS
 WITH wanted AS (
     SELECT
@@ -286,14 +287,15 @@ SELECT
     w.input_period,
     line.fact_id,
     f.doc_id,
-    line.value
+    coalesce(line.value, CASE WHEN f.stated_id IS NOT NULL THEN f.value END) AS value,
+    f.stated_id
 FROM wanted w
 LEFT JOIN current_facts f ON f.scope = w.scope AND f.account = w.account AND f.period = w.input_period
 LEFT JOIN facts line ON list_contains(f.fact_ids, line.fact_id)
 WHERE (
         w.stands_in_for IS NULL
         OR (
-            f.fact_id IS NOT NULL
+            (f.fact_id IS NOT NULL OR f.stated_id IS NOT NULL)
             AND NOT EXISTS (
                 SELECT 1 FROM current_facts t
                 LEFT JOIN stand_ins s ON s.total = w.stands_in_for AND s.account = w.account

@@ -8,6 +8,8 @@ CREATE SEQUENCE documents_seq START 1;
 CREATE SEQUENCE raw_values_seq START 1;
 CREATE SEQUENCE facts_seq START 1;
 CREATE SEQUENCE findings_seq START 1;
+CREATE SEQUENCE stated_figures_seq START 1;
+CREATE SEQUENCE fact_corrections_seq START 1;
 
 -- One row per ingested file. Ingesting the same file again with --force adds a new version and marks the
 -- earlier one 'superseded' (superseded_by = the new doc_id). Its rows stay, so use status = 'loaded'.
@@ -83,6 +85,50 @@ CREATE TABLE facts (
     period VARCHAR,
     period_months INTEGER,
     read_by VARCHAR DEFAULT 'fin'
+);
+
+-- Figures the user states (`fin fact state`, fin.facts): a nil for a line the documents do not have, or a value from a
+-- source fin cannot hold. Not a document's figure: read_by is always 'user', and reason is the user's words (as typed;
+-- not masked). current_facts uses a stated figure only while no loaded document gives the same account, period and
+-- scope; stating one a loaded document gives stores nothing here and records a finding instead. status 'withdrawn'
+-- (`fin fact unstate`) keeps the row with the run and time it was withdrawn. actor (fin.actor) is who ran
+-- `fin fact state`: 'user', or 'ai:<provider>' acting on the user's word; the figure is the user's either way.
+-- period, period_months, period_end and fiscal_year are as in facts. value is in rupees (rupees per share for EPS).
+CREATE TABLE stated_figures (
+    stated_id BIGINT PRIMARY KEY DEFAULT nextval('stated_figures_seq'),
+    account VARCHAR NOT NULL,
+    fiscal_year VARCHAR NOT NULL,
+    period VARCHAR NOT NULL,
+    period_months INTEGER NOT NULL,
+    period_end DATE NOT NULL,
+    scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
+    value DECIMAL(20, 2) NOT NULL,
+    reason VARCHAR NOT NULL,
+    read_by VARCHAR NOT NULL DEFAULT 'user' CHECK (read_by = 'user'),
+    actor VARCHAR NOT NULL CHECK (actor = 'user' OR actor LIKE 'ai:%'),
+    status VARCHAR NOT NULL CHECK (status IN ('stated', 'withdrawn')),
+    run_id VARCHAR NOT NULL,
+    stated_at TIMESTAMP NOT NULL,
+    withdrawn_run_id VARCHAR,
+    withdrawn_at TIMESTAMP
+);
+
+-- Corrections of a figure fin read wrongly (`fin fact correct`, fin.facts): one row per correction, the latest per
+-- fact_id is the one in force. The correction sets facts.value; raw_values keeps the cell or page and the text as
+-- printed, and original_value is facts.value before this correction. A correction is for fin's own misread, never to
+-- make figures tie: inside a diligence engagement a figure under a query or an adjustment is refused (E409). actor
+-- (fin.actor) is 'user', or 'ai:<provider>' with on_request true when an AI ran it on the user's word.
+CREATE TABLE fact_corrections (
+    correction_id BIGINT PRIMARY KEY DEFAULT nextval('fact_corrections_seq'),
+    fact_id BIGINT NOT NULL,
+    doc_id INTEGER NOT NULL,
+    original_value DECIMAL(20, 2) NOT NULL,
+    value DECIMAL(20, 2) NOT NULL,
+    reason VARCHAR NOT NULL,
+    actor VARCHAR NOT NULL CHECK (actor = 'user' OR actor LIKE 'ai:%'),
+    on_request BOOLEAN NOT NULL,
+    run_id VARCHAR NOT NULL,
+    corrected_at TIMESTAMP NOT NULL
 );
 
 -- Notes to accounts and auditor's report sections, as Markdown files in notes/<company>/.

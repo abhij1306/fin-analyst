@@ -545,8 +545,9 @@ this file.
     waiting for review. Once the engagement has a trial balance (or a stub), also: a trial balance and Ledger
     Vouchers for every year and the stub, every trial balance ledger in its Ledger Vouchers, every ledger mapped to
     an account, and each year's `tb_vs_statements` run on the current data with every difference at or above the
-    threshold in a query (the stub is checked against its Ledger Vouchers only). A changed figure (for example a
-    fix with `fin sql --write`), a new source file, a mapping change or a new reconciliation reopens it, and so
+    threshold in a query (the stub is checked against its Ledger Vouchers only). The figures the user stated
+    (`fin fact state`) are listed for the user to see before approving; they do not fail it. A changed figure
+    (for example a re-ingest or a figure the user states), a new source file, a mapping change or a new reconciliation reopens it, and so
     does any change after which its checklist fails. Once a payroll file is loaded, G1 also needs the user to
     have confirmed its unit (`fin payroll confirm-unit`).
   - **G1 and bank statements:** once a bank statement is loaded, also every bank parse ties (opening + credits −

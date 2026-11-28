@@ -16,7 +16,8 @@ fin-analyst health report template (fin.report.render fills it; no code runs in 
 Placeholders:
   {{title}}, {{subtitle}}
   {{narrative:<section>}}  the narrative under that section's heading in narrative.md
-  {{table:<name>}}         summary, findings, coverage, unread, unconfirmed, missing, statements,
+  {{table:<name>}}         summary, findings, coverage, stated, corrected, unread, unconfirmed, missing,
+                           statements,
                            definitions, facts
   {{section:categories}}   one section per metric category with data: heading, narrative, trend
                            table (latest five fiscal years) and a chart
@@ -67,6 +68,21 @@ How many of the figures read from each statement are mapped to a standard accoun
 (or mappings waiting for review) are left out of every metric.
 
 {{table:coverage}}
+
+### Figures the user stated
+
+Figures the user stated rather than a document giving them (`fin fact state`): a nil for a line the
+documents do not have, or a value from another source. A stated figure is used only while no loaded
+document gives the same figure.
+
+{{table:stated}}
+
+### Figures corrected
+
+Figures fin read wrongly from a document, corrected on the user's word (`fin fact correct`). The
+document's cell or page and the value first read are kept.
+
+{{table:corrected}}
 
 ### Pages not read
 

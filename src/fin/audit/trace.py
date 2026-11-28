@@ -18,6 +18,7 @@ from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
 from fin.map.dictionary import load_accounts
 from fin.map.normalize import normalize_label
+from fin.metrics.missing import not_computed
 from fin.paths import audit_db_path, company_db_path, dictionary_db_path
 
 
@@ -46,6 +47,12 @@ def fact_trace(root: Path, company: str, fact_id: int) -> dict[str, Any]:
             "FROM documents WHERE doc_id = ?",
             [fact["doc_id"]],
         )[0]
+        corrections = fetch_dicts(
+            con,
+            "SELECT correction_id, original_value, value, reason, actor, on_request, run_id, "
+            "corrected_at FROM fact_corrections WHERE fact_id = ? ORDER BY correction_id",
+            [fact_id],
+        )
     document["archive_exists"] = (root / document["archive_path"]).is_file()
     # The account's unit: rupees, or rupees_per_share (EPS, stored as printed). Unmapped: rupees.
     unit = load_accounts(root)[fact["account"]].unit if fact["account"] else "rupees"
@@ -55,6 +62,7 @@ def fact_trace(root: Path, company: str, fact_id: int) -> dict[str, Any]:
         | {"unit": unit},
         "raw_value": raw,
         "document": document,
+        "corrections": corrections,
         "mapping": _mapping(root, company, fact["mapping_id"], raw),
         "ingest_run": _ingest_run(root, document["run_id"], f"{company}/{document['file_name']}"),
     }
@@ -124,23 +132,37 @@ def metric_trace(root: Path, company: str, metric: str, fiscal_year: str) -> dic
         )
         inputs = fetch_dicts(
             con,
-            "SELECT scope, account, stands_in_for, input_period AS input_fiscal_year, fact_id "
+            "SELECT scope, account, stands_in_for, input_period AS input_fiscal_year, fact_id, "
+            "stated_id, value "
             "FROM metric_inputs WHERE metric = ? AND period = ? "
             "ORDER BY scope, stands_in_for NULLS FIRST, account, fact_id",
             [metric, fiscal_year],
         )
+        why = {
+            v["scope"]: not_computed(con, company, metric, fiscal_year, v["scope"]) for v in values
+        }
     if not values:
         raise SqlFailed(f"{company} has no metric {metric!r} for {fiscal_year}")
     scopes = []
     for entry in values:
         rows = [
-            {key: row[key] for key in ("account", "stands_in_for", "input_fiscal_year", "fact_id")}
+            {
+                key: row[key]
+                for key in (
+                    "account",
+                    "stands_in_for",
+                    "input_fiscal_year",
+                    "fact_id",
+                    "stated_id",
+                    "value",
+                )
+            }
             # fact_ids start at 1, so a missing input (NULL) is the only one without a trace.
             | {"trace": row["fact_id"] and fact_trace(root, company, row["fact_id"])}
             for row in inputs
             if row["scope"] == entry["scope"]
         ]
-        scopes.append(entry | {"inputs": rows})
+        scopes.append(entry | {"inputs": rows, "not_computed": why[entry["scope"]]})
     return {"company": company, "metric": metric, "fiscal_year": fiscal_year, "scopes": scopes}
 
 
@@ -151,7 +173,15 @@ def format_metric_trace(trace: dict[str, Any]) -> str:
             f"{trace['metric']} {trace['fiscal_year']} {scope['scope']} = {scope['value']} "
             f"({scope['unit']})"
         )
+        if scope["not_computed"]:
+            lines.append(f"  {scope['not_computed']}")
         for item in scope["inputs"]:
+            if item["stated_id"] is not None:
+                lines.append(
+                    f"  {item['account']} {item['input_fiscal_year']}: {item['value']} = stated "
+                    f"by the user (#{item['stated_id']}, `fin fact list`), not from a document"
+                )
+                continue
             if item["trace"] is None:
                 lines.append(f"  {item['account']} {item['input_fiscal_year']}: MISSING (no fact)")
                 continue
@@ -249,6 +279,11 @@ def format_fact_trace(trace: dict[str, Any]) -> str:
         f"ingest run: {run['run_id']} {run.get('command', '')} {run.get('status', '')}",
     ]
     lines += [f"  {e['level']} {e['error_code'] or ''} {e['message']}" for e in run["events"]]
+    lines += [
+        f"corrected #{c['correction_id']}: {c['original_value']} -> {c['value']} by {c['actor']} "
+        f"(run {c['run_id']}, `fin fact correct`): {c['reason']}"
+        for c in trace["corrections"]
+    ]
     label_row = mapping["dictionary"]
     if label_row:
         lines.append(

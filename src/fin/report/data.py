@@ -15,7 +15,8 @@
   read (`documents.unread_pages`), unconfirmed mappings, and missing data: the NULL metrics the
   report shows, with their scope and missing inputs (`_wanted`: every metric of the years shown,
   the quarter table's of the quarters shown, the other scope's summary table, and the narrative's
-  metric references);
+  metric references); the figures the user stated (`stated_now`, fin.facts) with their reasons;
+  and the figures corrected with `fin fact correct` (`corrected_now`) with theirs;
 - customers (a diligence engagement with a sales register): concentration, retention, sector mix and
   price/volume/mix (`fin.report.customers`);
 - peers (optional): the key metrics of other companies for the latest fiscal year all have.
@@ -125,18 +126,31 @@ ORDER BY period_end, period_months DESC
 """
 
 # Every current fact with the cell or page of each line behind it: a value summed from several
-# printed lines (current_facts.fact_ids) lists them all, "sum of N: ...".
+# printed lines (current_facts.fact_ids) lists them all, "sum of N: ..."; a figure the user stated
+# names its id (its reason is in the report's stated figures table), and a line corrected with
+# `fin fact correct` its correction id (the corrected figures table).
 _FACTS_SQL = """
-SELECT cf.scope, cf.account, cf.period, cf.period_months, cf.value, cf.fact_ids, d.file_name,
+SELECT * FROM (
+SELECT cf.scope, cf.account, cf.period, cf.period_months, cf.period_end, cf.value, cf.fact_ids,
+       d.file_name,
        CASE WHEN len(cf.fact_ids) > 1 THEN 'sum of ' || len(cf.fact_ids) || ': ' ELSE '' END
-       || string_agg(source_ref(r.sheet, r.cell, r.page), '; ' ORDER BY f.fact_id) AS source_ref
+       || string_agg(source_ref(r.sheet, r.cell, r.page)
+                     || coalesce(', corrected #' || c.correction_id, ''), '; ' ORDER BY f.fact_id)
+           AS source_ref
 FROM (SELECT *, unnest(fact_ids) AS line_id FROM current_facts WHERE scope = ?) cf
 JOIN facts f ON f.fact_id = cf.line_id
 JOIN raw_values r ON r.raw_id = f.raw_id
 JOIN documents d ON d.doc_id = cf.doc_id
+LEFT JOIN corrected_now c ON c.fact_id = f.fact_id
 GROUP BY cf.scope, cf.account, cf.period, cf.period_months, cf.period_end, cf.value, cf.fact_ids,
          d.file_name
-ORDER BY cf.account, cf.period_end, cf.period_months DESC
+UNION ALL
+SELECT cf.scope, cf.account, cf.period, cf.period_months, cf.period_end, cf.value, cf.fact_ids,
+       'stated by the user', 'stated #' || cf.stated_id || ', reason under Figures the user stated'
+FROM current_facts cf
+WHERE cf.scope = ? AND cf.stated_id IS NOT NULL
+)
+ORDER BY account, period_end, period_months DESC
 """
 
 _SCOPES_SQL = "SELECT DISTINCT scope FROM metrics ORDER BY scope"
@@ -150,7 +164,7 @@ ORDER BY position
 # metrics (`scope metric period` strings: the narrative's references), for the appendix.
 _USED_SQL = """
 SELECT DISTINCT scope, account, input_period FROM metric_inputs
-WHERE fact_id IS NOT NULL AND (list_contains(?, scope || ' ' || period)
+WHERE (fact_id IS NOT NULL OR stated_id IS NOT NULL) AND (list_contains(?, scope || ' ' || period)
     OR list_contains(?, scope || ' ' || metric || ' ' || period))
 """
 
@@ -171,7 +185,7 @@ SELECT m.scope, m.metric, m.period,
        coalesce(nullif(array_to_string(list_sort(list_distinct(
            list(i.account || CASE WHEN i.input_period <> m.period
                                   THEN ' (' || i.input_period || ')' ELSE '' END)
-           FILTER (WHERE i.fact_id IS NULL))), ', '), ''),
+           FILTER (WHERE i.fact_id IS NULL AND i.stated_id IS NULL))), ', '), ''),
            'none (a denominator is zero)') AS missing_inputs
 FROM metrics m
 LEFT JOIN metric_inputs i ON i.metric = m.metric AND i.period = m.period AND i.scope = m.scope
@@ -181,11 +195,13 @@ ORDER BY m.scope <> ?, m.scope, m.period_end, m.period_months DESC, m.metric
 """
 
 _FINDINGS_SQL = """
-SELECT f.status, d.status AS document_status, f.file_name, coalesce(f.code, f.check_name) AS code,
+SELECT f.status, coalesce(d.status, 'stated figure') AS document_status, f.file_name,
+       coalesce(f.code, f.check_name) AS code,
        f.period, f.label, f.fin_value, f.fin_source, f.other_value, f.other_source, f.other_file
 FROM findings f
-JOIN documents d ON d.doc_id = f.doc_id
+LEFT JOIN documents d ON d.doc_id = f.doc_id
 WHERE f.status IN ('open', 'accepted') AND f.scope = ?
+    AND (d.doc_id IS NOT NULL OR f.check_name = 'stated_figure')  -- fin.facts conflicts: no doc_id
 ORDER BY f.status, f.file_name, f.period, f.finding_id
 """
 
@@ -193,6 +209,20 @@ _COVERAGE_SQL = """
 SELECT statement, figures, mapped, mapped_share
 FROM statement_coverage WHERE scope = ?
 ORDER BY array_position(?, statement)
+"""
+
+# Figures the user stated (fin.facts) for this scope, with their reasons.
+_STATED_SQL = """
+SELECT stated_id, account, period, value, reason, in_use FROM stated_now WHERE scope = ?
+ORDER BY account, period_end, period_months DESC, stated_id
+"""
+
+# Figures corrected with `fin fact correct` in loaded documents (fin.facts), for this scope.
+_CORRECTED_SQL = """
+SELECT correction_id, account, period, file_name, source, original_value, value, reason
+FROM corrected_now
+WHERE scope = ? AND doc_id IN (SELECT doc_id FROM documents WHERE status = 'loaded')
+ORDER BY account, period, correction_id
 """
 
 _UNREAD_SQL = """
@@ -214,7 +244,8 @@ def _scope_data(con: Any, scope: str, units: dict[str, str]) -> dict[str, Any]:
         "periods": [p["period"] for p in periods],
         "metrics": metrics,
         "facts": [
-            row | {"unit": units[row["account"]]} for row in fetch_dicts(con, _FACTS_SQL, [scope])
+            row | {"unit": units[row["account"]]}
+            for row in fetch_dicts(con, _FACTS_SQL, [scope, scope])
         ],
     }
 
@@ -391,6 +422,8 @@ def collect(
         missing = fetch_dicts(con, _MISSING_SQL, [_wanted(scope, main, shown, references), scope])
         findings = fetch_dicts(con, _FINDINGS_SQL, [scope])
         coverage = fetch_dicts(con, _COVERAGE_SQL, [scope, list(STATEMENTS)])
+        stated = fetch_dicts(con, _STATED_SQL, [scope])
+        corrected = fetch_dicts(con, _CORRECTED_SQL, [scope])
         customers = customer_analytics(con)
         unread = [
             {"file_name": file_name, **page}
@@ -424,6 +457,8 @@ def collect(
         "missing": missing,
         "findings": findings,
         "coverage": coverage,
+        "stated": stated,
+        "corrected": corrected,
         "unread": unread,
         "peers": _peers(root, company, scope, peers, main, units) if peers else None,
         "customers": customers,

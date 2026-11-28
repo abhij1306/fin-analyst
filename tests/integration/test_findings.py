@@ -9,8 +9,10 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner, Result
 
+from fin.audit.logger import Run
 from fin.cli import app
 from fin.db.conn import connect
+from fin.findings import recheck_held
 from fin.paths import company_db_path
 from fin.status import gaps
 
@@ -107,20 +109,17 @@ def test_accepting_a_finding_that_is_not_open_is_e406(root: Path, samples: Path)
 def test_a_fix_resolves_the_finding_and_loads_the_document(root: Path, samples: Path) -> None:
     fin("ingest", "kestrel", str(samples / "broken" / UNBALANCED))
 
-    # The fixture adds 50 lakh to FY25 trade receivables; take it out of each line it reached.
-    fixed = fin(
-        "sql",
-        "kestrel",
-        "--write",
-        "--sql",
-        "UPDATE facts SET value = value - 5000000 WHERE doc_id = 1 AND period = 'FY25' "
-        "AND account IN ('trade_receivables', 'total_current_assets', 'total_assets')",
-    )
+    # The fixture adds 50 lakh to FY25 trade receivables; take it out of each line it reached
+    # (as a corrected re-ingest would; `fin sql --write` refuses facts, E505).
+    with connect(company_db_path(root, "kestrel"), write=True) as con:
+        con.execute(
+            "UPDATE facts SET value = value - 5000000 WHERE doc_id = 1 AND period = 'FY25' "
+            "AND account IN ('trade_receivables', 'total_current_assets', 'total_assets')"
+        )
 
-    assert fixed.exit_code == 0, fixed.output
-    assert json.loads(fixed.stdout)["held_documents_rechecked"] == [
-        {"doc_id": 1, "file": UNBALANCED, "open": 0, "status": "loaded"}
-    ]
+    rechecked = recheck_held(Run("findings", {}, root), "kestrel")
+
+    assert rechecked == [{"doc_id": 1, "file": UNBALANCED, "open": 0, "status": "loaded"}]
     assert query(root, "kestrel", "SELECT status FROM documents") == [("loaded",)]
     assert query(root, "kestrel", "SELECT code, status FROM findings") == [("E401", "resolved")]
     assert fin("findings", "list", "kestrel").stdout == "no findings\n"
@@ -172,13 +171,8 @@ def test_status_shows_periods_held_findings_pending_read_by_claude_and_inbox(
     inbox.mkdir(parents=True, exist_ok=True)
     shutil.copy(clean / "Bluepeak_Polymers_FY2024-25.xlsx", inbox)  # already ingested
     shutil.copy(clean / "Bluepeak_Polymers_FY2022-23.xlsx", inbox)  # not yet
-    fin(
-        "sql",
-        "bluepeak",
-        "--write",
-        "--sql",
-        "UPDATE facts SET read_by = 'ai:claude' WHERE fact_id <= 2",
-    )
+    with connect(company_db_path(root, "bluepeak"), write=True) as con:
+        con.execute("UPDATE facts SET read_by = 'ai:claude' WHERE fact_id <= 2")
     pending = root / "review" / "kestrel" / "pending.json"
     pending.parent.mkdir(parents=True, exist_ok=True)
     pending.write_text(

@@ -3,8 +3,11 @@
 Every failure path raises a subclass of `FinError`. Each class carries its code and the exit code
 a command returns when the error ends it:
 
-- E0xx (setup, including E006-E008 of the web UI), E5xx (database), E601-E603 (outputs) and E406
-  (accepting a finding that is not open) stop the command: exit 2.
+- E0xx (setup, including E006-E008 of the web UI), E5xx (database), E601-E603 (outputs), E406
+  (accepting a finding that is not open), E407-E408 (a figure the user states that cannot be
+  stated or withdrawn) and E409 (a figure that cannot be corrected) stop the command: exit 2.
+  E505 (`fin sql --write` on facts, raw_values, stated_figures or fact_corrections) is a
+  database error like the other E5xx.
 - E1xx-E3xx are per-document failures and E604 is flagged in the evidence page. The command
   completes and reports them: exit 1.
 - E012 is logged for an exception with no error class (`Run.log_unexpected`); it is not raised.
@@ -260,6 +263,31 @@ class FindingNotOpen(FinError):
     code = "E406"
 
 
+class FigureCannotBeStated(FinError):
+    """E407: `fin fact state`: an account not in the chart of accounts, a period that is not FYnn,
+    FYnn-Q1..Q4, FYnn-H1/H2 or FYnn-9M, a value that is not a number with at most two decimals or is
+    10^16 or more, an empty reason, or a figure already stated for the account, period and scope.
+    Nothing is stated."""
+
+    code = "E407"
+
+
+class StatedFigureUnknown(FinError):
+    """E408: `fin fact unstate` named no stated figure of the company (an unknown id, or one
+    already withdrawn). Nothing is changed."""
+
+    code = "E408"
+
+
+class FigureCannotBeCorrected(FinError):
+    """E409: `fin fact correct`: an unknown fact, a fact of a superseded document, a value that is
+    not a number with at most two decimals or is 10^16 or more, the value the fact already has, an
+    empty reason, or, inside a diligence engagement, a figure under a query or an adjustment (a
+    difference is queried, never fixed). Nothing is corrected."""
+
+    code = "E409"
+
+
 # E5xx: database. Stop the command.
 
 
@@ -284,6 +312,14 @@ class SqlFailed(FinError):
     nothing was changed."""
 
     code = "E504"
+
+
+class FigureTableWrite(FinError):
+    """E505. `fin sql --write` was given a statement other than a SELECT that names facts,
+    raw_values or stated_figures: figures change only by loading documents, mapping their lines
+    (`fin review`) or stating a figure (`fin fact state`). Nothing was run."""
+
+    code = "E505"
 
 
 # E6xx: outputs.

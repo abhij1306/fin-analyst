@@ -311,7 +311,8 @@ claude
 | `fin findings list [co]`, `fin findings accept <co> <ids>` | `/ingest`, `/verify` | Either (accept when the user says save as is) |
 | `fin status [co]` | `/status` | Either |
 | `fin sql <co> --sql "…" [--question] [--evidence]` | `/ask`, `/report` | Either (reads) |
-| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit) |
+| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit; refuses the figure tables, E505) |
+| `fin fact state <co> --account --period --scope --value --reason`, `fin fact unstate <co> <id>`, `fin fact correct <co> <fact_id> --value --reason`, `fin fact list <co> [--json]` | `/ingest` | Either (state or correct only when the user says, in their words) |
 | `fin statements <co> [--period] [--scope] [--json]`, `fin export <co>` | `/statements` | Either |
 | `fin report <co> [--scope] [--peers] [--render]` | `/report` | Either |
 | `fin dashboard [--build]` | `/dashboard` | Either |
@@ -380,7 +381,7 @@ document was loaded with included. Each run on a loaded or held document is reco
 sides); this history replaces the former `facts.verified` flag (a company database made before it lacks the two
 tables and reports E002: re-create the data folder, which the owner accepted on 2026-11-09, or run their `CREATE TABLE`
 statements from `company.sql`). It compares the value fin uses now (`facts.value`, so a figure corrected with
-`fin sql --write` is checked as corrected) with the reading's figure converted to rupees with the reading's own unit
+a re-ingest or a mapping is checked as corrected) with the reading's figure converted to rupees with the reading's own unit
 (EPS as printed), exactly. It works on loaded and held documents alike (on a held document, a reading tells whether
 a finding is a misread). Every disagreement is a finding, not a failure: it is shown to the user, kept with the
 document in the company `findings` table and recorded in `audit.findings` (check `verify_reading`), and it neither
@@ -444,11 +445,13 @@ above) is kept with the document but does not hold it. A failed check (E401-E405
 the company `findings` table (and appended to `audit.findings`); the document is committed but held
 (`documents.status = 'held'`, out of `current_facts` and metrics) until the user decides through Claude: save as
 is (`fin findings accept`: loaded as filed, findings kept as accepted) or have Claude fix it with the existing tools
-(`fin map set` + `fin ingest --force`, `fin review confirm`, `fin sql --write`; held documents are checked again
+(`fin map set` + `fin ingest --force`, `fin review confirm`; held documents are checked again
 after each, and a finding no longer found is resolved). Only nothing readable (E1xx/E2xx) fails a document. Claude
 works without approval prompts: the guard hook is removed; `fin`'s backup and audit log are the safety net.
 `fin status` shows per company the periods loaded and gaps, held documents, findings, pending mappings,
-how many figures were read by Claude and by the PDF add-on (information) and inbox files not yet ingested.
+how many figures were read by Claude and by the PDF add-on (information), how many figures the user stated
+(`fin fact state`, information), how many fin misread and were corrected (`fin fact correct`, information) and
+inbox files not yet ingested.
 
 Unread statement pages (after 1.0.0, not a phase): a primary statement printed in a PDF but not read is never passed
 over in silence. Besides pages skipped for their header or unit (E202/E203), fin reports a titled statement page
@@ -546,8 +549,9 @@ company has no engagement. The views have a row per period in scope and scope (t
 adjustments in those periods, else the company's scopes, else standalone), so a period without data shows with
 NULLs. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): G1 Ingestion
 (every annual period in scope has mapped figures in `current_facts`, what the metrics use, no held documents, no
-mapping items waiting for review; its inputs include the figures, every `current_facts` value by account, period and
-scope, so a changed figure reopens it), G2 Reconciliation (no query in draft, and once a bank statement is loaded `bank_vs_invoices` and `bank_vs_tb` have run on current data with every line at or above the threshold in a query; its inputs are each query's id, wording and whether it is a draft and the latest bank reconciliation runs, so a new or
+mapping items waiting for review; the figures the user stated are listed for the user to see before approving and
+do not fail it, and a stated figure alone does not cover a period; its inputs include the figures, every
+`current_facts` value by account, period and scope, and the stated figures, so a changed or stated figure reopens it), G2 Reconciliation (no query in draft, and once a bank statement is loaded `bank_vs_invoices` and `bank_vs_tb` have run on current data with every line at or above the threshold in a query; its inputs are each query's id, wording and whether it is a draft and the latest bank reconciliation runs, so a new or
 edited query reopens it and sending, answering or closing one does not; unlocks `fin adjust accept|reject`), G4 Adjustments (no
 proposed adjustment, every accepted one has evidence, no FDD proposal waiting for the user: proposed net debt items,
 draft FDD findings, proposed net debt classes, tax classes and related party links (`fin/fdd/gate_checks.py`); its
@@ -1058,6 +1062,57 @@ what an AI read (`ai:claude`: facts from a reading, contracts, walkthroughs, dis
 and the listings test the `ai:` prefix, and output names `ai:claude` "Claude". Data loaded by an earlier fin stored
 `claude` and `human`: re-create the data folder (`fin init`) and re-ingest; an audit database without the `jobs`
 table is refused as older (E002).
+
+### Figures the user states (SPEC-08)
+
+A document can lack a line the metrics need (a P&L with no finance cost line, so EBITDA is not computed). The user
+states the figure; fin never invents one.
+
+- `fin fact state <co> --account A --period P --scope S --value V --reason "..."` (`fin/facts.py`, CLI
+  `cli/facts.py`) stores it in the company table `stated_figures` with `read_by = 'user'` (the figure is the user's),
+  the actor who ran the command (`fin.actor`: `user`, or `ai:claude` from Claude Code on the user's word), the reason
+  as the user typed it (not masked), the run id and the time. The value is rupees with at most two decimals (E407 otherwise, or
+  for an unknown account, scope or period, an empty reason, or a figure already stated for the account, period and
+  scope: withdraw it first). Allowed inside a diligence engagement too (Q3).
+- A stated figure never replaces a document's. When a loaded document already gives the account, period and scope,
+  nothing is stated: a finding is recorded (check `stated_figure`, `document_gives`, with both values and the
+  document's cell), and no figure changes. When a document that gives it is loaded later, the document's figure is
+  used and the stated one stays listed, not in use.
+- `current_facts` adds the stated figures no loaded document gives (`stated_id` set, no `fact_id`), so the metrics,
+  `metric_inputs`, statements and reports use them. The view `stated_now` lists the stated figures and whether each
+  is in use.
+- `fin fact unstate <co> <id>` withdraws one (E408 for an unknown or withdrawn id); `fin fact list <co> [--json]`
+  lists them. Both commands back up the company database, log a run and an `audit.stated_figures` row, and refresh
+  the analytics.
+- Marks: `fin statements` adds "(stated by the user, #id)" to the line and the Excel export a cell comment;
+  `fin sql` gives a row with a `stated_id` the source "stated by the user", the reference "stated #id: reason" and
+  `source_read_by = 'user'`; the evidence page has a section per stated figure with its reason; `fin audit <co>
+  <metric> <period>` names the stated input; the report's data coverage lists them under "Figures the user stated"
+  with their reasons, and its appendix names each by id; gate G1 lists them; `fin status` and the Home screen count
+  them.
+- A metric without a value says why: "EBITDA not computed for FY24 standalone: no finance_cost for FY24. Load a
+  document that has it, or state it (...)" (`fin/metrics/missing.py`), in `fin engagement bridge` and
+  `fin audit <co> <metric> <period>`; "a denominator is zero" when no input is missing.
+- `fin sql --write` refuses any statement that names `facts`, `raw_values`, `stated_figures` or
+  `fact_corrections` (E505), before the backup: figures come from documents (`fin ingest`, `fin review`), from the
+  user (`fin fact state`), or from a correction of fin's own misread (`fin fact correct`).
+- **Correcting a figure fin read wrongly**: `fin fact correct <co> <fact_id> --value V --reason "..."`, only on the
+  user's word. It backs up the company database, sets `facts.value` (rupees; rupees per share for EPS), keeps the
+  cell or page and the printed text in `raw_values`, and records the value before, the reason, the actor (`fin.actor`:
+  `ai:claude` with `on_request` when Claude Code ran it, else `user`, as for mapping decisions) and the run in the company table
+  `fact_corrections` and the audit table of the same name. Held documents and the fact's own document are checked
+  again, and the analytics refreshed. A correction is for fin's own misread, never to make figures tie: inside an
+  open diligence engagement a figure under a query (through a finding on it) or an adjustment (through a finding, or
+  the same account, period and scope) that is not closed, withdrawn or rejected is refused (E409), as are an unknown
+  or superseded fact, a value that is not a number, the value it already has, or an empty reason. The view
+  `corrected_now` has the correction in force per fact (loaded and held documents).
+- Corrected figures are marked where stated ones are: `fin statements` "(corrected, correction #id)" and an Excel
+  comment; `fin sql` provenance "<cell>, corrected #id from <value before>"; the evidence page and `fin audit <co>
+  <fact_id>` give the value before and the reason; the report's data coverage lists them under "Figures corrected"
+  and its appendix names the correction; gate G1 lists them (passing) and has them as an input, so a correction
+  reopens it; `fin status` and the Home screen count them. `fin fact list` lists stated and corrected figures.
+- A data folder made before this has no `stated_figures` table: re-ingest into a new data folder.
+- Readings behind these choices: `docs/decisions/spec-08.md`.
 
 ## Web UI (optional, `fin ui`)
 

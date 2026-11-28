@@ -9,6 +9,11 @@ PDF add-on; or `claude` from a reading file).
 `fact_ids` (in `current_facts`, `document_facts` and `standard_statements`) lists every fact behind
 a value. A value summed from several printed lines gets every line's source: `source_ref` starts
 with "sum of N sources:", and the value counts as confirmed only when every line is.
+
+A row with a `stated_id` (`current_facts`, `metric_inputs`, `standard_statements`) is a figure the
+user stated where no document gives it (`fin fact state`): its source is "stated by the user", its
+reference the stated figure's id and reason, read by `user`. A figure corrected with `fin fact
+correct` keeps its cell or page, with ", corrected #id from <value before>" after it.
 """
 
 import hashlib
@@ -42,11 +47,14 @@ PROVENANCE_COLUMNS = (
 # Where each raw value came from. `source_ref` is `sheet!cell` for Excel and `page N` for PDF.
 SOURCE_SQL = """
 SELECT r.raw_id, f.fact_id, d.file_name AS source_file,
-       source_ref(r.sheet, r.cell, r.page) AS source_ref,
+       source_ref(r.sheet, r.cell, r.page)
+       || coalesce(', corrected #' || c.correction_id || ' from ' || c.original_value, '')
+           AS source_ref,
        f.confirmed AS source_confirmed, f.read_by AS source_read_by
 FROM raw_values r
 JOIN documents d ON d.doc_id = r.doc_id
 LEFT JOIN facts f ON f.raw_id = r.raw_id
+LEFT JOIN corrected_now c ON c.fact_id = f.fact_id
 """
 
 
@@ -100,19 +108,40 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
             raise SqlFailed(f"the query failed: {' '.join(str(exc).split())}") from exc
         columns = rows[0] if rows else {}
         key = next((name for name in ("fact_ids", "fact_id", "raw_id") if name in columns), None)
-        if key is None:
+        if key is None and "stated_id" not in columns:
             return rows
+        stated = {}
+        if "stated_id" in columns:  # only ids of real stated figures are marked as stated
+            stated = dict(con.execute("SELECT stated_id, reason FROM stated_figures").fetchall())
         sources = {}
-        for source in con.execute(SOURCE_SQL).fetchall():
+        for source in con.execute(SOURCE_SQL).fetchall() if key else []:
             raw_id, fact_id, *provenance = source
             source_key = raw_id if key == "raw_id" else fact_id
             if source_key is None:
                 continue  # a raw value mapped to no fact: no row's fact_id points to it
             sources[source_key] = dict(zip(PROVENANCE_COLUMNS, provenance, strict=True))
     empty = dict.fromkeys(PROVENANCE_COLUMNS)
-    if key == "fact_ids":
-        return [{**row, **_from_ids(sources, row[key], empty)} for row in rows]
-    return [{**row, **sources.get(row[key], empty)} for row in rows]
+    out = []
+    for row in rows:
+        if row.get("stated_id") in stated:
+            out.append(row | stated_source(row["stated_id"], stated[row["stated_id"]]))
+        elif key is None:
+            out.append(row | empty)
+        elif key == "fact_ids":
+            out.append(row | _from_ids(sources, row[key], empty))
+        else:
+            out.append(row | sources.get(row[key], empty))
+    return out
+
+
+def stated_source(stated_id: int, reason: str) -> dict[str, Any]:
+    """The provenance of a figure the user stated: no document, the user's reason."""
+    return {
+        "source_file": "stated by the user",
+        "source_ref": f"stated #{stated_id}: {reason}",
+        "source_confirmed": None,
+        "source_read_by": "user",
+    }
 
 
 def _from_ids(

@@ -13,6 +13,7 @@ from fin.audit.errors import EngagementState
 from fin.audit.logger import Run
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, format_engagement
+from fin.metrics.missing import not_computed_rows
 from fin.statements import amount, document_unit, in_unit, unit_title
 
 # The walk's money lines, in order (ebitda_to_cash columns), and the columns each is made from: a
@@ -58,19 +59,23 @@ def bridge(
     run: Run, company: str, period: str | None = None, scope: str | None = None
 ) -> dict[str, Any]:
     """The latest engagement's adjusted EBITDA, bridge steps and walk, by period and scope (only
-    `period` and `scope` when given), with the document unit for display. E803 without an
+    `period` and `scope` when given), with the document unit for display, and for each period
+    and scope without reported EBITDA the inputs it lacks (`not_computed`). E803 without an
     engagement."""
     where = "WHERE (? IS NULL OR period = ?) AND (? IS NULL OR scope = ?)"
     params = [period, period, scope, scope]
     with company_database(run, company) as con:
         engagement = latest_engagement(con, company)
+        adjusted = fetch_dicts(
+            con, f"SELECT * FROM adjusted_ebitda {where} ORDER BY period, scope", params
+        )
+        unreported = [row for row in adjusted if row["reported_ebitda"] is None]
         return {
             "company": company,
             "engagement": engagement,
             "unit": document_unit(con),
-            "adjusted_ebitda": fetch_dicts(
-                con, f"SELECT * FROM adjusted_ebitda {where} ORDER BY period, scope", params
-            ),
+            "adjusted_ebitda": adjusted,
+            "not_computed": not_computed_rows(con, company, "ebitda", unreported),
             "bridge": fetch_dicts(
                 con, f"SELECT * FROM ebitda_bridge {where} ORDER BY period, scope, step", params
             ),
@@ -150,9 +155,12 @@ def format_bridge(result: dict[str, Any]) -> str:
     if not result["adjusted_ebitda"]:
         out.append("no periods to show")
     walks = {(w["period"], w["scope"]): w for w in result["walk"]}
+    why = {(n["period"], n["scope"]): n["message"] for n in result["not_computed"]}
     for summary in result["adjusted_ebitda"]:
         key = (summary["period"], summary["scope"])
         steps = [s for s in result["bridge"] if (s["period"], s["scope"]) == key]
         out += _bridge_block(company, unit, summary, steps)
+        if key in why:
+            out.append(f"  {why[key]}")
         out += _walk_block(company, unit, walks[key])
     return "\n".join(line.rstrip() for line in out)

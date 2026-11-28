@@ -6,7 +6,7 @@ The document is found by the sha256 of the original file (its current version). 
 by statement, scope, period and normalized label (`fin.map.normalize`); a label printed more than
 once in one statement, scope and period (under different headings) is matched in printed order.
 fin's side is the value fin uses now (`facts.value`, in rupees), not what it first transcribed,
-so a figure corrected with `fin sql --write` is checked as corrected. The reading's figure is
+so a figure corrected with `fin fact correct` is checked as corrected. The reading's figure is
 converted to rupees with the reading's own unit line (a per-share figure, EPS, is compared as
 printed, as fin stores it). The comparison is exact: a figure copied as printed agrees to the
 paisa, so there is no tolerance. Outcomes per line and column:
@@ -27,10 +27,11 @@ whatever reading that finding came from. A missing_in_fin finding has no loaded 
 so only a run of its own reading resolves it. Accepted findings stay accepted, and the earlier
 disagreement stays in `verify_lines`.
 It is not a failure, and the command exits 0 when it ran. fin is an analysis tool: differences are
-for the user to decide, and to fix through `fin sql --write` or a new ingest; verify never changes
-a figure. A verify finding neither holds nor releases a document: a loaded document stays loaded
-and a held one stays held (verify works on held documents too, to tell whether a held document's
-finding is a misread). A document that is not loaded has its findings in the audit log only.
+for the user to decide, and to fix through a mapping, `fin fact correct` or a new ingest; verify
+never changes a figure. A verify finding neither holds nor releases a document: a loaded document
+stays loaded and a held one stays held (verify works on held documents too, to tell whether a held
+document's finding is a misread). A document that is not loaded has its findings in the audit log
+only.
 
 Each run on a loaded or held document is recorded in the company database: one `verify_runs` row
 (run, document, reading, the count of each outcome) and one `verify_lines` row per line compared.

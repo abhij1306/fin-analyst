@@ -6,6 +6,7 @@ from `metric_definitions`: `data["metric_info"]` has every metric (the other sco
 included), `data["definitions"]` the ones this scope has, in report order.
 """
 
+import html
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -286,7 +287,58 @@ def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
         ],
         "No missing data: every metric the report shows has a value.",
     )
-    return {"coverage": coverage, "unread": unread, "unconfirmed": unconfirmed, "missing": missing}
+    return {
+        "coverage": coverage,
+        "stated": stated_table(data),
+        "corrected": corrected_table(data),
+        "unread": unread,
+        "unconfirmed": unconfirmed,
+        "missing": missing,
+    }
+
+
+def plain_text(text: str) -> str:
+    """Free text for one table cell: HTML escaped, on one line (a newline would end the row)."""
+    return html.escape(" ".join(text.split()), quote=False)
+
+
+def stated_table(data: dict[str, Any]) -> str:
+    """The figures the user stated, in rupees as stated (rupees per share for EPS), with the
+    user's reason (escaped: it is free text)."""
+    return table(
+        ["Account", "Period", "Value (rupees; per share for EPS)", "In use", "Reason"],
+        [
+            [
+                f"`{row['account']}`",
+                row["period"],
+                f"{row['value']:,}",
+                "yes" if row["in_use"] else "no: a loaded document gives it",
+                plain_text(row["reason"]),
+            ]
+            for row in data["stated"]
+        ],
+        "None: every figure comes from a loaded document.",
+    )
+
+
+def corrected_table(data: dict[str, Any]) -> str:
+    """The figures corrected with `fin fact correct`: where each was read, the value before and
+    after (rupees, rupees per share for EPS), and the reason (escaped: it is free text)."""
+    return table(
+        ["Account", "Period", "Source", "Read", "Corrected (rupees; per share for EPS)", "Reason"],
+        [
+            [
+                f"`{row['account']}`" if row["account"] else "(unmapped)",
+                row["period"],
+                plain_text(f"{row['file_name']} {row['source']}"),
+                f"{row['original_value']:,}",
+                f"{row['value']:,}",
+                plain_text(row["reason"]),
+            ]
+            for row in data["corrected"]
+        ],
+        "None: no figure fin read was corrected.",
+    )
 
 
 def facts_table(data: dict[str, Any], display_unit: str) -> str:

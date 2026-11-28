@@ -35,13 +35,19 @@ FACT_SQL = """
 SELECT f.fact_id, f.account, f.fiscal_year, f.period, f.scope, f.value, f.confirmed, f.read_by,
        r.raw_label, r.raw_value_text, r.raw_unit, r.sheet, r.cell, r.page, r.bbox,
        source_ref(r.sheet, r.cell, r.page) AS source_ref,
-       d.file_name, d.archive_path
+       d.file_name, d.archive_path, c.correction_id, c.original_value, c.reason AS correction
 FROM raw_values r
 JOIN documents d ON d.doc_id = r.doc_id
 LEFT JOIN facts f ON f.raw_id = r.raw_id
+LEFT JOIN corrected_now c ON c.fact_id = f.fact_id
 WHERE {column} = ?
 """
 ID_COLUMN = {"fact_ids": "f.fact_id", "fact_id": "f.fact_id", "raw_id": "r.raw_id"}
+
+STATED_SQL = """
+SELECT stated_id, account, period, scope, value, reason, status FROM stated_figures
+WHERE stated_id = ?
+"""
 
 
 def _grid(workbook: Workbook, sheet: str, cell: str) -> str:
@@ -108,6 +114,8 @@ def _fact_section(
     status = "confirmed" if fact["confirmed"] else "UNCONFIRMED mapping"
     readers = {CLAUDE: "Claude", **ADDON_LABELS}
     status += f", read by {readers[fact['read_by']]}" if fact["read_by"] in readers else ""
+    if fact["correction_id"] is not None:
+        status += f", corrected #{fact['correction_id']} from {fact['original_value']}"
     unit = units.get(fact["account"], "rupees").replace("_", " ")
     title = (
         f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['period']} "
@@ -118,6 +126,8 @@ def _fact_section(
         f"</span><br>As written: {html.escape(fact['raw_label'])} = "
         f"{html.escape(fact['raw_value_text'])} {html.escape(fact['raw_unit'])}</p>"
     )
+    if fact["correction_id"] is not None:
+        details += f"<p>Correction reason: {html.escape(fact['correction'])}</p>"
     try:
         body = _source_view(run, fact, folder, books)
     except EvidenceSourceMissing as error:
@@ -143,6 +153,20 @@ def _row_ids(rows: list[dict[str, Any]], column: str) -> list[list[Any]]:
     if column == "fact_ids":
         return [[i for i in row[column] or [] if i is not None] for row in rows]
     return [[row[column]] if row.get(column) is not None else [] for row in rows]
+
+
+def _stated_section(stated: dict[str, Any], units: dict[str, str]) -> str:
+    """A figure the user stated: no document to show, the user's reason instead."""
+    unit = units.get(stated["account"], "rupees").replace("_", " ")
+    title = (
+        f"stated figure {stated['stated_id']}: {stated['account']} {stated['period']} "
+        f"{stated['scope']} = {stated['value']} {unit} (stated by the user, not from a document)"
+    )
+    withdrawn = "<br>Withdrawn since." if stated["status"] == "withdrawn" else ""
+    return (
+        f"<section><h3>{html.escape(title)}</h3><p>Reason given: "
+        f"{html.escape(stated['reason'])}{withdrawn}</p></section>"
+    )
 
 
 def _result_table(rows: list[dict[str, Any]]) -> str:
@@ -185,6 +209,19 @@ def _sections(
     return sections, sourced
 
 
+def _stated_sections(run: Run, company: str, stated_ids: list[Any]) -> list[str]:
+    """One section per figure the user stated, with the reason."""
+    if not stated_ids:
+        return []
+    units = {name: account.unit for name, account in load_accounts(run.root).items()}
+    with connect(company_db_path(run.root, company)) as con:
+        return [
+            _stated_section(stated, units)
+            for id_ in stated_ids
+            for stated in fetch_dicts(con, STATED_SQL, [id_])
+        ]
+
+
 def _flags(
     rows: list[dict[str, Any]], lists: list[list[Any]], column: str, missing: list[int]
 ) -> list[str]:
@@ -194,7 +231,7 @@ def _flags(
     sums = sum(1 for ids_ in lists if len(ids_) > 1)
     if sums:
         flags.append(f"{sums} row(s) are sums of several source lines; each line is below.")
-    if not any(lists):
+    if not any(lists) and all(row.get("stated_id") is None for row in rows):
         flags.append("The result has no fact_id or raw_id column, so there is nothing to trace.")
     elif missing:
         flags.append(
@@ -224,10 +261,22 @@ def write_evidence(
         folder.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot create {folder}: {exc}") from exc
+    stated_ids = list(dict.fromkeys(r["stated_id"] for r in rows if r.get("stated_id") is not None))
     sections, sourced = _sections(run, company, column, ids, folder)
-    missing = [n for n, ids_ in enumerate(lists, 1) if not ids_ or not set(ids_) <= sourced]
+    sections += _stated_sections(run, company, stated_ids)
+    # a figure the user stated has no document line: its section is the user's reason
+    missing = [
+        n
+        for n, (row, ids_) in enumerate(zip(rows, lists, strict=False), 1)
+        if row.get("stated_id") is None and (not ids_ or not set(ids_) <= sourced)
+    ]
     missing = missing if ids else []
     flags = _flags(rows, lists, column, missing)
+    if stated_ids:
+        flags.append(
+            f"{len(stated_ids)} figure(s) were stated by the user, not read from a document "
+            "(`fin fact list`)."
+        )
     flag_html = "".join(f"<p class='flag'>{html.escape(flag)}</p>" for flag in flags)
     page = f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Evidence {html.escape(query_id)}</title>

@@ -63,9 +63,9 @@ Updated: 2026-11-28.
 | 07 | 1 | Add fin schema and name the available columns in E504 | | todo |
 | 07 | 2 | Add a fact sources view | | todo |
 | 07 | 3 | Add saved metrics | | todo |
-| 08 | 1 | Add fin fact state for figures the user states | high | todo |
-| 08 | 2 | Refuse direct writes to facts and name the missing input of a metric | | todo |
-| 08 | 3 | Mark stated figures in statements, evidence, reports and gate G1 | high | todo |
+| 08 | 1 | Add fin fact state for figures the user states | high | done (#120) |
+| 08 | 2 | Refuse direct writes to facts and name the missing input of a metric | | done (#120) |
+| 08 | 3 | Mark stated figures in statements, evidence, reports and gate G1 | high | done (#120) |
 | 09 | 1 | Import adjustments from a sheet | high | todo |
 | 09 | 2 | Add the engagement and bridge screens | high | todo |
 | 09 | 3 | Add the adjusted P&L view and screen | high | todo |

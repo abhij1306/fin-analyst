@@ -52,6 +52,7 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
              "category": None, "description": "Adjusted EBITDA", "amount": D("1600000.00")},
         ],
         "walk": [walk],
+        "not_computed": [],
     }  # fmt: skip
 
     lines = [" ".join(line.split()) for line in format_bridge(result).splitlines()]
@@ -75,4 +76,38 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
         "Free cash flow - (missing: cf_capex)",
         "Cash conversion (CFO / EBITDA) 60.00%",
         "Adjusted cash conversion (CFO / adjusted EBITDA) 56.25%",
+    ]
+
+
+def test_a_bridge_without_reported_ebitda_names_the_missing_input() -> None:
+    message = (
+        "EBITDA not computed for FY24 standalone: no finance_cost for FY24. Load a document that "
+        "has it, or state it (`fin fact state acme --account finance_cost --period FY24 --scope "
+        "standalone --value 0 --reason ...` for a nil)"
+    )
+    result = {
+        "company": "acme",
+        "unit": "rupees",
+        "engagement": {"engagement_id": 1, "status": "open", "periods": "FY24",
+                       "query_threshold": D("100000.00"), "opened_at": datetime(2026, 11, 9),
+                       "closed_at": None},
+        "adjusted_ebitda": [{"period": "FY24", "scope": "standalone", "proposed_count": 0,
+                             "accepted_revenue_effect": D("0.00"), "reported_ebitda": None}],
+        "bridge": [{"period": "FY24", "scope": "standalone", "kind": "reported", "adj_id": None,
+                    "category": None, "description": "Reported EBITDA", "amount": None}],
+        "walk": [{"period": "FY24", "scope": "standalone"}
+                 | dict.fromkeys(["ebitda", "non_cash_and_other", "working_capital_change",
+                                  "taxes_paid", "other_operating", "cfo", "capex",
+                                  "free_cash_flow", "cash_conversion",
+                                  "adjusted_cash_conversion", "cf_op_profit_before_wc",
+                                  "cf_cash_generated", "cf_taxes_paid"])],
+        "not_computed": [{"metric": "ebitda", "period": "FY24", "scope": "standalone",
+                          "message": message}],
+    }  # fmt: skip
+
+    lines = format_bridge(result).splitlines()
+
+    assert lines[3:5] == [
+        "  Reported EBITDA" + " " * 41 + "-".rjust(17) + "  (missing: ebitda)",
+        f"  {message}",
     ]
