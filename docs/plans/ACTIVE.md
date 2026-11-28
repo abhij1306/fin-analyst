@@ -39,7 +39,7 @@ Updated: 2026-11-28.
 | 00 | 5 | Add the gate-input and masking registries with their tests | high | todo |
 | 00 | 6 | Add the CLI and docs consistency tests | | todo |
 | 00 | 7 | Clear the open Sonar findings in src and add the categories tally | | todo |
-| 01 | 1 | Fix the unit line, evidence crash, negative amounts and empty lists from the client run | | todo |
+| 01 | 1 | Fix the unit line, evidence crash, negative amounts and empty lists from the client run | | done (#116) |
 | 02 | 1 | Move the decision actions into shared service functions | | todo |
 | 02 | 2 | Pass the actor explicitly and store it as user or ai:provider | high | todo |
 | 02 | 3 | Add background jobs with progress to the UI | | todo |
