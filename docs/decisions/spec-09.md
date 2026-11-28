@@ -19,12 +19,14 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
 - **Why**: fin does not compute the tax effect of an adjustment; an adjusted PAT would be a number fin made up.
 - **How to change it**: `src/fin/diligence/adjusted.py: LINES_SQL` (the position cut-off).
 
-## Money in the document's unit
+## Money in the display unit
 
-- **Decision**: the Bridge screen shows money in the documents' unit (as `fin statements` and `fin engagement
-  bridge`).
-- **Why**: SPEC-06's display unit is not built on this branch; when it lands the screen should use it.
-- **How to change it**: `src/fin/ui/diligence_screens.py`.
+- **Decision** (reviewer, after SPEC-06 #127 merged): the Bridge screen shows money in the company's display unit
+  (config.toml [display], as `fin engagement bridge` and the Statements screen), converted in SQL by
+  `display_value`. The screen has no unit picker; the display settings choose it.
+- **Why**: the spec asks for the display unit; the builder's reading (the document's unit until SPEC-06 lands) ended
+  when SPEC-06 merged and removed the document-unit helpers.
+- **How to change it**: `src/fin/ui/diligence_screens.py: money`.
 
 ## The walk-sheet import is on the Queries screen
 

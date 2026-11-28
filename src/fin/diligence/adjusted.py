@@ -13,7 +13,7 @@ from fin.audit.logger import Run
 from fin.db.rows import fetch_dicts
 from fin.diligence.bridge import latest_engagement
 from fin.diligence.engagement import company_database
-from fin.statements import add_view, document_unit
+from fin.statements import add_view
 
 # The P&L lines down to profit before tax, in statement order; depth 0 for a subtotal.
 LINES_SQL = """
@@ -35,7 +35,7 @@ FROM adjusted_ebitda ORDER BY period, scope
 
 
 def adjusted_pl(run: Run, company: str) -> dict[str, Any]:
-    """The latest engagement, the document unit, the P&L lines (`LINES_SQL`) and the EBITDA rows
+    """The latest engagement, the P&L lines (`LINES_SQL`) and the EBITDA rows
     of `adjusted_ebitda`, by period and scope. E803 when the company has no engagement."""
     with company_database(run, company) as con:
         engagement = latest_engagement(con, company)
@@ -43,7 +43,6 @@ def adjusted_pl(run: Run, company: str) -> dict[str, Any]:
         return {
             "company": company,
             "engagement": engagement,
-            "unit": document_unit(con),
             "lines": fetch_dicts(con, LINES_SQL),
             "ebitda": fetch_dicts(con, EBITDA_SQL),
         }

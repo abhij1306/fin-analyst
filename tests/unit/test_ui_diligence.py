@@ -90,8 +90,12 @@ def test_the_walk_through_needs_no_terminal_and_every_decision_is_the_users(
     for adj in ("1", "2"):
         assert "Done" in act(client, "adjust-accept", adj), adj
     bridge = client.get("/bridge?company=acme").text
-    assert "1,500,000.00" in bridge  # reported EBITDA
-    assert "1,400,000.00" in bridge  # +1,00,000 legal fees, -2,00,000 revenue
+    # in the display unit of the default config.toml (INR Mn, one decimal, negatives in brackets)
+    assert "INR Mn" in bridge
+    assert '<td class="num">1.5</td>' in bridge  # reported EBITDA, 15,00,000
+    assert '<td class="num">0.1</td>' in bridge  # +1,00,000 legal fees
+    assert '<td class="num">(0.2)</td>' in bridge  # -2,00,000 revenue
+    assert '<td class="num">1.4</td>' in bridge  # adjusted EBITDA, 14,00,000
     assert "walk.xlsx Walk!G2; Notes p. 12" in bridge
     made = decisions(root)
     assert [c for c, _ in made] == [
