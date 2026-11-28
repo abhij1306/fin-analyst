@@ -189,12 +189,11 @@ def _line(
     left = total[0] if total else None
     right = shown[0] if shown else None
     difference = (left or Decimal("0.00")) - (right or Decimal("0.00"))
-    if difference == 0:
-        kind = "matched"
+    # A side that is missing is never a zero: a line on one side only is never matched.
+    if left is not None and right is not None:
+        kind = "matched" if difference == 0 else "difference"
     else:
-        kind = {(True, True): "difference", (True, False): "left_only"}.get(
-            (left is not None, right is not None), "right_only"
-        )
+        kind = "left_only" if left is not None else "right_only"
     source = _rows_text(file_name, total[1], total[2]) if total else None
     return {
         "kind": kind,

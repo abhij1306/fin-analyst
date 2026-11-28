@@ -781,7 +781,7 @@ roll up to the nearest of their account and its subtotals that is a detail line 
 (`current_facts`, a figure the user stated included, its source `stated #<id>`; a figure with no figure below it), and the profit and loss ledgers also roll into `other_equity`
 (Tally lists the year's income and expenses beside the opening Profit & Loss A/c). One `recon_runs` row per period
 (with the hash of what it compared) and `recon_items` per account (`matched`, `difference`, `left_only`,
-`right_only`) and per unmapped ledger (`unmapped`). A line at or above the engagement threshold gets a draft query
+`right_only`; a figure on one side only is never `matched`, even a zero) and per unmapped ledger (`unmapped`). A line at or above the engagement threshold gets a draft query
 (origin `recon`; one from an earlier run with the same account and difference is kept), unless a ledger is unmapped;
 lines below are listed. A draft from an earlier run whose line is not in the new run (a mapping or figure changed) is
 listed as stale; fin never withdraws it. E812: a period not annual, no trial balance or no statement figures. The stub
