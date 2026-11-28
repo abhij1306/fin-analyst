@@ -35,9 +35,10 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from openpyxl import load_workbook
+from openpyxl.cell.cell import Cell
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.workbook import Workbook
@@ -166,7 +167,7 @@ def extract_workbook(path: Path, unit: str | None = None) -> ExcelExtraction:
 
 def _which_unit(path: Path, missing: list[UnitNotDetected]) -> UnitNotDetected:
     """The question for a workbook whose statement sheets name no unit: one E203 naming them all."""
-    sheets = [str(exc.context["sheet"]) for exc in missing]
+    sheets = [str((exc.context or {})["sheet"]) for exc in missing]
     return UnitNotDetected(
         f"{path.name}: which unit? no unit line such as '(₹ in Lakhs)' above the header on sheets "
         f"{', '.join(repr(s) for s in sheets)}"
@@ -247,8 +248,12 @@ def _find_header(sheet: Worksheet) -> tuple[list[str], _Header | None]:
     header row (None when no row holds a period cell)."""
     title_parts = [sheet.title]
     for row in sheet.iter_rows():
-        periods = {c.column: p for c in row if (p := parse_period(c.value)) is not None}
-        if periods:
+        periods = {
+            c.column: p
+            for c in row
+            if c.column is not None and (p := parse_period(c.value)) is not None
+        }
+        if periods and row[0].row is not None:
             return title_parts, _Header(row[0].row, periods)
         title_parts.extend(str(c.value) for c in row if c.value is not None)
     return title_parts, None
@@ -365,7 +370,7 @@ def _filled_cells(
     not one). Raises E204 for a formula with no saved value."""
     cells = [row[column - 1] for column in periods if column <= len(row)]
     for cell in cells:
-        if cell.value is None and str(formulas[cell.coordinate].value).startswith("="):
+        if cell.value is None and str(cast(Cell, formulas[cell.coordinate]).value).startswith("="):
             raise ParseError(
                 f"{where} cell {cell.coordinate}: formula has no saved value; open the file "
                 "in Excel, save it and ingest it again"
@@ -393,12 +398,9 @@ def _sheet_values(
         raise PeriodsNotDetected(
             f"{where}: no header row with period dates such as 31.03.2025"
         ).with_context(**seen)
-    units = [(text.strip(), unit) for text in title_parts[1:] if (unit := unit_in(text))]
-    if not units and given_unit is None:
-        raise UnitNotDetected(
-            f"{where}: no unit line such as '(₹ in Lakhs)' above the header"
-        ).with_context(**seen, header_row=header.row)
-    unit_text, unit = units[0] if units else ("", given_unit or "")
+    unit_text, unit, unit_given = _unit(
+        title_parts, given_unit, where, seen | {"header_row": header.row}
+    )
     columns = _columns(sheet, header, statement, title, where)
     first_value_column = min(header.periods)
 
@@ -434,7 +436,22 @@ def _sheet_values(
                     period_end=header.periods[cell.column],
                     months=columns[cell.column][0],
                     rupees=to_rupees(number, unit),
-                    unit_given=not units,
+                    unit_given=unit_given,
                 )
             )
     return found
+
+
+def _unit(
+    title_parts: list[str], given_unit: str | None, where: str, seen: dict[str, Any]
+) -> tuple[str, str, bool]:
+    """(unit text, unit, whether it was given) of a sheet: its own unit line, else `given_unit`.
+    E203 when it has neither."""
+    units = [(text.strip(), unit) for text in title_parts[1:] if (unit := unit_in(text))]
+    if units:
+        return *units[0], False
+    if given_unit is None:
+        raise UnitNotDetected(
+            f"{where}: no unit line such as '(₹ in Lakhs)' above the header"
+        ).with_context(**seen)
+    return "", given_unit, True

@@ -93,18 +93,18 @@ REASONS = {
 
 
 @dataclass(frozen=True)
-class Kind:
+class FileKind:
     kind: str  # one of PLAN_KINDS
     profile: str | None = None
     period: str | None = None  # as the file states it; None when it states none
     reason: str | None = None  # a key of REASONS when fin cannot use the file
 
 
-def unusable(reason: str, kind: str = "unknown") -> Kind:
-    return Kind(kind, reason=reason)
+def unusable(reason: str, kind: str = "unknown") -> FileKind:
+    return FileKind(kind, reason=reason)
 
 
-def kind_of(path: Path, start_month: int) -> Kind:
+def kind_of(path: Path, start_month: int) -> FileKind:
     """The kind of the file at `path` (not an archive: see `fin.dataroom.unpack`)."""
     suffix = path.suffix.lower()
     if suffix in EXCEL_SUFFIXES:
@@ -116,7 +116,7 @@ def kind_of(path: Path, start_month: int) -> Kind:
     return unusable("file_type")
 
 
-def _excel(path: Path) -> Kind:
+def _excel(path: Path) -> FileKind:
     try:
         book = open_workbook(path, data_only=True)
     except DocumentFailure:
@@ -126,7 +126,7 @@ def _excel(path: Path) -> Kind:
         return unusable("several_kinds")
     if matches:
         (profile,) = matches.values()
-        return Kind(profile.kind, profile.name, _source_period(path, profile))
+        return FileKind(profile.kind, profile.name, _source_period(path, profile))
     if any(REFERENCE_SHEETS.search(norm(title)) for title in book.sheetnames):
         return Kind("reference_databook")
     try:
@@ -135,7 +135,7 @@ def _excel(path: Path) -> Kind:
         return unusable("no_layout")
     except DocumentFailure:
         return unusable("statements_unreadable", "statements")
-    return Kind("statements", period=_ends(v.period_end for v in values))
+    return FileKind("statements", period=_ends(v.period_end for v in values))
 
 
 def _profile_matches(book: Workbook) -> dict[str, Profile]:
@@ -163,12 +163,12 @@ def _source_period(path: Path, profile: Profile) -> str | None:
     return f"{table.start.isoformat()} to {table.end.isoformat()}"
 
 
-def _pdf(path: Path, start_month: int) -> Kind:
+def _pdf(path: Path, start_month: int) -> FileKind:
     try:
         values = extract_pdf(path, start_month).values
     except DocumentFailure:
         return unusable("pdf_no_statement")
-    return Kind("statements", period=_ends(v.period_end for v in values))
+    return FileKind("statements", period=_ends(v.period_end for v in values))
 
 
 def _ends(dates: Iterable[date]) -> str:

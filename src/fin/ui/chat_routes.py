@@ -2,15 +2,16 @@
 Allow once / Deny for a permission request. Each answer that changes the chat is the whole panel
 again (`#chat`), built from the stored conversation, so a reload or a restart shows the same."""
 
-import html
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Form, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from fin.audit.errors import ChatBusy, FinError, UiActionInvalid
+from fin.output import escape
 from fin.ui import chat_args, chat_store
 from fin.ui.chat_run import Chat
 
@@ -25,8 +26,30 @@ def sse(name: str, data: str) -> str:
     return f"event: {name}\n{body}\n\n"
 
 
-def add_chat_routes(app: FastAPI, root: Path, templates: Jinja2Templates, chat: Chat) -> None:
+def _batches(turn: Any) -> Iterator[list[dict[str, Any]]]:
+    """The events of a running turn as they come, in batches; an empty batch after
+    KEEPALIVE_SECONDS without one. Ends after the batch that holds the last event."""
+    sent = 0
+    while True:
+        with turn.cond:
+            if sent >= len(turn.events) and not turn.finished:
+                turn.cond.wait(timeout=KEEPALIVE_SECONDS)
+            batch = turn.events[sent:]
+            finished = turn.finished
+            sent += len(batch)
+        yield batch
+        if finished and sent >= len(turn.events):
+            return
+
+
+class ChatRoutes:
+    """The route handlers, over the data folder, the templates and the running chat."""
+
+    def __init__(self, root: Path, templates: Jinja2Templates, chat: Chat) -> None:
+        self.root, self.templates, self.chat = root, templates, chat
+
     def panel(
+        self,
         company: str,
         conv: chat_store.Conversation | None,
         prefill: str = "",
@@ -35,129 +58,143 @@ def add_chat_routes(app: FastAPI, root: Path, templates: Jinja2Templates, chat: 
         """The panel as HTML. Without a conversation it is a new chat."""
         missing = None
         try:
-            chat.locate()
+            self.chat.locate()
         except FinError as error:
             missing = error.message
-        convs = chat_store.listing(root)
         shown = {
             "conv": conv,
-            "convs": convs,
+            "convs": chat_store.listing(self.root),
             "log": chat_store.items(conv) if conv else [],
-            "running": bool(conv and chat.running(str(conv["id"]))),
+            "running": bool(conv and self.chat.running(str(conv["id"]))),
             "prefill": prefill,
             "notice": {"code": notice.code, "message": notice.message} if notice else None,
             "api_key": chat_args.api_key_set(),
             "missing": missing,
             "skills": SKILLS,
         }
-        return templates.get_template("_chat.html").render({"chat": shown, "company": company})
+        page = self.templates.get_template("_chat.html")
+        return page.render({"chat": shown, "company": company})
 
-    def reply(*args: object, **kwargs: object) -> HTMLResponse:
-        return HTMLResponse(panel(*args, **kwargs))  # type: ignore[arg-type]
+    def reply(
+        self,
+        company: str,
+        conv: chat_store.Conversation | None,
+        prefill: str = "",
+        notice: FinError | None = None,
+    ) -> HTMLResponse:
+        return HTMLResponse(self.panel(company, conv, prefill, notice))
 
-    def current(conv_id: str, company: str) -> chat_store.Conversation:
-        """The conversation, made new when no id is given."""
-        return chat_store.load(root, conv_id) if conv_id else chat_store.create(root, company)
-
-    @app.get("/chat/panel", response_class=HTMLResponse)
-    def show(company: str = "", conv: str = "", new: str = "", prefill: str = "") -> HTMLResponse:
+    def show(
+        self, company: str = "", conv: str = "", new: str = "", prefill: str = ""
+    ) -> HTMLResponse:
         if conv:
-            chosen = chat_store.load(root, conv)
-        else:
-            found = [] if new else chat_store.listing(root)
-            chosen = chat_store.load(root, str(found[0]["id"])) if found else None
-        return reply(company, chosen, prefill)
+            return self.reply(company, chat_store.load(self.root, conv), prefill)
+        found = [] if new else chat_store.listing(self.root)
+        chosen = chat_store.load(self.root, str(found[0]["id"])) if found else None
+        return self.reply(company, chosen, prefill)
 
     def begin(
-        conv: chat_store.Conversation, company: str, text: str, once: str | None = None
+        self, conv: chat_store.Conversation, company: str, text: str, once: str | None = None
     ) -> HTMLResponse:
         """Start the turn; the panel then shows the user's message and the live stream."""
         try:
-            chat.start(conv, text, once)
+            self.chat.start(conv, text, once)
         except ChatBusy as error:
-            return reply(company, conv, notice=error)
+            return self.reply(company, conv, notice=error)
         except FinError as error:  # claude is missing or cannot start: nothing was sent
-            return reply(company, conv, text, error)
-        return reply(company, conv)
+            return self.reply(company, conv, text, error)
+        return self.reply(company, conv)
 
-    @app.post("/chat/send", response_class=HTMLResponse)
-    def send(conv: str = Form(""), company: str = Form(""), text: str = Form("")) -> HTMLResponse:
+    def send(
+        self, conv: str = Form(""), company: str = Form(""), text: str = Form("")
+    ) -> HTMLResponse:
         message = text.strip()
         if not message or len(message) > MAX_MESSAGE:
             raise UiActionInvalid(f"the message is empty or longer than {MAX_MESSAGE} characters")
         try:
-            chat.locate()
+            self.chat.locate()
         except FinError as error:  # E009: nothing is sent and no conversation is made
-            return reply(company, chat_store.load(root, conv) if conv else None, text, error)
-        chosen = current(conv, company)
-        if chat.running(str(chosen["id"])):
+            known = chat_store.load(self.root, conv) if conv else None
+            return self.reply(company, known, text, error)
+        # the conversation named, or a new one
+        chosen = chat_store.load(self.root, conv) if conv else chat_store.create(self.root, company)
+        if self.chat.running(str(chosen["id"])):
             busy = ChatBusy("this conversation is still working: wait for it or press Stop")
-            return reply(company, chosen, text, busy)
-        chat_store.add_user_item(root, chosen, message)
-        return begin(chosen, company, message)
+            return self.reply(company, chosen, text, busy)
+        chat_store.add_user_item(self.root, chosen, message)
+        return self.begin(chosen, company, message)
 
-    def permission(conv: chat_store.Conversation, item_id: str) -> dict[str, object]:
-        for found in chat_store.items(conv):
-            if found.get("kind") == "permission" and found.get("id") == item_id:
-                if found.get("state") != "pending":
-                    raise UiActionInvalid("that request was already answered")
-                return found
-        raise UiActionInvalid(f"unknown permission request {item_id!r}")
-
-    @app.post("/chat/allow", response_class=HTMLResponse)
-    def allow(conv: str = Form(), item: str = Form()) -> HTMLResponse:
-        chosen = chat_store.load(root, conv)
-        found = permission(chosen, item)
+    def allow(self, conv: str = Form(), item: str = Form()) -> HTMLResponse:
+        chosen = chat_store.load(self.root, conv)
+        found = _permission(chosen, item)
         company = str(chosen["company"])
         rule = chat_args.checked_rule(str(found["rule"]))
-        if chat.running(conv):
-            return reply(company, chosen, notice=ChatBusy("this conversation is still working"))
+        if self.chat.running(conv):
+            return self.reply(
+                company, chosen, notice=ChatBusy("this conversation is still working")
+            )
         found["state"] = "allowed"
         said = f"Allowed once: {found['tool']} {found['summary']}. Please go on."
-        chat_store.add_user_item(root, chosen, said)
-        return begin(chosen, company, said, rule)
+        chat_store.add_user_item(self.root, chosen, said)
+        return self.begin(chosen, company, said, rule)
 
-    @app.post("/chat/deny", response_class=HTMLResponse)
-    def deny(conv: str = Form(), item: str = Form()) -> HTMLResponse:
-        chosen = chat_store.load(root, conv)
-        permission(chosen, item)["state"] = "denied"
-        chat_store.save(root, chosen)
-        return reply(str(chosen["company"]), chosen)
+    def deny(self, conv: str = Form(), item: str = Form()) -> HTMLResponse:
+        chosen = chat_store.load(self.root, conv)
+        _permission(chosen, item)["state"] = "denied"
+        chat_store.save(self.root, chosen)
+        return self.reply(str(chosen["company"]), chosen)
 
-    @app.post("/chat/stop")
-    def stop(conv: str = Form()) -> Response:
-        chat.stop(str(chat_store.load(root, conv)["id"]))
+    def stop(self, conv: str = Form()) -> Response:
+        self.chat.stop(str(chat_store.load(self.root, conv)["id"]))
         return Response(status_code=204)
 
-    @app.get("/chat/stream")
-    def stream(request: Request, conv: str) -> StreamingResponse:
-        chosen = chat_store.load(root, conv)
-        item_macro = templates.get_template("_chat_items.html").module.item  # type: ignore[attr-defined]
-
-        def events() -> Iterator[str]:
-            turn = chat.turns.get(conv)
-            if turn is None:  # nothing is running (the server restarted): show the stored chat
-                yield sse("done", panel(str(chosen["company"]), chosen))
-                return
-            sent = 0
-            while True:
-                with turn.cond:
-                    if sent >= len(turn.events) and not turn.finished:
-                        turn.cond.wait(timeout=KEEPALIVE_SECONDS)
-                    batch = turn.events[sent:]
-                    sent += len(batch)
-                if not batch:
-                    yield ": keepalive\n\n"
-                for event in batch:
-                    if event["name"] == "block":
-                        yield sse("block", str(item_macro(event["item"], conv)))
-                    elif event["name"] == "delta":
-                        yield sse("delta", html.escape(str(event["text"]), quote=False))
-                    else:  # done: the stored conversation is complete, show it
-                        fresh = chat_store.load(root, conv)
-                        yield sse("done", panel(str(fresh["company"]), fresh))
-                        return
-
+    def stream(self, request: Request, conv: str) -> StreamingResponse:
+        chosen = chat_store.load(self.root, conv)
         return StreamingResponse(
-            events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"}
+            self._events(conv, chosen),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
         )
+
+    def _events(self, conv: str, chosen: chat_store.Conversation) -> Iterator[str]:
+        turn = self.chat.turns.get(conv)
+        if turn is None:  # nothing is running (the server restarted): show the stored chat
+            yield sse("done", self.panel(str(chosen["company"]), chosen))
+            return
+        item = self.templates.get_template("_chat_items.html").module.item  # type: ignore[attr-defined]
+        for batch in _batches(turn):
+            if not batch:
+                yield ": keepalive\n\n"
+            for event in batch:
+                yield self._event(event, conv, item)
+                if event["name"] not in ("block", "delta"):
+                    return
+
+    def _event(self, event: dict[str, Any], conv: str, item: Callable[..., Any]) -> str:
+        """One event of the turn as SSE: a finished block, a piece of text, or done (the stored
+        conversation is complete: show it)."""
+        if event["name"] == "block":
+            return sse("block", str(item(event["item"], conv)))
+        if event["name"] == "delta":
+            return sse("delta", escape.html(event["text"]))
+        fresh = chat_store.load(self.root, conv)
+        return sse("done", self.panel(str(fresh["company"]), fresh))
+
+
+def _permission(conv: chat_store.Conversation, item_id: str) -> dict[str, object]:
+    for found in chat_store.items(conv):
+        if found.get("kind") == "permission" and found.get("id") == item_id:
+            if found.get("state") != "pending":
+                raise UiActionInvalid("that request was already answered")
+            return found
+    raise UiActionInvalid(f"unknown permission request {item_id!r}")
+
+
+def add_chat_routes(app: FastAPI, root: Path, templates: Jinja2Templates, chat: Chat) -> None:
+    routes = ChatRoutes(root, templates, chat)
+    app.get("/chat/panel", response_class=HTMLResponse)(routes.show)
+    app.post("/chat/send", response_class=HTMLResponse)(routes.send)
+    app.post("/chat/allow", response_class=HTMLResponse)(routes.allow)
+    app.post("/chat/deny", response_class=HTMLResponse)(routes.deny)
+    app.post("/chat/stop")(routes.stop)
+    app.get("/chat/stream")(routes.stream)

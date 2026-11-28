@@ -74,7 +74,7 @@ def period_of_file(
         and (end + timedelta(days=1)) == date(start.year + 1, start.month, 1)
     )
     period = fiscal_year_of(end, start_month) if full else None
-    if period in periods:
+    if period is not None and period in periods:
         return period, "audited"
     what = f"the fiscal year {period}" if period else "not a full fiscal year"
     scope = ", ".join(periods)
@@ -125,8 +125,19 @@ def _load_tb(
             up = rows[r.group].group if r.group is not None else None
             group, parent, ledger = stored(r.group), stored(up), names[i]
         out.append(
-            [file_id, r.sheet, r.row, period, r.row_type, group, parent, ledger]
-            + [r.debit, r.credit, run.run_id]
+            [
+                file_id,
+                r.sheet,
+                r.row,
+                period,
+                r.row_type,
+                group,
+                parent,
+                ledger,
+                r.debit,
+                r.credit,
+                run.run_id,
+            ]
         )
     insert_rows(
         con,
@@ -170,8 +181,19 @@ def _load_lv(
         'file_id, sheet, "row", ledger, entry_date, particulars, voucher_type, voucher_no, '
         "debit, credit, run_id",
         [
-            [file_id, e.sheet, e.row, e.ledger, e.date, e.particulars or None]
-            + [e.voucher_type or None, e.voucher_no or None, e.debit, e.credit, run.run_id]
+            [
+                file_id,
+                e.sheet,
+                e.row,
+                e.ledger,
+                e.date,
+                e.particulars or None,
+                e.voucher_type or None,
+                e.voucher_no or None,
+                e.debit,
+                e.credit,
+                run.run_id,
+            ]
             for e in entries
         ],
     )

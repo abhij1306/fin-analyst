@@ -19,7 +19,7 @@ from fin.db.rows import fetch_dicts
 from fin.map.dictionary import load_accounts
 from fin.map.normalize import normalize_label
 from fin.metrics.missing import not_computed
-from fin.paths import audit_db_path, company_db_path, dictionary_db_path
+from fin.paths import audit_db_path, company_db_path, dictionary_db_path, inside
 
 
 def fact_trace(root: Path, company: str, fact_id: int) -> dict[str, Any]:
@@ -53,7 +53,7 @@ def fact_trace(root: Path, company: str, fact_id: int) -> dict[str, Any]:
             "corrected_at FROM fact_corrections WHERE fact_id = ? ORDER BY correction_id",
             [fact_id],
         )
-    document["archive_exists"] = (root / document["archive_path"]).is_file()
+    document["archive_exists"] = inside(root, root / document["archive_path"]).is_file()
     # The account's unit: rupees, or rupees_per_share (EPS, stored as printed). Unmapped: rupees.
     unit = load_accounts(root)[fact["account"]].unit if fact["account"] else "rupees"
     return {

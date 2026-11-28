@@ -6,12 +6,12 @@ from `metric_definitions`: `data["metric_info"]` has every metric (the other sco
 included), `data["definitions"]` the ones this scope has, in report order.
 """
 
-import html
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from fin.config import Display
 from fin.display import money as display_money
+from fin.output import escape
 from fin.report.data import (
     CATEGORY_FACTS,
     KEY_ROWS,
@@ -88,12 +88,13 @@ def _cell(data: dict[str, Any], kind: str, name: str, period: str, display: Disp
 
 
 def table(header: list[str], rows: list[list[str]], empty: str) -> str:
-    """A Markdown pipe table, or `empty` (a sentence) when there are no rows."""
+    """A Markdown pipe table, or `empty` (a sentence) when there are no rows. Every cell goes
+    through `escape.markdown_cell`: callers pass plain text."""
     if not rows:
         return empty
 
     def line(cells: list[str]) -> str:
-        return "| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |"
+        return "| " + " | ".join(map(escape.markdown_cell, cells)) + " |"
 
     return "\n".join([line(header), "|" + "|".join("---" for _ in header) + "|", *map(line, rows)])
 
@@ -294,11 +295,6 @@ def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
     }
 
 
-def plain_text(text: str) -> str:
-    """Free text for one table cell: HTML escaped, on one line (a newline would end the row)."""
-    return html.escape(" ".join(text.split()), quote=False)
-
-
 def stated_table(data: dict[str, Any]) -> str:
     """The figures the user stated, in rupees as stated (rupees per share for EPS), with the
     user's reason (escaped: it is free text)."""
@@ -310,7 +306,7 @@ def stated_table(data: dict[str, Any]) -> str:
                 row["period"],
                 f"{row['value']:,}",
                 "yes" if row["in_use"] else "no: a loaded document gives it",
-                plain_text(row["reason"]),
+                row["reason"],
             ]
             for row in data["stated"]
         ],
@@ -327,10 +323,10 @@ def corrected_table(data: dict[str, Any]) -> str:
             [
                 f"`{row['account']}`" if row["account"] else "(unmapped)",
                 row["period"],
-                plain_text(f"{row['file_name']} {row['source']}"),
+                f"{row['file_name']} {row['source']}",
                 f"{row['original_value']:,}",
                 f"{row['value']:,}",
-                plain_text(row["reason"]),
+                row["reason"],
             ]
             for row in data["corrected"]
         ],

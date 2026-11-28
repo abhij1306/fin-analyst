@@ -16,20 +16,20 @@ pytest.importorskip("jinja2")
 pytest.importorskip("httpx")
 pytest.importorskip("multipart")
 
-from fastapi.testclient import TestClient  # noqa: E402
-from markupsafe import escape  # noqa: E402
-from typer.testing import CliRunner  # noqa: E402
+from fastapi.testclient import TestClient
+from markupsafe import escape
+from typer.testing import CliRunner
 
-from fin.cli import app  # noqa: E402
-from fin.db.conn import connect, utcnow  # noqa: E402
-from fin.ingest import UNIT_ANSWERS  # noqa: E402
-from fin.map.review import read_pending  # noqa: E402
-from fin.paths import audit_db_path, company_db_path  # noqa: E402
-from fin.services.jobs import list_jobs  # noqa: E402
-from fin.services.next_steps import NEXT_STEPS  # noqa: E402
-from fin.ui import chat_store  # noqa: E402
-from fin.ui.file_rows import file_rows  # noqa: E402
-from fin.ui.server import create_app  # noqa: E402
+from fin.cli import app
+from fin.db.conn import connect, utcnow
+from fin.ingest import UNIT_ANSWERS
+from fin.map.review import read_pending
+from fin.paths import audit_db_path, company_db_path
+from fin.services.jobs import list_jobs
+from fin.services.next_steps import NEXT_STEPS
+from fin.ui import chat_store
+from fin.ui.file_rows import file_rows
+from fin.ui.server import create_app
 
 TOKEN = "t0ken"
 PORT = 8765
@@ -283,7 +283,7 @@ def test_reingest_adds_a_version_and_delete_removes_the_file_after_a_backup(
 
     assert f"deleted {KESTREL} (doc_id 1, 2)" in deleted.text
     for table in ("documents", "facts", "raw_values", "findings"):
-        assert query(root, "kestrel", f"SELECT count(*) FROM {table}") == [(0,)], table  # noqa: S608
+        assert query(root, "kestrel", f"SELECT count(*) FROM {table}") == [(0,)], table
     assert not (root / archive).exists()
     assert not (root / "inbox" / "kestrel" / KESTREL).exists()
     assert read_pending(root, "kestrel")["items"] == []  # its labels left the Mappings screen

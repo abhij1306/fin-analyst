@@ -154,6 +154,13 @@ class UnexpectedError(FinError):
     code = "E012"
 
 
+class PathOutsideFolder(FinError):
+    """E013. A path from a file, a request or a database row resolves (after links) outside the
+    folder it must stay in (`fin.paths.inside`). Nothing read or written."""
+
+    code = "E013"
+
+
 # E1xx: file intake. The file is skipped and moved to review/; the command completes with failures.
 
 

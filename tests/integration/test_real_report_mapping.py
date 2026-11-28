@@ -126,8 +126,14 @@ def test_a_held_document_loads_after_a_company_mapping_fix(
     assert "acme/acme_ar24.pdf: held as doc_id 1 version 1" in held.stdout
     rows = json.loads(runner.invoke(app, ["findings", "list", "acme", "--json"]).stdout)
     assert [
-        (f["code"], f["period"], f["fin_printed"], f["fin_source"])
-        + (f["other_printed"], f["other_source"])
+        (
+            f["code"],
+            f["period"],
+            f["fin_printed"],
+            f["fin_source"],
+            f["other_printed"],
+            f["other_source"],
+        )
         for f in rows
     ] == [
         ("E403", "FY24", "6.00", "page 2", "20.00", "page 1"),

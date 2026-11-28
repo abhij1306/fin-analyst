@@ -32,13 +32,13 @@ Updated: 2026-11-28.
 
 | Spec | PR | Title | Risk | Status |
 |---|---|---|---|---|
-| 00 | 1 | Run every UI test in CI and macOS checks on install changes | | todo |
-| 00 | 2 | Turn on complexity, argument and security lint rules | | todo |
-| 00 | 3 | Add the type check job | | todo |
-| 00 | 4 | Add shared escaping, path and atomic-write helpers | | todo |
-| 00 | 5 | Add the gate-input and masking registries with their tests | high | todo |
-| 00 | 6 | Add the CLI and docs consistency tests | | todo |
-| 00 | 7 | Clear the open Sonar findings in src and add the categories tally | | todo |
+| 00 | 1 | Run every UI test in CI and macOS checks on install changes | | done (#129) |
+| 00 | 2 | Turn on complexity, argument and security lint rules | | done (#129) |
+| 00 | 3 | Add the type check job | | done (#129) |
+| 00 | 4 | Add shared escaping, path and atomic-write helpers | | done (#129) |
+| 00 | 5 | Add the gate-input and masking registries with their tests | high | done (#129) |
+| 00 | 6 | Add the CLI and docs consistency tests | | done (#129) |
+| 00 | 7 | Clear the open Sonar findings in src and add the categories tally | | done (#129) |
 | 01 | 1 | Fix the unit line, evidence crash, negative amounts and empty lists from the client run | | done (#116) |
 | 02 | 1 | Move the decision actions into shared service functions | | done (#118) |
 | 02 | 2 | Pass the actor explicitly and store it as user or ai:provider | high | done (#118) |

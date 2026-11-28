@@ -5,13 +5,13 @@ value was computed in SQL. A section whose data is not loaded says so. Names are
 readings are labelled as such, not verified.
 """
 
-import html
 from decimal import Decimal
 from typing import Any
 
 from fin.config import Display
 from fin.display import number
 from fin.fdd import findings
+from fin.output import escape
 from fin.reconcile.visibility import orderbook_date_note
 from fin.report.dd_tables import _label, _m, _ratio
 from fin.report.tables import table
@@ -31,9 +31,10 @@ NOT_VERIFIED = "Read by Claude from the documents (file + page); not verified by
 
 
 def _t(text: str | None) -> str:
-    """Stored free text (Claude's findings and readings, accountants' answers) for Markdown: HTML
-    markup is escaped, so it shows as text and never runs in fdd.html."""
-    return html.escape(text or "", quote=False)
+    """Stored free text (Claude's findings and readings, accountants' answers) for a Markdown
+    paragraph: HTML markup is escaped, so it shows as text and never runs in fdd.html. Table cells
+    are escaped by `table`."""
+    return escape.markdown_text(text)
 
 
 def _known(value: bool | None) -> str:
@@ -206,10 +207,10 @@ def walkthroughs_table(data: dict[str, Any], unit: Display) -> str:
     )  # fmt: skip
     lines = [
         [
-            f"#{r['sample_id']}.{r['line_no']}", _t(r["party"]), _t(r["invoice_no"]),
+            f"#{r['sample_id']}.{r['line_no']}", r["party"], r["invoice_no"],
             str(r["invoice_date"]), _m(r["amount_inr"], unit), _word(r["check_name"]),
-            _t(r["evidence"]),
-            _t(f"{r['evidence_file']} p. {r['evidence_page']}") if r["evidence_file"] else "",
+            r["evidence"],
+            f"{r['evidence_file']} p. {r['evidence_page']}" if r["evidence_file"] else "",
         ]
         for r in data["walkthrough_exceptions"]
     ]  # fmt: skip
@@ -305,7 +306,7 @@ def gst_returns_table(data: dict[str, Any], unit: Display) -> str:
         [
             r["period"], r["return_type"], str(r["months"]), _m(r["taxable_value"], unit),
             _m(r["output_tax"], unit), _m(r["itc"], unit), _m(r["rcm_liability"], unit),
-            _m(r["paid_cash"], unit), _m(r["paid_credit"], unit), _t(r["file_name"]),
+            _m(r["paid_cash"], unit), _m(r["paid_credit"], unit), r["file_name"],
         ]
         for r in data["tax"]["returns"]
     ]  # fmt: skip
@@ -336,7 +337,7 @@ def gst_table(data: dict[str, Any], unit: Display) -> str:
 def _schedule(rows: list[dict[str, Any]], unit: Display, empty: str) -> str:
     out = [
         [
-            _word(r["kind"]), r["period"], r["counterparty"] or "", _t(r["nature"]),
+            _word(r["kind"]), r["period"], r["counterparty"] or "", r["nature"],
             _m(r["amount"], unit) if r["amount"] is not None else "",
             " ".join(x for x in (r["forum"], r["stage"]) if x),
             f"{r['file_name']} p. {r['page']}",
@@ -366,7 +367,7 @@ def related_table(data: dict[str, Any], unit: Display) -> str:
     rows = [r for kind in found["related_kinds"] for r in found["schedules"][kind]]
     text = _schedule(rows, unit, "Not loaded: no related party disclosure read.")
     books = [
-        [r["party"], r["period"], r["source"], _t(r["nature"]), _m(r["amount"], unit)]
+        [r["party"], r["period"], r["source"], r["nature"], _m(r["amount"], unit)]
         for r in found["transactions"]
     ]
     if books:
@@ -375,7 +376,7 @@ def related_table(data: dict[str, Any], unit: Display) -> str:
         )
     pricing = [
         [
-            _t(r["party"]), r["kind"], r["period"], _t(r["product"]), _rate(r["party_rate"]),
+            r["party"], r["kind"], r["period"], r["product"], _rate(r["party_rate"]),
             _rate(r["others_rate"]), _pct(r["difference_pct"]),
         ]
         for r in found["pricing"]
@@ -388,7 +389,7 @@ def related_table(data: dict[str, Any], unit: Display) -> str:
         )
     loans = [
         [
-            _t(r["party"]), _t(r["ledger"]), r["period"], _m(r["opening"], unit),
+            r["party"], r["ledger"], r["period"], _m(r["opening"], unit),
             _m(r["closing"], unit), _m(r["interest"], unit), _pct(r["implied_rate_pct"]),
             r["average_basis"],
         ]
@@ -410,7 +411,7 @@ def related_table(data: dict[str, Any], unit: Display) -> str:
 
 def inquiries_table(data: dict[str, Any]) -> str:
     rows = [
-        [_word(t["topic"]), f"#{q['query_id']}", q["status"], _t(q["question"]), _t(q["answer"])]
+        [_word(t["topic"]), f"#{q['query_id']}", q["status"], q["question"], q["answer"]]
         for t in data["inquiries"]
         for q in t["queries"]
     ]

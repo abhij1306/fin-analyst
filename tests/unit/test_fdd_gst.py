@@ -116,7 +116,7 @@ def test_returns_load_as_their_return_with_rows_and_missing_months(
         write_return(tmp_path / "g1.xlsx", "x", GSTR1_HEADER, GSTR1, "1-Apr-2024 to 31-Mar-2025"),
         "gst",
         "gstr1",
-    )  # noqa: E501
+    )
 
     assert lines[0].startswith("loaded as source file_id 1 (gstr3b FY25, profile gstr3b)")
     assert lines[1] == "GSTR-3B FY25: 3 months"
@@ -325,7 +325,7 @@ def test_golden_eval_scores_gst_lines(root: Path) -> None:
         (c["kind"], c["ledger"]): c["outcome"]
         for c in report["checks"]
         if c["outcome"] != "unchecked"
-    }  # noqa: E501
+    }
     assert outcomes == {
         ("gst_return", "gstr3b 2024-05 itc"): "pass",
         ("gst_return", "gstr1 2024-06 taxable_value"): "fail",
@@ -357,7 +357,7 @@ def test_tax_charge_view() -> None:
 
     assert [
         tuple(float(v) if v is not None and not isinstance(v, str) else v for v in r) for r in rows
-    ] == [  # noqa: E501
+    ] == [
         ("FY24", 400.0, 100.0, None, 100.0, 0.25, -30.0, None, None),
         ("FY25", 1000.0, 240.0, 10.0, 250.0, 0.25, -40.0, -10.0, None),
     ]

@@ -35,17 +35,22 @@ _INVOICE = (
 
 def _refs(number: int, proposal: dict[str, Any], field: str) -> list[list[Any]]:
     refs = proposal.get(field)
-    ok = isinstance(refs, list) and refs
-    ok = ok and all(
-        isinstance(r, list) and len(r) == 3 and isinstance(r[0], int)
-        and isinstance(r[1], str) and isinstance(r[2], int)
-        for r in refs
-    )  # fmt: skip
-    if not ok:
+    if not (isinstance(refs, list) and refs and all(_ref(r) for r in refs)):
         raise MatchProposalInvalid(
             f"proposal {number}: {field!r} must be a non-empty list of [file_id, sheet, row]"
         )
     return refs
+
+
+def _ref(r: object) -> bool:
+    """[file_id, sheet, row]."""
+    return (
+        isinstance(r, list)
+        and len(r) == 3
+        and isinstance(r[0], int)
+        and isinstance(r[1], str)
+        and isinstance(r[2], int)
+    )
 
 
 def _check_lines(
@@ -109,8 +114,15 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
                 "confidence, "
                 "reason, status, run_id, changed_at) VALUES (?, ?, ?, ?, ?, 'proposed', ?, ?) "
                 "RETURNING proposal_id",
-                [eid, json.dumps(bank), json.dumps(invoices), confidence, reason]
-                + [run.run_id, utcnow()],
+                [
+                    eid,
+                    json.dumps(bank),
+                    json.dumps(invoices),
+                    confidence,
+                    reason,
+                    run.run_id,
+                    utcnow(),
+                ],
             ).fetchone()
             assert new is not None
             ids.append(new[0])

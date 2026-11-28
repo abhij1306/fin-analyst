@@ -20,7 +20,7 @@ from fin.services import dataroom, decisions, fdd, reviews
 from fin.services.files import delete_documents, upload
 from fin.services.result import ActionResult
 
-ITEM_ID = re.compile(r"[0-9]{1,18}")  # a BIGINT id; ASCII digits only
+ITEM_ID = re.compile(r"\d{1,18}", re.ASCII)  # a BIGINT id; ASCII digits only
 MAX_IDS = 500  # the most ids one bulk decision takes
 
 __all__ = ["ACTIONS", "Action", "decide", "upload"]

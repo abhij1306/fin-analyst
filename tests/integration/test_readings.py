@@ -18,7 +18,7 @@ runner = CliRunner()
 HEADER = "statement,scope,period_end,period_months,unit,section,label,value_as_printed,source"
 UNIT = "(Rs. in Lakhs)"
 
-# (statement, period_end, period_months, section, label, value, page)
+# Each row: statement, period end, period months, section, label, value and page.
 BALANCE_SHEET = [
     ("balance_sheet", "2025-03-31", "", "Current assets", "Cash and cash equivalents", "28.50", 1),
     ("balance_sheet", "2025-03-31", "", "Current assets", "Security deposits", "71.50", 1),

@@ -242,7 +242,7 @@ def test_a_figure_that_cannot_be_stated_is_e407_and_stores_nothing(
 def test_a_figure_stated_twice_is_e407(root: Path) -> None:
     nil_finance_cost(root)
 
-    with pytest.raises(FigureCannotBeStated, match="already stated \\(#1, 0.00\\)"):
+    with pytest.raises(FigureCannotBeStated, match=r"already stated \(#1, 0\.00\)"):
         nil_finance_cost(root)
 
     assert query(root, "SELECT count(*) FROM stated_figures") == [(1,)]

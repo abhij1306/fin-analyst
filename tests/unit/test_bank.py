@@ -280,7 +280,7 @@ def test_a_file_is_loaded_once_and_unknown_layouts_and_headers_are_refused(
     sheet.append(["01/04/2024", "x", 5])
     book.save(tmp_path / "odd.xlsx")
     with pytest.raises(
-        LayoutUnknown, match="no bank column profile|no bank profile|no bank"
+        LayoutUnknown, match=r"no bank column profile|no bank profile|no bank"
     ) as err:
         load(root, tmp_path / "odd.xlsx")
     # the title lines are listed, the account number in them is not (SPEC-17 item 1)

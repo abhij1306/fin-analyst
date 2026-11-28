@@ -11,10 +11,10 @@ pytest.importorskip("fastapi")
 pytest.importorskip("jinja2")
 pytest.importorskip("httpx")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from fin.ui.server import create_app  # noqa: E402
-from tests.rebuilt_fixtures import make_root  # noqa: E402
+from fin.ui.server import create_app
+from tests.rebuilt_fixtures import make_root
 
 TOKEN = "t0ken"
 PORT = 8765

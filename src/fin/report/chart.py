@@ -8,7 +8,8 @@ legend names every line, and the table above the chart has every value.
 
 import math
 from collections.abc import Callable
-from html import escape
+
+from fin.output import escape
 
 COLOURS = ("#2a78d6", "#eb6834", "#1baf7a", "#eda100")  # fixed order, never cycled
 GRID, AXIS, MUTED, INK, SURFACE = "#e1e0d9", "#c3c2b7", "#898781", "#52514e", "#ffffff"
@@ -60,12 +61,12 @@ def line_chart(
         )
         out.append(
             f'<text x="{LEFT - 8}" y="{y(t) + 4:.1f}" text-anchor="end" fill="{MUTED}">'
-            f"{escape(tick_text(t))}</text>"
+            f"{escape.html(tick_text(t))}</text>"
         )
     for i, label in enumerate(labels):
         out.append(
             f'<text x="{x(i):.1f}" y="{HEIGHT - 12}" text-anchor="middle" fill="{MUTED}">'
-            f"{escape(label)}</text>"
+            f"{escape.html(label)}</text>"
         )
     legend_x = LEFT
     for (name, line), colour in zip(series, COLOURS, strict=False):
@@ -73,7 +74,7 @@ def line_chart(
             f'<line x1="{legend_x}" x2="{legend_x + 16}" y1="16" y2="16" stroke="{colour}" '
             'stroke-width="2"/>'
         )
-        out.append(f'<text x="{legend_x + 22}" y="20" fill="{INK}">{escape(name)}</text>')
+        out.append(f'<text x="{legend_x + 22}" y="20" fill="{INK}">{escape.html(name)}</text>')
         legend_x += 30 + 7 * len(name)
         points = [None if v is None else (x(i), y(v)) for i, v in enumerate(line)]
         out += _series(points, colour)

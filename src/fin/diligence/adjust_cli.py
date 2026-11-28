@@ -32,7 +32,7 @@ adjust_app = typer.Typer(
 
 
 @adjust_app.command("propose")
-def adjust_propose(
+def adjust_propose(  # noqa: PLR0913  # NOSONAR: one parameter per CLI option
     company: CompanyArg,
     period: Annotated[
         str, typer.Option("--period", help="An annual period of the engagement, e.g. FY25.")

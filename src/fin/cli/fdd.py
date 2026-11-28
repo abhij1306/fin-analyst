@@ -91,7 +91,7 @@ def propose(
 
 
 @finding_app.command("update")
-def update(
+def update(  # noqa: PLR0913  # NOSONAR: one parameter per CLI option
     company: Company,
     finding_id: Annotated[int, typer.Argument(help="The draft finding's id.")],
     area: Area = None,

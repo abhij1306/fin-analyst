@@ -281,9 +281,25 @@ def _insert(run: Run, con: Any, st: Statement, file_id: int, raw: Raw) -> None:
         "opening_balance, opening_from, closing_balance, closing_from, total_debits, "
         "total_credits, line_count, ties, reader, parse_path, run_id) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [file_id, profile.bank, st.account, st.currency, st.start, st.end, st.opening]
-        + [st.opening_from, st.closing, st.closing_from, st.debits, st.credits, len(st.lines)]
-        + [st.ties, raw.reader, raw.parse_path, run.run_id],
+        [
+            file_id,
+            profile.bank,
+            st.account,
+            st.currency,
+            st.start,
+            st.end,
+            st.opening,
+            st.opening_from,
+            st.closing,
+            st.closing_from,
+            st.debits,
+            st.credits,
+            len(st.lines),
+            st.ties,
+            raw.reader,
+            raw.parse_path,
+            run.run_id,
+        ],
     )
     insert_rows(
         con,
@@ -291,9 +307,22 @@ def _insert(run: Run, con: Any, st: Statement, file_id: int, raw: Raw) -> None:
         'file_id, sheet, page, "row", bank, account, currency, txn_date, remarks, reference, '
         "debit, credit, balance, run_id",
         [
-            [file_id, x.row.sheet, x.row.page, x.row.row, profile.bank, st.account, st.currency]
-            + [x.date, x.remarks or None, x.reference or None]
-            + [x.debit, x.credit, x.balance, run.run_id]
+            [
+                file_id,
+                x.row.sheet,
+                x.row.page,
+                x.row.row,
+                profile.bank,
+                st.account,
+                st.currency,
+                x.date,
+                x.remarks or None,
+                x.reference or None,
+                x.debit,
+                x.credit,
+                x.balance,
+                run.run_id,
+            ]
             for x in st.lines
         ],
     )

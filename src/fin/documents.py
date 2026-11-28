@@ -57,9 +57,9 @@ def _files(root: Path, company: str, con: duckdb.DuckDBPyConnection, versions: l
     inbox = inbox_dir(root, company)
     for name in {v[1] for v in versions}:
         copy = inbox / name
-        if copy.is_file() and copy.resolve().parent == inbox.resolve():
-            if sha256_of(copy) == versions[0][2]:
-                found.add(copy.relative_to(root).as_posix())
+        inbox_copy = copy.is_file() and copy.resolve().parent == inbox.resolve()
+        if inbox_copy and sha256_of(copy) == versions[0][2]:
+            found.add(copy.relative_to(root).as_posix())
     return sorted(path for path in found if (root / path).is_file())
 
 
@@ -79,7 +79,7 @@ def _delete_rows(con: duckdb.DuckDBPyConnection, ids: list[int]) -> dict[str, in
         for table in [*tables, "documents"]:  # names from the schema, not from input
             deleted = con.execute(
                 f"DELETE FROM {table} WHERE doc_id IN ({marks}) RETURNING 1",
-                ids,  # noqa: S608
+                ids,
             ).fetchall()
             counts[table] = len(deleted)
         con.execute("COMMIT")

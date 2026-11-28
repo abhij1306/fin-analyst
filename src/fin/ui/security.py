@@ -18,7 +18,7 @@ from starlette.responses import JSONResponse, RedirectResponse, Response
 from fin.audit.errors import UiRequestRefused
 
 COOKIE = "fin_ui_token"
-TOKEN_PARAM = "token"
+TOKEN_PARAM = "token"  # noqa: S105 (the query parameter's name)
 
 
 def new_token() -> str:

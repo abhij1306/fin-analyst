@@ -126,7 +126,17 @@ def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
             if source_key is None:
                 continue  # a raw value mapped to no fact: no row's fact_id points to it
             sources[source_key] = dict(zip(PROVENANCE_COLUMNS, provenance, strict=True))
-    empty = dict.fromkeys(PROVENANCE_COLUMNS)
+    return _with_sources(rows, key, stated, sources)
+
+
+def _with_sources(
+    rows: list[dict[str, Any]],
+    key: str | None,
+    stated: dict[Any, str],
+    sources: dict[Any, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Each row with the provenance columns of its stated figure, facts or raw value."""
+    empty: dict[str, Any] = dict.fromkeys(PROVENANCE_COLUMNS)
     out = []
     for row in rows:
         if row.get("stated_id") in stated:

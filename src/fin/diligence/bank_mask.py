@@ -29,6 +29,7 @@ from fin.db.conn import connect, transaction
 from fin.diligence.bank_raw import Pages
 from fin.diligence.mask import ACCOUNT, Masker
 from fin.extract.profiles import Profile
+from fin.paths import atomic_write, inside
 
 TOKEN = re.compile(r"(?<![\w-])ACCT-\d{4,}(?![\w-])")
 LONG_NUMBER = re.compile(r"\d{9,}")  # an Indian bank account number has 9 to 18 digits
@@ -106,11 +107,11 @@ def remask_parses(root: Path, paths: list[str], tokens: dict[str, str]) -> None:
     """Replace every known account number in the company's saved parses (`paths`, relative to
     the data folder): a number in an earlier statement's lines masked by a later load."""
     for rel in paths:
-        saved = root / rel
+        saved = inside(root, root / rel)
         data = json.loads(saved.read_text(encoding="utf-8"))
         masked = data | {"pages": _map_pages(data["pages"], lambda t: mask_text(t, tokens))}
         if masked != data:
-            saved.write_text(json.dumps(masked), encoding="utf-8")
+            atomic_write(saved, json.dumps(masked))
 
 
 def hide_numbers(text: str) -> str:

@@ -29,7 +29,7 @@ DIGIT = re.compile(r"\d")  # any Unicode digit
 # A masked value (fin.diligence.mask.PREFIX: CUST-0001, EMP-0012, ACCT-0001, ...): an identity,
 # not a number.
 # The FDD report and its findings allow them (fin.report.lint.lint_fdd, fin.fdd.findings).
-TOKEN = r"\b(?:CUST|VEND|USER|EMP|ECODE|ACCT)-\d+\b"
+TOKEN = r"\b(?:CUST|VEND|USER|EMP|ECODE|ACCT)-\d+\b"  # noqa: S105 (a pattern, not a secret)
 FDD_ALLOWED = re.compile(FIGURE.pattern + "|" + TOKEN)
 FIGURE_EXAMPLE = "{{figure:adjusted_ebitda:FY25}}"
 HEADING = re.compile(r"^## (.+)$")
@@ -37,7 +37,8 @@ HEADING = re.compile(r"^## (.+)$")
 
 def references(text: str, pattern: re.Pattern[str] = REFERENCE) -> set[tuple[str, str, str]]:
     """The references in `text` outside HTML comments, as (kind, name, period)."""
-    return {match.groups() for match in pattern.finditer(strip_comments(text))}
+    found = (match.groups() for match in pattern.finditer(strip_comments(text)))
+    return {(kind, name, period) for kind, name, period in found}
 
 
 def strip_comments(text: str) -> str:

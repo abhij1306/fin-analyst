@@ -206,7 +206,7 @@ def test_golden_checks_score_the_linked_purchase_cost(root: Path) -> None:
 
 
 def test_no_passthrough_customers_means_all_revenue_is_core(root: Path) -> None:
-    fy24, fy25 = query(root, "SELECT * FROM revenue_split ORDER BY period")
+    _fy24, fy25 = query(root, "SELECT * FROM revenue_split ORDER BY period")
 
     assert (fy25["core_revenue"], fy25["passthrough_revenue"]) == (D("360000.00"), D("0.00"))
     assert fy25["core_revenue_growth"] == D("3.000000")  # 360,000 / 90,000 - 1

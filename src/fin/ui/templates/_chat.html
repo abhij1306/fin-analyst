@@ -7,7 +7,8 @@
 <aside class="chat" id="chat" aria-label="Chat with Claude">
   <header>
     <h2>Chat with Claude</h2>
-    <select class="select" name="conv" aria-label="Conversation" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
+    <label class="sr-only" for="chat-conv">Conversation</label>
+    <select class="select" id="chat-conv" name="conv" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"
             hx-vals='{{ {"company": company or ""} | tojson }}'>
       {% if not chat.conv %}<option value="">New chat</option>{% endif %}
       {% for c in chat.convs %}
@@ -53,7 +54,8 @@
     <form class="form" hx-post="/chat/send" hx-target="#chat" hx-swap="outerHTML">
       <input type="hidden" name="conv" value="{{ chat.conv.id if chat.conv else '' }}">
       <input type="hidden" name="company" value="{{ company or '' }}">
-      <textarea class="textarea" name="text" rows="3" aria-label="Message" placeholder="Ask Claude about {{ company or 'a company' }}"{% if chat.running %} disabled{% endif %}>{{ chat.prefill }}</textarea>
+      <label class="sr-only" for="chat-text">Message</label>
+      <textarea class="textarea" id="chat-text" name="text" rows="3" placeholder="Ask Claude about {{ company or 'a company' }}"{% if chat.running %} disabled{% endif %}>{{ chat.prefill }}</textarea>
       <div>
         <button type="submit" class="btn"{% if chat.running %} disabled{% endif %}>Send</button>
         {% if chat.running %}
