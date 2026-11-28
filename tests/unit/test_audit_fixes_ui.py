@@ -191,6 +191,27 @@ def test_a_failed_dashboard_swap_keeps_the_last_good_build(
     assert [p.name for p in target.parent.iterdir()] == ["build"]
 
 
+def test_a_swap_that_cannot_put_either_build_back_keeps_the_old_one_aside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = make_build(tmp_path / "dashboard" / "build", "old")
+    built = make_build(tmp_path / "out", "new")
+    original = Path.replace
+
+    def replace(self: Path, other: Any) -> Path:
+        if Path(other) == target:  # neither the new build nor the old one can be renamed in
+            raise OSError("the folder is in use")
+        return original(self, other)
+
+    monkeypatch.setattr(Path, "replace", replace)
+
+    with pytest.raises(DashboardBuildFailed):
+        swap_in(built, target)
+
+    [aside] = list(target.parent.iterdir())
+    assert (aside / "index.html").read_text(encoding="utf-8") == "old"
+
+
 def wait_for(root: Path, done: Any, seconds: float = 60) -> list[dict[str, Any]]:
     end = time.monotonic() + seconds
     while time.monotonic() < end:

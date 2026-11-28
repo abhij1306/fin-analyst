@@ -145,4 +145,5 @@ def swap_in(built: Path, target: Path) -> None:
         ) from exc
     finally:
         shutil.rmtree(staging, ignore_errors=True)  # gone already when it became the build
-        shutil.rmtree(old, ignore_errors=True)  # the previous build, once the new one is in
+        if target.exists():  # the previous build, once a build is in place (never the only one)
+            shutil.rmtree(old, ignore_errors=True)
