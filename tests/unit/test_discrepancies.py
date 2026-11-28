@@ -243,6 +243,19 @@ def test_a_foreign_currency_line_without_a_rupee_value_has_no_difference(root: P
     assert (line["left_amount_shown"], line["difference_shown"]) == (None, None)
 
 
+def test_a_rupee_bank_line_is_shown_in_the_display_unit(root: Path) -> None:
+    reconcile(root)
+    bank_line(root, "Bank!8", "INR", 2000)
+
+    [line] = [r for r in rows(root, level="transaction") if r["key"] == "Bank!8"]
+
+    assert (line["currency"], line["difference"]) == (None, Decimal("2000.00"))
+    assert (line["left_amount_shown"], line["difference_shown"]) == (
+        Decimal("0.0"),
+        Decimal("0.0"),
+    )
+
+
 def test_the_cli_lists_ranked_rows_and_refuses_an_unknown_level(
     root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

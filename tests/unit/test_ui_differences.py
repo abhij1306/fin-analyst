@@ -63,6 +63,10 @@ def test_the_over_threshold_filter_and_the_unit_picker(setup: tuple[Path, TestCl
     assert "INV-2003" in text  # over the threshold
     assert "INV-2005" not in text  # an fx line below it
     assert f"#{item(root, 'headline', 'other_expenses')} " not in text
+    every = client.get("/partials/differences?company=acme").text
+    assert f"<h2>{len(rows(root))} differences</h2>" in every
+    shown = re.search(r"<h2>(\d+) differences</h2>", text)
+    assert shown is not None and int(shown.group(1)) == text.count("<summary>")
 
 
 def test_ticked_rows_open_the_chat_with_a_request_to_draft_one_query(

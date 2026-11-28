@@ -15,7 +15,8 @@ matched, unmapped and not reconciled lines are not. Every row is in the statemen
 lower rung minus the rung above it (register - books, Ledger Vouchers - trial balance, trial
 balance - statements); gl_vs_tb lines, stored as debit - credit, are multiplied by their
 account's side. `difference` is in rupees: a foreign-currency bank line's rupee difference, NULL
-when it has none (missing is not zero); its amounts stay in `currency`.
+when it has none (missing is not zero); its amounts stay in `currency`. A bank line stored with
+currency INR is in rupees and has no `currency`, so it is shown in the display unit like the rest.
 
 Parents: an account or party row is under the headline row of the same period whose account is
 its own or the nearest above it in the dictionary tree (a party row's account is the register
@@ -90,11 +91,12 @@ lines AS (
     SELECT
         p.item_id, p.recon_id, p.reconciliation, p.period, p.tier AS level,
         coalesce(p.key, p.account) AS key, p.kind, p.books_account AS account, p.party,
-        p.left_name, p.right_name, p.currency,
+        p.left_name, p.right_name, nullif(p.currency, 'INR') AS currency,
         p.left_amount * p.sign AS left_amount,
         p.right_amount * p.sign AS right_amount,
-        CASE WHEN p.currency IS NULL THEN p.difference ELSE p.amount_inr END * p.sign
-            AS difference,
+        -- the line's rupees as fin.reconcile.items.line_rupees reads them
+        coalesce(p.amount_inr, CASE WHEN coalesce(p.currency, 'INR') = 'INR' THEN p.difference END)
+            * p.sign AS difference,
         p.left_source, p.right_source, p.note, p.threshold, p.needs_query, p.query_id
     FROM picked p
 ),

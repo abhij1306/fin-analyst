@@ -37,6 +37,10 @@ def _over(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return kept
 
 
+def _count(nodes: list[dict[str, Any]]) -> int:
+    return sum(1 + _count(node["children"]) for node in nodes)
+
+
 def differences_screen(
     root: Path, company: str, query: Mapping[str, str] | None = None
 ) -> dict[str, Any]:
@@ -53,9 +57,10 @@ def differences_screen(
     except EngagementState as error:
         return base | {"no_engagement": f"{error.code}: {error.message}"}
     nodes = tree([_shown(row, display) for row in result["rows"]])
+    shown = _over(nodes) if over else nodes
     return base | {
-        "nodes": _over(nodes) if over else nodes,
-        "count": len(result["rows"]),
+        "nodes": shown,
+        "count": _count(shown),  # the rows in the tree shown, filtered or not
         "unit_label": display.unit_label,
     }
 
