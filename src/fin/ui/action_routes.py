@@ -44,9 +44,17 @@ def add_action_routes(
     templates: Jinja2Templates,
     known: Callable[[Path, str | None], str | None],
 ) -> None:
-    def shown(request: Request, screen: str, company: str, outcome: ActionResult) -> HTMLResponse:
-        return acted(templates, root, request, screen, company, outcome)
+    _add_act_route(app, root, templates, known)
+    _add_upload_route(app, root, templates, known)
+    _add_company_route(app, root, templates)
 
+
+def _add_act_route(
+    app: FastAPI,
+    root: Path,
+    templates: Jinja2Templates,
+    known: Callable[[Path, str | None], str | None],
+) -> None:
     @app.post("/act", response_class=HTMLResponse)
     def act(
         request: Request,
@@ -62,8 +70,16 @@ def add_action_routes(
             outcome = actions.decide(root, chosen, action, item, reason, choice)
         except UiActionInvalid as error:
             outcome = Refused.before_run(error)
-        return shown(request, spec.screen if spec else "home", chosen, outcome)
+        screen = spec.screen if spec else "home"
+        return acted(templates, root, request, screen, chosen, outcome)
 
+
+def _add_upload_route(
+    app: FastAPI,
+    root: Path,
+    templates: Jinja2Templates,
+    known: Callable[[Path, str | None], str | None],
+) -> None:
     @app.post("/upload", response_class=HTMLResponse)
     async def upload(request: Request) -> HTMLResponse:
         # A refusal before the company is known is shown as an error alert (E008, E001).
@@ -78,8 +94,10 @@ def add_action_routes(
             outcome = actions.upload(root, chosen, [(f.filename or "", f.file) for f in sent])
         except UiActionInvalid as error:
             outcome = Refused.before_run(error)
-        return shown(request, "files", chosen, outcome)
+        return acted(templates, root, request, "files", chosen, outcome)
 
+
+def _add_company_route(app: FastAPI, root: Path, templates: Jinja2Templates) -> None:
     @app.post("/company", response_class=HTMLResponse)
     def company(request: Request, code: str = Form(), name: str = Form()) -> HTMLResponse:
         """A new company: its Files screen opens (the top bar lists it), or the refusal shows."""
