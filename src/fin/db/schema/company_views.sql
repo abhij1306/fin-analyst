@@ -44,6 +44,16 @@ CREATE MACRO div6(n, d) AS
         AS DECIMAL(38, 6))
     END;
 
+-- The share of a service-period amount for `done` of its `total` service days: amount * done / total, half away from zero
+-- to the paisa, exactly (integer paise). The one rounding of the service-day split: the recast (fin.reconcile.recast
+-- spread, ROUND_HALF_UP on the same fraction), the cut-off's before-year-end part and the backlog's billed-not-earned
+-- part all take a share through a day, so their parts add up to the invoice.
+CREATE MACRO day_share(amount, done, total) AS CAST(
+    CAST(sign(CAST(amount * 100 AS HUGEINT))
+        * ((2 * abs(CAST(amount * 100 AS HUGEINT)) * done + total) // (2 * total)) AS DECIMAL(38, 0))
+        * CAST(0.01 AS DECIMAL(3, 2))
+    AS DECIMAL(20, 2));
+
 -- Integer paise -> rupees, exactly.
 CREATE MACRO rupees(p) AS CAST(CAST(p AS DECIMAL(38, 0)) * CAST(0.01 AS DECIMAL(3, 2)) AS DECIMAL(38, 6));
 
@@ -198,13 +208,15 @@ FROM (VALUES ('revenue', 'revenue', 'Revenue', 1), ('ebitda', 'EBITDA', 'EBITDA'
 
 -- Totals a document may not print, and the lines summed in their place when it does not: the metrics view uses the
 -- sum (metrics_wide, its `paise` step), and metric_input_accounts lists the lines (stands_in_for) for every metric using the total.
--- The lines are the accounts whose parent is the total in templates/dictionary/schedule_iii.csv; cash (cash and cash
+-- The lines are the accounts whose parent is the total in templates/dictionary/schedule_iii.csv (all adding, sign 1)
+-- and the accounts added in review whose parent is the total (review_accounts, with their sign), so the stand-in is
+-- the signed sum of every dictionary child; cash (cash and cash
 -- equivalents) is not a total, but old-format "Cash and bank balances" stands in for it. part_of: a line
 -- printed that already holds this one; when the document prints it, this line is not added again (old-format
 -- "Cash and bank balances" holds cash and cash equivalents and other bank balances).
 CREATE VIEW stand_ins AS
 SELECT total, account,
-    CASE WHEN account IN ('cash', 'other_bank_balances') THEN 'cash_and_bank_balances' END AS part_of
+    CASE WHEN account IN ('cash', 'other_bank_balances') THEN 'cash_and_bank_balances' END AS part_of, 1 AS sign
 FROM (
     SELECT total, unnest(accounts) AS account FROM (VALUES
         ('total_current_assets', ['inventories', 'current_investments', 'trade_receivables', 'cash',
@@ -216,7 +228,11 @@ FROM (
         ('total_tax_expense', ['tax_expense', 'deferred_tax']),
         ('cash', ['cash_and_bank_balances'])
     ) AS t(total, accounts)
-);
+)
+UNION ALL
+SELECT r.parent, r.account, NULL, r.sign
+FROM review_accounts r
+WHERE r.parent IN ('total_current_assets', 'total_current_liabilities', 'total_tax_expense');
 
 -- Where a raw value was printed: `sheet!cell` for Excel, `page N` for PDF.
 CREATE MACRO source_ref(sheet, cell, page) AS coalesce(sheet || '!' || cell, 'page ' || page);

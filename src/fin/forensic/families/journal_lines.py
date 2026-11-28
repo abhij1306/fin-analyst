@@ -169,7 +169,7 @@ def je_reversed(ctx: Context) -> Outcome:
     first = ctx.books.files[following][2]
     later: dict[tuple, list[Line]] = {}
     for x in ctx.books.lines[following]:
-        if ctx.journal(x) and (x.entry_date - first).days < wider:
+        if ctx.journal(x) and 0 <= (x.entry_date - first).days < wider:
             later.setdefault((x.ledger, x.amount, x.side), []).append(x)
     big, _ = _big(ctx, ctx.lines)
     flags, near = [], 0

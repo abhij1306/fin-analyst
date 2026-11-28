@@ -25,7 +25,7 @@ Contracts are never the source of the schedule: fin only shows them beside a lin
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import duckdb
@@ -86,7 +86,7 @@ def spread(amount: Decimal, start: date, end: date) -> dict[str, Decimal]:
     done, before = 0, ZERO  # days and amount (rounded once) up to the month before
     for key, count in days.items():
         done += count
-        upto = (amount * done / total).quantize(CENT, ROUND_HALF_EVEN)
+        upto = (amount * done / total).quantize(CENT, ROUND_HALF_UP)  # as SQL day_share
         shares[key] = upto - before
         before = upto
     return shares

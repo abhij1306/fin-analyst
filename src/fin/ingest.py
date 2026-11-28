@@ -73,7 +73,7 @@ from fin.ingest_read import (
     read_with_reading,
     sha256_of,
 )
-from fin.map.dictionary import LabelMap, map_rows
+from fin.map.dictionary import LabelMap, copy_review_accounts, map_rows
 from fin.paths import archive_dir, company_db_path, review_dir
 
 __all__ = ["UNIT_ANSWERS", "GivenUnit", "files_in", "ingest_file", "read_document", "sha256_of"]
@@ -164,6 +164,7 @@ def _load(
                 raw_values, facts = _staged(run, doc_id, raw_ids, rows, label_map, unmapped)
                 _insert_many(con, "raw_values", RAW_VALUE_COLUMNS, raw_values)
                 _insert_many(con, "facts", FACT_COLUMNS, facts)
+                copy_review_accounts(run.root, con)
                 for section, note in document.notes:
                     con.execute(
                         "INSERT INTO notes VALUES (?, ?, ?)",

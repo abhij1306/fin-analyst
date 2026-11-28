@@ -478,7 +478,8 @@ pages pdfplumber skipped (E201-E204) -> anything still unread stays unread. `fin
 `fin.extract.addon` runs it once per document on a PDF of just those pages; each engine's adapter
 (`fin.extract.docling_run`, `liteparse_run`, `llamaparse_run`) gives `pdf_tables.Table` grids with boxes in fin's
 top-left points, and `fin.extract.pdf_tables` reads them with fin's own rules and helpers, the same for every engine:
-header rows give each column's period end, length and scope ("Standalone" / "Consolidated" spanning the columns,
+header rows give each column's period end (a month's last day, as in the Excel reader: a cell with any other date is
+not a period header), length and scope ("Standalone" / "Consolidated" spanning the columns,
 else the page title), the label is the text columns left of the first period column (a "Note" column kept as the
 note), headings are sections, the unit is the page's unit line, and the same guards apply (two columns with the same
 period and scope: E202; no unit: E203; misread figures or a row shorter than its table: E204; no usable table: E201). Evidence crops work as for
@@ -546,7 +547,10 @@ Analysis core (after 1.0.0, not a phase): standard statements and the full metri
   [--json]` prints it; `fin export <co>` writes `reports/<co>/<co>_financials.xlsx` (the databook layout: every
   period side by side, one sheet per statement and scope, and a Metrics sheet).
 - `metric_definitions` is one row per metric (category, unit, periods, when_missing, definition, formula);
-  `metric_input_accounts` lists each metric's input accounts and periods for `metric_inputs`. Categories:
+  `metric_input_accounts` lists each metric's input accounts and periods for `metric_inputs`. A total a document does
+  not print (total current assets and liabilities, total tax expense; `stand_ins`) is the signed sum of every
+  dictionary child printed, the accounts the user added in review under it too (`review_accounts`, copied from the
+  dictionary whenever facts are written). Categories:
   profitability, returns (closing and `*_avg` on average balances), liquidity, solvency, efficiency, cash flow,
   growth (year on year, 3- and 5-year CAGR), earnings quality, per share (EPS as printed), lender (NBFCs and banks,
   only when their accounts exist), trailing twelve months (four consecutive quarters). A metric without its inputs is
@@ -664,7 +668,8 @@ number (`ACCT-0001`, below). The trial balance and Ledger
 Vouchers (ledgers, party ledgers too, and particulars), bank remarks and reference, the other register columns and
 all free text (contract terms, FDD text, query answers, the reasons stored with proposals) are stored as filed or
 written. Party matching: a ledger, a Ledger Vouchers particulars or a bank line that names a register customer or
-vendor is matched to its token through `mask_values` (case and spaces ignored; in bank text, as whole words):
+vendor is matched to its token through `mask_values` (case and spaces ignored; in bank text, as whole words; a name
+first masked as an employee or user is a party when its token is on a register or GSTR-2B line):
 `mask.Parties`, used by the register vs ledger and bank reconciliations, and the view `related_party_matches`.
 `fin sql` (read or write) refuses SQL naming `mask_values`, or calling `query`, `query_table` or `read_duckdb` (E810), read from the text and from DuckDB's own tokens with comments left out (a comment between the name and `(` does not hide it; `query_table` and `read_duckdb` are refused wherever they appear), and `fin sql` runs with file access closed (no `read_csv`, `read_blob`, `glob`, `COPY` of a file: it cannot read the original files, the logs or the exports), and `fin sql --write` also refuses schema changes (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) and refuses to
 write `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements` and `bank_lines` (E806). One transaction per file; a later file of the
@@ -724,7 +729,9 @@ QoE outputs (D7, decisions in `docs/decisions/d7-qoe.md`): `db/schema/diligence_
 financial assets, trade payables, other current liabilities incl. other financial liabilities and short-term provisions; cash,
 investments, borrowings, leases and tax are not in it). `nwc_year_end` (and `nwc_year_end_lines`, each ledger with its trial
 balance row) is one row per loaded trial balance of the latest engagement, the stub included (basis unaudited), balances as the
-statements show them and net = assets - liabilities, with the count of unmapped ledgers. `nwc_monthly_ledgers` says, per working
+statements show them and net = assets - liabilities, with the count of unmapped ledgers. A component with no ledger confirmed
+to its accounts is missing (NULL, never 0; a confirmed ledger with a nil balance is 0): the net is the sum of the known
+components and `missing_components` names the others (also in `nwc_monthly` and `nwc_series`; the report prints them beside the net). `nwc_monthly_ledgers` says, per working
 capital ledger of each Ledger Vouchers period, whether it is `included` in the monthly view: the previous period's trial balance
 is loaded (else "no previous trial balance": an opening is never inferred) and the latest `gl_vs_tb` run has its movement equal to
 the trial balance (else excluded with the reason); `nwc_monthly_lines` / `nwc_monthly` are the included ledgers' opening plus
@@ -744,8 +751,8 @@ appendix (statement cells, register sheets and lines, pass-through lines, trial 
 `nwc_monthly` (`fin/evals/qoe.py`).
 
 Service-period recast (D6, decisions in `docs/decisions/d6-recast.md`): `fin recast run <co> [--period FY25]` spreads each sales
-register line's Amount in Rs (before GST) over its service start and end dates by month (by service day, each month's share rounded once on the
-running total so the months add to the amount) and compares each annual period's recast with the register's amount by invoice date. It is a reconciliation
+register line's Amount in Rs (before GST) over its service start and end dates by month (by service day, each month's share rounded once, half up, on the
+running total so the months add to the amount; the cut-off's before-year-end part and the backlog use the same rounding) and compares each annual period's recast with the register's amount by invoice date. It is a reconciliation
 named `service_recast` in `recon_runs`/`recon_items` (`fin/reconcile/recast.py`; levels `period` (left = recast, right = booked,
 difference = the revenue effect; with no register line dated in the period booked is missing, not 0), each period and schedule
 side naming its register rows (file sheet!row), `month`, `schedule` (per invoice whose recast and booked amounts differ) and `invoice` with kind
@@ -815,7 +822,8 @@ one whose inputs are loaded) also runs `sales_register_vs_gl`, `purchase_registe
 the Ledger Vouchers entries of the ledgers confirmed to revenue, or purchases of stock-in-trade and cost of
 materials; month, party and invoice lines; a foreign-currency invoice differing only by rate is an `fx` line),
 `gl_vs_tb` (Ledger Vouchers movement vs trial balance, per ledger, `not_reconciled` without a prior trial balance) and
-`payroll_vs_gl` (annual), for the annual periods and the stub. One `recon_runs` row per run (`right_file_id`, input
+`payroll_vs_gl` (annual; an employee with a blank CTC, or gross when that is the measure, makes the payroll figure
+unknown: the line is `not_reconciled`, naming the rows, never compared as 0), for the annual periods and the stub. One `recon_runs` row per run (`right_file_id`, input
 hash); `recon_items` gain `item_id`, `level`, `key`, `needs_query`, `note` and the kinds `fx`, `not_reconciled`. fin
 drafts no query for these: `fin query raise <co> --items 12,13 --question "..."` makes one draft issue (origin
 `recon`) from lines of one period (`query_items`; E841, E842); a rerun keeps a query on a line whose level, key,
@@ -869,7 +877,8 @@ row per employee, with the profile `templates/profiles/sparsh_payroll.toml` (the
 (basis `audited`) or in the stub (`unaudited`), else E808; a later file for the same period supersedes it.
 `payroll_lines` (`db/schema/sources.sql`) keeps file_id, sheet, row, snapshot date, employee name and code as tokens
 (`EMP-0001`, `ECODE-0001`), designation, department, vertical, sub-vertical, joining and resign date, gross salary
-and CTC (annual rupees; a blank cell is NULL; no month column). A row with no name or code, or a bad date, is E821;
+and CTC (annual rupees, rounded half up to the paisa like every figure, as are ledger and bank statement amounts; a
+blank cell is NULL; no month column). A row with no name or code, or a bad date, is E821;
 an amount that is not a number is E204; rows named Total are skipped (profile `skip`). fin cannot know the unit, so
 it warns when the median gross salary or CTC is under Rs 1,50,000 (`MONTHLY_BELOW` in `fin/diligence/payroll.py`),
 at load, in `confirm-unit` and in G1; `fin payroll confirm-unit <co> <file> --annual|--monthly` records the user's
@@ -980,7 +989,8 @@ that year (straight-line by day over the remaining term), with that part as a pe
 orderbook (value less billed to date, from the later of the start date and the day after the as-at date to the end date; an order with no end date
 is in the backlog but not spread; an order whose term ended by the as-at date adds nothing, "term over"); the output and the FDD report give the
 orderbook's as-at date and file, and say when the as-at date is not the period end; revenue billed but not yet earned at the period end (core sales register lines invoiced by then whose service
-period runs past it, the service-period recast's share); customer contract value remaining (F1 contracts ending after the period end, core
+period runs past it: the amount less its share through the period end, and the next year's part the share through the next year end less that, each
+share rounded once as the recast and the cut-off round it, SQL `day_share`, so the parts add up to the invoice); customer contract value remaining (F1 contracts ending after the period end, core
 customers; a contract whose value was not read has no amount). The sources overlap and are not added together; a source not loaded says so. The
 reconciliation `orderbook_vs_register` (`fin/reconcile/orderbook_vs_register.py`, in `RECONCILIATIONS`, so `fin reconcile` and gate G2 see
 it) lists, per period, orders whose customer has no sales register line in the period (left_only, the order value) and core customers billed in
@@ -993,7 +1003,8 @@ GST and income tax (FDD F6, `docs/fdd.md`; decisions in `docs/decisions/fdd-f6.m
 --profile gstr1|gstr3b` (`fin/fdd/gst.py`, through `fin/diligence/sources.py`) loads a GSTR-1 or GSTR-3B summary for an
 engagement year or the stub (period line as for a trial balance, E808): one row per return month into `gst_returns`
 (taxable value, IGST, CGST, SGST, cess; GSTR-3B also ITC, RCM liability, tax paid in cash and through credit) with
-sheet!row. The file is stored as its return (`source_files.kind` `gstr1` or `gstr3b`), so a later file of the same
+sheet!row. A blank figure is NULL (unknown, never 0): that month's reconciliation line is `not_reconciled`, naming the
+row, the report's total for the return is missing (n/a) and its reconciliation table counts the lines not compared. The file is stored as its return (`source_files.kind` `gstr1` or `gstr3b`), so a later file of the same
 return and period supersedes it; `--profile` is required (a GSTR-3B layout has every GSTR-1 column). Profiles
 `templates/profiles/gstr1.toml` and `gstr3b.toml` (kind `gst`, `gst_return`, `month_format`). A bad, out-of-period or
 repeated month is E950 (nothing loaded); months with no row are listed. Tax ledgers: Claude proposes a class for trial
@@ -1022,7 +1033,8 @@ A document with no supplier, number or taxable value, a date that cannot be read
 supplier and number twice is E996 (nothing loaded). Reconciliation `purchase_register_vs_gstr2b` (`fin/reconcile/gstr2b.py`, run by
 `fin reconcile`): the purchase register's lines dated in the 2B period against the 2B lines, taxable values, by
 vendor token and invoice number; what is left, by invoice number and taxable value in the same month, is matched with
-the note "vendor names differ" and both tokens; a credit or debit note is its own line, never added to an invoice. Level `invoice`, key `<month> <vendor token> <number>`, difference
+the note "vendor names differ" and both tokens; a credit or debit note is its own line, never added to an invoice; the register has no document type, so a
+note pairs with the register line of its vendor and number that no 2B invoice took. Level `invoice`, key `<month> <vendor token> <number>`, difference
 2B - register: right_only (in the register, not reported by the supplier), left_only and a difference need a query at
 or above the threshold (`fin query raise --items`); it is a transaction row of the discrepancies view. It is not a
 gate G2 input (`fin.reconcile.NOT_GATED`). Golden eval kind `purchase_register_vs_gstr2b`. `fin sql --write`
@@ -1301,14 +1313,18 @@ ordered by amount). Defaults, minimum populations and readings: [decisions/foren
 - **Tests** (each in a family module of `src/fin/forensic/families/`): `je_round`, `je_weekend`, `je_duplicate`,
   `je_period_end`, `je_reversed`, `je_sensitive`, `je_under_limit` (single lines, journal vouchers only, amounts at or
   above `min_amount`, the query threshold by default), `je_gap`, `je_rare_ledger`, `je_unusual_pair` and `je_benford`
-  (voucher series, ledgers, account pairs of vouchers rebuilt from every ledger block, and first digits per Tally
+  (voucher series, ledgers, account pairs of vouchers rebuilt from every ledger block, a line with no voucher number
+being its own voucher, never joined to another, and first digits per Tally
   group; each needs a minimum population). Below it a test reports **too few entries** with the count and the minimum
-  and flags nothing; without a file it reads (the previous or next period, a trial balance) or an input the user keeps
+  and flags nothing; without a file it reads (the previous or next period: the next is the one starting the day after
+this one ends, never a later year; a trial balance) or an input the user keeps
   (`approval_limits`) it reports **cannot run** and what it needs.
 - **Bank tests** (SPEC-19; `families/bank_rows.py`, `families/bank_flows.py`, on the lines of every loaded bank
   statement, Excel or PDF alike): per account and statement, `bank_balance_chain` (a row whose balance is not the
   balance above, the statement's opening for the first row, plus its credit less its debit: the flag names the row
-  and the balance expected; a row with no balance restarts the chain and is counted, not flagged; a statement with no
+  and the balance expected; a row with no balance is not checked, the expected balance carries through it to the next
+row and the period's state names the rows; a dated row with no movement that prints a balance stays in the chain
+(the other tests leave it out); a statement with no
   row balances is "cannot run" for it, and the period's state says so), `bank_date_order` (a row dated before the
   row above), `bank_duplicate` (rows of one statement with the same date, side, amount, remarks and reference),
   `bank_round` (an account's months with three or more lines that are multiples of `round_unit`: the lines) and
@@ -1317,21 +1333,22 @@ ordered by amount). Defaults, minimum populations and readings: [decisions/foren
   `flow_days`: the first line, naming the party's token when both lines' remarks name the same register party),
   `bank_own_transfer` (a line whose remarks name another of the company's `ACCT-` accounts with no line of the same
   amount on it within 3 days, where that account's statement covers the date), `bank_period_end_credit` (a credit
-  in the last `period_end_days` of a period debited again on the account in the first `reversal_days` of the next;
+  in the last `period_end_days` of a period, on or before its last day, debited again on the account in the first `reversal_days` of the next;
   cannot run without the next period's statements; an account with no statement there starting by the period's first day is not
   checked, and the state names it) and `bank_cash` (one flag per account and month whose lines with a
   `cash_words` word add up to the threshold or more, with the deposits, withdrawals and total in the reason and the
   lines in its source: the cash series of `fin forensic flags --test bank_cash` and the Forensic screen). The
   single-row tests flag amounts at or above `min_amount` (a balance break: the difference). A bank flag's account is
   the statement's `ACCT-` token (no mapping); remarks are not printed. The tests read rupee statements only: a
-  statement in another currency is left out, and the period's state names it (the thresholds are in rupees).
+  statement in another currency is left out, and the period's state names it, a test that cannot run too (the
+  thresholds are in rupees).
 - **Counterparty tests** (SPEC-20, `families/counterparty.py`): `cp_new_vendor` (a vendor with no invoice in an earlier
   loaded period and `new_vendor_share` of the period's purchase register, one flag on its first invoice),
   `cp_vendor_spike` (a vendor's month at `spike_factor` times the median of its earlier months with purchases, with
   `spike_history` of them; the flag is on the month's largest invoice), `cp_under_limit` (purchase register invoices
   within `limit_band` below an approval limit), `cp_credit_note` (a sales invoice in the last `period_end_days` of a
   period, then a voucher of a `credit_note_types` type crediting the customer's ledger in the first 60 days of the next
-  period; cannot run without the next period's Ledger Vouchers), `cp_setoff` (a journal debiting one party ledger and
+  period, counted from its first day; cannot run without the next period's Ledger Vouchers), `cp_setoff` (a journal debiting one party ledger and
   crediting another: a register party's ledger, or a ledger mapped to trade receivables or payables), `cp_loan_no_trade`
   (a debit to a ledger mapped to `loans_current`, `loans_non_current` or `loans` whose name holds no party with a sales
   or purchase invoice in any loaded period) and `cp_capitalised` (a fixed-asset debit in a voucher whose credits are

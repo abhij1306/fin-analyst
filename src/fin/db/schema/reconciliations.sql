@@ -47,6 +47,8 @@ CREATE TABLE recon_runs (
 --               invoice's Amount in Rs: left_amount the receipt's booked rupees, right_amount the invoice's, difference
 --               the FX gain (positive) or loss; listed, never queried, never plugged.
 --   not_reconciled  (gl_vs_tb) a balance sheet ledger with no prior trial balance to start from: listed;
+--               (payroll_vs_gl, gst) a side with a blank figure in the file is unknown (left_amount NULL), not 0: listed,
+--               not compared, note names the blank rows;
 --   undated     (service_recast) a sales invoice with no usable service dates, recognised on its invoice date: left_amount
 --               is its amount; at or above the threshold it needs a query. service_recast lines: level 'period' (recognised
 --               by the recast vs booked by invoice date: the period's revenue effect), 'month' and 'schedule' (per invoice,

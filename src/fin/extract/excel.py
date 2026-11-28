@@ -8,18 +8,18 @@ Each sheet is read top to bottom:
    A sheet whose title names no statement (a cover page, notes) is skipped. A statement sheet with
    no unit line is read in the unit the user gave (`unit`); without one, the workbook is held with
    the question "which unit?" (E203 naming every such sheet). fin does not guess a unit.
-2. The header is the first row with a period cell: a date ("31.03.2025", "31-Mar-2025",
-   "31 March 2025", an Excel date) alone or after "As at" / "Year ended" / "Quarter ended" /
-   "Half year ended" / "Nine months ended". Each such cell starts a value column, so any number of
-   periods side by side works. A column's period length comes from the nearest heading naming one,
-   from its period cell up: the words before the date, or a cell above that only names a length
-   ("Quarter ended") (`fin.extract.periods`); ingest names the period ("FY25", "FY26-Q1"). Its
-   scope comes from the nearest "Standalone" / "Consolidated" above it, else from the one scope
-   the sheet names. A heading covers the columns it is merged over, or, typed once and not
-   merged, the blank cells right of it in its row. A trailing "(Unaudited)" / "(Audited)" /
-   "(Reviewed)" is ignored, and a row of such words under the dates is not a value row. E202 when
-   a flow column names no length on a sheet with quarter, half-year or nine-month columns, or
-   names no scope on a sheet naming both.
+2. The header is the first row with a period cell: a month-end date ("31.03.2025", "31-Mar-2025",
+   "31 March 2025", an Excel date; "15.03.2025" is not a period) alone or after "As at" / "Year
+   ended" / "Quarter ended" / "Half year ended" / "Nine months ended". Each such cell starts a value
+   column, so any number of periods side by side works. A column's period length comes from the
+   nearest heading naming one, from its period cell up: the words before the date, or a cell above
+   that only names a length ("Quarter ended") (`fin.extract.periods`); ingest names the period
+   ("FY25", "FY26-Q1"). Its scope comes from the nearest "Standalone" / "Consolidated" above it,
+   else from the one scope the sheet names. A heading covers the columns it is merged over, or,
+   typed once and not merged, the blank cells right of it in its row. A trailing "(Unaudited)" /
+   "(Audited)" / "(Reviewed)" is ignored, and a row of such words under the dates is not a value
+   row. E202 when a flow column names no length on a sheet with quarter, half-year or nine-month
+   columns, or names no scope on a sheet naming both.
 3. Below the header, a row with a label and numbers in the period columns is a value row; a row
    with a label and no numbers is a section heading for the rows under it. A row of numbers with
    no label holds that sheet (E204 naming its cells, `HeldSheet`); the other sheets are read. When
@@ -29,6 +29,7 @@ Formula cells are read through the values Excel (or LibreOffice) cached when the
 formula with no cached value raises E204: open the file in Excel, save it and ingest it again.
 """
 
+import calendar
 import re
 import zipfile
 from dataclasses import dataclass, field
@@ -187,7 +188,16 @@ def open_workbook(path: Path, *, data_only: bool) -> Workbook:
 
 
 def parse_period(value: Any) -> date | None:
-    """The period end a header cell names, or None if it is not a period header."""
+    """The period end a header cell names, or None if it is not a period header. A period ends on
+    a month's last day (as on the PDF path): any other date is not a period header."""
+    found = _date_in(value)
+    if found is None or found.day != calendar.monthrange(found.year, found.month)[1]:
+        return None
+    return found
+
+
+def _date_in(value: Any) -> date | None:
+    """The date a header cell holds or names, if any."""
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):

@@ -160,7 +160,8 @@ def bank_period_end_credit(ctx: Context) -> Outcome:
     unchecked: set[str] = set()  # no next-period statement from its first day: not checked
     flags, near, population = [], 0, 0
     for x in bank.lines(ctx.period):
-        if not (x.credit and x.amount >= ctx.min_amount and end - timedelta(days=days) < x.day):
+        last_days = end - timedelta(days=days) < x.day <= end
+        if not (x.credit and x.amount >= ctx.min_amount and last_days):
             continue
         if x.account not in covered:
             unchecked.add(x.account)

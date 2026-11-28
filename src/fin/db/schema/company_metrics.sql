@@ -9,11 +9,12 @@ WITH printed AS (
     FROM current_facts
 ),
 paise AS (
-    -- Plus, for a total in stand_ins the document does not print, the sum of its lines printed (a line is left out
-    -- when the line it is part of is printed).
+    -- Plus, for a total in stand_ins the document does not print, the signed sum of its lines printed (a line is left
+    -- out when the line it is part of is printed).
     FROM printed
     UNION ALL
-    SELECT s.total, x.fiscal_year, x.period, x.period_months, x.scope, max(x.period_end), CAST(sum(x.p) AS HUGEINT)
+    SELECT s.total, x.fiscal_year, x.period, x.period_months, x.scope, max(x.period_end),
+        CAST(sum(x.p * s.sign) AS HUGEINT)
     FROM printed x
     JOIN stand_ins s ON s.account = x.account
     WHERE NOT EXISTS (

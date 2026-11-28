@@ -92,6 +92,15 @@ CREATE TABLE facts (
     read_by VARCHAR DEFAULT 'fin'
 );
 
+-- The accounts the user added in review (shared/dictionary.duckdb accounts, source 'review') that add into a subtotal,
+-- copied here whenever facts are written (fin.map.dictionary.copy_review_accounts) so a stand-in total (stand_ins)
+-- sums every dictionary child of the total, with its sign.
+CREATE TABLE review_accounts (
+    account VARCHAR PRIMARY KEY,
+    parent VARCHAR NOT NULL,
+    sign INTEGER NOT NULL CHECK (sign IN (1, -1))
+);
+
 -- Figures the user states (`fin fact state`, fin.facts): a nil for a line the documents do not have, or a value from a
 -- source fin cannot hold. Not a document's figure: read_by is always 'user', and reason is the user's words (as typed;
 -- not masked). current_facts uses a stated figure only while no loaded document gives the same account, period and

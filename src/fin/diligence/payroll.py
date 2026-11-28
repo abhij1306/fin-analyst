@@ -33,6 +33,7 @@ from fin.extract.excel import parse_number
 from fin.extract.ledger import Table, parse_date
 from fin.extract.periods import fiscal_year_of
 from fin.extract.profiles import Profile, norm
+from fin.extract.units import to_rupees
 
 MONTHLY_BELOW = Decimal(150_000)  # a median gross salary or CTC under this a year looks monthly
 UNITS = ("annual", "monthly")
@@ -81,7 +82,7 @@ def money(value: Any, profile: Profile, where: str) -> Decimal | None:
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
     _, number = parse_number(value, where)
-    return (number * profile.unit).quantize(Decimal("0.01"))
+    return to_rupees(number, profile.unit)  # half up to the paisa, like every figure
 
 
 def rows(table: Table, file: dict[str, Any], run_id: str, masker: Masker) -> list[list[Any]]:

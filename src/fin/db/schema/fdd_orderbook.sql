@@ -103,8 +103,8 @@ FROM p;
 --                      its end date; no end date: not spread; term over (it ended by the as-at date): 0, both
 --                      still to come and in the next year (the unbilled value of an ended order is not backlog);
 --   billed_not_earned  sales register lines (core customers) invoiced up to the period end whose service period runs
---                      past it: the share of the amount for the service days after the period end (the service-period
---                      recast, D6); lines without usable service dates are recognised on the invoice date and have none;
+--                      past it: the amount less its share through the period end, and the share through the next year
+--                      end less that (`day_share`, rounded once as the recast and the cut-off are, D6); lines without usable service dates are recognised on the invoice date and have none;
 --   contract           customer contracts (F1, core customers) ending after the period end: contract value times the
 --                      share of its days after the period end; a contract whose value was not read has no amount.
 CREATE VIEW backlog_lines AS
@@ -132,10 +132,12 @@ WHERE o.engagement_id = b.engagement_id
 UNION ALL
 SELECT 'billed_not_earned', f.file_name || ' ' || r.sheet || '!' || r."row", r.customer,
     greatest(r.service_start, b.period_end + 1)::DATE, r.service_end,
-    CAST(round(r.amount_inr * (date_diff('day', greatest(r.service_start, b.period_end + 1), r.service_end) + 1)
-        / (date_diff('day', r.service_start, r.service_end) + 1), 2) AS DECIMAL(20, 2)),
-    CAST(round(r.amount_inr * overlap_days(r.service_start, r.service_end, b.year_start, b.year_end)
-        / (date_diff('day', r.service_start, r.service_end) + 1), 2) AS DECIMAL(20, 2)),
+    r.amount_inr - day_share(r.amount_inr, greatest(date_diff('day', r.service_start, b.period_end) + 1, 0),
+        date_diff('day', r.service_start, r.service_end) + 1),
+    day_share(r.amount_inr, greatest(date_diff('day', r.service_start, least(r.service_end, b.year_end)) + 1, 0),
+        date_diff('day', r.service_start, r.service_end) + 1)
+        - day_share(r.amount_inr, greatest(date_diff('day', r.service_start, b.period_end) + 1, 0),
+        date_diff('day', r.service_start, r.service_end) + 1),
     NULL
 FROM register_lines r
 JOIN source_files f ON f.file_id = r.file_id AND f.status = 'loaded' AND f.kind = 'registers'

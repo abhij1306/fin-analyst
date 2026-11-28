@@ -169,9 +169,8 @@ def cp_credit_note(ctx: Context) -> Outcome:
     sales = ctx.invoices("sales")
     if not sales:
         return _no_register("sales", ctx.period)
-    following = ctx.books.next(ctx.period)
-    # the next period must start the day after this one ends (a skipped period is not "next")
-    if following is None or (ctx.books.files[following][2] - ctx.end).days != 1:
+    following = ctx.books.next(ctx.period)  # it starts the day after this one ends
+    if following is None:
         return Outcome.cannot("the next period's Ledger Vouchers (to find a credit note)")
     first = ctx.books.files[following][2]
     days, kinds = ctx.settings["period_end_days"], ctx.settings["credit_note_types"]
@@ -180,7 +179,7 @@ def cp_credit_note(ctx: Context) -> Outcome:
     notes: dict[str, list[Line]] = {}
     for x in ctx.books.lines.get(following, []):
         party = ctx.party(x.ledger)
-        early = (x.entry_date - first).days < late
+        early = 0 <= (x.entry_date - first).days < late  # not a date before the next period
         if (x.voucher_type or "") in kinds and x.credit and party and early:
             notes.setdefault(party, []).append(x)
     flags, near = [], 0

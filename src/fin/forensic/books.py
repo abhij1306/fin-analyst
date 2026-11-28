@@ -3,7 +3,8 @@ register invoice lines by period (SPEC-20; parties as tokens, joined to ledgers 
 `fin.diligence.mask.Parties`).
 
 Each voucher appears once in the block of every ledger it touches, so the lines of one file with the
-same voucher type, number and date are one voucher (docs/decisions/forensic.md, question 2). A
+same voucher type, number and date are one voucher (docs/decisions/forensic.md, question 2); a line
+with no voucher number is a voucher of its own (it is never joined to another blank). A
 rebuilt voucher whose debits do not equal its credits is not whole: the voucher tests leave it out
 and count it. `particulars` is never read.
 """
@@ -18,7 +19,7 @@ from typing import Any
 
 import duckdb
 
-from fin.diligence.mask import Parties
+from fin.diligence.mask import Parties, party_tokens
 from fin.forensic import bank as forensic_bank
 from fin.forensic.registry import Flag, ForensicTest
 from fin.reconcile import periods_of
@@ -54,6 +55,9 @@ class Line:
 
     @property
     def voucher_key(self) -> tuple[Any, ...]:
+        """A blank voucher number is not an identity: such a line is a voucher of its own."""
+        if not (self.voucher_no or "").strip():
+            return (self.file_id, self.sheet, self.row)
         return (self.file_id, self.voucher_type, self.voucher_no, self.entry_date)
 
     def flag(self, reason: str, amount: Decimal | None = None) -> Flag:
@@ -151,9 +155,9 @@ class Books:
         return max(before, key=lambda p: self.files[p][3]) if before else None
 
     def next(self, period: str) -> str | None:
+        """The loaded period starting the day after this one ends (a skipped year is not next)."""
         end = self.files[period][3]
-        after = [p for p, f in self.files.items() if f[2] > end]
-        return min(after, key=lambda p: self.files[p][2]) if after else None
+        return next((p for p, f in self.files.items() if (f[2] - end).days == 1), None)
 
     def vouchers(self, period: str) -> list[Voucher]:
         if period not in self._vouchers:
@@ -213,7 +217,8 @@ class Context:
 
 
 def _hash(con: duckdb.DuckDBPyConnection, file_ids: list[int]) -> str:
-    """sha256 of the loaded files' contents and the confirmed mappings."""
+    """sha256 of the loaded files' contents, the confirmed mappings and the party tokens (a new
+    customer or vendor whose name is a ledger changes what the counterparty tests find)."""
     marks = ", ".join("?" for _ in file_ids) or "NULL"
     files = con.execute(
         f"SELECT file_id, sha256 FROM source_files WHERE file_id IN ({marks}) "  # noqa: S608
@@ -223,7 +228,7 @@ def _hash(con: duckdb.DuckDBPyConnection, file_ids: list[int]) -> str:
     maps = con.execute(
         "SELECT ledger, account FROM ledger_accounts WHERE status = 'confirmed' ORDER BY ledger"
     ).fetchall()
-    text = json.dumps([files, maps], default=str, separators=(",", ":"))
+    text = json.dumps([files, maps, party_tokens(con)], default=str, separators=(",", ":"))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 

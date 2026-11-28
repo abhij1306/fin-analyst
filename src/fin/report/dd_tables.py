@@ -195,7 +195,12 @@ def _nwc_cells(r: dict[str, Any], unit: Display) -> list[str]:
         _m(r["other_current_assets"], unit),
         _m(r["trade_payables"], unit),
         _m(r["other_current_liabilities"], unit),
-        _m(r["net_working_capital"], unit),
+        _m(r["net_working_capital"], unit)
+        + (
+            f" (without {r['missing_components']}: no ledger)"
+            if r.get("missing_components")
+            else ""
+        ),
     ]
 
 

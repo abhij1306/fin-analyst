@@ -3,7 +3,7 @@
 
 -- GST return summaries as filed (`fin ingest <co> <file> --kind gst --profile gstr1|gstr3b`): one row per return month,
 -- with its file + sheet!row. source_files.kind is the return ('gstr1' or 'gstr3b'), so a later file of the same return and
--- period supersedes the earlier. Amounts in rupees as filed. taxable_value, igst, cgst, sgst, cess: outward taxable
+-- period supersedes the earlier. Amounts in rupees as filed; a blank cell is NULL (unknown, never 0). taxable_value, igst, cgst, sgst, cess: outward taxable
 -- supplies and the tax on them. GSTR-3B only (NULL for GSTR-1): itc (input tax credit claimed), rcm_liability (tax on
 -- inward supplies under reverse charge), paid_cash and paid_credit (tax paid in cash and through the credit ledger).
 CREATE TABLE gst_returns (
@@ -13,11 +13,11 @@ CREATE TABLE gst_returns (
     return_type VARCHAR NOT NULL CHECK (return_type IN ('gstr1', 'gstr3b')),
     period VARCHAR NOT NULL,
     month DATE NOT NULL,  -- the first day of the return month
-    taxable_value DECIMAL(20, 2) NOT NULL,
-    igst DECIMAL(20, 2) NOT NULL,
-    cgst DECIMAL(20, 2) NOT NULL,
-    sgst DECIMAL(20, 2) NOT NULL,
-    cess DECIMAL(20, 2) NOT NULL,
+    taxable_value DECIMAL(20, 2),
+    igst DECIMAL(20, 2),
+    cgst DECIMAL(20, 2),
+    sgst DECIMAL(20, 2),
+    cess DECIMAL(20, 2),
     itc DECIMAL(20, 2),
     rcm_liability DECIMAL(20, 2),
     paid_cash DECIMAL(20, 2),

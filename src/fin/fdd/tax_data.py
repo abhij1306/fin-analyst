@@ -11,21 +11,31 @@ from fin.db.rows import fetch_dicts
 from fin.reconcile.gst import NAMES
 
 LATEST = "(SELECT max(engagement_id) FROM engagement)"
+
+
+def _known(column: str) -> str:
+    """The sum over the return's months; NULL (unknown) when any month leaves it blank."""
+    return f"CASE WHEN bool_and({column} IS NOT NULL) THEN sum({column}) END"
+
+
 _RETURNS = f"""
 SELECT s.period, g.return_type, s.file_name, count(*) AS months,
-       sum(g.taxable_value) AS taxable_value, sum(g.igst + g.cgst + g.sgst + g.cess) AS output_tax,
-       sum(g.itc) AS itc, sum(g.rcm_liability) AS rcm_liability,
-       sum(g.paid_cash) AS paid_cash, sum(g.paid_credit) AS paid_credit
+       {_known("g.taxable_value")} AS taxable_value,
+       {_known("g.igst + g.cgst + g.sgst + g.cess")} AS output_tax,
+       {_known("g.itc")} AS itc, {_known("g.rcm_liability")} AS rcm_liability,
+       {_known("g.paid_cash")} AS paid_cash, {_known("g.paid_credit")} AS paid_credit
 FROM gst_returns g JOIN source_files s USING (file_id)
 WHERE s.status = 'loaded' AND s.engagement_id = {LATEST}
 GROUP BY ALL ORDER BY s.period, g.return_type
 """
 _RECON = f"""
 SELECT r.name, r.period, r.recon_id, r.threshold,
-       count(*) FILTER (WHERE i.kind <> 'matched') AS differences,
+       count(*) FILTER (WHERE i.kind NOT IN ('matched', 'not_reconciled')) AS differences,
+       count(*) FILTER (WHERE i.kind = 'not_reconciled') AS not_compared,
        count(*) FILTER (WHERE i.needs_query) AS at_or_above_threshold,
        count(*) FILTER (WHERE i.needs_query AND i.query_id IS NOT NULL) AS in_a_query,
-       coalesce(sum(abs(i.difference)), 0) AS total_difference
+       coalesce(sum(abs(i.difference)) FILTER (WHERE i.kind <> 'not_reconciled'), 0)
+           AS total_difference
 FROM recon_runs r LEFT JOIN recon_items i USING (recon_id)
 WHERE r.engagement_id = {LATEST} AND list_contains(?::VARCHAR[], r.name) AND r.recon_id IN (
     SELECT max(recon_id) FROM recon_runs WHERE engagement_id = {LATEST} GROUP BY name, period)

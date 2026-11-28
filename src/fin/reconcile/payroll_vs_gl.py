@@ -5,7 +5,9 @@ salary when no row has a CTC); right is the Ledger Vouchers' movement (debit - c
 ledgers confirmed to employee expense, for the annual period the snapshot date falls in.
 difference = payroll - books. One line, level 'payroll', key the period. The snapshot lists who
 is on the payroll at its date, so a leaver earlier in the year or a mid-year joiner is a real
-difference: the line is a question for the accountant, not an error of fin's. The stub has no
+difference: the line is a question for the accountant, not an error of fin's. An employee with no
+CTC (or gross, when that is the measure) makes the payroll figure unknown: the line is
+not_reconciled, naming the rows, never compared as if the blank were 0. The stub has no
 annual payroll comparison. The user must have confirmed the file's unit is annual (E840 otherwise).
 """
 
@@ -75,11 +77,23 @@ def payroll_vs_gl(
     ).fetchall()
     use_ctc = any(row[3] is not None for row in rows)
     column = 3 if use_ctc else 2
-    total = sum((Decimal(r[column] or 0) for r in rows), ZERO)
-    blank = sum(1 for r in rows if r[column] is None)
+    blank = [r for r in rows if r[column] is None]
+    # a blank CTC or gross is unknown, not 0: the payroll figure is unknown and cannot match
+    total = None if blank else sum((Decimal(r[column]) for r in rows), ZERO)
     entries = books_entries(con, company, period, voucher[0], ACCOUNTS, "employee expense")
     books = sum((e[5] - e[6] for e in entries), ZERO)
     measure = "CTC" if use_ctc else "gross salary"
+    note = (
+        f"the payroll snapshot's annual {measure} for {len(rows)} employees "
+        "(a snapshot at its date: it omits earlier leavers) vs the debit less credit of "
+        "the employee expense ledgers"
+    )
+    if blank:
+        refs = rows_text([(payroll[1], r[0], r[1]) for r in blank])
+        note = (
+            f"not compared: {len(blank)} employees have no {measure} in the file ({refs}), so "
+            f"the payroll figure is unknown; {note}"
+        )
     return Computed(
         [
             make_line(
@@ -89,15 +103,8 @@ def payroll_vs_gl(
                 books,
                 rows_text([(payroll[1], r[0], r[1]) for r in rows]),
                 rows_text([(voucher[1], e[0], e[1]) for e in entries]),
-                note=f"the payroll snapshot's annual {measure} for {len(rows)} employees "
-                "(a snapshot at its date: it omits earlier leavers) vs the debit less credit of "
-                "the employee expense ledgers"
-                + (
-                    f"; INCOMPLETE: {blank} employees have no {measure} in the file and add "
-                    "nothing to the payroll figure"
-                    if blank
-                    else ""
-                ),
+                kind="not_reconciled" if blank else None,
+                note=note,
             )
         ],
         payroll[0],

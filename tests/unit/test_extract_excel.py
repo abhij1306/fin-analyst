@@ -24,6 +24,10 @@ from fin.extract.units import to_rupees, unit_in
         ("Particulars", None),
         ("31.02.2025", None),
         (2025, None),
+        ("15.03.2025", None),  # a date that is not a month end is not a period header
+        ("As at 30-Mar-2025", None),
+        (datetime(2025, 3, 15, 0, 0), None),
+        ("29.02.2024", date(2024, 2, 29)),
     ],
 )
 def test_parse_period(cell: object, expected: date | None) -> None:

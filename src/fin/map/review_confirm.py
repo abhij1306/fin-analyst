@@ -15,6 +15,7 @@ from fin.audit.logger import Run
 from fin.db.conn import connect, transaction
 from fin.map.dictionary import (
     Account,
+    copy_review_accounts,
     insert_account,
     label_key,
     load_accounts,
@@ -128,6 +129,7 @@ def _confirm_facts(
     documents whose facts changed."""
     counts, doc_ids = [], set()
     with connect(company_db_path(run.root, company), write=True) as con, transaction(con):
+        copy_review_accounts(run.root, con)
         unmapped = con.execute(
             "SELECT f.raw_id, r.statement, r.section, r.raw_label FROM facts f "
             "JOIN raw_values r USING (raw_id) WHERE f.account IS NULL"
@@ -312,6 +314,7 @@ def remap_facts(
     accounts = load_accounts(run.root)
     changed, doc_ids = 0, set()
     with connect(company_db_path(run.root, company), write=True) as con, transaction(con):
+        copy_review_accounts(run.root, con)
         rows = con.execute(
             "SELECT f.fact_id, f.account, f.mapping_id, f.confirmed, r.section, r.raw_label "
             "FROM facts f JOIN raw_values r USING (raw_id) JOIN documents d ON d.doc_id = f.doc_id "

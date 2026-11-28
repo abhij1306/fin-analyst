@@ -13,7 +13,9 @@ key '2024-05 taxable_value'): a line at or above the threshold is for a query (`
 The books side is the gross credits (output, RCM) or debits (input) of the month, so a set-off
 journal (output debited, input credited) or a tax payment does not hide the tax booked; a credit
 note's tax is a debit on the output ledger and shows as a difference to query
-(docs/decisions/fdd-f6.md). Nothing is changed to make a line tie.
+(docs/decisions/fdd-f6.md). Nothing is changed to make a line tie. A return month whose figure is
+blank (or, for output tax, any of its four taxes) is unknown: its line is not_reconciled, naming
+the row, never compared as if the blank were 0.
 """
 
 from datetime import date
@@ -38,14 +40,16 @@ LEFT = {  # the names `fin reconcile` gives each side
     GSTR3B_VS_BOOKS: ("GSTR-3B", "books"),
     RCM: ("GSTR-3B", "books"),
 }
-Side = dict[date, tuple[Decimal, list[tuple[str, str, int]]]]  # month -> (amount, source rows)
+# month -> (amount, source rows); a return's amount is None when the return leaves it blank
+Side = dict[date, tuple[Decimal | None, list[tuple[str, str, int]]]]
 
 
 def _returns(con: duckdb.DuckDBPyConnection, found: tuple[Any, ...], column: str) -> Side:
-    """month -> (the return's column, its row) for a loaded return file."""
+    """month -> (the return's column, its row) for a loaded return file. A blank figure (and a
+    sum with one) is None: unknown, never 0."""
     file_id, file_name = found[0], found[1]
     return {
-        month: (Decimal(value or 0), [(file_name, sheet, row)])
+        month: (None if value is None else Decimal(value), [(file_name, sheet, row)])
         for month, sheet, row, value in con.execute(
             f'SELECT month, sheet, "row", {column} FROM gst_returns WHERE file_id = ?', [file_id]
         ).fetchall()
@@ -54,7 +58,7 @@ def _returns(con: duckdb.DuckDBPyConnection, found: tuple[Any, ...], column: str
 
 def _add(side: Side, month: date, value: Decimal, ref: tuple[str, str, int]) -> None:
     total, refs = side.get(month, (ZERO, []))
-    side[month] = (total + value, [*refs, ref])
+    side[month] = ((total or ZERO) + value, [*refs, ref])
 
 
 def _lines(measure: str, left: Side, right: Side, note: str) -> list[dict[str, Any]]:
@@ -62,9 +66,20 @@ def _lines(measure: str, left: Side, right: Side, note: str) -> list[dict[str, A
     for month in sorted(set(left) | set(right)):
         lv, lr = left.get(month, (None, []))
         rv, rr = right.get(month, (None, []))
+        blank = [ref for refs, value in ((lr, lv), (rr, rv)) if value is None for ref in refs]
+        text = note
+        if blank:  # a return row whose figure is blank: unknown, not compared as 0
+            text = f"not compared: the figure is blank in the return ({rows_text(blank)}); {note}"
         out.append(
             make_line(
-                LEVEL, f"{month:%Y-%m} {measure}", lv, rv, rows_text(lr), rows_text(rr), note=note
+                LEVEL,
+                f"{month:%Y-%m} {measure}",
+                lv,
+                rv,
+                rows_text(lr),
+                rows_text(rr),
+                kind="not_reconciled" if blank else None,
+                note=text,
             )
         )
     return out

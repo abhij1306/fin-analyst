@@ -81,16 +81,29 @@ class Masker:
         return self.by_key.get(norm(value))
 
 
+# A party: a value masked as a customer or vendor, or one first masked as an employee or a user
+# whose token a register, orderbook or GSTR-2B line carries as its customer or vendor (Masker.token
+# keeps the first token, so that line has no customer or vendor row of its own).
+PARTY_TOKENS = """
+SELECT match_key, token FROM mask_values
+WHERE list_contains(?, kind) OR (kind <> 'bank_account' AND token IN (
+    SELECT customer FROM register_lines UNION SELECT vendor FROM register_lines
+    UNION SELECT customer FROM orderbook_lines UNION SELECT vendor FROM gstr2b_lines))
+ORDER BY token, match_key
+"""
+
+
+def party_tokens(con: duckdb.DuckDBPyConnection) -> list[tuple[str, str]]:
+    """(match key, token) of every party (PARTY_TOKENS)."""
+    return con.execute(PARTY_TOKENS, [list(PARTY_KINDS)]).fetchall()
+
+
 class Parties:
-    """The customer and vendor tokens, to match the books and bank text (which carry names as
+    """The party tokens (`party_tokens`), to match the books and bank text (which carry names as
     filed) with the registers (which carry tokens). Read-only; never printed."""
 
     def __init__(self, con: duckdb.DuckDBPyConnection) -> None:
-        rows = con.execute(
-            "SELECT match_key, token FROM mask_values WHERE list_contains(?, kind)",
-            [list(PARTY_KINDS)],
-        ).fetchall()
-        self.by_key = dict(rows)
+        self.by_key = dict(party_tokens(con))
         names = sorted(self.by_key, key=len, reverse=True)  # the longest name wins
         alternatives = "|".join(r"\s+".join(map(re.escape, key.split())) for key in names)
         self.pattern = re.compile(rf"(?<!\w)(?:{alternatives})(?!\w)", re.IGNORECASE)
