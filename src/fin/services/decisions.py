@@ -16,6 +16,7 @@ from fin.map import review, review_confirm
 from fin.map.dictionary import STATEMENTS, mapping_row
 from fin.metrics.export import refresh_analytics
 from fin.paths import company_db_path
+from fin.reference import lines as reference_lines
 from fin.services.result import ActionResult, perform
 
 QUERY_COMMANDS = {
@@ -251,3 +252,18 @@ def mark_fdd_findings(
 
     args = {"company": company, "ids": ids, "undo": undo, "via": via, "actor": actor}
     return perform(root, "fdd finding final", args, body)
+
+
+def decide_reference_lines(
+    root: Path, company: str, ids: list[int], target: str, *, via: str, actor: str
+) -> ActionResult:
+    """`fin reference confirm|reject`: `target` is "confirmed" or "rejected"."""
+
+    def body(run: Run) -> list[str]:
+        rows = reference_lines.decide(run, company, ids, target, actor=actor)
+        return [reference_lines.format_line(row) for row in rows]
+
+    command = "reference confirm" if target == "confirmed" else "reference reject"
+    return perform(
+        root, command, {"company": company, "ids": ids, "via": via, "actor": actor}, body
+    )

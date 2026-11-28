@@ -30,14 +30,17 @@ DECISION_COMMANDS = [
     ("provisions", "reject"),
     ("netdebt", "item", "accept"),
     ("netdebt", "item", "reject"),
+    ("reference", "confirm"),
+    ("reference", "reject"),
+    ("dataroom", "approve"),
 ]
 FIN_INVOCATIONS = ["fin", "uv run fin", "uv run python -m fin", "python -m fin"]
 GUIDANCE = (
     "You are running inside the fin web UI. The user's decisions (approve a gate, mark an FDD "
     "finding final or back to draft, approve/mark sent/close/withdraw a query, accept or reject an "
-    "adjustment, confirm or reject a mapping, accept a finding on filed data) are buttons on the "
-    "UI screens: you cannot run those commands here. When one is due, say which screen has the "
-    "button."
+    "adjustment, confirm or reject a mapping or a reference line, approve a data-room file, "
+    "accept a finding on filed data) are buttons on the UI screens: you cannot run those commands "
+    "here. When one is due, say which screen has the button."
 )
 DECISION_RE = re.compile(
     r"\bfin\s+(?:" + "|".join(r"\s+".join(map(re.escape, c)) for c in DECISION_COMMANDS) + r")\b"

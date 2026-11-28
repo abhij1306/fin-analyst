@@ -615,3 +615,10 @@ from fin.audit.errors_fdd import (  # noqa: E402, F401
 
 # E822: rebuilt statements, in fin.audit.errors_rebuilt (split for size), re-exported.
 from fin.audit.errors_rebuilt import RebuildNotPossible  # noqa: E402, F401
+
+# E980-E982: reference documents, in fin.audit.errors_reference (split for size), re-exported.
+from fin.audit.errors_reference import (  # noqa: E402, F401
+    ReferenceDifferenceUnknown,
+    ReferenceInvalid,
+    ReferenceLineInvalid,
+)

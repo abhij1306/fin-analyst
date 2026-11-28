@@ -10,6 +10,7 @@ from typing import Any
 from fin.audit.errors import DependencyMissing, FinError
 from fin.audit.trace import company_history
 from fin.config import SCOPES
+from fin.dataroom.scan import plan_groups
 from fin.diligence import adjustments, engagement, gates, queries
 from fin.diligence.engagement import rupees
 from fin.fdd import findings as fdd
@@ -18,7 +19,10 @@ from fin.map.dictionary import load_accounts
 from fin.map.review import open_items, read_pending
 from fin.map.review_confirm import BULK_CONFIDENCE, low_confidence
 from fin.paths import company_db_path, dictionary_db_path, reports_dir
+from fin.reference.compare import comparison
+from fin.reference.lines import list_lines
 from fin.services.addon import offer
+from fin.services.dataroom import plan_rows
 from fin.services.jobs import list_jobs
 from fin.services.reviews import KINDS
 from fin.status import company_status
@@ -59,6 +63,7 @@ def files(root: Path, company: str) -> dict[str, Any]:
         "jobs": list_jobs(root, company),
         "job_labels": JOB_LABELS,
         "addon_offer": offer(root, company),
+        "plan": _plan(root, company),
     }
 
 
@@ -86,6 +91,14 @@ def _review_kind(root: Path, company: str, kind: str) -> dict[str, Any]:
         return out | {"note": f"{error.code}: {error.message}"}
     out["rows"] = [{"id": row[spec.id_key], "text": spec.text(row)} for row in rows]
     return out
+
+
+def _plan(root: Path, company: str) -> dict[str, Any]:
+    """The data-room plan (SPEC-13): the files fin can use, with how many are approved and wait
+    to load, and what will be skipped."""
+    usable, _, skipped = plan_groups(plan_rows(root, company))
+    waiting = sum(1 for r in usable if r.approved and r.status == "planned")
+    return {"usable": usable, "skipped": skipped, "waiting": waiting}
 
 
 def mappings(root: Path, company: str) -> dict[str, Any]:
@@ -173,6 +186,13 @@ def report_file(root: Path, company: str, name: str) -> Path:
     return reports_dir(root, company) / name
 
 
+def references_screen(root: Path, company: str) -> dict[str, Any]:
+    """Each mapped reference figure beside fin's (SPEC-10), and the lines waiting for a mapping."""
+    if not company_db_path(root, company).is_file():
+        return {"message": f"Nothing is loaded for {company} yet."}
+    return {**comparison(root, company), "lines": list_lines(root, company)}
+
+
 def log_screen(root: Path, company: str) -> dict[str, Any]:
     runs = company_history(root, company)["runs"]
     return {"runs": list(reversed(runs))[:LOG_LIMIT]}
@@ -188,6 +208,7 @@ LOADERS: dict[str, Loader] = {
     "statements": statements_screen,
     "engagement": diligence_screens.engagement_screen,
     "bridge": diligence_screens.bridge_screen,
+    "references": references_screen,
     "reports": reports_screen,
     "log": log_screen,
 }

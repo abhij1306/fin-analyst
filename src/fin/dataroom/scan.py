@@ -230,12 +230,18 @@ def plan_json(rows: list[PlanRow]) -> str:
     return json.dumps([asdict(row) for row in rows], indent=2)
 
 
-def format_plan(company: str, rows: list[PlanRow]) -> str:
-    """The plan as text: the files fin can use, the archives, then what will be skipped (with the
-    assistant's proposed kind where there is one)."""
+def plan_groups(rows: list[PlanRow]) -> tuple[list[PlanRow], list[PlanRow], list[PlanRow]]:
+    """(the files fin can use, the archives unpacked, what will be skipped)."""
     usable = [r for r in rows if r.kind != "archive" and (r.reason is None or r.proposed_kind)]
     archives = [r for r in rows if r.reason is None and r.kind == "archive"]
     skipped = [r for r in rows if r.reason is not None and not r.proposed_kind]
+    return usable, archives, skipped
+
+
+def format_plan(company: str, rows: list[PlanRow]) -> str:
+    """The plan as text: the files fin can use, the archives, then what will be skipped (with the
+    assistant's proposed kind where there is one)."""
+    usable, archives, skipped = plan_groups(rows)
     approved = sum(1 for r in usable if r.approved)
     lines = [
         f"data-room plan for {company}: {len(usable)} to load ({approved} approved), "

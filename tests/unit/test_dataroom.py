@@ -99,8 +99,8 @@ def test_the_plan_text_lists_files_duplicates_and_what_is_skipped(
     root: Path, tmp_path: Path
 ) -> None:
     output = scan(str(make_room(tmp_path)))
-    assert "data-room plan for acme: 3 to load (0 approved), 3 skipped" in output
-    assert "reference/fdd_databook.xlsx (reference_databook): a third party's" in output
+    assert "data-room plan for acme: 4 to load (0 approved), 2 skipped" in output
+    assert "reference/fdd_databook.xlsx: reference_databook; not approved" in output
     assert "      duplicate: registers.zip/tb_copy.xlsx" in output
     assert "registers.zip: archive, unpacked" in output
 
@@ -129,7 +129,7 @@ def test_a_reference_databook_cannot_be_proposed_as_company_data(
     args = ["dataroom", "propose", "acme", str(row.file_id), "--kind", "statements"]
     result = runner.invoke(app, [*args, "--reason", "accounts"])
     assert result.exit_code == 2
-    assert "E819" in result.output and "never loaded as company data" in result.output
+    assert "E819" in result.output and "never as company data" in result.output
     assert read_plan(root, "acme")[row.file_id - 1].proposed_kind is None
 
 
@@ -190,7 +190,6 @@ def test_every_unusable_file_in_the_plan_has_a_reason_and_a_next_step(
         "misc/more.rar": REASONS["archive_type"],
         "misc/notes.xlsx": REASONS["no_layout"],
         "misc/old.xls": REASONS["unreadable"],
-        "reference/fdd_databook.xlsx": REASONS["reference_databook"],
     }
 
 

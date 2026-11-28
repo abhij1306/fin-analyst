@@ -39,6 +39,7 @@ SCREENS = [
         "Files",
         "Mappings",
         "Statements",
+        "References",
         "Engagement",
         "Queries",
         "Gates",

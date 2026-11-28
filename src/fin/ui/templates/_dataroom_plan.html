@@ -1,0 +1,43 @@
+{#- The data-room plan (SPEC-13) on the Files screen: what fin can load, approved one row at a time (the user's
+    decision), then loaded as a job; and what will be skipped, with the reason and the next step. Part of the file
+    rows, so it follows a running scan or load. -#}
+{% from "_ui.html" import badge, clip, empty %}
+{% from "_actions.html" import act %}
+{% set plan = data.plan %}
+<div class="card">
+  <header><h2>Data-room plan</h2><p>Nothing loads until you approve a row and press Load approved.</p></header>
+  <section class="flush">
+    {% if plan.usable or plan.skipped %}
+    {% if plan.usable %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>File</th><th>Kind</th><th>Period</th><th>Duplicates</th><th>State</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for r in plan.usable %}
+        <tr><td class="num">{{ r.file_id }}</td><td class="fname">{{ r.path }}</td>
+          <td>{{ r.load_kind[0] | replace("_", " ") }}{% if r.load_kind[1] %}<div class="sub">profile {{ r.load_kind[1] }}</div>{% endif %}{% if r.proposed_kind %}<div class="sub">proposed by the assistant: {{ clip(r.proposal_reason, 40) }}</div>{% endif %}</td>
+          <td>{{ r.period or "" }}</td><td>{{ clip(r.duplicates | join("; "), 40) }}</td>
+          <td>{% if r.status != "planned" %}{{ badge(r.status) }} {{ clip(r.outcome, 80) }}{% else %}{{ badge("approved" if r.approved else "not approved") }}{% endif %}</td>
+          <td class="act">{% if r.status == "planned" %}{% if r.approved %}{{ act("dataroom-undo", r.file_id, "Undo approval", company, variant="ghost") }}{% else %}{{ act("dataroom-approve", r.file_id, "Approve", company) }}{% endif %}{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    <div class="pad"><form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+      <input type="hidden" name="action" value="dataroom-load"><input type="hidden" name="company" value="{{ company }}">
+      <button type="submit" class="btn" data-size="sm"{% if not plan.waiting %} disabled{% endif %}>Load approved ({{ plan.waiting }})</button>
+    </form></div>
+    {% endif %}
+    {% if plan.skipped %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>Skipped file</th><th>Why fin cannot use it</th><th>Next step</th></tr></thead>
+      <tbody>
+        {% for r in plan.skipped %}
+        <tr><td class="num">{{ r.file_id }}</td><td class="fname">{{ r.path }}{% if r.kind != "unknown" %}<div class="sub">{{ r.kind }}</div>{% endif %}</td><td>{{ clip(r.reason, 80) }}</td><td>{{ clip(r.next_step, 80) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% endif %}
+    {% else %}
+    <div class="pad">{{ empty("No data-room plan.", "Scan a folder or upload a .zip above.") }}</div>
+    {% endif %}
+  </section>
+</div>

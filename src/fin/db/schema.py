@@ -56,6 +56,7 @@ SCHEMA_FILES = {
         "fdd_findings.sql",
         "dataroom.sql",
         "rebuilt.sql",
+        "reference.sql",
     ],
 }
 

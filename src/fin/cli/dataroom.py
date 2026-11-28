@@ -6,11 +6,14 @@ from typing import Annotated
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.logger import Run, execute
-from fin.cli.core import app, check_company, echo_refresh
-from fin.config import load_config
-from fin.dataroom.load import PROPOSABLE, approve, load, propose
-from fin.dataroom.scan import format_plan, plan_json, read_plan, scan
+from fin.cli.core import app, check_company
+from fin.dataroom.load import PROPOSABLE, propose
+from fin.dataroom.scan import format_plan, plan_json, read_plan
+from fin.paths import data_dir
+from fin.services import dataroom
+from fin.services.result import Refused, show
 
 dataroom_app = typer.Typer(
     no_args_is_help=True,
@@ -39,16 +42,11 @@ def scan_command(
     duplicate files once, name each file's kind, and list what fin cannot use with the reason and a
     next step. Re-running adds only new files. Loads nothing."""
 
-    def body(run: Run) -> None:
-        found = scan(run, load_config(run.root), company, folder)
-        if not json_output:
-            typer.echo(
-                f"scanned {found.folder}: {found.new} new in the plan, "
-                f"{found.duplicates} new duplicate paths"
-            )
-        _show(run, company, json_output)
-
-    execute("dataroom scan", {"company": company, "folder": folder, "json": json_output}, body)
+    result = dataroom.scan_folder(data_dir(), company, folder, via="cli", actor=from_environment())
+    if isinstance(result, Refused) or not json_output:
+        show(result)
+    rows = dataroom.plan_rows(data_dir(), company)
+    typer.echo(plan_json(rows) if json_output else format_plan(company, rows))
 
 
 @dataroom_app.command("plan")
@@ -92,13 +90,11 @@ def approve_command(
     """The user's choice of rows to load. Approving a row with a proposed kind confirms that kind.
     Run it only when the user says which rows."""
 
-    def body(run: Run) -> None:
-        for row in approve(run, company, ids, undo=undo):
-            typer.echo(
-                f"[{row.file_id}] {row.path}: {'approved' if row.approved else 'not approved'}"
-            )
-
-    execute("dataroom approve", {"company": company, "ids": ids, "undo": undo}, body)
+    show(
+        dataroom.approve_rows(
+            data_dir(), company, ids, via="cli", actor=from_environment(), undo=undo
+        )
+    )
 
 
 @dataroom_app.command("load")
@@ -106,13 +102,4 @@ def load_command(company: Company) -> None:
     """Load every approved row not loaded yet, under one run id, each document in its own
     transaction, with one outcome line per file. A file already loaded is not loaded twice."""
 
-    def body(run: Run) -> None:
-        done = load(run, load_config(run.root), company)
-        for i, (row, outcome) in enumerate(done, start=1):
-            typer.echo(f"[{i}/{len(done)}] {row.path}: {outcome}")
-        if not done:
-            typer.echo("nothing approved is waiting to load (fin dataroom plan)")
-            return
-        echo_refresh(run)
-
-    execute("dataroom load", {"company": company}, body)
+    show(dataroom.load_plan(data_dir(), company, via="cli", actor=from_environment()))

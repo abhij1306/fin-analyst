@@ -1,0 +1,69 @@
+{#- The References screen (SPEC-10): a third party's figures beside fin's, never company data. The figures are the
+    view reference_comparison's, in the reference's own unit; a missing figure is shown as a dash, never zero. The UI
+    never drafts: a query or an adjustment from a difference is started in the chat, where the assistant drafts it. -#}
+{% from "_ui.html" import head, badge, clip, empty, no_company %}
+{% from "_actions.html" import act %}
+{% from "_chat_items.html" import ask %}
+{% macro n(value) %}{{ "-" if value is none else "{:,}".format(value) }}{% endmacro %}
+{% if data.empty %}
+{{ no_company() }}
+{% else %}
+{% call head("References", "A banker's or adviser's figures beside fin's. They never become the company's figures.") %}
+{{ ask(company, "Add a reference databook for " ~ company ~ " (fin reference add): ", "Add a reference", "outline") }}
+{% endcall %}
+{% if data.message %}
+<div class="card"><section>{{ empty("Nothing to show", data.message) }}</section></div>
+{% elif not data.files %}
+<div class="card"><section>{{ empty("No reference file yet.", "Ask the assistant to add a databook with fin reference add, or load it from a data room on the Files screen.") }}</section></div>
+{% else %}
+<div class="card">
+  <header><h2>Comparison</h2>
+    <p>{{ data.counts.differs }} differ · {{ data.counts.agrees }} agree · {{ data.counts.no_fin_figure }} with no fin figure · {{ data.counts.unmapped }} not mapped. Differences of {{ n(data.threshold) }} rupees or more come first. Difference = fin minus the reference.</p></header>
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>Line</th><th>Period</th><th>Mapped to</th><th class="num">Reference</th><th class="num">fin</th><th class="num">Difference</th><th>Unit</th><th>Sources</th><th>State</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for r in data.rows %}
+        <tr><td class="num">{{ r.value_id }}</td><td>{{ clip(r.label, 40) }}</td><td>{{ r.period }}<div class="sub">{{ r.scope }}</div></td>
+          <td>{{ r.target or "" }}</td><td class="num">{{ n(r.reference_shown) }}</td><td class="num">{{ n(r.fin_shown) }}</td><td class="num">{{ n(r.difference_shown) }}</td><td>{{ r.raw_unit }}</td>
+          <td><div class="sub">fin: {{ clip(r.fin_source or "no figure", 50) }}</div><div class="sub">{{ r.source }}: {{ clip(r.file_name ~ " " ~ r.reference_ref, 50) }}</div></td>
+          <td>{{ badge(r.state, r.state | replace("_", " ")) }}{% if r.above %} {{ badge("above", "at or above the threshold", "warn") }}{% endif %}</td>
+          <td class="act">{% if r.state == "differs" %}<div class="actions">
+            {{ ask(company, "Draft a query for reference difference #" ~ r.value_id ~ " of " ~ company ~ " (" ~ r.label ~ ", " ~ r.period ~ ") with fin reference query: ", "Draft a query", "outline") }}
+            {{ ask(company, "Propose an adjustment from reference difference #" ~ r.value_id ~ " of " ~ company ~ " (" ~ r.label ~ ", " ~ r.period ~ ") with fin reference adjust: ", "Propose an adjustment") }}
+          </div>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+<div class="card">
+  <header><h2>Lines waiting for a mapping</h2><p>Only mapped lines are compared. The assistant proposes; you confirm or reject.</p></header>
+  <section class="flush">
+    {% if data.lines %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>Label</th><th>Statement</th><th class="num">Figures</th><th>Status</th><th>Proposed</th><th class="num">Confidence</th><th>Reason</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for l in data.lines %}
+        <tr><td class="num">{{ l.line_id }}</td><td>{{ clip(l.label, 40) }}</td><td>{{ l.statement }}</td><td class="num">{{ l.figures }}</td><td>{{ badge(l.status) }}</td>
+          <td>{% if l.target %}{{ l.target_kind }} {{ l.target }}{% endif %}</td><td class="num">{{ l.confidence if l.confidence is not none else "" }}</td><td>{{ clip(l.reason, 40) }}</td>
+          <td class="act"><div class="actions">{% if l.status == "proposed" %}{{ act("reference-confirm", l.line_id, "Confirm", company) }}{% endif %}
+            {{ act("reference-reject", l.line_id, "Reject", company, variant="ghost") }}
+            {% if l.status == "pending" %}{{ ask(company, "Propose a mapping for reference line #" ~ l.line_id ~ " of " ~ company ~ " (" ~ l.label ~ ") with fin reference propose: ", "Ask for a proposal") }}{% endif %}</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No line waits for a mapping.") }}</div>
+    {% endif %}
+  </section>
+</div>
+<div class="card">
+  <header><h2>Reference files</h2></header>
+  <section class="flush"><div class="table-container"><table class="table">
+    <thead><tr><th class="num">#</th><th>Source</th><th>File</th><th class="num">Figures</th><th>Added</th></tr></thead>
+    <tbody>{% for f in data.files %}<tr><td class="num">{{ f.ref_file_id }}</td><td>{{ f.source }}</td><td class="fname">{{ f.file_name }}</td><td class="num">{{ f.figures }}</td><td>{{ f.added_at | when }}</td></tr>{% endfor %}</tbody>
+  </table></div></section>
+</div>
+{% endif %}
+{% endif %}

@@ -33,8 +33,8 @@
     "kind": "reference_databook",
     "profile": null,
     "period": null,
-    "reason": "a third party's diligence databook (it has a sheet such as quality of earnings, net debt or net working capital): fin keeps a third party's figures apart from the company's and cannot load them as a reference yet",
-    "next_step": "Keep it in the data room: it is loaded as a reference once fin can hold reference figures (SPEC-10); it is never loaded as company data",
+    "reason": null,
+    "next_step": null,
     "duplicates": []
   },
   {

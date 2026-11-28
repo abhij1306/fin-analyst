@@ -2,6 +2,7 @@
 `GET /partials/jobs` shows the company's jobs. The jobs card polls while one is queued or running;
 it reads the jobs table, so it shows the same after a reload. A job's actor is always the user."""
 
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
@@ -9,15 +10,18 @@ from typing import Annotated, Any
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from starlette.datastructures import UploadFile
 
 from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.extract.addon import ADDON_LABELS
 from fin.ingest import UNIT_ANSWERS
-from fin.services import addon, ingest, reports
+from fin.paths import dataroom_dir
+from fin.services import addon, dataroom, ingest, reports
 from fin.services.jobs import Jobs, Work, list_jobs
 from fin.services.result import ActionResult, Progress
 from fin.ui.actions import ITEM_ID
+from fin.ui.uploads import MAX_REQUEST_BYTES, save_uploads
 
 # The job actions and how the page names them.
 LABELS = {
@@ -26,6 +30,8 @@ LABELS = {
     "ingest": "Ingest",
     "reingest": "Re-ingest",
     "unit": "Load with the unit",
+    "dataroom-scan": "Scan a data room",
+    "dataroom-load": "Load the approved files",
 }
 # The actions that take a choice: its values and the argument it becomes.
 CHOICES = {"addon": (tuple(ADDON_LABELS), "name"), "unit": (tuple(UNIT_ANSWERS), "unit")}
@@ -52,12 +58,24 @@ def _unit(root: Path, company: str, *, file: str, unit: str, progress: Progress)
     return ingest.load_with_unit(root, company, file, unit, via="ui", actor=USER, progress=progress)
 
 
+def _dataroom_scan(root: Path, company: str, *, folder: str, progress: Progress) -> ActionResult:
+    return dataroom.scan_folder(
+        root, company, Path(folder), via="ui", actor=USER, progress=progress
+    )
+
+
+def _dataroom_load(root: Path, company: str, *, progress: Progress) -> ActionResult:
+    return dataroom.load_plan(root, company, via="ui", actor=USER, progress=progress)
+
+
 WORK: dict[str, Work] = {
     "export": _export,
     "addon": _addon,
     "ingest": _ingest,
     "reingest": _reingest,
     "unit": _unit,
+    "dataroom-scan": _dataroom_scan,
+    "dataroom-load": _dataroom_load,
 }
 
 
@@ -74,6 +92,11 @@ def job_arguments(
         arguments[argument] = choice
     elif choice is not None:
         raise UiActionInvalid(f"{action} takes no choice; nothing was started")
+    if action == "dataroom-scan":
+        folder = Path(item.strip()).expanduser()
+        if not item.strip() or not folder.is_dir():
+            raise UiActionInvalid(f"{item!r} is not a folder on this computer; nothing started")
+        return arguments | {"folder": str(folder)}
     if action not in ON_ITEM:
         if item:
             raise UiActionInvalid(f"{LABELS.get(action, action)} takes no item; nothing started")
@@ -119,6 +142,28 @@ def add_job_routes(
         jobs.submit(name, action, job_arguments(root, name, action, item, choice))
         response = shown(request, name)
         response.headers["HX-Trigger"] = "job-queued"  # the Files screen's rows start to follow it
+        return response
+
+    @app.post("/dataroom-upload", response_class=HTMLResponse)
+    async def dataroom_upload(request: Request) -> HTMLResponse:
+        """A data room as a .zip: saved in its own folder under dataroom/<company>/uploads/, then
+        scanned as a job, as a chosen folder is."""
+        if int(request.headers.get("content-length", "-1")) not in range(MAX_REQUEST_BYTES + 1):
+            raise UiActionInvalid("the upload is empty, of unknown size or too large")
+        form = await request.form()
+        name = chosen(str(form.get("company", "")))
+        sent = [f for f in form.getlist("files") if isinstance(f, UploadFile) and f.filename]
+        base = dataroom_dir(root, name) / "uploads"
+        base.mkdir(parents=True, exist_ok=True)
+        folder = Path(tempfile.mkdtemp(dir=base))
+        try:
+            save_uploads(folder, [(f.filename or "", f.file) for f in sent], (".zip",))
+        except UiActionInvalid:
+            folder.rmdir()
+            raise
+        jobs.submit(name, "dataroom-scan", {"folder": str(folder)})
+        response = shown(request, name)
+        response.headers["HX-Trigger"] = "job-queued"
         return response
 
     @app.get("/partials/jobs", response_class=HTMLResponse)

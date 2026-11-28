@@ -2,21 +2,21 @@
 
 Readings, not owner decisions, until the owner confirms them.
 
-## A reference databook is a kind, listed and never loaded
+## A reference databook is a kind, loaded as a reference
 
 - **Decision**: a plan row's kind is a column profile's kind (`trial_balance`, `ledger_vouchers`, `registers`,
   `payroll`, `bank`, `orderbook`, `gst`), `statements`, `reference_databook`, `archive` or `unknown`. A workbook
   that fits no column profile and has a sheet named like a diligence databook's (quality of earnings, QoE, EBITDA
-  adjustments, net debt, net working capital, NWC, databook; whole words, any case) is `reference_databook`, with
-  the reason that fin keeps a third party's figures apart and cannot hold them yet, and the next step to keep it for
-  SPEC-10. It is checked before statements, so a databook's income statement is never loaded as company figures, and
-  the assistant cannot propose another kind for it (E819); a company's own workbook caught by the sheet names is
-  loaded with `fin ingest`.
+  adjustments, net debt, net working capital, NWC, databook; whole words, any case) is `reference_databook`. It is
+  checked before statements, so a databook's income statement is never loaded as company figures. Since SPEC-10 an
+  approved databook loads as a reference (`fin reference add`, its source the path in the data room), last in the
+  load order; the assistant may also propose the kind for an unknown file. A company's own workbook caught by the
+  sheet names is loaded with `fin ingest`.
 - **Why**: the client asked for the ladder to end at the adviser's databook (test-run 2026-11-27) and the spec lists
   the kind; Q5 says a third party's figures never become company data. The sheet names stand in for a profile's
-  headers: there is no column profile for a databook.
-- **How to change it**: `src/fin/dataroom/kinds.py: REFERENCE_SHEETS`; when SPEC-10 adds its loader, make the kind
-  loadable in `load.py`.
+  headers: there is no column profile for a databook. The path names the source because the plan has nothing better;
+  the user can add the file again with `fin reference add --source`.
+- **How to change it**: `src/fin/dataroom/kinds.py: REFERENCE_SHEETS`, `src/fin/dataroom/load.py`.
 
 ## A workbook fitting profiles of two kinds is not given either
 
@@ -85,8 +85,8 @@ Readings, not owner decisions, until the owner confirms them.
 
 ## Load order
 
-- **Decision**: statements, then trial balances, then Ledger Vouchers, registers, payroll, bank, orderbook, GST; plan
-  order within a kind.
+- **Decision**: statements, then trial balances, then Ledger Vouchers, registers, payroll, bank, orderbook, GST, and
+  reference databooks last (they change no company figure); plan order within a kind.
 - **Why**: Ledger Vouchers are checked against their period's trial balance (E811), so it must load first.
 - **How to change it**: `src/fin/dataroom/load.py: LOAD_ORDER`.
 
@@ -96,3 +96,14 @@ Readings, not owner decisions, until the owner confirms them.
   listed with "copy the file itself into the folder", never followed.
 - **Why**: rule 8 of docs/engineering.md (a path from input stays inside its root).
 - **How to change it**: `src/fin/dataroom/scan.py: _walk`.
+
+## The plan on the Files screen (PR 3)
+
+- **Decision**: the Files screen scans a folder path typed on the screen or an uploaded `.zip` (saved in its own new
+  folder under `dataroom/<company>/uploads/`), each as a job. Rows are approved one at a time with a button (the
+  user's decision, `fin dataroom approve`), and **Load approved** loads them as a job. Proposing a kind stays with the
+  assistant in the chat.
+- **Why**: the spec says "choose a folder or upload an archive, see the plan as a table, tick and load (a job)". A
+  browser cannot hand a local folder's path to the server, so the path is typed; a per-row button is the existing
+  decision pattern (`POST /act`, one run per decision, the CLI's run record).
+- **How to change it**: `src/fin/ui/templates/_dataroom_plan.html`, `src/fin/ui/job_routes.py`, `src/fin/services/dataroom.py`.

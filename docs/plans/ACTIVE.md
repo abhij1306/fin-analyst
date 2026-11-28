@@ -70,9 +70,9 @@ Updated: 2026-11-28.
 | 09 | 2 | Add the engagement and bridge screens | high | done (#128) |
 | 09 | 3 | Add the adjusted P&L view and screen | high | done (#128) |
 | 09 | 4 | Complete the Queries and Gates screens | high | done (#128) |
-| 10 | 1 | Store third-party reference tables apart from company facts | high | todo |
-| 10 | 2 | Map reference lines and compare them with fin's figures | | todo |
-| 10 | 3 | Add the comparison screen and the query and adjustment hand-offs | | todo |
+| 10 | 1 | Store third-party reference tables apart from company facts | high | done (#PR) |
+| 10 | 2 | Map reference lines and compare them with fin's figures | | done (#PR) |
+| 10 | 3 | Add the comparison screen and the query and adjustment hand-offs | | done (#PR) |
 | 11 | 1 | Generate and download reports from the Reports screen | | todo |
 | 11 | 2 | Add Settings and Health screens | | todo |
 | 11 | 3 | Add the Questions screen and Log filters | | todo |
@@ -83,7 +83,7 @@ Updated: 2026-11-28.
 | 12 | 3 | Install the UI by default and end the install with its link | high | done (#125) |
 | 13 | 1 | Scan a data room into a plan: unpack, drop duplicates, name each file's kind | high | done (#117) |
 | 13 | 2 | Load an approved data-room plan in one run | | done (#117) |
-| 13 | 3 | Show and approve the data-room plan on the Files screen | | todo |
+| 13 | 3 | Show and approve the data-room plan on the Files screen | | done (#PR) |
 | 14 | 1 | Rebuild the P&L and balance sheet from the trial balance for every year | high | done (#122) |
 | 14 | 2 | Derive an indirect cash flow from the rebuilt balances | high | done (#122) |
 | 14 | 3 | Show reported, rebuilt and difference in statements and on the Statements screen | | done (#122) |

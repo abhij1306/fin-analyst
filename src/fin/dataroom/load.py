@@ -7,8 +7,9 @@
 - `load`: every approved row not loaded yet, all under the one run id of the command, each document
   in its own transaction as `fin ingest` does (statements through `ingest_file`, source files
   through `ingest_source` or `ingest_bank`). Statements first, then trial balances before the
-  Ledger Vouchers checked against them, then the other kinds. A file that fails is recorded and the
-  next one loads; a file already loaded (same content) is marked loaded and not loaded twice.
+  Ledger Vouchers checked against them, then the other kinds, then reference databooks (as a
+  reference, `fin reference add`, named by their path in the room). A file that fails is recorded
+  and the next one loads; a file already loaded (same content) is marked loaded, not loaded twice.
   Gates reopen as they do on any ingest.
 """
 
@@ -26,10 +27,11 @@ from fin.ingest import ingest_file
 from fin.map.dictionary import LabelMap, load_label_map
 from fin.map.review import write_pending
 from fin.paths import company_db_path
+from fin.reference.store import add_reference
 
 LOAD_ORDER = ("statements", "trial_balance", "ledger_vouchers", "registers", "payroll", "bank")
-LOAD_ORDER += ("orderbook", "gst")
-PROPOSABLE = (*KINDS, "statements")
+LOAD_ORDER += ("orderbook", "gst", "reference_databook")
+PROPOSABLE = (*KINDS, "statements", "reference_databook")
 
 
 def _row(rows: list[PlanRow], file_id: int) -> PlanRow:
@@ -66,15 +68,15 @@ def _check_proposal(row: PlanRow, kind: str, profile: str | None, reason: str) -
         )
     if row.kind == "reference_databook":
         raise DataroomRowInvalid(
-            f"{where}: a third party's databook is never loaded as company data; if it is the "
-            "company's own workbook, load it with fin ingest"
+            f"{where}: a third party's databook loads as a reference, never as company data; if "
+            "it is the company's own workbook, load it with fin ingest"
         )
     if kind not in PROPOSABLE:
         raise DataroomRowInvalid(f"{where}: kind {kind!r} is not one of {', '.join(PROPOSABLE)}")
     if not reason.strip():
         raise DataroomRowInvalid(f"{where}: give the reason for the kind (--reason)")
-    if kind == "statements" and profile is not None:
-        raise DataroomRowInvalid(f"{where}: statements take no column profile")
+    if kind in ("statements", "reference_databook") and profile is not None:
+        raise DataroomRowInvalid(f"{where}: {kind} take no column profile")
     if kind == "gst" and profile is None:
         raise DataroomRowInvalid(f"{where}: a GST return needs its profile (gstr1, gstr3b)")
     if profile is not None:
@@ -145,6 +147,8 @@ def _load_one(
             return "failed", outcome
         return "loaded", ("already loaded: " + outcome) if run.skipped > skipped else outcome
     try:
+        if kind == "reference_databook":
+            return "loaded", add_reference(run, config, company, path, row.path).line
         if kind == "bank":
             loaded = ingest_bank(run, config, company, path, profile)
         else:
