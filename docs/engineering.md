@@ -70,9 +70,9 @@ Sonar found style. The bots and the review rounds found the defects that change 
 13. **A function stays under complexity 15 and 13 parameters.** Extract named steps; replace a chain of branches
     with a table; pass a dataclass instead of the 14th parameter. No nested conditional expressions.
     *Enforced by:* Sonar (S3776, S107, S3358); to add in ruff (`C901`, `PLR0913`) so it fails before the push.
-14. **A file stays under 6,000 tokens.** Split along a seam before the limit, not at it. Six files are within
-    1,000 tokens of it (`ingest.py`, `audit/errors.py`, `map/commands.py`, `db/schema/sources.sql`,
-    `map/review.py`, `validate/gates.py`): a PR that adds to one splits it first.
+14. **A file stays under 6,000 tokens.** Split along a seam before the limit, not at it. Five files are within
+    1,000 tokens of it (`ingest.py`, `audit/errors.py`, `map/commands.py`, `map/review.py`,
+    `validate/gates.py`): a PR that adds to one splits it first.
     *Enforced by:* `tools/check_file_size.mjs` (pre-commit and CI).
 15. **An option the chosen mode ignores is refused.** A command never accepts a flag and does nothing with it, and
     never exits 0 when the work did not happen. (#13, #54, #93, #107.) *Enforced by:* to add (CLI test).

@@ -2,14 +2,17 @@
 own modules (docs/web-ui-plan.md). Needs the `ui` extra; `fin.cli.ui` imports this module only
 when it is there. The screens are read-only; only the POST routes of `action_routes` change data."""
 
+import json
 import socket
 import webbrowser
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
+from urllib.parse import urlencode
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -24,6 +27,7 @@ from fin.ui.action_routes import add_action_routes
 from fin.ui.chat_routes import add_chat_routes
 from fin.ui.chat_run import Chat
 from fin.ui.csrf import origin_guard
+from fin.ui.differences_screen import query_prompt
 from fin.ui.diligence_routes import add_diligence_routes
 from fin.ui.job_routes import WORK, add_job_routes
 from fin.ui.security import new_token, protect
@@ -41,6 +45,7 @@ SCREENS = [
         "Statements",
         "References",
         "Engagement",
+        "Differences",
         "Queries",
         "Gates",
         "Bridge",
@@ -144,6 +149,17 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
         chosen = known(root, company) or ""
         data = source_of(root, chosen, dict(request.query_params))
         return templates.TemplateResponse(request, "_source.html", {"data": data})
+
+    @app.get("/partials/differences-ask")
+    def differences_ask(
+        company: str, item: Annotated[list[str] | None, Query()] = None
+    ) -> Response:
+        """The ticked rows of the Differences screen: the chat opens with a request to the
+        assistant to draft one query for them (nothing is sent or changed here)."""
+        text = query_prompt(root, known(root, company) or "", item or [])
+        where = "/chat/panel?" + urlencode({"company": company, "prefill": text})
+        target = json.dumps({"path": where, "target": "#chat", "swap": "outerHTML"})
+        return Response(status_code=204, headers={"HX-Location": target})
 
     @app.get("/report-file")
     def report_file(company: str, name: str) -> FileResponse:

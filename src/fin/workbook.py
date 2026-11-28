@@ -21,6 +21,9 @@ sheet" and "Rebuilt cash flow" follow, in the same layout: each line's reported,
 difference columns per period (standalone; `fin.rebuilt.compare`), and a Notes column with what a
 rebuilt figure needs said (unmapped ledgers under it, a line that is not derivable). A company with
 none gets no rebuilt sheets.
+
+With an open engagement, "Differences" comes last: every row of `fin discrepancies`
+(`fin.discrepancies.sheet`).
 """
 
 from pathlib import Path
@@ -36,6 +39,7 @@ from fin.config import Display
 from fin.databook import databook, period_order
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
+from fin.discrepancies.sheet import differences_sheet
 from fin.display import add_macro, display_settings, excel_format, sql_params
 from fin.paths import company_db_path
 from fin.rebuilt.compare import flag, rebuilt_rows
@@ -187,6 +191,7 @@ def export_workbook(root: Path, company: str, display: Display | None = None) ->
         _statement_sheet(book, company, table, display)
     _metrics_sheet(book, metrics, display)
     _rebuilt_sheets(book, root, company, display)
+    differences_sheet(book, root, company, display)
 
     path = export_path(root, company)
     try:

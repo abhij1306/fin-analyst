@@ -1,0 +1,53 @@
+{% from "_ui.html" import head, badge, empty, no_company, no_engagement %}
+{% if data.empty %}
+{{ no_company() }}
+{% elif data.no_engagement %}
+{{ head("Differences") }}
+{{ no_engagement(data.no_engagement) }}
+{% else %}
+{% call head("Differences", "Every difference of the latest reconciliations, largest first, in " ~ data.unit_label ~ ". Each row opens to the differences below it; what they do not explain is shown, never spread.") %}{% endcall %}
+<form class="pickers" method="get" action="/differences" hx-get="/differences" hx-trigger="change" hx-target="body" hx-select="body" hx-swap="outerHTML" hx-push-url="true" aria-label="Difference pickers">
+  <input type="hidden" name="company" value="{{ company }}">
+  <label>Unit <select name="unit" class="select">{% for u in data.units %}<option value="{{ u }}"{% if u == data.unit %} selected{% endif %}>{{ u }}</option>{% endfor %}</select></label>
+  <label><input type="checkbox" class="input" name="over" value="1"{% if data.over %} checked{% endif %}> Over the threshold only</label>
+  <noscript><button type="submit" class="btn" data-size="sm">Show</button></noscript>
+</form>
+{% if not data.nodes %}
+<div class="card"><section>{{ empty("No differences", "Run the reconciliations first (fin reconcile " ~ company ~ "), or there is nothing over the threshold.") }}</section></div>
+{% else %}
+<form class="card" hx-get="/partials/differences-ask" hx-target="#differences-outcome" aria-label="Differences">
+  <input type="hidden" name="company" value="{{ company }}">
+  <header><h2>{{ data.count }} differences</h2>
+    <p class="muted">Tick the rows marked "can be queried" (one period at a time) and ask the assistant to draft one query; you approve it on the Queries screen.</p>
+    <button type="submit" class="btn" data-size="sm">Ask the assistant to draft a query</button>
+    <div id="differences-outcome"></div>
+  </header>
+  <section>
+    <ul class="tree">
+    {% for node in data.nodes recursive %}{% set r = node.row %}
+      <li>
+        {% if r.queryable %}<input type="checkbox" class="input" name="item" value="{{ r.row_id }}" aria-label="Difference {{ r.row_id }}">{% endif %}
+        <details{% if r.level == "headline" %} open{% endif %}>
+          <summary>
+            {{ badge(r.level, as="info") }} <strong>#{{ r.row_id }} {{ r.period }} {{ r.key }}</strong> {{ r.kind | replace("_", " ") }}:
+            {{ r.left_name }} {{ r.left_amount_text }}, {{ r.right_name }} {{ r.right_amount_text }},
+            difference <strong>{{ r.difference_text }}</strong>
+            {% if r.children %}; explained below {{ r.explained_text }}, unexplained <strong>{{ r.unexplained_text }}</strong>{% endif %}
+            {% if r.over_threshold %}{{ badge("over the threshold", as="warn") }}{% endif %}
+            {% if r.difference is none %}{{ badge("no rupee value", as="warn") }}{% endif %}
+            {% if r.query_id %}<a href="/queries?company={{ company | urlencode }}">{{ badge(r.query_status, r.query_text) }}</a>{% elif r.queryable %}{{ badge("can be queried", as="info") }}{% endif %}
+          </summary>
+          <div class="sub">
+            {% if r.left_source %}<div>{{ r.left_name }}: {{ r.left_source }}</div>{% endif %}
+            {% if r.right_source %}<div>{{ r.right_name }}: {{ r.right_source }}</div>{% endif %}
+            {% if r.note %}<div>{{ r.note }}</div>{% endif %}
+          </div>
+          {% if node.children %}<ul class="tree">{{ loop(node.children) }}</ul>{% endif %}
+        </details>
+      </li>
+    {% endfor %}
+    </ul>
+  </section>
+</form>
+{% endif %}
+{% endif %}

@@ -21,7 +21,7 @@ threshold is listed only. While any ledger is unmapped no query is drafted: the 
 fin's own mapping gap. Differences are queried, never fixed: nothing here changes company data.
 
 Each run is a `recon_runs` row (with the hash of what it compared, `input_hash`, so gate G1 can
-tell when it must run again) and its `recon_items` (db/schema/sources.sql).
+tell when it must run again) and its `recon_items` (db/schema/reconciliations.sql).
 """
 
 import hashlib

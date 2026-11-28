@@ -87,9 +87,9 @@ Updated: 2026-11-28.
 | 14 | 1 | Rebuild the P&L and balance sheet from the trial balance for every year | high | done (#122) |
 | 14 | 2 | Derive an indirect cash flow from the rebuilt balances | high | done (#122) |
 | 14 | 3 | Show reported, rebuilt and difference in statements and on the Statements screen | | done (#122) |
-| 15 | 1 | Join the reconciliations into one discrepancies view with levels and parents | high | todo |
-| 15 | 2 | Add fin discrepancies and the export sheet | | todo |
-| 15 | 3 | Add the differences screen with drill-down and query hand-off | | todo |
+| 15 | 1 | Join the reconciliations into one discrepancies view with levels and parents | high | done (#133) |
+| 15 | 2 | Add fin discrepancies and the export sheet | | done (#133) |
+| 15 | 3 | Add the differences screen with drill-down and query hand-off | | done (#133) |
 | 16 | 1 | Refuse decisions from an AI actor in the service layer | high | deferred |
 | 16 | 2 | Add the provider setting, key storage and consent record | high | deferred |
 | 16 | 3 | Add a provider client with reading, mapping and narrative tasks | high | deferred |
