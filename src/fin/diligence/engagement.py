@@ -20,7 +20,12 @@ from typing import Any
 
 import duckdb
 
-from fin.audit.errors import DependencyMissing, EngagementState, SourcePeriodInvalid
+from fin.audit.errors import (
+    CreditTermsInvalid,
+    DependencyMissing,
+    EngagementState,
+    SourcePeriodInvalid,
+)
 from fin.audit.logger import Run
 from fin.config import load_config
 from fin.db.conn import connect, transaction, utcnow
@@ -146,19 +151,34 @@ def require_open(con: duckdb.DuckDBPyConnection, company: str) -> dict[str, Any]
     return row
 
 
+MAX_DUE_DAYS = 3650  # as config.toml [diligence] invoice_due_days
+
+
+def check_due_days(company: str, days: int) -> int:
+    """The credit terms in days. E846 unless whole days from 0 to MAX_DUE_DAYS."""
+    if isinstance(days, bool) or not isinstance(days, int) or not 0 <= days <= MAX_DUE_DAYS:
+        raise CreditTermsInvalid(
+            f"{company}: credit terms of {days!r} days; give whole days from 0 to {MAX_DUE_DAYS}. "
+            "Nothing changed"
+        ).with_context(due_days=days)
+    return days
+
+
 def open_engagement(
     run: Run,
     company: str,
     periods: list[str],
     threshold: Decimal | None,
     stub: str | None = None,
+    due_days: int | None = None,
 ) -> dict[str, Any]:
     """Open an engagement for the periods (and the stub, e.g. 'FY27-YTD-SEP'), with the threshold
-    given or config.toml's. E803 when one is already open; E808 for a stub `parse_stub`
-    refuses."""
+    and the credit terms in days (`due_days`) given or config.toml's. E803 when one is already
+    open; E808 for a stub `parse_stub` refuses; E846 for credit terms out of range."""
     config = load_config(run.root)
     if threshold is None:
         threshold = config.query_threshold
+    due = config.invoice_due_days if due_days is None else check_due_days(company, due_days)
     try:
         ytd = parse_stub(stub, periods, config.fiscal_year_start_month) if stub else None
     except ValueError as exc:
@@ -186,7 +206,7 @@ def open_engagement(
                 ytd and ytd.end,
                 config.match_window_days,
                 config.fx_window_days,
-                config.invoice_due_days,
+                due,
                 config.fiscal_year_start_month,
                 config.fdd["cutoff_days"],
                 config.fdd["unrecorded_days"],
@@ -197,6 +217,37 @@ def open_engagement(
         assert new is not None
         record_event(run, company, con, "engagement", new[0])
         return require_open(con, company)
+
+
+def set_due_days(run: Run, company: str, days: int) -> dict[str, Any]:
+    """Set the open engagement's credit terms (an unmatched invoice is overdue after `days`).
+    Returns the engagement row and `before`, the earlier value. A bank_vs_invoices run made with
+    other terms no longer matches its inputs, so gate G2 reopens until it runs again. E803 when no
+    engagement is open; E846 for days out of range."""
+    check_due_days(company, days)
+    with company_database(run, company, write=True) as con, transaction(con):
+        engagement = require_open(con, company)
+        engagement_id = engagement["engagement_id"]
+        con.execute(
+            "UPDATE engagement SET invoice_due_days = ? WHERE engagement_id = ?",
+            [days, engagement_id],
+        )
+        record_event(run, company, con, "engagement", engagement_id)
+        [row] = fetch_dicts(
+            con, "SELECT * FROM engagement WHERE engagement_id = ?", [engagement_id]
+        )
+    return {"engagement": row, "before": engagement["invoice_due_days"]}
+
+
+def format_due_days(company: str, result: dict[str, Any]) -> str:
+    row, before = result["engagement"], result["before"]
+    if before == row["invoice_due_days"]:
+        return f"{company}: credit terms already {before} days; nothing changed"
+    return (
+        f"{company}: credit terms {before} -> {row['invoice_due_days']} days for engagement "
+        f"#{row['engagement_id']}; run `fin reconcile {company} bank_vs_invoices` again "
+        "(gate G2 reopens until it runs with the new terms)"
+    )
 
 
 def close_engagement(run: Run, company: str) -> dict[str, Any]:
@@ -271,6 +322,7 @@ def format_engagement(row: dict[str, Any]) -> str:
         f"engagement #{row['engagement_id']} {row['status']}: periods {row['periods']}"
         + (f", stub {row['stub']} ({UNAUDITED})" if row.get("stub") else "")
         + f", query threshold {rupees(row['query_threshold'])}"
+        + f", credit terms {row['invoice_due_days']} days"
         + f", opened {row['opened_at']:%Y-%m-%d}"
     )
     if row["closed_at"] is not None:

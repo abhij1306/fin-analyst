@@ -318,7 +318,8 @@ claude
 | `fin audit <co> [metric period \| --fact id]` | `/audit` | Either |
 | `fin delete <co> [--yes]` | — | Either (typed confirmation, or `--yes` when the user asked) |
 | `fin update` | — | Human |
-| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold]`, `fin engagement status\|close <co>` | `/diligence` | Either (`close` needs gate G4 approved) |
+| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold] [--due-days N]`, `fin engagement status\|close <co>` | `/diligence` | Either (`close` needs gate G4 approved) |
+| `fin engagement terms <co> --due-days N` | `/diligence` | The user's credit terms; Claude changes them only when asked |
 | `fin engagement bridge <co> [--period] [--scope] [--json]` (views `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`) | `/diligence` | Either |
 | `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
 | `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
@@ -775,7 +776,12 @@ above the threshold in rupees (`difference`, `left_only`, `right_only`; a foreig
 past `invoice_due_days` at the period end is `not_yet_due`, listed. The view `customer_collections` gives, per period and
 customer, invoiced, received (matched in full), partly paid (invoices in a group whose receipts differ from them: the invoice amount) and open rupees (invoiced = received + partly paid + open), collection days (matched invoices only) and the overdue ageing of open invoices.
 `fin reconcile <co> bank_vs_tb` (`bank.py`) compares the INR statements ending on a period's last day with the trial
-balance's cash and bank ledgers. G2 requires both through the D4 checks (`fin/reconcile/checks.py`). The engagement copies `match_window_days`, `fx_window_days`, `invoice_due_days` and `fiscal_start_month` from `config.toml` when it opens. E854-E855. Golden check kinds:
+balance's cash and bank ledgers. G2 requires both through the D4 checks (`fin/reconcile/checks.py`). The engagement copies `match_window_days`, `fx_window_days`, `invoice_due_days` and `fiscal_start_month` from `config.toml` when it opens.
+Credit terms belong to the engagement (the client, 2026-11-27): `invoice_due_days` defaults to 90; `fin engagement open --due-days N` sets
+another value for one engagement and `fin engagement terms <co> --due-days N` changes the open one's (E846 outside 0 to 3650 days; the
+change is in `diligence_events`). `fin engagement status` and the Gates screen show them. Overdue and the ageing read the engagement's
+value, stored on each bank_vs_invoices run (`recon_runs.due_days`) and part of its input hash, so a change makes the run stale and
+gate G2 reopens until it runs again. Data folders whose `config.toml` was written before keep the value written there. E854-E855. Golden check kinds:
 `bank_unmatched`, `invoice_unmatched`, `fx_line`, `customer_received`, `customer_partly_paid`, `bank_vs_tb`.
 
 Payroll (D3, `docs/decisions/d3-payroll.md`): `fin ingest <co> <file> --kind payroll` reads the Sparsh snapshot, one

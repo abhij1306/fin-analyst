@@ -420,6 +420,7 @@ def gate_status(run: Run, company: str) -> dict[str, Any]:
         return {
             "company": company,
             "engagement_id": ctx.engagement["engagement_id"],
+            "invoice_due_days": ctx.engagement["invoice_due_days"],
             "gates": evaluate(ctx),
         }
 

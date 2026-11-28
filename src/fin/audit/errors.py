@@ -27,8 +27,8 @@ a command returns when the error ends it:
   or no audited statement figures for the period) stops the command: exit 2.
 - E840-E842 (diligence reconciliations: one cannot run for lack of loaded inputs; a recon line id is
   unknown or stale; a line cannot be raised as a query) stop the command: exit 2.
-- E845 (`fin engagement passthrough`: a customer token that is not on a loaded sales register)
-  stops the command: exit 2.
+- E845-E846 (`fin engagement passthrough`: a customer token that is not on a loaded sales register;
+  credit terms that are not whole days from 0 to 3650) stop the command: exit 2.
 - E868-E869 (D9 analytics: a customer sector proposal or review that is not valid; `fin analytics`
   with no engagement or no loaded sales register) stop the command: exit 2.
 - E863-E865 (service-period recast: it cannot run for lack of a loaded sales register or a period of
@@ -502,6 +502,7 @@ from fin.audit.errors_dd import (  # noqa: E402, F401
     BundleNotAnonymous,
     ContractNotOnRegister,
     ContractReadingInvalid,
+    CreditTermsInvalid,
     CustomerMappingInvalid,
     DiligenceReportUnavailable,
     ExportFileError,

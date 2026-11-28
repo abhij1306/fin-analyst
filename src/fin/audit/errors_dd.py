@@ -43,6 +43,13 @@ class PassthroughInvalid(FinError):
     code = "E845"
 
 
+class CreditTermsInvalid(FinError):
+    """E846. `fin engagement open --due-days` or `fin engagement terms`: the credit terms are not
+    whole days from 0 to 3650. Nothing changed."""
+
+    code = "E846"
+
+
 # E85x: the query export (fin.diligence.export). Stop the command.
 
 

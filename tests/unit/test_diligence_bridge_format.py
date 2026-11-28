@@ -34,6 +34,7 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
             "status": "open",
             "periods": "FY26",
             "query_threshold": D("100000.00"),
+            "invoice_due_days": 90,
             "opened_at": datetime(2026, 11, 9),
             "closed_at": None,
         },
@@ -56,7 +57,8 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
     lines = [" ".join(line.split()) for line in format_bridge(result).splitlines()]
 
     assert lines == [
-        "acme: engagement #4 open: periods FY26, query threshold ₹100,000.00, opened 2026-11-09",
+        "acme: engagement #4 open: periods FY26, query threshold ₹100,000.00, credit terms 90 "
+        "days, opened 2026-11-09",
         "",
         "acme consolidated FY26: EBITDA bridge (₹)",
         "Reported EBITDA 1,500,000.00",

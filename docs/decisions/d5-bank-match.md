@@ -30,7 +30,9 @@ Only decisions that affect the analysis or what the user sees. Plan: docs/dilige
 ## 4. Date window, due days and settings
 - **Decision:** the window is an absolute difference of dates (a receipt may precede its invoice), default 60 days
   (`[diligence] match_window_days`). `fx_window_days` (7) bounds the Ledger Vouchers receipt for a rupee value;
-  `invoice_due_days` (30) is when an unmatched invoice counts as overdue.
+  `invoice_due_days` (30) is when an unmatched invoice counts as overdue. *Superseded by SPEC-17 item 4
+  ([spec-17.md](spec-17.md) §4): the default is 90 (the client's credit terms) and each engagement can set its own
+  (`--due-days`, `fin engagement terms`).*
 - **Why:** the plan says "date window (config)" without a number; the register has no due date.
 - **Change:** `config.py` defaults and `config.toml [diligence]`; an engagement copies them when it opens (like the threshold), so a change applies to the next engagement.
 

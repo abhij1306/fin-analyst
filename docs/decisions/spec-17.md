@@ -71,3 +71,18 @@ Readings by the builder (2026-11-28), not owner decisions.
   that cannot be read or fails a check stops `fin query checklist` with E910 naming the file; fin does not fall back
   to its own list.
 - **Naming it**: the output's first line, and `list` and `path` in `--json`.
+
+## 4. Credit terms on the engagement
+
+Readings by the builder (2026-11-28), not owner decisions.
+
+- **Changing them**: the spec says "changing it reopens the gate", so the open engagement's terms can change after it
+  opens: `fin engagement terms <co> --due-days N` (recorded in `diligence_events`). `--due-days` on
+  `fin engagement open` sets them at the start.
+- **Which gate**: G2. The terms are part of the bank_vs_invoices input hash, so a run made with other terms is stale
+  even when no invoice changes side; the ageing view reads the run's stored terms.
+- **Range**: whole days from 0 to 3650, the range `config.toml` already accepts (E846 otherwise).
+- **The engagement screen**: SPEC-09 PR 2 builds it. Until then the Gates screen header shows the terms with the
+  engagement number.
+- **Existing data folders**: `config.toml` is the user's file; one written before keeps the value written there
+  (re-run setup or edit it). New data folders get 90.

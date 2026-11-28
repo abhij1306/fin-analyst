@@ -186,7 +186,8 @@ changed, with what changed, or an earlier gate not approved), `open` (never appr
 
 | CLI | Claude Code | Who |
 |---|---|---|
-| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold N]`, `status`, `close` | `/diligence` | Either; `close` needs G4 |
+| `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold N] [--due-days N]`, `status`, `close` | `/diligence` | Either; `close` needs G4 |
+| `fin engagement terms <co> --due-days N` (the engagement's credit terms; G2 reopens until bank_vs_invoices runs again) | `/diligence` | The user's value |
 | `fin engagement bridge <co> [--period] [--scope] [--json]` | `/diligence` | Either |
 | `fin query list\|raise\|edit\|approve\|sent\|answer\|close\|withdraw <co>` | `/diligence` | Claude drafts; approve, sent, close when the user says |
 | `fin adjust propose\|list\|accept\|reject <co>` | `/diligence` | Claude proposes; accept/reject (need G2) when the user says |
@@ -489,7 +490,7 @@ for the company's accountant, and proposed adjustments to EBITDA. A difference i
 becomes a query, not a fix. Claude drafts; you decide. fin never sends anything. Plan:
 this file.
 
-- `fin engagement open <company> --periods FY24,FY25,FY26 [--threshold N] [--stub FY27-YTD-SEP]`: one open
+- `fin engagement open <company> --periods FY24,FY25,FY26 [--threshold N] [--stub FY27-YTD-SEP] [--due-days N]`: one open
   engagement per company, with the years in scope, the query threshold in rupees (default `query_threshold` in
   `config.toml`) and optionally a current-year stub: the year to date after the last year (here April to
   September of FY27), from unaudited management data. The stub is labelled "unaudited management accounts"

@@ -1,5 +1,5 @@
-"""`fin engagement open|status|close|bridge|passthrough|rate`. The logic is in `engagement.py`,
-`bridge.py`, `passthrough.py` and `rates.py`."""
+"""`fin engagement open|status|close|terms|bridge|passthrough|rate`. The logic is in
+`engagement.py`, `bridge.py`, `passthrough.py` and `rates.py`."""
 
 import json
 from decimal import Decimal
@@ -58,14 +58,31 @@ def engagement_open(
             help="Current-year stub after the last period, e.g. FY27-YTD-SEP (unaudited).",
         ),
     ] = None,
+    due_days: Annotated[
+        int | None,
+        typer.Option(
+            "--due-days",
+            metavar="DAYS",
+            help="Credit terms: an unmatched invoice is overdue after this many days. "
+            "Default: invoice_due_days in config.toml (90).",
+        ),
+    ] = None,
 ) -> None:
     """Open a diligence engagement for the company (one at a time)."""
 
     def body(run: Run) -> None:
-        row = engagement.open_engagement(run, company, periods.split(","), threshold, stub)
+        row = engagement.open_engagement(
+            run, company, periods.split(","), threshold, stub, due_days
+        )
         typer.echo(f"{company}: {engagement.format_engagement(row)}")
 
-    args = {"company": company, "periods": periods, "threshold": threshold, "stub": stub}
+    args = {
+        "company": company,
+        "periods": periods,
+        "threshold": threshold,
+        "stub": stub,
+        "due_days": due_days,
+    }
     execute("engagement open", args, body)
 
 
@@ -92,6 +109,28 @@ def engagement_close(company: CompanyArg) -> None:
         typer.echo(f"{company}: {engagement.format_engagement(row)}")
 
     execute("engagement close", {"company": company}, body)
+
+
+@engagement_app.command("terms")
+def engagement_terms(
+    company: CompanyArg,
+    due_days: Annotated[
+        int,
+        typer.Option(
+            "--due-days",
+            metavar="DAYS",
+            help="Credit terms: an unmatched invoice is overdue after this many days.",
+        ),
+    ],
+) -> None:
+    """Change the open engagement's credit terms. Overdue and ageing read them; gate G2 reopens
+    until bank_vs_invoices runs again with them."""
+
+    def body(run: Run) -> None:
+        result = engagement.set_due_days(run, company, due_days)
+        typer.echo(engagement.format_due_days(company, result))
+
+    execute("engagement terms", {"company": company, "due_days": due_days}, body)
 
 
 @engagement_app.command("bridge")

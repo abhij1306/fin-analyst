@@ -25,7 +25,9 @@ CREATE TABLE engagement (
     -- bank matching settings copied from config.toml [diligence] when the engagement opens (like query_threshold)
     match_window_days INTEGER NOT NULL DEFAULT 60,
     fx_window_days INTEGER NOT NULL DEFAULT 7,
-    invoice_due_days INTEGER NOT NULL DEFAULT 30,
+    -- invoice_due_days: the credit terms (an unmatched invoice is overdue after them; default 90), or
+    -- `fin engagement open --due-days`; `fin engagement terms` changes them for the open engagement
+    invoice_due_days INTEGER NOT NULL DEFAULT 90,
     fiscal_start_month INTEGER NOT NULL DEFAULT 4,
     -- FDD cut-off windows (docs/fdd.md F3) copied from config.toml [fdd] when the engagement opens
     cutoff_days INTEGER NOT NULL DEFAULT 15,

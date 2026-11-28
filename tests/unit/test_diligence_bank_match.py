@@ -13,12 +13,18 @@ from typing import Any
 
 import pytest
 
-from fin.audit.errors import MatchChangeRefused, MatchProposalInvalid, ReconCannotRun
+from fin.audit.errors import (
+    CreditTermsInvalid,
+    MatchChangeRefused,
+    MatchProposalInvalid,
+    ReconCannotRun,
+)
 from fin.audit.logger import Run
-from fin.config import write_default_config
-from fin.db.conn import connect, utcnow
+from fin.config import load_config, write_default_config
+from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.diligence import bank_proposals, gates
+from fin.diligence.engagement import format_engagement, open_engagement, set_due_days
 from fin.evals.golden import COLUMNS, golden_path
 from fin.evals.scaffold import init_golden
 from fin.evals.score import run_eval
@@ -62,9 +68,9 @@ INVOICES = [
 ]
 
 
-@pytest.fixture
-def root(tmp_path: Path) -> Path:
-    root = tmp_path / "data"
+def build(root: Path, due_days: int = 30) -> Path:
+    """The answer key's data folder; its engagement is opened with credit terms of `due_days`
+    (30 for the key: INV-1007 is then 90 days past due at the FY25 end, INV-1008 not yet due)."""
     root.mkdir()
     write_default_config(root)
     ensure_database(audit_db_path(root), "audit")
@@ -72,12 +78,8 @@ def root(tmp_path: Path) -> Path:
     load_seed(root, Run("init", {}, root))
     path = company_db_path(root, "acme")
     ensure_database(path, "company")
+    open_engagement(Run("open", {}, root), "acme", ["FY25"], D(100000), due_days=due_days)
     with connect(path, write=True) as con:
-        con.execute(
-            "INSERT INTO engagement (periods, query_threshold, status, opened_run_id, opened_at) "
-            "VALUES ('FY25', 100000, 'open', 'r0', ?)",
-            [utcnow()],
-        )
         for fid, kind in (
             (BANK, "bank"),
             (USD, "bank"),
@@ -130,6 +132,11 @@ def root(tmp_path: Path) -> Path:
             [LV],
         )
     return root
+
+
+@pytest.fixture
+def root(tmp_path: Path) -> Path:
+    return build(tmp_path / "data")
 
 
 def run(root: Path) -> Run:
@@ -439,3 +446,60 @@ def test_init_lists_what_a_person_can_check(root: Path) -> None:
         ("fx_line", "CUST-0005"),
         ("customer_received", "CUST-0001"),
     } <= got
+
+
+# --- credit terms per engagement (SPEC-17 item 4) ------------------------------------------------
+
+
+def overdue(result: dict[str, Any]) -> list[str]:
+    return sorted(
+        x["key"] for x in result["lines"] if x["level"] == "invoice" and x["note"] != "not yet due"
+        and x["kind"] == "right_only"
+    )  # fmt: skip
+
+
+def test_two_engagements_with_other_credit_terms_age_the_same_register_apart(
+    tmp_path: Path,
+) -> None:
+    short, long = build(tmp_path / "short", 30), build(tmp_path / "long", 130)
+
+    # INV-1007 is 120 days old at 2025-03-31: overdue on 30-day terms, not yet due on 130-day ones
+    assert overdue(go(short)) == ["INV-1007"] and overdue(go(long)) == []
+    with connect(company_db_path(long, "acme")) as con:
+        row = con.execute(
+            "SELECT due_days, not_due_inr FROM recon_runs JOIN customer_collections USING "
+            "(period) WHERE customer = 'CUST-0006'"
+        ).fetchone()
+    assert row == (130, D(450000))
+
+
+def test_changing_the_credit_terms_reopens_g2_until_it_runs_again(root: Path) -> None:
+    def g2() -> list[tuple[bool, str]]:
+        with connect(company_db_path(root, "acme")) as con:
+            gate = gates.evaluate(gates.context(con, root, "acme"))[1]
+        return [(x["ok"], x["text"]) for x in gate["checklist"]]
+
+    go(root)
+    assert not any("bank_vs_invoices ran on data that has changed" in t for _, t in g2())
+
+    result = set_due_days(run(root), "acme", 130)
+
+    assert (result["before"], result["engagement"]["invoice_due_days"]) == (30, 130)
+    assert "credit terms 130 days" in format_engagement(result["engagement"])
+    assert any(not ok and "bank_vs_invoices ran on data that has changed" in t for ok, t in g2())
+    assert overdue(go(root)) == []
+    assert not any("bank_vs_invoices ran on data that has changed" in t for _, t in g2())
+
+
+@pytest.mark.parametrize("days", [-1, 3651])
+def test_credit_terms_out_of_range_are_refused(root: Path, days: int) -> None:
+    with pytest.raises(CreditTermsInvalid) as caught:
+        set_due_days(run(root), "acme", days)
+    assert caught.value.code == "E846"
+    with connect(company_db_path(root, "acme")) as con:
+        assert con.execute("SELECT invoice_due_days FROM engagement").fetchone() == (30,)
+
+
+def test_the_default_credit_terms_are_90_days(tmp_path: Path) -> None:
+    write_default_config(tmp_path)
+    assert load_config(tmp_path).invoice_due_days == 90

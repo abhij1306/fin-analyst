@@ -276,7 +276,7 @@ CREATE TABLE recon_runs (
     input_hash VARCHAR NOT NULL,
     unmapped INTEGER NOT NULL,
     as_of DATE,  -- bank_vs_invoices: the period's last day, the date open invoices are aged to
-    due_days INTEGER,  -- bank_vs_invoices: invoice_due_days from config.toml at the run
+    due_days INTEGER,  -- bank_vs_invoices: the engagement's invoice_due_days (credit terms) at the run
     run_id VARCHAR NOT NULL,
     created_at TIMESTAMP NOT NULL
 );

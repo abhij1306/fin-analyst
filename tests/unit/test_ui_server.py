@@ -221,5 +221,6 @@ def test_the_gates_queries_and_findings_screens_show_an_open_engagement(tmp_path
     gates = client.get("/partials/gates?company=acme").text
     assert "G1" in gates
     assert "Only you approve a gate." in gates
+    assert "credit terms 90 days" in gates  # the engagement's own terms (SPEC-17 item 4)
     assert "No queries." in client.get("/partials/queries?company=acme").text
     assert "No FDD findings." in client.get("/partials/findings?company=acme").text
