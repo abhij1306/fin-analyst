@@ -15,12 +15,12 @@ pytest.importorskip("multipart")
 
 from fastapi.testclient import TestClient
 
+from fin import uploads
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.diligence import queries
 from fin.paths import audit_db_path
 from fin.services.result import perform
-from fin.ui import uploads
 from fin.ui.server import create_app
 from tests.engagement_root import engagement_root, mapping_decisions, with_proposal
 

@@ -53,10 +53,13 @@ Builder's readings ([README](README.md)); the owner confirms or changes them.
 
 ### 7. Terminal-only commands
 - **Decision:** `fin delete` (asks for the company's name typed in the terminal), `fin init` (install.sh runs it),
-  `fin ui` and `fin ui setup` (the UI itself), `fin eval init|run|bundle` (the client's golden evaluation runbook)
-  and `fin provisions confirm|reject`, `fin netdebt item accept|reject` (the user's decisions: denied to Claude in
-  chat, and no screen has them yet) are terminal only. Every other command is on a screen or done through chat.
+  `fin ui` and `fin ui setup` (the UI itself) and `fin eval init|run|bundle` (the client's golden evaluation
+  runbook) are terminal only. Every other command is on a screen or done through chat. `fin provisions
+  confirm|reject` and `fin netdebt item accept|reject` (the user's decisions, denied to Claude in chat) left the
+  terminal in the UI-gaps PR (2026-11-28): they are buttons on the Findings screen, where the FDD work is.
 - **Why:** criterion 1 of the spec; a decision Claude may not run needs a screen before it can leave the terminal.
+  The owner said a UI-only user must not need the terminal (2026-11-28). Provisions and net debt items sit with the
+  FDD findings because all three are F3 to F8 proposals the user decides; a reading, the owner may move them.
 - **How to change it:** the table "Where each command is" in `docs/product.md`; `tests/unit/test_command_coverage.py`
   checks it.
 

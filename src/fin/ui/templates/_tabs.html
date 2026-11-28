@@ -1,9 +1,9 @@
 {#- The top bar's navigation: Home, then one Basecoat dropdown menu per group of screens. After a decision it
-    is sent again out of band so the counts stay current. Every item is a link (its own address); the open
+    is sent again out of band, and asked again when a job ends (job-done), so the counts stay current. Every item is a link (its own address); the open
     screen is aria-current="page". A group's button shows what waits in its screens. -#}
 {% set q = ("?company=" ~ (company | urlencode)) if company else "" %}
 {% set counts = tab_counts or {} %}
-<nav class="tabs" id="tabs" aria-label="Screens"{% if oob %} hx-swap-oob="true"{% endif %}>
+<nav class="tabs" id="tabs" aria-label="Screens"{% if oob %} hx-swap-oob="true"{% endif %} hx-get="/partials/tabs?screen={{ screen | urlencode }}{{ ('&company=' ~ (company | urlencode)) if company else '' }}" hx-trigger="job-done from:body" hx-swap="outerHTML">
   <a class="btn" data-size="sm" data-variant="{{ 'secondary' if screen == 'home' else 'ghost' }}" id="tab-home" href="/{{ q }}"{% if screen == 'home' %} aria-current="page"{% endif %}>Home</a>
   {% for group, items in NAV %}
   {% set g = "nav-" ~ (group | lower) %}

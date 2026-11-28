@@ -15,9 +15,9 @@ from fin.actor import USER
 from fin.audit.logger import Run
 from fin.cli import app
 from fin.db.conn import connect
-from fin.diligence import queries
+from fin.diligence import netdebt_items, queries
 from fin.map.dictionary import mapping_row
-from fin.paths import audit_db_path, dictionary_db_path
+from fin.paths import audit_db_path, company_db_path, dictionary_db_path
 from fin.services import decisions
 from fin.services.reviews import KINDS
 from fin.ui import actions
@@ -45,6 +45,21 @@ def _raise_and_approve(root: Path) -> None:
 
 def _nothing(root: Path) -> None:
     pass
+
+
+def _provision(root: Path) -> None:
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "INSERT INTO provision_ledgers (ledger, kind, status, reason, run_id, changed_at) "
+            "VALUES ('Provision for doubtful debts', 'doubtful_debts', 'proposed', 'by name', "
+            "'r0', now())"
+        )
+
+
+def _netdebt_item(root: Path) -> None:
+    netdebt_items.propose(
+        Run("netdebt item propose", {}, root), "acme", "FY25", Decimal(100), "shortfall", "q 1"
+    )
 
 
 @pytest.fixture(scope="module")
@@ -93,6 +108,16 @@ CASES: list[tuple[str, str, str, list[str], Callable[[Path], None]]] = [
     ("reference-reject", "99", "", ["reference", "reject", "acme", "99"], _nothing),
     ("dataroom-approve", "99", "", ["dataroom", "approve", "acme", "99"], _nothing),
     ("dataroom-undo", "99", "", ["dataroom", "approve", "acme", "99", "--undo"], _nothing),
+    ("provision-confirm", "1", "", ["provisions", "confirm", "acme", "1"], _provision),
+    ("provision-reject", "99", "", ["provisions", "reject", "acme", "99"], _nothing),
+    ("netdebt-item-accept", "1", "", ["netdebt", "item", "accept", "acme", "1"], _netdebt_item),
+    (
+        "netdebt-item-reject",
+        "1",
+        "not debt",
+        ["netdebt", "item", "reject", "acme", "1", "--reason", "not debt"],
+        _netdebt_item,
+    ),
 ] + [
     (f"review-{verb}-{kind}", "99", "", ["review", verb, "acme", "99", f"--{kind}"], _nothing)
     for kind in KINDS
@@ -149,7 +174,8 @@ def test_the_ui_and_the_cli_leave_the_same_run_record(
     assert ui_run["args"].pop("via") == "ui"
     assert cli_run["args"].pop("via") == "cli"
     assert ui_run == cli_run
-    assert ui_run["command"] == " ".join(argv[:3] if argv[0] == "fdd" else argv[:2])
+    words = 3 if argv[0] == "fdd" or argv[1] == "item" else 2  # fdd finding, netdebt item
+    assert ui_run["command"] == " ".join(argv[:words])
     assert pressed.ok == (ran.exit_code == 0)
     if not pressed.ok:
         assert pressed.code is not None

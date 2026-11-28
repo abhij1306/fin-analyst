@@ -20,6 +20,8 @@
 {% endfor %}
 {% endcall %}
 {% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
+{#- Asked again when a job ends (job-done, sent by the Jobs card), so a new report shows without a reload. -#}
+<div id="report-files" hx-get="/partials/reports?company={{ company | urlencode }}" hx-trigger="job-done from:body" hx-select="#report-files" hx-swap="outerHTML">
 {% if data.narratives %}
 <div class="card">
   <header><h2>Narratives</h2><p>The sections Claude drafted; the rendered report adds the findings and data coverage.</p></header>
@@ -54,5 +56,6 @@
     <div class="pad">{{ empty("No report yet.") }}</div>
     {% endif %}
   </section>
+</div>
 </div>
 {% endif %}

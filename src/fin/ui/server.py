@@ -150,6 +150,21 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
     for screen_id, _ in SCREENS:
         add_routes(screen_id)
 
+    screen_ids = {screen_id for screen_id, _ in SCREENS}
+
+    @app.get("/partials/tabs", response_class=HTMLResponse)
+    def tabs(request: Request, screen: str, company: str | None = None) -> HTMLResponse:
+        """The top bar's navigation with its counts: asked again when a job ends (job-done)."""
+        if screen not in screen_ids:
+            raise DependencyMissing(f"no screen {screen!r}")
+        chosen = known(root, company)
+        context = {
+            "company": chosen,
+            "screen": screen,
+            "tab_counts": screens.tab_counts(root, chosen),
+        }
+        return templates.TemplateResponse(request, "_tabs.html", context)
+
     @app.get("/partials/file-rows", response_class=HTMLResponse)
     def file_rows(request: Request, company: str | None = None) -> HTMLResponse:
         """The Files screen's rows and findings: it asks again while a job runs."""

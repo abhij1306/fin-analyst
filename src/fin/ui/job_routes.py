@@ -2,8 +2,6 @@
 `GET /partials/jobs` shows the company's jobs. The jobs card polls while one is queued or running;
 it reads the jobs table, so it shows the same after a reload. A job's actor is always the user."""
 
-import shutil
-import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
@@ -14,15 +12,14 @@ from fastapi.templating import Jinja2Templates
 from starlette.datastructures import UploadFile
 
 from fin.actor import USER
-from fin.audit.errors import FinError, UiActionInvalid
+from fin.audit.errors import UiActionInvalid
 from fin.extract.addon import ADDON_LABELS
 from fin.ingest import UNIT_ANSWERS
-from fin.paths import dataroom_dir
 from fin.services import addon, dataroom, ingest, questions, reports, system
 from fin.services.jobs import Jobs, Work, list_jobs
-from fin.services.result import ActionResult, Progress
+from fin.services.result import ActionResult, Progress, Refused
 from fin.ui.actions import ITEM_ID
-from fin.ui.uploads import check_length, save_uploads
+from fin.uploads import check_length
 
 # The job actions and how the page names them.
 LABELS = {
@@ -44,6 +41,7 @@ CHOICES = {
     "unit": (tuple(UNIT_ANSWERS), "unit"),
     "report": (reports.REPORT_KINDS, "kind"),
 }
+ACTIVE = ("queued", "running")  # the job states the card follows
 # The jobs that act on one item: a doc_id, a held file's name, or a saved question's query id
 ON_ITEM = {"reingest", "unit", "rerun"}
 # The jobs for the whole install: they run before any company exists, listed under company "".
@@ -160,9 +158,15 @@ def add_job_routes(
     known: Callable[[Path, str | None], str | None],
     jobs: Jobs,
 ) -> None:
-    def shown(request: Request, company: str) -> HTMLResponse:
-        context = {"company": company, **jobs_card(root, company)}
-        return templates.TemplateResponse(request, "_jobs.html", context)
+    def shown(request: Request, company: str, polled: bool = False) -> HTMLResponse:
+        """The Jobs card. On the card's own poll (`polled`), job-done is sent when none of the jobs
+        it shows is queued or running: the same read decides both, so a card that stops polling
+        always tells the screen."""
+        card = jobs_card(root, company)
+        response = templates.TemplateResponse(request, "_jobs.html", {"company": company, **card})
+        if polled and not any(j["state"] in ACTIVE for j in card["jobs"]):
+            response.headers["HX-Trigger"] = "job-done"
+        return response
 
     def chosen(company: str | None, install_wide: bool = False) -> str:
         name = known(root, company)
@@ -188,20 +192,21 @@ def add_job_routes(
 
     @app.post("/dataroom-upload", response_class=HTMLResponse)
     async def dataroom_upload(request: Request) -> HTMLResponse:
-        """A data room as a .zip: saved in its own folder under dataroom/<company>/uploads/, then
-        scanned as a job, as a chosen folder is."""
+        """A data room as a .zip: saved in its own folder under dataroom/<company>/uploads/ in a
+        run of its own (`fin.services.dataroom.save_zip`), then scanned as a job, as a chosen
+        folder is."""
         check_length(request.headers.get("content-length"))
         form = await request.form()
         name = chosen(str(form.get("company", "")))
         sent = [f for f in form.getlist("files") if isinstance(f, UploadFile) and f.filename]
-        base = dataroom_dir(root, name) / "uploads"
-        base.mkdir(parents=True, exist_ok=True)
-        folder = Path(tempfile.mkdtemp(dir=base))
-        try:
-            save_uploads(folder, [(f.filename or "", f.file) for f in sent], (".zip",))
-        except (FinError, OSError):
-            shutil.rmtree(folder, ignore_errors=True)
-            raise
+        folder = dataroom.upload_folder(root, name)
+        files = [(f.filename or "", f.file) for f in sent]
+        saved = dataroom.save_zip(root, name, folder, files, via="ui", actor=USER)
+        if isinstance(saved, Refused):
+            error = f"{saved.code}: {saved.message} (run {saved.run_id})"
+            return templates.TemplateResponse(
+                request, "_error.html", {"error": error}, status_code=400
+            )
         jobs.submit(name, "dataroom-scan", {"folder": str(folder)})
         response = shown(request, name)
         response.headers["HX-Trigger"] = "job-queued"
@@ -209,4 +214,7 @@ def add_job_routes(
 
     @app.get("/partials/jobs", response_class=HTMLResponse)
     def partial(request: Request, company: str | None = None) -> HTMLResponse:
-        return shown(request, chosen(company, install_wide=True))
+        """The card asks for itself only while a job is queued or running (HX-Trigger names the
+        card); when none is left, job-done tells the screen's other parts to show the result."""
+        polled = request.headers.get("HX-Trigger") == "jobs"
+        return shown(request, chosen(company, install_wide=True), polled)

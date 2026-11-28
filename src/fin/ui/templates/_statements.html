@@ -14,7 +14,8 @@
   <input type="hidden" name="action" value="export"><input type="hidden" name="company" value="{{ company }}">
   <button type="submit" class="btn" data-size="sm">Export to Excel</button>
 </form>
-{% if data.export %}<a class="btn" data-size="sm" data-variant="outline" href="/report-file?company={{ company | urlencode }}&amp;name={{ data.export | urlencode }}">Download Excel</a>{% endif %}
+{#- Asked again when a job ends (job-done, sent by the Jobs card), so a new export shows without a reload. -#}
+<span id="statements-export" hx-get="{{ '/partials/statements?company=' ~ (company | urlencode) ~ '&view=' ~ (data.view | urlencode) ~ '&unit=' ~ (data.unit | urlencode) }}" hx-trigger="job-done from:body" hx-select="#statements-export" hx-swap="outerHTML">{% if data.export %}<a class="btn" data-size="sm" data-variant="outline" href="/report-file?company={{ company | urlencode }}&amp;name={{ data.export | urlencode }}">Download Excel</a>{% endif %}</span>
 {% endcall %}
 <form class="pickers" method="get" action="/statements" hx-get="/statements" hx-trigger="change" hx-target="body" hx-select="body" hx-swap="outerHTML" hx-push-url="true" aria-label="Statement pickers">
   <input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="view" value="{{ data.view }}">

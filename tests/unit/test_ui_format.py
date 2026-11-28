@@ -4,6 +4,7 @@ import pytest
 
 pytest.importorskip("jinja2")
 
+from fin.status import WAITING
 from fin.ui.format import code, problems_view, tone, when
 from fin.ui.views import tab_counts
 
@@ -41,18 +42,11 @@ def test_identical_problems_are_grouped_with_a_count() -> None:
 
 
 def test_tab_counts_list_only_what_waits() -> None:
-    status = {
-        "open_findings": 2,
-        "inbox_not_ingested": ["a.xlsx"],
-        "pending_mappings": 0,
-        "diligence": {
-            "queries": {"draft": 3, "approved": 1, "sent": 2, "answered": 1},
-            "proposed_adjustments": 1,
-            "gates": {"G1": "approved", "G2": "open"},
-        },
-    }
-    # drafts to approve, approved to mark sent, answered to close; sent waits on the accountant
-    assert tab_counts(status) == {"files": 3, "queries": 6, "gates": 1}
+    waiting = dict.fromkeys(WAITING, 0) | {"open_findings": 2, "inbox": 1, "queries": 5}
+    waiting |= {"adjustments": 1, "provisions": 1, "netdebt_items": 2}
+    status = {"waiting": waiting, "diligence": {"gates": {"G1": "approved", "G2": "open"}}}
+    # `fin status`'s counts summed per screen; a screen with nothing waiting has no number
+    assert tab_counts(status) == {"files": 3, "queries": 6, "findings": 3, "gates": 1}
 
 
 def test_backticked_commands_show_as_code_and_the_rest_is_escaped() -> None:

@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from starlette.datastructures import UploadFile
 
+from fin import uploads
 from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.config import SCOPES
@@ -21,7 +22,7 @@ from fin.diligence import adjust_import, engagement
 from fin.diligence.stub import STUB
 from fin.services import diligence as services
 from fin.services.result import ActionResult
-from fin.ui import action_routes, uploads
+from fin.ui import action_routes
 from fin.ui.actions import ITEM_ID
 
 
@@ -92,7 +93,7 @@ def add_diligence_routes(
     @app.post("/engagement/open", response_class=HTMLResponse)
     def engagement_open(
         request: Request,
-        company: str = Form(),
+        company: str = Form(""),
         periods: str = Form(""),
         threshold: str = Form(""),
         stub: str = Form(""),
@@ -108,7 +109,7 @@ def add_diligence_routes(
         )
 
     @app.post("/engagement/close", response_class=HTMLResponse)
-    def engagement_close(request: Request, company: str = Form()) -> HTMLResponse:
+    def engagement_close(request: Request, company: str = Form("")) -> HTMLResponse:
         return respond(
             request,
             "engagement",
@@ -119,7 +120,7 @@ def add_diligence_routes(
     @app.post("/query/raise", response_class=HTMLResponse)
     def query_raise(
         request: Request,
-        company: str = Form(),
+        company: str = Form(""),
         amount: str = Form(""),
         period: str = Form(""),
         scope: str = Form(""),
@@ -137,7 +138,7 @@ def add_diligence_routes(
 
     @app.post("/query/edit", response_class=HTMLResponse)
     def query_edit(
-        request: Request, company: str = Form(), item: str = Form(), question: str = Form("")
+        request: Request, company: str = Form(""), item: str = Form(""), question: str = Form("")
     ) -> HTMLResponse:
         return respond(
             request,
@@ -151,8 +152,8 @@ def add_diligence_routes(
     @app.post("/query/answer", response_class=HTMLResponse)
     def query_answer(
         request: Request,
-        company: str = Form(),
-        item: str = Form(),
+        company: str = Form(""),
+        item: str = Form(""),
         text: str = Form(""),
         source: str = Form(""),
     ) -> HTMLResponse:
@@ -164,7 +165,7 @@ def add_diligence_routes(
 
     @app.post("/query/export", response_class=HTMLResponse)
     def query_export(
-        request: Request, company: str = Form(), brief: str = Form("")
+        request: Request, company: str = Form(""), brief: str = Form("")
     ) -> HTMLResponse:
         return respond(
             request,

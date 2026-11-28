@@ -10,7 +10,8 @@
 {% if data.built_at %}<a class="btn" data-size="sm" data-variant="outline" href="/dashboard-site/" target="_blank" rel="noopener">Open in a new tab</a>{% endif %}
 {% endcall %}
 {% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
-<div class="card">
+{#- Asked again when a job ends (job-done, sent by the Jobs card), so a new build shows without a reload. -#}
+<div class="card" id="dashboard-frame" hx-get="/partials/dashboards?company={{ company | urlencode }}" hx-trigger="job-done from:body" hx-select="#dashboard-frame" hx-swap="outerHTML">
   <header><h2>Dashboard</h2>{% if data.built_at %}<p>Built {{ data.built_at | when }}. Build it again to show newer data.</p>{% endif %}</header>
   <section class="flush">
     {% if data.built_at %}

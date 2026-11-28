@@ -11,7 +11,7 @@ from fin.audit.errors import DependencyMissing, FinError
 from fin.config import SCOPES
 from fin.dataroom.load import waiting
 from fin.dataroom.scan import plan_groups
-from fin.diligence import adjustments, engagement, gates, queries
+from fin.diligence import adjustments, engagement, gates, netdebt_items, provisions, queries
 from fin.diligence.engagement import rupees
 from fin.fdd import findings as fdd
 from fin.findings import list_findings
@@ -146,8 +146,17 @@ def gates_screen(root: Path, company: str) -> dict[str, Any]:
 
 
 def _fdd_rows(root: Path, company: str) -> dict[str, Any]:
-    rows = fdd.list_findings(screen_run("findings", root, company), company)
-    return {"findings": [{**r, "amount": rupees(r["amount"]), "flags": fdd.flags(r)} for r in rows]}
+    """The open engagement's FDD findings, with the provision ledgers (F3) and the debt-like items
+    (F4) Claude proposed, which the user decides here."""
+    run = screen_run("findings", root, company)
+    rows = fdd.list_findings(run, company)
+    return {
+        "findings": [{**r, "amount": rupees(r["amount"]), "flags": fdd.flags(r)} for r in rows],
+        "provisions": provisions.list_ledgers(run, company),
+        "netdebt_items": [
+            {**r, "amount": rupees(r["amount"])} for r in netdebt_items.list_items(run, company)
+        ],
+    }
 
 
 def findings_screen(root: Path, company: str) -> dict[str, Any]:

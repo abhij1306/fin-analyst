@@ -4,9 +4,18 @@ user. Plain data for the templates; every number comes from `fin.status`."""
 import re
 from typing import Any
 
-# Query statuses with a button for the user: approve a draft, mark an approved one sent,
-# close an answered one.
-QUERY_ACTIONABLE = ("draft", "approved", "answered")
+from fin.status import WAITING
+
+# The screen where each kind of waiting item (fin.status.WAITING) is decided.
+WHERE = {
+    **dict.fromkeys(
+        ("mappings", "ledgers", "customers", "tax", "related", "netdebt", "matches"), "Mappings"
+    ),
+    "reference_lines": "References",
+    **dict.fromkeys(("open_findings", "inbox", "dataroom"), "Files"),
+    **dict.fromkeys(("queries", "adjustments"), "Queries"),
+    **dict.fromkeys(("fdd_drafts", "provisions", "netdebt_items"), "Findings"),
+}
 
 
 def periods_line(status: dict[str, Any]) -> str:
@@ -16,16 +25,13 @@ def periods_line(status: dict[str, Any]) -> str:
 
 
 def waiting(status: dict[str, Any]) -> list[dict[str, str]]:
-    """The things that wait for the user, each with the screen where it is decided."""
-    diligence = status["diligence"] or {}
-    candidates = [
-        (status["pending_mappings"], "mappings to review", "Mappings"),
-        (diligence.get("queries", {}).get("draft", 0), "draft queries to approve", "Queries"),
-        (diligence.get("proposed_adjustments", 0), "proposed adjustments to decide", "Queries"),
-        (status["open_findings"], "open findings on filed data", "Files"),
-        (len(status["inbox_not_ingested"]), "files in the inbox not loaded yet", "Files"),
+    """The things that wait for the user (`fin status`'s counts), each with the screen where it is
+    decided."""
+    return [
+        {"text": f"{n} {WAITING[key]}", "where": WHERE[key]}
+        for key, n in status["waiting"].items()
+        if n
     ]
-    return [{"text": f"{n} {text}", "where": where} for n, text, where in candidates if n]
 
 
 def next_gate(status: dict[str, Any]) -> tuple[str, str] | None:
@@ -35,16 +41,13 @@ def next_gate(status: dict[str, Any]) -> tuple[str, str] | None:
 
 
 def tab_counts(status: dict[str, Any]) -> dict[str, int]:
-    """The number on a tab: what waits for the user there. Empty tabs are left out."""
-    diligence = status["diligence"] or {}
-    gates = diligence.get("gates", {})
-    counts = {
-        "files": status["open_findings"] + len(status["inbox_not_ingested"]),
-        "mappings": status["pending_mappings"],
-        "queries": sum(diligence.get("queries", {}).get(s, 0) for s in QUERY_ACTIONABLE)
-        + diligence.get("proposed_adjustments", 0),
-        "gates": sum(1 for state in gates.values() if state != "approved"),
-    }
+    """The number on a tab: what waits for the user there (`fin status`'s counts, summed per
+    screen), and the gates not approved. Empty tabs are left out."""
+    gates = (status["diligence"] or {}).get("gates", {})
+    counts = {"gates": sum(1 for state in gates.values() if state != "approved")}
+    for key, n in status["waiting"].items():
+        screen = WHERE[key].lower()
+        counts[screen] = counts.get(screen, 0) + n
     return {screen: n for screen, n in counts.items() if n}
 
 
@@ -57,6 +60,8 @@ GATE_FIXES = (
     ("fin query", "queries", "Open the queries"),
     ("fin adjust", "queries", "Open the adjustments"),
     ("fin fdd finding", "findings", "Open the FDD findings"),
+    ("fin provisions", "findings", "Open the provision ledgers"),
+    ("fin netdebt item", "findings", "Open the net debt items"),
 )
 COMMAND = re.compile(r"`(fin [^`]*)`")
 

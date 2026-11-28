@@ -82,6 +82,18 @@ ACTIONS: dict[str, Action] = {
     "dataroom-approve": Action("files", dataroom.approve_rows),
     "dataroom-undo": Action("files", dataroom.approve_rows, {"undo": True}),
     "fdd-drop": Action("findings", fdd.drop_findings),
+    "provision-confirm": Action(
+        "findings", decisions.decide_provision_ledgers, {"target": "confirmed"}
+    ),
+    "provision-reject": Action(
+        "findings", decisions.decide_provision_ledgers, {"target": "rejected"}
+    ),
+    "netdebt-item-accept": Action(
+        "findings", decisions.decide_netdebt_items, {"target": "accepted"}
+    ),
+    "netdebt-item-reject": Action(
+        "findings", decisions.decide_netdebt_items, {"target": "rejected"}, reason=True
+    ),
 }
 
 

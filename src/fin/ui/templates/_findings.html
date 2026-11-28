@@ -8,7 +8,7 @@
 {{ head("FDD findings", "Claude proposes findings; only you mark one final.") }}
 {{ no_engagement(data.no_engagement, company, data.can_open) }}
 {% else %}
-{{ head("FDD findings", "Claude proposes findings; you can edit or drop a draft; only you mark one final.") }}
+{{ head("FDD findings", "Claude proposes findings, provision ledgers and net debt items; you can edit or drop a draft; only you mark a finding final, confirm a ledger or accept an item.") }}
 <div class="card">
   <header><h2>Findings</h2></header>
   <section class="flush">
@@ -30,6 +30,45 @@
     </table></div>
     {% else %}
     <div class="pad">{{ empty("No FDD findings.") }}</div>
+    {% endif %}
+  </section>
+</div>
+<div class="card">
+  <header><h2>Provision ledgers</h2><p>The ledgers Claude proposed as the provision for doubtful debts or the gratuity provision; the provision figures use the confirmed ones.</p></header>
+  <section class="flush">
+    {% if data.provisions %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>Status</th><th>Ledger</th><th>Kind</th><th>Reason</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for p in data.provisions %}
+        <tr><td class="num">{{ p.provision_id }}</td><td>{{ badge(p.status) }}</td><td>{{ p.ledger }}</td><td>{{ p.kind | replace("_", " ") }}</td><td>{{ clip(p.reason, 60) }}</td>
+          <td class="act"><div class="actions">{% if p.status == "proposed" %}{{ act("provision-confirm", p.provision_id, "Confirm", company) }}{% endif %}
+            {% if p.status in ("proposed", "confirmed") %}{{ act("provision-reject", p.provision_id, "Reject", company, variant="ghost") }}{% endif %}</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No provision ledgers proposed.") }}</div>
+    {% endif %}
+  </section>
+</div>
+<div class="card">
+  <header><h2>Net debt items</h2><p>Debt-like items not in a ledger; an accepted item counts in net debt, a proposed one is shown, not applied.</p></header>
+  <section class="flush">
+    {% if data.netdebt_items %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th class="num">#</th><th>Status</th><th>Period</th><th class="num">Amount</th><th>Item</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for i in data.netdebt_items %}
+        <tr><td class="num">{{ i.item_id }}</td><td>{{ badge(i.status) }}</td><td>{{ i.period }}</td><td class="num">{{ i.amount }}</td>
+          <td>{{ clip(i.description, 40) }}<div class="sub">Evidence: {{ clip(i.evidence, 40) }}</div>{% if i.reason %}<div class="sub">Rejected: {{ clip(i.reason, 40) }}</div>{% endif %}</td>
+          <td class="act"><div class="actions">{% if i.status == "proposed" %}{{ act("netdebt-item-accept", i.item_id, "Accept", company) }}
+            {{ act("netdebt-item-reject", i.item_id, "Reject", company, reason="Why is it rejected?", variant="ghost") }}{% endif %}</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No net debt items proposed.") }}</div>
     {% endif %}
   </section>
 </div>

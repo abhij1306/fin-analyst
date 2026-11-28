@@ -12,7 +12,7 @@ from fin.documents import delete_document
 from fin.paths import COMPANY_NAME, company_db_path, inbox_dir
 from fin.services.result import ActionResult, perform
 from fin.status import companies
-from fin.ui.uploads import save_uploads
+from fin.uploads import save_uploads
 
 MAX_CODE = 40
 MAX_NAME = 120
