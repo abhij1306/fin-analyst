@@ -17,7 +17,7 @@ from fin.ingest import UNIT_ANSWERS, GivenUnit, files_in, ingest_file
 from fin.map.dictionary import load_label_map
 from fin.map.review import write_pending
 from fin.metrics.export import refresh_analytics
-from fin.paths import company_db_path, inbox_dir, review_dir
+from fin.paths import company_db_path, inbox_dir, inside, review_dir
 from fin.services.result import ActionResult, Progress, perform
 
 Batch = list[tuple[str, list[Path]]]  # (company, its files)
@@ -142,7 +142,7 @@ def reingest_document(
     name, archived = str(row["file_name"]), str(row["archive_path"])
 
     def body(run: Run) -> list[str]:
-        source = run.root / archived
+        source = inside(run.root, run.root / archived)  # a path from a database row
         if not source.is_file():
             raise FileUnreadable(f"the archived original {archived} of {name} is missing")
         folder = run.root / "cache" / "reingest" / run.run_id  # this run's own folder
@@ -154,7 +154,9 @@ def reingest_document(
             shutil.copy2(source, copy)  # ingest names the document after the file it reads
         except OSError as exc:
             raise DataFolderNotWritable(f"cannot copy {archived} to {folder}: {exc}") from exc
-        reading = run.root / str(row["reading_path"]) if row["reading_path"] else None
+        reading = (
+            inside(run.root, run.root / str(row["reading_path"])) if row["reading_path"] else None
+        )
         given = row["unit_given"]
         unit = GivenUnit(str(given), str(row["unit_given_by"])) if given else None
         try:

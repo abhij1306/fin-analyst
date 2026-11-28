@@ -7,7 +7,8 @@
 -- reason, next_step: why fin cannot use the file and what to do (fin.dataroom.kinds.REASONS); NULL when it can.
 -- proposed_kind, proposed_profile, proposal_reason: the assistant's kind for a file fin could not name
 -- (`fin dataroom propose`); approving the row is the user confirming it. approved: the user approved the row for
--- `fin dataroom load`. status: planned, loaded (or found loaded already) or failed; outcome: the load's one line;
+-- `fin dataroom load`. status: planned (also again after its document is deleted), loaded (or found loaded already) or
+-- failed (also a statements file held for its unit: nothing loaded); outcome: the load's one line;
 -- load_run_id: the run that loaded or failed it.
 CREATE SEQUENCE dataroom_files_seq START 1;
 CREATE TABLE dataroom_files (

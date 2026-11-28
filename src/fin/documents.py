@@ -20,7 +20,7 @@ from fin.db.conn import connect
 from fin.ingest_read import sha256_of
 from fin.map.review import write_pending
 from fin.metrics.export import refresh_analytics
-from fin.paths import backups_dir, company_db_path, inbox_dir
+from fin.paths import backups_dir, company_db_path, inbox_dir, inside
 
 TABLES_WITH_DOC_ID = (
     "SELECT c.table_name FROM information_schema.columns c JOIN information_schema.tables t "
@@ -60,12 +60,14 @@ def _files(root: Path, company: str, con: duckdb.DuckDBPyConnection, versions: l
         inbox_copy = copy.is_file() and copy.resolve().parent == inbox.resolve()
         if inbox_copy and sha256_of(copy) == versions[0][2]:
             found.add(copy.relative_to(root).as_posix())
-    return sorted(path for path in found if (root / path).is_file())
+    # paths from database rows: each must stay in the data folder before it is copied or removed
+    return sorted(path for path in found if inside(root, root / path).is_file())
 
 
-def _delete_rows(con: duckdb.DuckDBPyConnection, ids: list[int]) -> dict[str, int]:
+def _delete_rows(con: duckdb.DuckDBPyConnection, ids: list[int], sha256: str) -> dict[str, int]:
     """Delete the rows of the documents from every table with a doc_id; returns the count per
-    table (verify_lines through their verify run)."""
+    table (verify_lines through their verify run). A data-room plan row of the file that says
+    loaded is set back to planned and not approved (`dataroom_files`)."""
     marks = ", ".join("?" for _ in ids)
     counts = {}
     con.execute("BEGIN TRANSACTION")
@@ -82,6 +84,13 @@ def _delete_rows(con: duckdb.DuckDBPyConnection, ids: list[int]) -> dict[str, in
                 ids,
             ).fetchall()
             counts[table] = len(deleted)
+        counts["dataroom_files"] = len(
+            con.execute(
+                "UPDATE dataroom_files SET status = 'planned', approved = false, outcome = NULL, "
+                "load_run_id = NULL WHERE sha256 = ? AND status = 'loaded' RETURNING 1",
+                [sha256],
+            ).fetchall()
+        )
         con.execute("COMMIT")
     except BaseException:
         con.execute("ROLLBACK")
@@ -106,7 +115,7 @@ def delete_document(run: Run, company: str, doc_id: int) -> list[str]:
         raise DataFolderNotWritable(f"cannot back up {company} to {backup}: {exc}") from exc
     ids = [v[0] for v in versions]
     with connect(db, write=True) as con:
-        counts = _delete_rows(con, ids)
+        counts = _delete_rows(con, ids, versions[0][2])
     try:
         for path in files:
             (run.root / path).unlink()

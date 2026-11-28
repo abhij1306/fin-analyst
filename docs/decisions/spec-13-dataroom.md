@@ -107,3 +107,14 @@ Readings, not owner decisions, until the owner confirms them.
   browser cannot hand a local folder's path to the server, so the path is typed; a per-row button is the existing
   decision pattern (`POST /act`, one run per decision, the CLI's run record).
 - **How to change it**: `src/fin/ui/templates/_dataroom_plan.html`, `src/fin/ui/job_routes.py`, `src/fin/services/dataroom.py`.
+
+## A file held for its unit, and a deleted document (system review, data intake)
+
+- **Decision** (reading): a statements file that `fin dataroom load` holds with the question "which unit?" loaded
+  nothing, so its plan row is recorded as failed, with the held outcome, and stays approved: the next load tries it
+  again (after the user answered with `--unit`, the file is found loaded already). Deleting a document
+  (`fin document delete`) sets a plan row of the same file that says loaded back to planned and not approved, so the
+  plan never says loaded for a file that is gone and the next load does not bring it back unasked.
+- **Why**: the plan said loaded for a file with no document, and a deleted document's row could be neither loaded
+  again nor approved (E819). The plan keeps its three statuses (no schema change).
+- **How to change it**: `src/fin/dataroom/load.py: _load_one`, `src/fin/documents.py: _delete_rows`.

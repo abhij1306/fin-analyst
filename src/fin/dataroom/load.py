@@ -8,7 +8,8 @@
   in its own transaction as `fin ingest` does (statements through `ingest_file`, source files
   through `ingest_source` or `ingest_bank`). Statements first, then trial balances before the
   Ledger Vouchers checked against them, then the other kinds, then reference databooks (as a
-  reference, `fin reference add`, named by their path in the room). A file that fails is recorded
+  reference, `fin reference add`, named by their path in the room). A file that fails, or a
+  statements file held with the question "which unit?" (nothing loaded), is recorded as failed
   and the next one loads; a file already loaded (same content) is marked loaded, not loaded twice.
   Gates reopen as they do on any ingest.
 """
@@ -134,6 +135,13 @@ def load(run: Run, config: Config, company: str) -> list[tuple[PlanRow, str]]:
     return out
 
 
+def _has_document(run: Run, company: str, sha256: str | None) -> bool:
+    """Whether a document with this content is in the company database (loaded or held)."""
+    with connect(company_db_path(run.root, company)) as con:
+        found = con.execute("SELECT 1 FROM documents WHERE sha256 = ?", [sha256]).fetchone()
+    return found is not None
+
+
 def _load_one(
     run: Run, config: Config, company: str, row: PlanRow, label_map: LabelMap
 ) -> tuple[str, str]:
@@ -143,7 +151,9 @@ def _load_one(
     if kind == "statements":
         failed, skipped = run.failed, run.skipped
         outcome = ingest_file(run, config, company, path, label_map, force=False)
-        if run.failed > failed:
+        if run.failed > failed or not _has_document(run, company, row.sha256):
+            # failed, or held with the question "which unit?": nothing loaded, so the row is not
+            # loaded and the next load tries it again
             return "failed", outcome
         return "loaded", ("already loaded: " + outcome) if run.skipped > skipped else outcome
     try:
