@@ -167,28 +167,10 @@ img { border: 1px solid #ccc; max-width: 100%; }
 """
 
 
-def write_evidence(
-    run: Run, company: str, question: str | None, sql: str, rows: list[dict[str, Any]]
-) -> tuple[str, list[int]]:
-    """Write the evidence page for this run's query result. Returns its path relative to the data
-    folder and the numbers (from 1) of the result rows with no source. `rows` are JSON rows
-    (`fin.query.run.to_json_rows`)."""
-    query_id = run.run_id
-    flags = []
-    column = next((c for c in ("fact_ids", "fact_id") if rows and c in rows[0]), "raw_id")
-    # Every fact behind each value: a summed value has one section per line.
-    lists = _row_ids(rows, column) if rows and column in rows[0] else []
-    ids = list(dict.fromkeys(i for ids_ in lists for i in ids_))
-    sums = sum(1 for ids_ in lists if len(ids_) > 1)
-    if sums:
-        flags.append(f"{sums} row(s) are sums of several source lines; each line is below.")
-    if not ids:
-        flags.append("The result has no fact_id or raw_id column, so there is nothing to trace.")
-    folder = run.root / "evidence" / query_id
-    try:
-        folder.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise DataFolderNotWritable(f"cannot create {folder}: {exc}") from exc
+def _sections(
+    run: Run, company: str, column: str, ids: list[Any], folder: Path
+) -> tuple[list[str], set[Any]]:
+    """One section per fact behind `ids`, and the ids whose facts all have a source."""
     books: dict[Path, Workbook] = {}
     units = {name: account.unit for name, account in load_accounts(run.root).items()}
     sections = []
@@ -199,8 +181,21 @@ def write_evidence(
                 sections.append(_fact_section(run, fact, folder, books, units))
                 if fact["source_ref"] is not None:
                     sourced.add(id_)
-    missing = [n for n, ids_ in enumerate(lists, 1) if not ids_ or not set(ids_) <= sourced]
-    if missing and ids:
+    return sections, sourced
+
+
+def _flags(
+    rows: list[dict[str, Any]], lists: list[list[Any]], column: str, missing: list[int]
+) -> list[str]:
+    """The notes at the top of the page: sums, nothing to trace, rows with no source, unconfirmed
+    mappings."""
+    flags = []
+    sums = sum(1 for ids_ in lists if len(ids_) > 1)
+    if sums:
+        flags.append(f"{sums} row(s) are sums of several source lines; each line is below.")
+    if not any(lists):
+        flags.append("The result has no fact_id or raw_id column, so there is nothing to trace.")
+    elif missing:
         flags.append(
             f"Result row(s) {', '.join(map(str, missing))} have no source: no {column}, or a "
             "figure whose raw value records no sheet, cell or page. The other rows' sources are "
@@ -209,6 +204,29 @@ def write_evidence(
     unconfirmed = sum(1 for row in rows if row.get("source_confirmed") is False)
     if unconfirmed:
         flags.append(f"{unconfirmed} row(s) use facts whose mapping is not confirmed.")
+    return flags
+
+
+def write_evidence(
+    run: Run, company: str, question: str | None, sql: str, rows: list[dict[str, Any]]
+) -> tuple[str, list[int]]:
+    """Write the evidence page for this run's query result. Returns its path relative to the data
+    folder and the numbers (from 1) of the result rows with no source. `rows` are JSON rows
+    (`fin.query.run.to_json_rows`)."""
+    query_id = run.run_id
+    column = next((c for c in ("fact_ids", "fact_id") if rows and c in rows[0]), "raw_id")
+    # Every fact behind each value: a summed value has one section per line.
+    lists = _row_ids(rows, column) if rows and column in rows[0] else []
+    ids = list(dict.fromkeys(i for ids_ in lists for i in ids_))
+    folder = run.root / "evidence" / query_id
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise DataFolderNotWritable(f"cannot create {folder}: {exc}") from exc
+    sections, sourced = _sections(run, company, column, ids, folder)
+    missing = [n for n, ids_ in enumerate(lists, 1) if not ids_ or not set(ids_) <= sourced]
+    missing = missing if ids else []
+    flags = _flags(rows, lists, column, missing)
     flag_html = "".join(f"<p class='flag'>{html.escape(flag)}</p>" for flag in flags)
     page = f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Evidence {html.escape(query_id)}</title>
@@ -227,4 +245,4 @@ def write_evidence(
         path.write_text(page, encoding="utf-8")
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
-    return path.relative_to(run.root).as_posix(), missing if ids else []
+    return path.relative_to(run.root).as_posix(), missing
