@@ -1300,11 +1300,12 @@ states the figure; fin never invents one.
 - A metric without a value says why: "EBITDA not computed for FY24 standalone: no finance_cost for FY24. Load a
   document that has it, or state it (...)" (`fin/metrics/missing.py`), in `fin engagement bridge` and
   `fin audit <co> <metric> <period>`; "a denominator is zero" when no input is missing.
-- `fin sql --write` refuses any statement that names `facts`, `raw_values`, `stated_figures`,
+- `fin sql --write` refuses any statement other than a SELECT that names `facts`, `raw_values`, `stated_figures`,
   `fact_corrections` or `documents` (E505), before the backup: figures come from documents (`fin ingest`, `fin review`), from the
-  user (`fin fact state`), or from a correction of fin's own misread (`fin fact correct`). A document's status and
-  paths change only through `fin ingest`, `fin findings accept`, `fin fact correct` and `fin document delete` (owner,
-  2026-11-28): a status written by hand would release a held document without its findings accepted.
+  user (`fin fact state`), or from a correction of fin's own misread (`fin fact correct`). It does not write a
+  document's status or paths (owner, 2026-11-28): a status written by hand would release a held document without its
+  findings accepted. fin's own commands change them (`fin ingest`, `fin findings accept`, `fin review confirm`,
+  `fin fact correct`, `fin document delete`).
 - **Correcting a figure fin read wrongly**: `fin fact correct <co> <fact_id> --value V --reason "..."`, only on the
   user's word. It backs up the company database, sets `facts.value` (rupees; rupees per share for EPS), keeps the
   cell or page and the printed text in `raw_values`, and records the value before, the reason, the actor (`fin.actor`:

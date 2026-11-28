@@ -76,8 +76,9 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
 - **OWNER DECISION** (owner, 2026-11-28): asked whether `fin sql --write` should refuse to change the `documents` table,
   the same as the figure tables, the owner answered: "ok and document it as decisions so client can know".
 - **Decision**: `fin sql --write` refuses any statement other than a SELECT that names `documents` (E505), before the
-  backup. A document is loaded, held, released or removed only by `fin ingest`, `fin findings accept`,
-  `fin fact correct` and `fin document delete`.
+  backup. fin's own commands load, hold, release and remove documents (`fin ingest`, `fin findings accept`,
+  `fin review confirm`, `fin fact correct`, `fin document delete`). A write to `findings` can still release a held
+  document through the recheck after it; that is open (#139, Not fixed).
 - **Why**: `UPDATE documents SET status = 'loaded'` released a held document into `current_facts` without its
   findings being accepted, and the stored file paths were writable too (#136).
 - **How to change it**: `src/fin/query/write.py: FIGURE_TABLE`.

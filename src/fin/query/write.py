@@ -19,9 +19,9 @@ query_items) is refused with E806 before the backup: those tables change only th
 which check the gates and log every change. A statement other than a SELECT that names facts,
 raw_values, stated_figures, fact_corrections or documents is refused with E505, also before the
 backup: figures come from documents (`fin ingest`, `fin review`) or from the user (`fin fact
-state`), a figure fin misread is corrected with `fin fact correct`, and a document is loaded, held,
-released or removed only by `fin ingest`, `fin findings accept`, `fin fact correct` and `fin
-document delete` (owner, 2026-11-28: a status written by hand released a held document). SQL naming
+state`), a figure fin misread is corrected with `fin fact correct`, and a document's status and
+paths are not written by hand (owner, 2026-11-28: a status written so released a held document;
+fin's own commands change them). SQL naming
 mask_values is refused with E810 (fin.query.run.refuse_masked). A statement that would end the
 transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH, DETACH, COPY FROM
 DATABASE, LOAD/INSTALL) or change the schema (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) is
