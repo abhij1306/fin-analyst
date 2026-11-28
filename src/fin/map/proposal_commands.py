@@ -12,7 +12,8 @@ from fin.audit.logger import Run, execute
 from fin.diligence import customers, ledgers
 from fin.diligence.customers import list_customers
 from fin.diligence.ledgers import list_ledgers
-from fin.map.commands import CompanyArg, _echo_customers, _echo_ledgers, map_app
+from fin.map.commands import CompanyArg, map_app
+from fin.map.review_commands import _echo_customers, _echo_ledgers
 
 
 @map_app.command("ledgers")

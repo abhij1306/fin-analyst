@@ -28,7 +28,8 @@ are ever compared. An account a document prints on several lines counts once, as
   and no overlap with another document cannot be caught this way.
 
 Only facts with a confirmed account take part. A check whose inputs are missing (no total line, or
-unmapped lines in the statement) does not run and says so in a warning event. Unmapped lines that
+unmapped lines in the statement) does not run and says so in a warning event and in
+`checks_not_run`, with what would make it run (`fin.validate.not_run`). Unmapped lines that
 cannot be part of a subtotal do not stop the subtotal check: a nil line, a per-share line (EPS,
 face value), and on the P&L the split of profit between owners and non-controlling interests.
 
@@ -40,7 +41,8 @@ says when the document adds them.
 Every check that runs is appended to the audit table `validation_results`, pass or fail.
 `validate_document` returns each failed check as a finding (`fin.findings`): what the company filed
 does not add up, which is for the user to see and decide, not a failure. The finding has this
-document's figure (fin_*) and what it was compared with (other_*), each with its page or cell.
+document's figure (fin_*) and what it was compared with (other_*), each with its page or cell, and
+names the mappings behind it that were made in review (`fin.validate.finding_rows`).
 """
 
 import re
@@ -55,18 +57,12 @@ from fin.config import load_config
 from fin.extract.units import RUPEES_PER_UNIT
 from fin.map.dictionary import Account, load_accounts
 from fin.map.normalize import normalize_label
+from fin.validate.finding_rows import CODES, finding, reviewed_mappings
+from fin.validate.not_run import OTHER_DOCUMENT, NotRun, needs_figure, needs_lines, store
 
 if TYPE_CHECKING:
     from fin.audit.logger import Run
 
-# Each check's docs/product.md §9 code, in the order findings are listed.
-CODES = {
-    "balance_sheet": "E401",
-    "subtotal": "E402",
-    "cash_flow": "E403",
-    "unit_sanity": "E405",
-    "cross_document": "E404",
-}
 # The config.toml tolerance a check uses, when it is not the check's own.
 TOLERANCE = {"unit_sanity": "cross_document"}
 UNIT_FACTORS = sorted(
@@ -97,6 +93,7 @@ OUTSIDE_SUBTOTALS = re.compile(
 )
 
 Key = tuple[str, str]  # (period, scope)
+NotRunHook = Callable[[str, Key | None, str, str], None]  # (check, key, reason, what it needs)
 
 
 @dataclass(frozen=True)
@@ -241,26 +238,21 @@ def _children(tree: dict[str, Account]) -> dict[str, list[str]]:
 
 
 def _in_document(
-    run: "Run",
-    file: str,
+    not_run: NotRunHook,
     figures: dict[Key, dict[str, Decimal]],
     unmapped: dict[tuple[str, str, str], int],
     tree: dict[str, Account],
     tolerances: dict[str, Decimal],
 ) -> list[Result]:
     children = _children(tree)
-
-    def not_run(check: str, key: Key, reason: str) -> None:
-        message = f"{check} check not run for {key[0]} {key[1]}: {reason}"
-        run.event("validate", message, level="warning", file=file)
-
     results = []
     for key, values in sorted(figures.items()):
         results += _pair_checks(key, values, tolerances, not_run)
         for statement in SUBTOTAL_STATEMENTS:
             lines = unmapped.get((*key, statement), 0)
             if lines:
-                not_run("subtotal", key, f"{lines} {statement} line(s) have no confirmed account")
+                reason = f"{lines} {statement} line(s) have no confirmed account"
+                not_run("subtotal", key, reason, needs_lines(lines, statement, key))
                 continue
             for account in sorted(a for a in values if tree[a].statement == statement):
                 result = _subtotal(key, account, values, children, tree, tolerances)
@@ -273,7 +265,7 @@ def _pair_checks(
     key: Key,
     values: dict[str, Decimal],
     tolerances: dict[str, Decimal],
-    not_run: Callable[[str, Key, str], None],
+    not_run: NotRunHook,
 ) -> list[Result]:
     """The PAIRS checks (two accounts that must agree) for one period and scope; a check whose
     accounts are not both confirmed is reported through `not_run` instead."""
@@ -281,7 +273,8 @@ def _pair_checks(
     for check, expected, actual, what in PAIRS:
         missing = [account for account in (expected, actual) if account not in values]
         if missing:
-            not_run(check, key, _missing_reason(missing, values))
+            reason = _missing_reason(missing, values)
+            not_run(check, key, reason, needs_figure(missing, key))
             continue
         pair, value, lines = (expected, actual), values[expected], ()
         overdraft = values.get(OVERDRAFT) if check == "cash_flow" else None
@@ -295,8 +288,7 @@ def _pair_checks(
 
 
 def _across_documents(
-    run: "Run",
-    file: str,
+    not_run: NotRunHook,
     con: duckdb.DuckDBPyConnection,
     doc_id: int,
     figures: dict[Key, dict[str, Decimal]],
@@ -320,13 +312,10 @@ def _across_documents(
             result = _compare("unit_sanity", key, expected, actual, tolerances, what, (account,))
         results.append(replace(result, other_doc_id=other_doc, other_file=other_file))
     if not results:
-        run.event(
-            "validate",
-            "cross_document and unit_sanity checks not run: no other loaded document has a "
-            "confirmed figure for the same period, scope and account",
-            level="warning",
-            file=file,
+        reason = (
+            "no other loaded document has a confirmed figure for the same period, scope and account"
         )
+        not_run("cross_document", None, reason, OTHER_DOCUMENT)
     return results
 
 
@@ -341,18 +330,30 @@ def _unit_factor(a: Decimal, b: Decimal, tolerance: Decimal) -> bool:
 def validate_document(
     run: "Run", company: str, con: duckdb.DuckDBPyConnection, doc_id: int
 ) -> list[dict[str, Any]]:
-    """Run every gate on the staged document `doc_id`, record each result, and return the failed
-    checks as findings (see `_finding`)."""
+    """Run every gate on the staged document `doc_id`, record each result and the checks that did
+    not run (`fin.validate.not_run`), and return the failed checks as findings
+    (`fin.validate.finding_rows`)."""
     tolerances = load_config(run.root).tolerances
     row = con.execute("SELECT file_name FROM documents WHERE doc_id = ?", [doc_id]).fetchone()
     assert row is not None
     file_name = row[0]
     file = f"{company}/{file_name}"
+    skipped: list[NotRun] = []
+
+    def not_run(check: str, key: Key | None, reason: str, needs: str) -> None:
+        if key is None:
+            message = f"{check} and unit_sanity checks not run: {reason}"
+        else:
+            message = f"{check} check not run for {key[0]} {key[1]}: {reason}"
+        run.event("validate", message, level="warning", file=file)
+        skipped.append(NotRun(check, *(key or (None, None)), reason, needs))
+
     figures = _figures(con, doc_id)
     results = _in_document(
-        run, file, figures, _unmapped(con, doc_id), load_accounts(run.root), tolerances
+        not_run, figures, _unmapped(con, doc_id), load_accounts(run.root), tolerances
     )
-    results += _across_documents(run, file, con, doc_id, figures, tolerances)
+    results += _across_documents(not_run, con, doc_id, figures, tolerances)
+    store(con, run.run_id, doc_id, skipped)
 
     failures = []
     for result in results:
@@ -378,74 +379,5 @@ def validate_document(
             failures.append(result)
             run.event("validate", result.message, level="warning", code=code, file=file)
     failures.sort(key=lambda r: list(CODES).index(r.check_name))
-    return [_finding(con, doc_id, file_name, r) for r in failures]
-
-
-def _printed(
-    con: duckdb.DuckDBPyConnection, doc_id: int, period: str, scope: str, account: str
-) -> tuple[str | None, str | None, str | None]:
-    """(statement, value as printed, page or sheet!cell) of the document's lines behind an account
-    in a period and scope; lines summed into one figure are joined with ' + ' and ', '."""
-    rows = con.execute(
-        "SELECT r.statement, r.raw_value_text, "
-        "coalesce(r.sheet || '!' || r.cell, 'page ' || CAST(r.page AS VARCHAR)) "
-        "FROM document_facts x JOIN facts f ON list_contains(x.fact_ids, f.fact_id) "
-        "JOIN raw_values r ON r.raw_id = f.raw_id "
-        "WHERE x.doc_id = ? AND x.period = ? AND x.scope = ? AND x.account = ? ORDER BY f.raw_id",
-        [doc_id, period, scope, account],
-    ).fetchall()
-    if not rows:
-        return None, None, None
-    return rows[0][0], " + ".join(r[1] for r in rows), ", ".join(r[2] for r in rows)
-
-
-def _sum_of_lines(con: duckdb.DuckDBPyConnection, doc_id: int, r: Result) -> str:
-    """The lines a figure was compared with the sum of (a subtotal's lines; balance-sheet cash and
-    the overdrafts), each with its signed value in rupees and where the document prints it, so
-    the computed side can be rebuilt: "sum of its lines: revenue +1,000.00 at Sheet!B5; ..."."""
-    parts = [
-        f"{account} {value:+,} at {_printed(con, doc_id, r.period, r.scope, account)[2]}"
-        for account, value in r.lines
-    ]
-    return "sum of its lines: " + "; ".join(parts)
-
-
-def _finding(
-    con: duckdb.DuckDBPyConnection, doc_id: int, file_name: str, r: Result
-) -> dict[str, Any]:
-    """A failed check as a finding (columns of the `findings` tables). fin_* is the figure in this
-    document; other_* what it was compared with: the other side of the balance sheet, the
-    balance-sheet cash (less overdrafts), the sum of a subtotal's lines, or another document's
-    figure."""
-    if r.check_name in ("balance_sheet", "cash_flow"):
-        other_account, account = r.accounts
-        other_doc, other_file = doc_id, None
-    else:
-        account, other_account = r.accounts[0], r.accounts[0]
-        other_doc, other_file = r.other_doc_id, r.other_file
-    statement, fin_printed, fin_source = _printed(con, doc_id, r.period, r.scope, account)
-    other_printed, other_source = None, None
-    if r.lines:  # a subtotal's lines, or balance-sheet cash less overdrafts
-        other_source = _sum_of_lines(con, doc_id, r)
-    elif other_doc is not None:
-        _, other_printed, other_source = _printed(con, other_doc, r.period, r.scope, other_account)
-    return {
-        "doc_id": doc_id,
-        "file_name": file_name,
-        "check_name": r.check_name,
-        "code": CODES[r.check_name],
-        "finding": "differ",
-        "statement": statement,
-        "scope": r.scope,
-        "period": r.period,
-        "label": account if account == other_account else f"{account} vs {other_account}",
-        "fin_value": r.actual,
-        "other_value": r.expected,
-        "difference": r.expected - r.actual,
-        "fin_printed": fin_printed,
-        "other_printed": other_printed,
-        "fin_source": fin_source,
-        "other_source": other_source,
-        "other_file": other_file,
-        "message": r.message,
-    }
+    reviewed = reviewed_mappings(run.root)
+    return [finding(con, doc_id, file_name, r, reviewed) for r in failures]

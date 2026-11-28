@@ -15,15 +15,16 @@ audit table `findings`.
 - Save as is: `fin findings accept` marks findings accepted. A held document with no open findings
   left is loaded exactly as filed; its accepted findings stay attached and visible.
 - Fix: Claude changes the data with the existing tools. Every held document of the company is
-  checked again after `fin sql --write` and `fin review confirm` (`recheck_held`), and so is every
-  loaded document whose facts a confirmation mapped (a check that could not run before may run now;
-  a loaded document that fails it is held). A new version from `fin ingest --force` is checked like
-  any document (it supersedes the earlier version and its findings). A finding a check no longer
-  finds becomes resolved; a held document with no open findings is loaded. `fin verify` resolves
-  its own findings the same way when run again, and a line a later run agrees on resolves earlier
-  readings' open findings on it (`fin.verify`).
+  checked again after `fin sql --write`, `fin review confirm` and `fin map set` (`recheck_held`),
+  and so is every loaded document whose facts a confirmation or mapping change mapped (a check that
+  could not run before may run now; a loaded document that fails it is held). A new version from
+  `fin ingest --force` is checked like any document (it supersedes the earlier version and its
+  findings). A finding a check no longer finds becomes resolved; a held document with no open
+  findings is loaded. `fin verify` resolves its own findings the same way when run again, and a line
+  a later run agrees on resolves earlier readings' open findings on it (`fin.verify`).
 """
 
+import json
 from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any
@@ -59,6 +60,7 @@ FIELDS = (
     "fact_id",
     "read_by",
     "message",
+    "mappings",
 )
 # Two findings are the same finding when these match.
 SAME = (
@@ -127,6 +129,11 @@ def record(
         key = tuple(row.get(field) for field in SAME)
         if key in existing:
             found.add(existing[key])
+            if "mappings" in row:  # the same difference; the mappings behind it may have changed
+                con.execute(
+                    "UPDATE findings SET mappings = ? WHERE finding_id = ?",
+                    [row["mappings"], existing[key]],
+                )
             continue
         values = [row.get(field) for field in FIELDS]
         new = con.execute(
@@ -281,7 +288,7 @@ _LIST_SQL = """
 SELECT f.finding_id, f.status, f.code, f.check_name, f.finding, f.doc_id, f.file_id, f.file_name,
        d.status AS document_status, f.statement, f.scope, f.period, f.label, f.fin_value,
        f.other_value, f.difference, f.fin_printed, f.other_printed, f.fin_source, f.other_source,
-       f.other_file, f.message
+       f.other_file, f.message, f.mappings
 FROM findings f
 LEFT JOIN documents d ON d.doc_id = f.doc_id
 WHERE f.status IN ('open', 'accepted')
@@ -326,4 +333,10 @@ def format_finding(row: dict[str, Any]) -> str:
     fin = f"{_shown(row['fin_printed'], row['fin_value'])} at {row['fin_source'] or '-'}"
     other_where = " ".join(x for x in (row["other_file"], row["other_source"]) if x) or "-"
     other = f"{_shown(row['other_printed'], row['other_value'])} at {other_where}"
-    return f"{head}\n    this document: {fin}; compared with: {other}"
+    lines = [head, f"    this document: {fin}; compared with: {other}"]
+    for m in json.loads(row["mappings"] or "[]"):
+        lines.append(
+            f"    mapping #{m['mapping_id']} ({m['source']}): {m['statement']} {m['label']!r} -> "
+            f"{m['account']}; if it is wrong, change it with `fin map set`"
+        )
+    return "\n".join(lines)

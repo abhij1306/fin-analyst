@@ -29,4 +29,19 @@
     {% endif %}
   </section>
 </div>
+<div class="card" id="checks-not-run">
+  <header><h2>Checks that did not run</h2><p class="muted">A check whose figures are missing does not run; this is what would make it run.</p></header>
+  <section class="flush">
+    {% if data.not_run %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Document</th><th>Check</th><th>Period</th><th>Why it did not run</th><th>To run it</th></tr></thead><tbody>
+      {% for n in data.not_run %}
+      <tr><td class="fname">{{ n.file_name }}</td><td>{{ n.check_name }}</td><td>{{ n.period or "" }} {{ n.scope or "" }}</td><td>{{ clip(n.reason, 60) }}</td><td>{{ n.needs }}</td></tr>
+      {% endfor %}
+    </tbody></table></div>
+    {% else %}
+    <div class="pad">{{ empty("Every check ran.") }}</div>
+    {% endif %}
+  </section>
+</div>
 {% endif %}

@@ -51,11 +51,11 @@ Updated: 2026-11-28.
 | 04 | 2 | Read .xls workbooks | | done (#124) |
 | 04 | 3 | Hold only the sheet with unlabeled values and name the cells | | done (#124) |
 | 04 | 4 | Offer a PDF add-on when pages are skipped | | done (#124) |
-| 05 | 1 | Add the indirect cash flow labels to the dictionary seed | | todo |
-| 05 | 2 | Require low-confidence mappings to be confirmed one at a time | | todo |
-| 05 | 3 | Recheck after a mapping change and name the mapping behind a finding | | todo |
-| 05 | 4 | Complete the Mappings screen | | todo |
-| 05 | 5 | List the checks that did not run and what they need | | todo |
+| 05 | 1 | Add the indirect cash flow labels to the dictionary seed | | done (#126) |
+| 05 | 2 | Require low-confidence mappings to be confirmed one at a time | | done (#126) |
+| 05 | 3 | Recheck after a mapping change and name the mapping behind a finding | | done (#126) |
+| 05 | 4 | Complete the Mappings screen | | done (#126) |
+| 05 | 5 | List the checks that did not run and what they need | | done (#126) |
 | 06 | 1 | Add display unit settings and convert in SQL | high | todo |
 | 06 | 2 | Add the databook layout to statements and the Excel export | | todo |
 | 06 | 3 | Add the Statements screen | | todo |

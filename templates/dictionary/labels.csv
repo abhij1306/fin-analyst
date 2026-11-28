@@ -696,3 +696,48 @@ Provisions,balance_sheet,Lender liabilities,provisions
 Lease liabilities,balance_sheet,Lender liabilities,lease_liabilities
 Other financial liabilities,balance_sheet,Lender liabilities,other_financial_liabilities
 Derivative financial instruments,balance_sheet,Lender liabilities,derivative_financial_liabilities
+Increase/(decrease) in other long-term liabilities,cash_flow,,cf_change_ocl
+(Increase)/decrease in long-term loans and advances,cash_flow,,cf_change_loans
+Decrease/(increase) in loans and advances,cash_flow,,cf_change_loans
+Decrease/(increase) in short-term loans and advances,cash_flow,,cf_change_loans
+Decrease/(increase) in long-term loans and advances,cash_flow,,cf_change_loans
+Decrease/(increase) in other assets,cash_flow,,cf_change_oca
+Decrease/(increase) in other non-current assets,cash_flow,,cf_change_onca
+Decrease/(increase) in other financial assets,cash_flow,,cf_change_ofa
+(Decrease)/increase in trade payables,cash_flow,,cf_change_payables
+(Decrease)/increase in other current liabilities,cash_flow,,cf_change_ocl
+(Decrease)/increase in other liabilities,cash_flow,,cf_change_ocl
+(Decrease)/increase in other long-term liabilities,cash_flow,,cf_change_ocl
+(Decrease)/increase in provisions,cash_flow,,cf_change_provisions
+(Decrease)/increase in short-term provisions,cash_flow,,cf_change_provisions
+(Decrease)/increase in long-term provisions,cash_flow,,cf_change_provisions
+(Decrease)/increase in other financial liabilities,cash_flow,,cf_change_ofl
+Cash generated from/(used in) operations,cash_flow,,cf_cash_generated
+Cash (used in)/generated from operating activities before taxes,cash_flow,,cf_cash_generated
+Direct taxes paid (net),cash_flow,,cf_taxes_paid
+Net cash flow from/(used in) operating activities,cash_flow,,cfo
+Net cash generated from/(used in) operating activities,cash_flow,,cfo
+Net cash from/(used in) operating activities,cash_flow,,cfo
+Net cash (used in)/generated from operating activities,cash_flow,,cfo
+Net cash (used in)/from operating activities,cash_flow,,cfo
+Net cash used in operating activities,cash_flow,,cfo
+Net cash flow from/(used in) investing activities,cash_flow,,cfi
+Net cash generated from/(used in) investing activities,cash_flow,,cfi
+Net cash from/(used in) investing activities,cash_flow,,cfi
+Net cash (used in)/generated from investing activities,cash_flow,,cfi
+Net cash (used in)/from investing activities,cash_flow,,cfi
+Net cash flow from/(used in) financing activities,cash_flow,,cff
+Net cash generated from/(used in) financing activities,cash_flow,,cff
+Net cash (used in)/generated from financing activities,cash_flow,,cff
+Net cash (used in)/from financing activities,cash_flow,,cff
+Net cash used in financing activities,cash_flow,,cff
+Net (decrease)/increase in cash and cash equivalents,cash_flow,,net_change_cash
+Net increase in cash and cash equivalents,cash_flow,,net_change_cash
+Cash and cash equivalents as at the beginning of the year,cash_flow,,opening_cash
+Cash and cash equivalents at the start of the year,cash_flow,,opening_cash
+Opening balance of cash and cash equivalents,cash_flow,,opening_cash
+Closing balance of cash and cash equivalents,cash_flow,,closing_cash
+"Purchase of property, plant and equipment (including capital work-in-progress)",cash_flow,,cf_capex
+"Purchase of fixed assets, including capital work in progress",cash_flow,,cf_capex
+Tax of earlier years,profit_and_loss,,tax_expense
+Income tax of earlier years,profit_and_loss,,tax_expense

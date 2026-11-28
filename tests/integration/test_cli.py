@@ -46,7 +46,7 @@ def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -
         "created  shared/audit.duckdb",
         "created  shared/dictionary.duckdb",
         "created  shared/analytics.duckdb",
-        "dictionary: 183 accounts and 697 label mappings added from templates/dictionary",
+        "dictionary: 183 accounts and 742 label mappings added from templates/dictionary",
         f"data folder {data_root}: 11 created, 0 already present",
     ]
 

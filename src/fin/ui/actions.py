@@ -15,11 +15,12 @@ from typing import Any
 from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.diligence import gates
-from fin.services import decisions
+from fin.services import decisions, reviews
 from fin.services.files import delete_documents, upload
 from fin.services.result import ActionResult
 
 ITEM_ID = re.compile(r"[0-9]{1,18}")  # a BIGINT id; ASCII digits only
+MAX_IDS = 500  # the most ids one bulk decision takes
 
 __all__ = ["ACTIONS", "Action", "decide", "upload"]
 
@@ -30,11 +31,32 @@ class Action:
     service: Callable[..., ActionResult]
     given: dict[str, Any] = field(default_factory=dict)  # fixed arguments, e.g. the target status
     reason: bool = False  # needs the user's reason, as the CLI's --reason does
+    choice: str | None = None  # the argument the user's chosen value goes to (an account, ...)
+    needs_choice: bool = False  # the chosen value is required
+    many: bool = False  # `item` may be several ids, comma-separated (a bulk decision)
+
+
+def _kind_actions() -> dict[str, Action]:
+    """Confirm and reject for each review kind other than mapping items (`fin.services.reviews`)."""
+    out = {}
+    for kind, spec in reviews.KINDS.items():
+        given = {"kind": kind}
+        choice = "choice" if spec.choice else None
+        out[f"review-confirm-{kind}"] = Action(
+            "mappings", reviews.confirm_items, given, choice=choice
+        )
+        out[f"review-reject-{kind}"] = Action("mappings", reviews.reject_items, given)
+    return out
 
 
 ACTIONS: dict[str, Action] = {
-    "mapping-confirm": Action("mappings", decisions.confirm_mappings),
+    "mapping-confirm": Action("mappings", decisions.confirm_mappings, choice="account"),
+    "mapping-confirm-all": Action("mappings", decisions.confirm_mappings, many=True),
     "mapping-reject": Action("mappings", decisions.reject_mappings),
+    "mapping-change": Action(
+        "files", decisions.change_mapping, choice="account", needs_choice=True
+    ),
+    **_kind_actions(),
     "finding-accept": Action("files", decisions.accept_findings),
     "document-delete": Action("files", delete_documents),
     "query-approve": Action("queries", decisions.set_query_status, {"target": "approved"}),
@@ -53,22 +75,41 @@ ACTIONS: dict[str, Action] = {
 }
 
 
-def decide(root: Path, company: str, name: str, item: str, reason: str | None) -> ActionResult:
-    """Take one decision. E008 (no run) for an unknown action, a bad id or a missing reason."""
+def _ids(action: Action, item: str) -> list[int]:
+    parts = item.split(",") if action.many else [item]
+    if not 0 < len(parts) <= MAX_IDS or not all(ITEM_ID.fullmatch(p) for p in parts):
+        raise UiActionInvalid(f"{item[:60]!r} is not an item id")
+    return [int(p) for p in parts]
+
+
+def _target(action: Action, item: str) -> str | list[int]:
+    """A gate name for a gate approval, else the item ids."""
+    if action.service is not decisions.approve_gate:
+        return _ids(action, item)
+    target = item.upper()
+    if target not in gates.NAMES:
+        raise UiActionInvalid(f"unknown gate {item!r}; use one of {', '.join(gates.NAMES)}")
+    return target
+
+
+def decide(
+    root: Path, company: str, name: str, item: str, reason: str | None, chosen: str | None = None
+) -> ActionResult:
+    """Take one decision. E008 (no run) for an unknown action, a bad id or a missing reason or
+    choice. `chosen` is the value the user picked (an account, a sector, a tax class)."""
     action = ACTIONS.get(name)
     if action is None:
         raise UiActionInvalid(f"unknown action {name!r}")
     reason = (reason or "").strip() or None
+    chosen = (chosen or "").strip() or None
     if action.reason and reason is None:
         raise UiActionInvalid("give the reason; nothing changed")
-    target: str | list[int]
-    if action.service is decisions.approve_gate:
-        target = item.upper()
-        if target not in gates.NAMES:
-            raise UiActionInvalid(f"unknown gate {item!r}; use one of {', '.join(gates.NAMES)}")
-    elif ITEM_ID.fullmatch(item):
-        target = [int(item)]
-    else:
-        raise UiActionInvalid(f"{item!r} is not an item id")
+    if action.needs_choice and chosen is None:
+        raise UiActionInvalid("choose the account; nothing changed")
+    if chosen is not None and action.choice is None:
+        raise UiActionInvalid(f"{name} takes no choice; nothing changed")
+    target = _target(action, item)
     given = action.given | ({"reason": reason} if action.reason else {})
+    if action.choice and chosen is not None:
+        given[action.choice] = chosen
     return action.service(root, company, target, via="ui", actor=USER, **given)

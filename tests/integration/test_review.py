@@ -72,6 +72,7 @@ def test_ingest_writes_the_pending_list(root: Path) -> None:
             "label": LABEL,
             "facts": 2,
             "where": ["edited.xlsx Standalone BS!B23", "edited.xlsx Standalone BS!C23"],
+            "sample": "FY25: 55.24",
             "account": None,
             "confidence": None,
             "reason": None,
@@ -386,7 +387,7 @@ def test_a_confirm_that_fails_on_the_facts_leaves_the_dictionary_as_it_was(
         raise DatabaseLocked("companies/bluepeak.duckdb is locked by another process")
 
     with monkeypatch.context() as patch:
-        patch.setattr("fin.map.review._confirm_facts", locked)
+        patch.setattr("fin.map.review_confirm._confirm_facts", locked)
         failed = fin("review", "confirm", "bluepeak", "1")
 
     assert failed.exit_code == 2
@@ -464,7 +465,10 @@ def test_map_set_can_target_an_added_account(root: Path) -> None:
     )  # fmt: skip
 
     assert result.exit_code == 0, result.output
-    assert result.stdout == "bluepeak: balance_sheet 'Old dues' -> long_overdue_debtors (added)\n"
+    assert result.stdout == (
+        "bluepeak: balance_sheet 'Old dues' -> long_overdue_debtors (added); 0 loaded facts in 0 "
+        "documents now use it\n"
+    )
 
 
 def test_export_prints_added_accounts_and_global_labels_as_seed_rows(root: Path) -> None:

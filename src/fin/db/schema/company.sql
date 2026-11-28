@@ -180,11 +180,24 @@ CREATE TABLE findings (
     fact_id BIGINT,
     read_by VARCHAR,
     message VARCHAR,
+    mappings VARCHAR,               -- JSON: the reviewed label mappings behind the figures (fin.validate.finding_rows)
     status VARCHAR NOT NULL CHECK (status IN ('open', 'accepted', 'resolved', 'superseded')),
     run_id VARCHAR NOT NULL,
     recorded_at TIMESTAMP NOT NULL,
     status_run_id VARCHAR NOT NULL,
     status_at TIMESTAMP NOT NULL
+);
+
+-- The checks that did not run on a document (fin.validate.not_run): replaced each time the document is checked.
+-- period and scope are NULL for a check over the whole document (cross_document); needs is what would make it run.
+CREATE TABLE checks_not_run (
+    doc_id INTEGER NOT NULL,
+    check_name VARCHAR NOT NULL,
+    period VARCHAR,
+    scope VARCHAR,
+    reason VARCHAR NOT NULL,
+    needs VARCHAR NOT NULL,
+    run_id VARCHAR NOT NULL
 );
 
 -- `fin verify` (fin.verify): one row per run that compared a Claude reading with a loaded or held document, any

@@ -145,6 +145,7 @@ CREATE TABLE findings (
     fact_id BIGINT,
     read_by VARCHAR,
     message VARCHAR,
+    mappings VARCHAR,
     finding_id BIGINT,
     code VARCHAR,
     status VARCHAR

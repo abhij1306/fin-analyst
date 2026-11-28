@@ -62,4 +62,5 @@ def home(status: dict[str, Any]) -> dict[str, Any]:
         "periods": periods_line(status),
         "cards": cards,
         "waiting": waiting(status),
+        "not_run": status["checks_not_run"],
     }

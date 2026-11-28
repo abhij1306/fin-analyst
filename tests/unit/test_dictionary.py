@@ -1,5 +1,6 @@
 """The seeded dictionary maps every synthetic fixture label to the answer key's account."""
 
+import csv
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -464,3 +465,18 @@ def test_lender_detection_is_per_statement_and_scope(seed_map: LabelMap) -> None
     mappings = map_rows(seed_map, rows)
 
     assert [m and m.account for m in mappings] == ["loans", None, "total_current_assets"]
+
+
+FIXTURES = Path(__file__).parents[1] / "fixtures" / "dictionary"
+
+
+def test_indirect_cash_flow_labels_load_with_no_unmapped_label(seed_map: LabelMap) -> None:
+    """SPEC-05 criterion 1: a synthetic indirect-method cash flow, built like the client run's,
+    maps every line through the seed dictionary to its account."""
+    with (FIXTURES / "indirect_cash_flow.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    mappings = map_rows(
+        seed_map, [("cash_flow", "standalone", row["section"], row["label"]) for row in rows]
+    )
+    found = {row["label"]: m and m.account for row, m in zip(rows, mappings, strict=True)}
+    assert found == {row["label"]: row["account"] for row in rows}

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Literal
 
 import duckdb
 
-from fin.audit.errors import ConflictingMapping, DependencyVersionMismatch
+from fin.audit.errors import ConflictingMapping, DependencyVersionMismatch, InvalidMapping
 from fin.db.conn import connect, transaction, utcnow
 from fin.map.normalize import normalize_label
 from fin.paths import dictionary_db_path
@@ -246,6 +246,18 @@ NEXT_PART = {
     "total_equity": "non current liabilities",
     "total_non_current_liabilities": "current liabilities",
 }
+
+
+def mapping_row(root: Path, mapping_id: int) -> tuple[str, str, str]:
+    """(statement, section, label) of a label_map row, normalized as stored. E304 when there is no
+    such mapping."""
+    with connect(dictionary_db_path(root)) as con:
+        row = con.execute(
+            "SELECT statement, section, label FROM label_map WHERE mapping_id = ?", [mapping_id]
+        ).fetchone()
+    if row is None:
+        raise InvalidMapping(f"no mapping {mapping_id} in the dictionary; nothing changed")
+    return row[0], row[1], row[2]
 
 
 def load_label_map(root: Path, company: str) -> LabelMap:

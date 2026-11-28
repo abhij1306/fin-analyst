@@ -173,6 +173,16 @@ def test_a_bad_action_or_id_is_e008(client: TestClient) -> None:
     assert "E008" in act(client, "adjust-reject", "1").text  # reason missing
 
 
+def test_a_choice_an_action_does_not_take_is_e008_and_runs_nothing(
+    client: TestClient, root: Path
+) -> None:
+    data = {"action": "query-approve", "company": "acme", "item": "1", "choice": "revenue"}
+    page = client.post("/act", data=data, headers=ORIGIN).text
+    assert "E008" in page
+    assert "query-approve takes no choice; nothing changed" in page
+    assert runs(root) == []
+
+
 def test_an_unknown_company_is_e001(client: TestClient) -> None:
     data = {"action": "gate-approve", "company": "ghost", "item": "G1"}
     assert "E001" in client.post("/act", data=data, headers=ORIGIN).text

@@ -42,11 +42,12 @@ def add_action_routes(
         company: str = Form(),
         item: str = Form(),
         reason: str = Form(""),
+        choice: str = Form(""),
     ) -> HTMLResponse:
         chosen = known(root, company) or ""
         spec = actions.ACTIONS.get(action)
         try:
-            outcome = actions.decide(root, chosen, action, item, reason)
+            outcome = actions.decide(root, chosen, action, item, reason, choice)
         except UiActionInvalid as error:
             outcome = Refused.before_run(error)
         return shown(request, spec.screen if spec else "home", chosen, outcome)
