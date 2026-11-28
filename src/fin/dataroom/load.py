@@ -60,6 +60,15 @@ def propose(
 
 def _check_proposal(row: PlanRow, kind: str, profile: str | None, reason: str) -> None:
     where = f"plan row {row.file_id} ({row.path})"
+    if row.sha256 is None:
+        raise DataroomRowInvalid(
+            f"{where}: a link is never followed; copy the file itself and scan"
+        )
+    if row.kind == "reference_databook":
+        raise DataroomRowInvalid(
+            f"{where}: a third party's databook is never loaded as company data; if it is the "
+            "company's own workbook, load it with fin ingest"
+        )
     if kind not in PROPOSABLE:
         raise DataroomRowInvalid(f"{where}: kind {kind!r} is not one of {', '.join(PROPOSABLE)}")
     if not reason.strip():

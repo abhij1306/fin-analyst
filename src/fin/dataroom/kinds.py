@@ -1,12 +1,15 @@
 """A data-room file's kind (SPEC-13): from its type and from which column profile's headers it has.
 
-An Excel workbook whose headers fit a column profile (`templates/profiles/`, the test
-`fin ingest --kind` uses) has that profile's kind; else one with statement sheets (the test
-`fin ingest` uses) is `statements`. A text PDF fin reads statements from is `statements`. fin does
-not guess from file names or contents beyond that: every other file is listed with a reason and
-one next step (`REASONS`).
+An Excel workbook whose headers fit a column profile (`templates/profiles/`, the test `fin ingest
+--kind` uses) has that profile's kind; else one with a sheet a diligence databook has
+(`REFERENCE_SHEETS`, matched on sheet names like a profile's headers) is `reference_databook`,
+listed and not loaded: a third party's figures never become company data, and fin has no reference
+loader yet (SPEC-10); else one with statement sheets (the test `fin ingest` uses) is `statements`. A
+text PDF fin reads statements from is `statements`. fin does not guess from file names or contents
+beyond that: every other file is listed with a reason and one next step (`REASONS`).
 """
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
@@ -18,14 +21,19 @@ from fin.audit.errors import DocumentFailure, FinError, NoTablesFound
 from fin.extract.excel import extract_workbook, open_workbook
 from fin.extract.ledger import has_header, read_table
 from fin.extract.pdf import extract_pdf
-from fin.extract.profiles import KINDS, Profile, profiles_for
+from fin.extract.profiles import KINDS, Profile, norm, profiles_for
 from fin.extract.registers import fits
 from fin.ingest import EXCEL_SUFFIXES
 
 ARCHIVE_SUFFIXES = (".zip",)
 OTHER_ARCHIVES = (".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz")
-# A plan row's kind: a column profile's kind, statements, an archive, or unknown.
-PLAN_KINDS = (*KINDS, "statements", "archive", "unknown")
+# A plan row's kind: a profile's kind, statements, a reference databook, an archive, or unknown.
+PLAN_KINDS = (*KINDS, "statements", "reference_databook", "archive", "unknown")
+# Sheet names (whole words, any case) that mark an adviser's or banker's diligence databook.
+REFERENCE_SHEETS = re.compile(
+    r"\b(databook|data book|quality of earnings|qoe|ebitda adjustments|net debt|"
+    r"net working capital|nwc)\b"
+)
 
 # Why fin cannot use a file -> (the reason shown, the one next step).
 REASONS = {
@@ -53,6 +61,13 @@ REASONS = {
         "its headers fit column profiles of more than one kind",
         "Load it with fin ingest --kind <kind> --profile <name>, naming the one it is",
     ),
+    "reference_databook": (
+        "a third party's diligence databook (it has a sheet such as quality of earnings, net debt "
+        "or net working capital): fin keeps a third party's figures apart from the company's and "
+        "cannot load them as a reference yet",
+        "Keep it in the data room: it is loaded as a reference once fin can hold reference "
+        "figures (SPEC-10); it is never loaded as company data",
+    ),
     "statements_unreadable": (
         "it has statement sheets fin cannot read",
         "Have the assistant read it (fin ingest --reading)",
@@ -73,8 +88,8 @@ REASONS = {
         "Ask the company for the archive again without that entry",
     ),
     "archive_too_large": (
-        "the archive unpacks to more than [dataroom] archive_limit_mb in config.toml; nothing was "
-        "unpacked",
+        "the archive unpacks to more than [dataroom] archive_limit_mb in config.toml, or to more "
+        "than 100,000 files, with the archives inside it; nothing was unpacked",
         "Unpack it into the folder yourself, or raise archive_limit_mb, and scan again",
     ),
     "archive_unreadable": (
@@ -125,6 +140,8 @@ def _excel(path: Path) -> Kind:
     if matches:
         (profile,) = matches.values()
         return Kind(profile.kind, profile.name, _source_period(path, profile))
+    if any(REFERENCE_SHEETS.search(norm(title)) for title in book.sheetnames):
+        return unusable("reference_databook", "reference_databook")
     try:
         values = extract_workbook(path).values
     except NoTablesFound:

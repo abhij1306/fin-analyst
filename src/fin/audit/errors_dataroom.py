@@ -22,6 +22,7 @@ class DataroomPlanMissing(FinError):
 class DataroomRowInvalid(FinError):
     """E819. `fin dataroom approve|propose`: no plan row with that id, or a row that cannot take
     it: an archive, a loaded file, a file fin cannot use with no proposed kind (approve), or a kind,
-    profile or empty reason that is not valid (propose). Nothing changed."""
+    profile or empty reason that is not valid, or a reference databook (propose). Nothing
+    changed."""
 
     code = "E819"

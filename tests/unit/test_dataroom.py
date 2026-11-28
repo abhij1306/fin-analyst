@@ -6,13 +6,16 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from openpyxl import Workbook
 from typer.testing import CliRunner
 
 from fin.cli import app
 from fin.dataroom.kinds import REASONS
 from fin.dataroom.scan import read_plan
+from fin.extract.profiles import load_profile
+from fin.extract.registers import fits
 from fin.paths import dataroom_dir
-from tests.register_fixtures import write_registers
+from tests.register_fixtures import PURCHASE_HEADERS, SALES_HEADERS, write_registers
 from tests.synthetic_pdf import BALANCE_SHEET, PROFIT_AND_LOSS, WIDTH, write_pdf
 from tests.tally_fixtures import write_trial_balance, write_unknown_layout
 
@@ -33,9 +36,23 @@ LEDGER_PDF = [
 ]
 
 
+def write_databook(path: Path) -> Path:
+    """A synthetic adviser's databook: a quality of earnings sheet beside an income statement."""
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Income statement"
+    sheet.append(["INR million", "FY24", "FY25"])
+    sheet.append(["Revenue", 100, 120])
+    qoe = book.create_sheet("2. Quality of Earnings")
+    qoe.append(["Reported EBITDA", 20, 25])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    book.save(path)
+    return path
+
+
 def make_room(tmp_path: Path) -> Path:
     """Nested folders, one archive, two duplicate files (one inside the archive), one PDF ledger,
-    one unknown file and a hidden file."""
+    one unknown file, an adviser's databook and a hidden file."""
     room = tmp_path / "room"
     (room / "books" / "fy25").mkdir(parents=True)
     (room / "misc").mkdir()
@@ -44,6 +61,7 @@ def make_room(tmp_path: Path) -> Path:
     write_pdf(room / "books" / "fy25" / "ledger_fy24.pdf", LEDGER_PDF)
     write_unknown_layout(room / "misc" / "notes.xlsx")
     write_pdf(room / "statements" / "annual.pdf", BALANCE_SHEET, PROFIT_AND_LOSS, width=WIDTH)
+    write_databook(room / "reference" / "fdd_databook.xlsx")
     (room / ".DS_Store").write_bytes(b"hidden")
     registers = write_registers(tmp_path / "billing.xlsx")
     with zipfile.ZipFile(room / "registers.zip", "w") as archive:
@@ -81,7 +99,8 @@ def test_the_plan_text_lists_files_duplicates_and_what_is_skipped(
     root: Path, tmp_path: Path
 ) -> None:
     output = scan(str(make_room(tmp_path)))
-    assert "data-room plan for acme: 3 to load (0 approved), 2 skipped" in output
+    assert "data-room plan for acme: 3 to load (0 approved), 3 skipped" in output
+    assert "reference/fdd_databook.xlsx (reference_databook): a third party's" in output
     assert "      duplicate: registers.zip/tb_copy.xlsx" in output
     assert "registers.zip: archive, unpacked" in output
 
@@ -100,6 +119,53 @@ def test_a_second_scan_adds_only_new_files(root: Path, tmp_path: Path) -> None:
     assert [r.path for r in after[len(before) :]] == ["misc/other.xlsx"]
     notes = next(r for r in after if r.path == "misc/notes.xlsx")
     assert notes.duplicates == ["misc/notes_again.xlsx"]
+
+
+def test_a_reference_databook_cannot_be_proposed_as_company_data(
+    root: Path, tmp_path: Path
+) -> None:
+    scan(str(make_room(tmp_path)))
+    (row,) = [r for r in read_plan(root, "acme") if r.kind == "reference_databook"]
+    args = ["dataroom", "propose", "acme", str(row.file_id), "--kind", "statements"]
+    result = runner.invoke(app, [*args, "--reason", "accounts"])
+    assert result.exit_code == 2
+    assert "E819" in result.output and "never loaded as company data" in result.output
+    assert read_plan(root, "acme")[row.file_id - 1].proposed_kind is None
+
+
+def test_a_link_is_listed_and_cannot_be_proposed(root: Path, tmp_path: Path) -> None:
+    room = tmp_path / "room"
+    room.mkdir()
+    outside = write_trial_balance(tmp_path / "outside.xlsx")
+    try:
+        (room / "tb.xlsx").symlink_to(outside)
+    except OSError:
+        pytest.skip("this system does not let the test make a link (CI on Linux does)")
+    scan(str(room))
+    (row,) = read_plan(root, "acme")
+    assert (row.path, row.kind, row.sha256) == ("tb.xlsx", "unknown", None)
+    assert (row.reason, row.next_step) == REASONS["link"]
+    args = ["dataroom", "propose", "acme", str(row.file_id), "--kind", "trial_balance"]
+    result = runner.invoke(app, [*args, "--reason", "balances"])
+    assert result.exit_code == 2
+    assert "E819" in result.output and "a link is never followed" in result.output
+
+
+def test_register_parts_on_one_sheet_do_not_fit(tmp_path: Path) -> None:
+    profile = load_profile("billing_registers")
+    book = Workbook()
+    sheet = book.active
+    assert sheet is not None
+    sheet.append(SALES_HEADERS)
+    sheet.append([])
+    sheet.append(PURCHASE_HEADERS)
+    assert fits(book, profile) is False
+    apart = Workbook()
+    first = apart.active
+    assert first is not None
+    first.append(SALES_HEADERS)
+    apart.create_sheet("Purchases").append(PURCHASE_HEADERS)
+    assert fits(apart, profile) is True
 
 
 def test_every_reason_has_a_next_step() -> None:
@@ -124,6 +190,7 @@ def test_every_unusable_file_in_the_plan_has_a_reason_and_a_next_step(
         "misc/more.rar": REASONS["archive_type"],
         "misc/notes.xlsx": REASONS["no_layout"],
         "misc/old.xls": REASONS["old_excel"],
+        "reference/fdd_databook.xlsx": REASONS["reference_databook"],
     }
 
 
@@ -169,6 +236,56 @@ def test_an_archive_over_the_limit_is_refused(root: Path, tmp_path: Path) -> Non
     config.write_text(text, encoding="utf-8")
     room = _archive_with(tmp_path / "room", ("big.bin", b"0" * (1024 * 1024 + 1)))
     assert _refused(root, room) == REASONS["archive_too_large"][0]
+
+
+def test_an_archive_of_archives_shares_one_budget(root: Path, tmp_path: Path) -> None:
+    config = root / "config.toml"
+    text = config.read_text(encoding="utf-8").replace(
+        "archive_limit_mb = 2048", "archive_limit_mb = 1"
+    )
+    config.write_text(text, encoding="utf-8")
+    inner = tmp_path / "inner.zip"
+    with zipfile.ZipFile(inner, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("part.bin", b"0" * (700 * 1024))
+    other = tmp_path / "other.zip"
+    with zipfile.ZipFile(other, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("part2.bin", b"1" * (700 * 1024))
+    room = _archive_with(
+        tmp_path / "room", ("a.zip", inner.read_bytes()), ("b.zip", other.read_bytes())
+    )
+    scan(str(room))
+    plan = {r.path: r.reason for r in read_plan(root, "acme")}
+    assert plan == {
+        "data.zip": None,
+        "data.zip/a.zip": None,
+        "data.zip/a.zip/part.bin": REASONS["file_type"][0],
+        "data.zip/b.zip": REASONS["archive_too_large"][0],
+    }
+
+
+def test_an_archive_refused_for_its_size_unpacks_once_the_limit_is_raised(
+    root: Path, tmp_path: Path
+) -> None:
+    config = root / "config.toml"
+    default = config.read_text(encoding="utf-8")
+    config.write_text(default.replace("archive_limit_mb = 2048", "archive_limit_mb = 1"), "utf-8")
+    room = _archive_with(tmp_path / "room", ("big.bin", b"0" * (1024 * 1024 + 1)))
+    assert _refused(root, room) == REASONS["archive_too_large"][0]
+    config.write_text(default, encoding="utf-8")
+    scan(str(room))
+    plan = {r.path: (r.reason, r.next_step) for r in read_plan(root, "acme")}
+    assert plan == {"data.zip": (None, None), "data.zip/big.bin": REASONS["file_type"]}
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [[("a", b"file"), ("a/b.txt", b"under a file")], [("a/b.txt", b"x"), ("a", b"file over")]],
+)
+def test_a_file_entry_and_a_folder_entry_with_one_path_are_refused(
+    root: Path, tmp_path: Path, entries: list[tuple[str, bytes]]
+) -> None:
+    room = _archive_with(tmp_path / "room", *entries)
+    assert _refused(root, room) == REASONS["archive_unsafe"][0]
 
 
 def test_a_damaged_archive_is_refused(root: Path, tmp_path: Path) -> None:

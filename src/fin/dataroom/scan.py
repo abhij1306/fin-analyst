@@ -1,14 +1,16 @@
 """`fin dataroom scan` and `fin dataroom plan` (SPEC-13): walk a folder into a plan; load nothing.
 
 The walk goes through every sub-folder, in name order, leaving out hidden files and folders (a name
-starting with "."), as `fin ingest` does. A link is listed, never followed. Each file is hashed:
-the first path of a content is its plan row and later paths are its duplicates. A .zip archive is
-unpacked (`fin.dataroom.unpack`) into `dataroom/<company>/<sha256[:16]>/` in the data folder and
-its files are walked as part of it, to `MAX_DEPTH` archives deep. Each new file gets its kind
-(`fin.dataroom.kinds`).
+starting with "."), as `fin ingest` does. A link is listed, never followed. Each file is hashed: the
+first path of a content is its plan row and later paths are its duplicates. A .zip archive is
+unpacked (`fin.dataroom.unpack`) into `dataroom/<company>/<sha256[:16]>/` in the data folder and its
+files are walked as part of it, to `MAX_DEPTH` archives deep; an archive and the archives inside it
+share one `[dataroom] archive_limit_mb` budget. Each new file gets its kind (`fin.dataroom.kinds`).
 
 Re-scanning adds only what the plan does not have: a content already in it gains the new path as a
-duplicate, nothing else changes. The plan lives in the company database (`dataroom_files`).
+duplicate, nothing else changes. An archive refused for its size is tried again (the user may have
+raised the limit), and an unpacked archive's folder is walked again for the archives inside it. The
+plan lives in the company database (`dataroom_files`).
 """
 
 import hashlib
@@ -23,12 +25,13 @@ from fin.audit.errors import DataroomFolderInvalid, DataroomPlanMissing, FileUnr
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.dataroom.kinds import ARCHIVE_SUFFIXES, REASONS, Kind, kind_of, unusable
-from fin.dataroom.unpack import unpack
+from fin.dataroom.unpack import Budget, unpack
 from fin.db.conn import connect, transaction
 from fin.db.schema import ensure_database
 from fin.paths import company_db_path, dataroom_dir
 
 MAX_DEPTH = 3  # archives inside archives unpacked
+TOO_LARGE = REASONS["archive_too_large"][0]
 COLUMNS = (
     "file_id, sha256, folder, path, location, kind, profile, period, reason, next_step, "
     "duplicates, proposed_kind, proposed_profile, proposal_reason, approved, status, outcome"
@@ -95,13 +98,15 @@ def scan(run: Run, config: Config, company: str, folder: Path) -> Scan:
     ensure_database(path, "company")
     result = Scan(company, folder)
     with connect(path, write=True) as con, transaction(con):
-        _walk(_Walk(run, config, con, result), folder, "", 0)
+        _walk(_Walk(run, config, con, result), folder, "", 0, None)
     run.event("dataroom", f"scanned {folder}: {result.new} new, {result.duplicates} duplicates")
     return result
 
 
-def _walk(state: _Walk, folder: Path, shown: str, depth: int) -> None:
-    """Every entry under `folder`; `shown` is the shown path of the folder ("" at the top)."""
+def _walk(state: _Walk, folder: Path, shown: str, depth: int, budget: Budget | None) -> None:
+    """Every entry under `folder`; `shown` is the shown path of the folder ("" at the top);
+    `budget`: what archives found here may still unpack to (None outside any archive: each top-level
+    archive starts a budget of `[dataroom] archive_limit_mb`)."""
     for entry in sorted(folder.iterdir(), key=lambda p: p.name):
         if entry.name.startswith("."):
             continue
@@ -109,26 +114,51 @@ def _walk(state: _Walk, folder: Path, shown: str, depth: int) -> None:
         if entry.is_symlink():
             _add(state, None, name, entry, unusable("link"))
         elif entry.is_dir():
-            _walk(state, entry, f"{name}/", depth)
+            _walk(state, entry, f"{name}/", depth, budget)
         else:
-            _file(state, entry, name, depth)
+            _file(state, entry, name, depth, budget)
 
 
-def _file(state: _Walk, entry: Path, name: str, depth: int) -> None:
+def _file(state: _Walk, entry: Path, name: str, depth: int, budget: Budget | None) -> None:
     sha256 = _sha256(entry)
-    if _known(state, sha256, name):
-        return
+    known = _known(state, sha256, name)
     if entry.suffix.lower() not in ARCHIVE_SUFFIXES:
-        _add(state, sha256, name, entry, kind_of(entry, state.config.fiscal_year_start_month))
+        if known is None:
+            _add(state, sha256, name, entry, kind_of(entry, state.config.fiscal_year_start_month))
         return
-    if depth >= MAX_DEPTH:
+    if known is not None and known[1] not in (None, TOO_LARGE):
+        return  # refused for its content: the same content is refused again
+    if known is None and depth >= MAX_DEPTH:
         _add(state, sha256, name, entry, unusable("archive_depth", "archive"))
         return
+    _archive(state, entry, name, depth, budget, sha256, known)
+
+
+def _archive(
+    state: _Walk,
+    entry: Path,
+    name: str,
+    depth: int,
+    budget: Budget | None,
+    sha256: str,
+    known: tuple[int, str | None] | None,
+) -> None:
+    """Unpack the archive (or find it unpacked) and walk what it holds with what is left of the
+    budget; a new archive is added to the plan, a known one refused for its size is cleared once it
+    unpacks."""
+    if budget is None:
+        budget = Budget(state.config.archive_limit_mb * 1024 * 1024)
     target = dataroom_dir(state.run.root, state.scan.company) / sha256[:16]
-    reason = unpack(entry, target, state.config.archive_limit_mb * 1024 * 1024)
-    _add(state, sha256, name, entry, Kind("archive", reason=reason))
+    reason = unpack(entry, target, budget)
+    if known is None:
+        _add(state, sha256, name, entry, Kind("archive", reason=reason))
+    elif reason is None and known[1] is not None:
+        state.con.execute(
+            "UPDATE dataroom_files SET reason = NULL, next_step = NULL WHERE file_id = ?",
+            [known[0]],
+        )
     if reason is None:
-        _walk(state, target, f"{name}/", depth + 1)
+        _walk(state, target, f"{name}/", depth + 1, budget)
     else:
         state.run.event("dataroom", f"{name}: refused ({reason})", level="warning", file=entry.name)
 
@@ -144,21 +174,23 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _known(state: _Walk, sha256: str, name: str) -> bool:
-    """True when the plan has this content: `name` is added as a duplicate unless listed."""
+def _known(state: _Walk, sha256: str, name: str) -> tuple[int, str | None] | None:
+    """(file_id, reason) of the plan row with this content, or None: `name` is added as a
+    duplicate unless listed."""
     row = state.con.execute(
-        "SELECT file_id, folder, path, duplicates FROM dataroom_files WHERE sha256 = ?", [sha256]
+        "SELECT file_id, folder, path, duplicates, reason FROM dataroom_files WHERE sha256 = ?",
+        [sha256],
     ).fetchone()
     if row is None:
-        return False
-    file_id, folder, path, duplicates = row
+        return None
+    file_id, folder, path, duplicates, reason = row
     if (folder, path) != (str(state.scan.folder), name) and name not in duplicates:
         state.con.execute(
             "UPDATE dataroom_files SET duplicates = list_append(duplicates, ?) WHERE file_id = ?",
             [name, file_id],
         )
         state.scan.duplicates += 1
-    return True
+    return file_id, reason
 
 
 def _add(state: _Walk, sha256: str | None, name: str, location: Path, kind: Kind) -> None:
@@ -216,7 +248,8 @@ def format_plan(company: str, rows: list[PlanRow]) -> str:
     if skipped:
         lines.append("skipped (fin cannot use these):")
     for r in skipped:
-        lines.append(f"  [{r.file_id}] {r.path}: {r.reason}. Next: {r.next_step}")
+        shown = r.path if r.kind == "unknown" else f"{r.path} ({r.kind})"
+        lines.append(f"  [{r.file_id}] {shown}: {r.reason}. Next: {r.next_step}")
     return "\n".join(lines)
 
 

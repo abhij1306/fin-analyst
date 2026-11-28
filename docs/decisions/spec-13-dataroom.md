@@ -2,15 +2,21 @@
 
 Readings, not owner decisions, until the owner confirms them.
 
-## Kinds are the loaders' kinds; "reference databook" waits for SPEC-10
+## A reference databook is a kind, listed and never loaded
 
 - **Decision**: a plan row's kind is a column profile's kind (`trial_balance`, `ledger_vouchers`, `registers`,
-  `payroll`, `bank`, `orderbook`, `gst`), `statements`, `archive` or `unknown`. The spec's "reference databook"
-  is not a kind yet: it has no profile to find it by and no loader until SPEC-10 PR 1.
-- **Why**: the spec says the kind comes only from the file type and the profile headers; a kind fin cannot load
-  would sit in the plan with nothing to do.
-- **How to change it**: `src/fin/dataroom/kinds.py: PLAN_KINDS`, `load.py: PROPOSABLE` and the CHECKs in
-  `db/schema/dataroom.sql`, when SPEC-10 adds its loader.
+  `payroll`, `bank`, `orderbook`, `gst`), `statements`, `reference_databook`, `archive` or `unknown`. A workbook
+  that fits no column profile and has a sheet named like a diligence databook's (quality of earnings, QoE, EBITDA
+  adjustments, net debt, net working capital, NWC, databook; whole words, any case) is `reference_databook`, with
+  the reason that fin keeps a third party's figures apart and cannot hold them yet, and the next step to keep it for
+  SPEC-10. It is checked before statements, so a databook's income statement is never loaded as company figures, and
+  the assistant cannot propose another kind for it (E819); a company's own workbook caught by the sheet names is
+  loaded with `fin ingest`.
+- **Why**: the client asked for the ladder to end at the adviser's databook (test-run 2026-11-27) and the spec lists
+  the kind; Q5 says a third party's figures never become company data. The sheet names stand in for a profile's
+  headers: there is no column profile for a databook.
+- **How to change it**: `src/fin/dataroom/kinds.py: REFERENCE_SHEETS`; when SPEC-10 adds its loader, make the kind
+  loadable in `load.py`.
 
 ## A workbook fitting profiles of two kinds is not given either
 
@@ -33,6 +39,16 @@ Readings, not owner decisions, until the owner confirms them.
   the folder yourself". An archive inside an archive is unpacked too, to three levels; deeper ones are listed.
 - **Why**: no new dependency; data rooms are mostly zip. The depth limit bounds an archive of archives.
 - **How to change it**: `src/fin/dataroom/kinds.py: ARCHIVE_SUFFIXES, OTHER_ARCHIVES`, `scan.py: MAX_DEPTH`.
+
+## An archive and the archives inside it share one limit
+
+- **Decision**: `archive_limit_mb` bounds everything one top-level archive unpacks to, the archives inside it
+  included; an inner archive that would pass what is left is refused. An archive refused for its size is tried again
+  on the next scan.
+- **Why**: a limit per archive could be multiplied by an archive of small archives (an archive bomb); the refusal's
+  next step says to raise the limit and scan again.
+  The same budget holds at most 100,000 entries, so an archive of millions of empty files is refused too.
+- **How to change it**: `src/fin/dataroom/unpack.py: Budget, MAX_ENTRIES`, `scan.py: _archive`.
 
 ## The archive limit is required in config.toml
 

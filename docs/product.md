@@ -992,12 +992,16 @@ files (and archives inside it, up to three deep) are part of the plan. Every ent
 written: an archive with an entry whose path is absolute, names a drive or climbs out with `..`, a link entry, a
 password, two entries with the same path, or more than `[dataroom] archive_limit_mb` (config.toml, default 2048) of
 content is refused and listed, with nothing unpacked; entries are also checked after resolving the path and counted as
-they are written. Other archive types (.rar, .7z, .tar, .gz) are listed for the user to unpack. Files with the same
+they are written. An archive and the archives inside it share one limit (and at most 100,000 entries), so an archive of
+archives cannot multiply it. Other archive types (.rar, .7z, .tar, .gz) are listed for the user to unpack. Files with the same
 content (sha256) are one plan row; the other paths are its duplicates.
 
 Each file gets a kind from its type and from which column profile's headers it has, the test `fin ingest --kind`
 uses: `trial_balance`, `ledger_vouchers`, `registers`, `payroll`, `bank`, `orderbook` or `gst` with the profile;
-else `statements` for a workbook with statement sheets or a text PDF fin reads statements from (the test `fin ingest`
+else `reference_databook` for a workbook with a sheet named like a diligence databook's (quality of earnings, QoE,
+EBITDA adjustments, net debt, net working capital, NWC, databook), which is listed with its reason and never loaded:
+a third party's figures are not company data, and fin cannot hold them as a reference until SPEC-10 (the assistant
+cannot propose another kind for it); else `statements` for a workbook with statement sheets or a text PDF fin reads statements from (the test `fin ingest`
 uses); else `unknown`. fin does not guess from file names or contents beyond that. The plan shows each row's kind,
 profile, the period the file states (the export's header period, or the statements' period ends), its duplicates, and
 what will be skipped. A file fin cannot use has a reason and one next step (`fin.dataroom.kinds.REASONS`): a PDF with
@@ -1006,7 +1010,7 @@ it"), an .xls, another file type, a damaged or protected workbook, a workbook wh
 of more than one kind, a refused archive. The plan is stored in the company database (`dataroom_files`; the
 database is made if the company has none); `fin dataroom plan <co>` shows it again (`--json` for the assistant and
 the UI). Scanning again adds only what the plan does not have: a content already in it gains the new path as a
-duplicate.
+duplicate. An archive refused for its size is tried again, so raising the limit and scanning again unpacks it.
 
 For a file fin could not name, the assistant may propose a kind (`fin dataroom propose`, with a reason; a GST return
 needs its profile). The user chooses the rows to load with `fin dataroom approve <co> <ids>` (`--undo` takes it
