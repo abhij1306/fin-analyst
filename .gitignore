@@ -18,6 +18,9 @@ dist/
 *.pdf
 logs/
 
+# What the client sent back (their documents, logs, notes): never committed
+/client/
+
 # Editors / OS
 .DS_Store
 .vscode/

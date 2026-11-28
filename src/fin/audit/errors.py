@@ -7,6 +7,7 @@ a command returns when the error ends it:
   (accepting a finding that is not open) stop the command: exit 2.
 - E1xx-E3xx are per-document failures and E604 is flagged in the evidence page. The command
   completes and reports them: exit 1.
+- E012 is logged for an exception with no error class (`Run.log_unexpected`); it is not raised.
 - E302 (a low-confidence mapping proposal) is a warning event, not an error: it has no class.
 - E401-E405 are not errors: they are the codes of validation checks whose failures are findings
   (`fin.findings`), shown to the user; the document is held, not rejected.
@@ -63,6 +64,8 @@ a command returns when the error ends it:
   to bundle, a bundle that would contain a real name) stop the command: exit 2.
 """
 
+from typing import Self
+
 # Exit codes
 EXIT_OK = 0
 EXIT_FAILURES = 1
@@ -75,10 +78,15 @@ class FinError(Exception):
 
     code: str = ""
     exit_code: int = EXIT_COMMAND_ERROR
+    context: dict[str, object] | None = None  # what was seen, for the event's context in the log
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.message = message
+
+    def with_context(self, **context: object) -> Self:
+        self.context = context
+        return self
 
     def __str__(self) -> str:
         return f"{self.code}: {self.message}"
@@ -147,6 +155,12 @@ class ChatBusy(FinError):
     """E011. A turn of this conversation is still running: wait for it or press Stop."""
 
     code = "E011"
+
+
+class UnexpectedError(FinError):
+    """E012. An exception with no error class: a defect in fin. Logged with its traceback."""
+
+    code = "E012"
 
 
 # E1xx: file intake. The file is skipped and moved to review/; the command completes with failures.

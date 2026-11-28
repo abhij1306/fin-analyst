@@ -46,8 +46,9 @@ def open_pdf(path: Path, *, text_layer: bool = True) -> Any:
     except OSError as exc:
         raise FileUnreadable(f"{path.name}: {exc}") from exc
     if text_layer and not any(page.chars for page in pdf.pages):
+        seen = {"pages": len(pdf.pages), "images": sum(len(page.images) for page in pdf.pages)}
         pdf.close()
-        raise ScannedPdf(f"{path.name}: no text layer")
+        raise ScannedPdf(f"{path.name}: no text layer").with_context(**seen)
     return pdf
 
 

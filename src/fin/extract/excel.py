@@ -46,6 +46,7 @@ from fin.audit.errors import (
     PeriodsNotDetected,
     UnitNotDetected,
 )
+from fin.extract.diagnostics import top_lines
 from fin.extract.periods import MONTHS, PHRASE, months_in
 from fin.extract.units import parse_figure, to_rupees, unit_in
 
@@ -114,7 +115,9 @@ def extract_workbook(path: Path) -> ExcelExtraction:
         else:
             values.extend(found)
     if not values:
-        raise NoTablesFound(f"{path.name}: no balance sheet, profit and loss or cash flow values")
+        raise NoTablesFound(
+            f"{path.name}: no balance sheet, profit and loss or cash flow values"
+        ).with_context(sheets=top_lines(skipped, 30))
     return ExcelExtraction(values, skipped)
 
 
@@ -328,11 +331,16 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
     if statement is None:
         return None
     where = f"{path.name} sheet {sheet.title!r}"
+    seen = {"sheet": sheet.title, "lines": top_lines(title_parts[1:])}
     if header is None:
-        raise PeriodsNotDetected(f"{where}: no header row with period dates such as 31.03.2025")
+        raise PeriodsNotDetected(
+            f"{where}: no header row with period dates such as 31.03.2025"
+        ).with_context(**seen)
     units = [(text.strip(), unit) for text in title_parts[1:] if (unit := unit_in(text))]
     if not units:
-        raise UnitNotDetected(f"{where}: no unit line such as '(₹ in Lakhs)' above the header")
+        raise UnitNotDetected(
+            f"{where}: no unit line such as '(₹ in Lakhs)' above the header"
+        ).with_context(**seen, header_row=header.row)
     unit_text, unit = units[0]
     columns = _columns(sheet, header, statement, title, where)
     first_value_column = min(header.periods)
@@ -347,7 +355,9 @@ def _sheet_values(path: Path, sheet: Worksheet, formulas: Worksheet) -> list[Exc
                 section = label
             continue
         if not label:
-            raise ParseError(f"{where} row {row[0].row}: values with no label")
+            raise ParseError(f"{where} row {row[0].row}: values with no label").with_context(
+                sheet=sheet.title, row=row[0].row, cells=[c.coordinate for c in filled]
+            )
         for cell in filled:
             raw, number = parse_number(cell.value, f"{where} cell {cell.coordinate}")
             found.append(

@@ -125,6 +125,7 @@ def _not_used(run: Run, name: str, config: Config, pages: list[int]) -> None:
         f"pages {', '.join(map(str, pages))} not read, and {why}: {how} or give a Claude reading "
         "(`fin ingest --reading`)",
         file=name,
+        context={"pages": pages, "pdf_parser": config.pdf_parser, "installed": False},
     )
 
 

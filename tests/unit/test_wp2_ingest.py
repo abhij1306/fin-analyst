@@ -68,7 +68,18 @@ def test_a_first_ingest_that_loads_nothing_leaves_no_company_database(
 
     assert result.exit_code == 1, result.output
     assert not company_db_path(root, "newco").exists()
-    assert (root / "review/newco/notes.txt.error.json").is_file()
+    reason = json.loads((root / "review/newco/notes.txt.error.json").read_text("utf-8"))
+    assert reason["code"] == "E103"
+    assert reason["context"] == {
+        "suffix": ".txt",
+        "size_bytes": junk.stat().st_size,
+        "reader": None,
+        "pdf_parser": "none",
+        "reading": None,
+    }
+    with connect(root / "shared" / "audit.duckdb") as con:
+        logged = con.execute("SELECT context FROM events WHERE error_code = 'E103'").fetchall()
+    assert [json.loads(c) for (c,) in logged] == [reason["context"]]
 
 
 def test_a_failed_ingest_never_removes_an_existing_company(root: Path, tmp_path: Path) -> None:
