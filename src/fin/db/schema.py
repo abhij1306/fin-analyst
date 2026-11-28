@@ -16,7 +16,12 @@ from pathlib import Path
 
 import duckdb
 
-from fin.audit.errors import DataFolderNotWritable, DependencyVersionMismatch, SchemaFailed
+from fin.audit.errors import (
+    DataFolderNotWritable,
+    DependencyVersionMismatch,
+    FinError,
+    SchemaFailed,
+)
 from fin.db.conn import connect
 from fin.paths import analytics_db_path, audit_db_path, companies_dir, dictionary_db_path
 
@@ -136,16 +141,19 @@ def ensure_database(path: Path, kind: str) -> bool:
     try:
         with connect(path, write=True) as con:
             _create(con, texts)
+            if kind == "company":
+                # A new company gets the metrics saved for every company. Imported here:
+                # fin.metrics.saved imports this module.
+                from fin.metrics.saved import install_shared
+
+                install_shared(con, path)
     except duckdb.Error as exc:
         remove_database(path)
         cause = " ".join(str(exc).split())
         raise SchemaFailed(f"{path.name}: creating the {kind} database failed ({cause})") from exc
-    if kind == "company":
-        # A new company gets the metrics saved for every company. Imported here: fin.metrics.saved
-        # imports this module.
-        from fin.metrics.saved import install_shared
-
-        install_shared(path)
+    except FinError:
+        remove_database(path)  # a company without the shared metrics would never get them
+        raise
     return True
 
 

@@ -6,7 +6,7 @@ argument-hint: <company> <question>
 Answer this question with `fin`: $ARGUMENTS
 
 1. First run `uv run fin schema <company>`: it lists the views for questions with their columns and an example
-   query each. Use only the column names it shows. Then write one SELECT on the company database
+   query each. Use only the column names it shows, or those named below for the tables it does not list. Then write one SELECT on the company database
    (`companies/<company>.duckdb`). Tables: `documents` (use
    `status = 'loaded'`), `raw_values`, `facts` (value in rupees, `confirmed`); views `current_facts` (one value per
    account, period and scope, already de-duplicated across documents), `metrics` (one row per period, scope and

@@ -358,13 +358,13 @@ def list_metrics(root: Path, company: str | None) -> list[dict[str, Any]]:
         )
 
 
-def install_shared(path: Path) -> None:
-    """Copy the shared saved metrics into a company database just created at `path`."""
+def install_shared(con: duckdb.DuckDBPyConnection, path: Path) -> None:
+    """Copy the shared saved metrics into the company database just created at `path` (`con`).
+    E506 when a shared formula no longer compiles."""
     root = path.parent.parent
     if path.parent != companies_dir(root) or not dictionary_db_path(root).is_file():
         return
     shared = _shared_rows(root)
     if shared:
-        catalogue = _catalogue(root)
-        with connect(path, write=True) as con, transaction(con):
-            _apply(con, shared, catalogue)
+        with transaction(con):
+            _apply(con, shared, _catalogue(root))

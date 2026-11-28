@@ -15,7 +15,7 @@ from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.metrics.export import refresh_analytics
 from fin.metrics.saved import add_metric, list_metrics, remove_metric
-from fin.paths import analytics_db_path, audit_db_path, company_db_path
+from fin.paths import analytics_db_path, audit_db_path, company_db_path, dictionary_db_path
 from fin.query.write import write_sql
 from fin.workbook import export_workbook
 from tests.unit.question_fixtures import add_company, copy_root, make_template
@@ -96,8 +96,9 @@ def test_a_saved_metric_can_use_one_saved_before_it(root: Path) -> None:
 
     assert result["uses"] == ["cash_conv"]
     assert value(root, "cash_conv_pct") == Decimal("25.000000")
+    remover = run(root)
     with pytest.raises(SavedMetricUnknown) as error:
-        remove_metric(run(root), "cash_conv", "acme")
+        remove_metric(remover, "cash_conv", "acme")
     assert str(error.value) == "E507: cash_conv is used by cash_conv_pct; remove those first"
 
 
@@ -140,6 +141,19 @@ def test_a_shared_metric_reaches_every_company_and_a_later_one(root: Path) -> No
     assert list_metrics(root, None) == []
 
 
+def test_a_company_is_not_created_without_the_shared_metrics(root: Path) -> None:
+    with connect(dictionary_db_path(root), write=True) as con:  # an account since removed
+        con.execute(
+            "INSERT INTO saved_metrics VALUES ('gone', 'ratio', 'G.', 'gone_account / revenue', "
+            "now(), 'r')"
+        )
+
+    with pytest.raises(SavedMetricInvalid):
+        add_company(root, "bravo")
+
+    assert not company_db_path(root, "bravo").exists()
+
+
 def test_removing_a_company_metric(root: Path) -> None:
     add_metric(run(root), "cfo_to_revenue", "cfo / revenue", "ratio", "C.", "acme")
 
@@ -164,22 +178,25 @@ def test_removing_a_company_metric(root: Path) -> None:
     ],
 )  # fmt: skip
 def test_what_cannot_be_saved(root: Path, name: str, formula: str, unit: str, message: str) -> None:
+    adder = run(root)
     with pytest.raises(SavedMetricInvalid) as error:
-        add_metric(run(root), name, formula, unit, "D.", "acme")
+        add_metric(adder, name, formula, unit, "D.", "acme")
 
     assert message in str(error.value)
     assert list_metrics(root, "acme") == []
 
 
 def test_removing_an_unknown_metric(root: Path) -> None:
+    remover = run(root)
     with pytest.raises(SavedMetricUnknown) as error:
-        remove_metric(run(root), "nothing", "acme")
+        remove_metric(remover, "nothing", "acme")
 
     assert str(error.value) == "E507: no metric nothing saved for acme (`uv run fin metric list`)"
 
 
 def test_sql_write_does_not_change_saved_metrics(root: Path) -> None:
+    writer = run(root)
     with pytest.raises(SqlFailed) as error:
-        write_sql(run(root), "acme", "DELETE FROM saved_metrics")
+        write_sql(writer, "acme", "DELETE FROM saved_metrics")
 
     assert "use `fin metric add` or `fin metric remove`" in str(error.value)
