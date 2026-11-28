@@ -193,7 +193,10 @@ def test_a_line_without_service_dates_is_listed_and_queried_at_the_threshold(roo
     assert query["amount"] == Decimal("150000.00")
 
 
-def test_running_again_keeps_one_proposal_and_replaces_a_stale_one(root: Path) -> None:
+def test_running_again_keeps_one_proposal_and_replaces_a_stale_one(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("fin.reconcile.recast_run._g2_approved", lambda *args: True)
     run_recast(run(root), "acme", None)
     run_recast(run(root), "acme", None)
     assert len(list_adjustments(run(root), "acme")) == 2
@@ -373,11 +376,15 @@ def set_status(root: Path, where: str, status: str, reason: str | None = None) -
         )
 
 
-def test_a_hand_proposed_recast_adjustment_is_never_replaced_by_a_run(root: Path) -> None:
+def test_a_hand_proposed_recast_adjustment_is_never_replaced_by_a_run(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("fin.reconcile.recast_run._g2_approved", lambda *args: True)
     run_recast(run(root), "acme", None)
+    # a source reference that reads like fin's own does not make it fin's
     manual = propose(
         run(root), "acme", period="FY25", scope="standalone", category="recast", amount=Decimal(7),
-        description="by hand", evidence=Evidence(source_ref="note.xlsx Sheet1!A1"),
+        description="by hand", evidence=Evidence(source_ref="service_recast FY25 (recon #1)"),
     )  # fmt: skip
     with connect(company_db_path(root, "acme"), write=True) as con:
         con.execute("UPDATE register_lines SET amount_inr = 130000 WHERE invoice_no = 'INV-1001'")
@@ -387,6 +394,18 @@ def test_a_hand_proposed_recast_adjustment_is_never_replaced_by_a_run(root: Path
     states = {a["adj_id"]: a["status"] for a in list_adjustments(run(root), "acme")}
     assert states[manual["adj_id"]] == "proposed"
     assert list(states.values()).count("rejected") == 1  # fin's own earlier proposal only
+
+
+def test_a_run_replaces_nothing_while_g2_is_not_approved(root: Path) -> None:
+    run_recast(run(root), "acme", None)
+    before = {a["adj_id"]: a["status"] for a in list_adjustments(run(root), "acme")}
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE register_lines SET amount_inr = 130000 WHERE invoice_no = 'INV-1001'")
+
+    lines = run_recast(run(root), "acme", "FY25")
+
+    assert {a["adj_id"]: a["status"] for a in list_adjustments(run(root), "acme")} == before
+    assert "not replaced while gate G2 is not approved" in str(lines)
 
 
 def missing_adjustment(root: Path) -> bool:

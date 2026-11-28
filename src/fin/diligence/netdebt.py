@@ -21,7 +21,7 @@ from fin.audit.errors import NetDebtClassInvalid, NetDebtClassUnknown, NetDebtUn
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts, fetch_one
-from fin.diligence.engagement import company_database, rupees
+from fin.diligence.engagement import company_database, refuse_if_closed, rupees
 
 CLASSES = ("cash", "debt", "debt_like", "none")
 
@@ -96,6 +96,7 @@ def decide(run: Run, company: str, ids: list[int], status: str) -> list[dict[str
     ids = list(dict.fromkeys(ids))
     allowed = ("proposed",) if status == "confirmed" else ("proposed", "confirmed")
     with company_database(run, company, write=True) as con, transaction(con):
+        refuse_if_closed(con, company)
         rows = {r["class_id"]: r for r in _classes(con)}
         for class_id in ids:
             row = rows.get(class_id)

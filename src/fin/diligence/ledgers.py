@@ -23,7 +23,7 @@ from fin.audit.errors import InvalidMapping
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
-from fin.diligence.engagement import company_database
+from fin.diligence.engagement import company_database, refuse_if_closed
 from fin.map.dictionary import Account, load_accounts
 from fin.map.review import LOW_CONFIDENCE
 
@@ -211,13 +211,19 @@ def confirm(
     run: Run, company: str, ids: list[int], account: str | None = None, *, actor: str
 ) -> list[dict[str, Any]]:
     """Confirm the ledgers' proposed accounts (or `account` instead), all or nothing. E304 for an
-    unknown id, a ledger with no proposal and no `account`, or an account a ledger cannot map
-    to."""
+    unknown id, a rejected ledger (it waits for a new proposal), a ledger with no proposal and no
+    `account`, or an account a ledger cannot map to. E803 when the latest engagement is closed."""
     ids = list(dict.fromkeys(ids))
     accounts = load_accounts(run.root)
     with company_database(run, company, write=True) as con, transaction(con):
+        refuse_if_closed(con, company)
         rows = _rows(con, ids)
         for row in rows:
+            if row["status"] == "rejected":
+                raise InvalidMapping(
+                    f"ledger #{row['ledger_id']} is rejected; it stays unmapped until a new "
+                    "proposal is confirmed (`fin map ledgers`). Nothing changed"
+                ).with_context(ledger_id=row["ledger_id"], status=row["status"])
             chosen = account or row["account"]
             if chosen is None:
                 raise InvalidMapping(
@@ -249,6 +255,7 @@ def reject(run: Run, company: str, ids: list[int], *, actor: str) -> list[dict[s
     is unmapped until a new proposal is confirmed."""
     ids = list(dict.fromkeys(ids))
     with company_database(run, company, write=True) as con, transaction(con):
+        refuse_if_closed(con, company)
         rows = _rows(con, ids)
         for row in rows:
             con.execute(

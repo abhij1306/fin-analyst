@@ -12,6 +12,7 @@ from typer.testing import CliRunner, Result
 from fin.audit.logger import Run
 from fin.cli import app
 from fin.db.conn import connect
+from fin.documents import delete_document
 from fin.findings import recheck_held
 from fin.paths import company_db_path
 from fin.status import gaps
@@ -159,6 +160,24 @@ def test_figure_differing_between_documents_is_a_finding_with_both_sides(
         (first.name, "loaded"),
         (second.name, "loaded"),
     ]
+
+
+def test_deleting_the_document_a_held_one_differs_from_loads_the_held_one(
+    root: Path, samples: Path
+) -> None:
+    first = samples / "clean" / "bluepeak" / "Bluepeak_Polymers_FY2023-24.xlsx"
+    second = samples / "broken" / "Bluepeak_Polymers_FY2024-25_COMPARATIVE_mismatch.xlsx"
+    assert fin("ingest", "bluepeak", str(first)).exit_code == 0
+    assert fin("ingest", "bluepeak", str(second)).exit_code == 0
+    assert query(root, "bluepeak", "SELECT status FROM documents ORDER BY doc_id") == [
+        ("loaded",),
+        ("held",),
+    ]
+
+    lines = delete_document(Run("delete", {}, root), "bluepeak", 1)
+
+    assert f"held document rechecked: doc_id 2 {second.name} is loaded" in lines
+    assert query(root, "bluepeak", "SELECT doc_id, status FROM documents") == [(2, "loaded")]
 
 
 def test_status_shows_periods_held_findings_pending_read_by_claude_and_inbox(

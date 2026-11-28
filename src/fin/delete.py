@@ -3,7 +3,8 @@
 Removed, relative to the data folder:
 - `companies/<company>.duckdb` (and its `.wal`)
 - `inbox/<company>/`, `archive/<company>/`, `review/<company>/`, `notes/<company>/`,
-  `reports/<company>/`, `exports/<company>/`, `evals/<company>/`
+  `reports/<company>/`, `exports/<company>/`, `evals/<company>/`, `dataroom/<company>/` (unpacked
+  data-room archives and uploaded zips)
 - `cache/bank/<company>/`, the saved parses of its bank PDFs (they hold its account tokens)
 - the saved PDF parses of the company's files (`cache/<engine>/<sha256>...`, found through the
   sha256 of its documents and source files; not those of a file another company loaded too)
@@ -31,6 +32,7 @@ from fin.paths import (
     companies_dir,
     company_db_path,
     company_evals_dir,
+    dataroom_dir,
     dictionary_db_path,
     exports_dir,
     inbox_dir,
@@ -55,6 +57,7 @@ def company_paths(root: Path, company: str) -> list[Path]:
         reports_dir(root, company),
         exports_dir(root, company),
         company_evals_dir(root, company),
+        dataroom_dir(root, company),  # unpacked data-room archives and uploaded zips
         root / "cache" / "bank" / company,  # saved bank parses hold the company's tokens
         *_cache_files(root, company),
     ]

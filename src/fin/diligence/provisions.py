@@ -155,8 +155,9 @@ def collect(
     con: duckdb.DuckDBPyConnection, fdd: dict[str, Any], period: str | None = None
 ) -> dict[str, Any]:
     """F3's figures for a report or `fin provisions show` (all periods, or one): the
-    receivable_provision rows, the gratuity_indicative rows, the assumptions and the provision
-    ledgers. The FDD report (F8) calls this with config.toml's [fdd]."""
+    receivable_provision rows, the gratuity_indicative rows, the assumptions, the provision
+    ledgers and `absent` (a kind with a confirmed ledger that a period's trial balance lacks).
+    The FDD report (F8) calls this with config.toml's [fdd]."""
     where, args = ("WHERE period = ?", [period]) if period else ("", [])
     params = [Decimal(fdd["basic_share"]), fdd["gratuity_min_years"], Decimal(fdd["gratuity_cap"])]
     gratuity = fetch_dicts(
@@ -167,6 +168,13 @@ def collect(
         "gratuity": gratuity,
         "assumptions": assumptions(fdd),
         "ledgers": _ledgers(con),
+        # a confirmed ledger of the kind that this trial balance does not have: provision unknown
+        "absent": fetch_dicts(
+            con,
+            "SELECT period, kind, trial_balance_file FROM provision_balances WHERE confirmed "
+            f"AND ledgers = 0 {where.replace('WHERE', 'AND')} ORDER BY period, kind",
+            args,
+        ),
     }
 
 

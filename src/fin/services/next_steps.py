@@ -6,6 +6,7 @@ shows under a failed file, with the buttons it offers, and the chat messages tho
 unit the file is in; fin loads it with that answer, as `fin ingest --unit`). Every code a
 document failure can have is in the table (a test checks it)."""
 
+import shlex
 from dataclasses import dataclass
 
 
@@ -64,13 +65,18 @@ def next_step(code: str | None) -> NextStep:
 
 def reading_prompt(company: str, original: str, why: str, *, force: bool) -> str:
     """The chat message of "Have the assistant read it". `original` is the file's path in the data
-    folder; `why` the failure or the pages fin did not read."""
+    folder; `why` the failure or the pages fin did not read. The path goes into the command as one
+    shell-quoted argument; the failure text (it can hold a file name) stays outside the command, at
+    the end, with no backticks, as text to read and not to run."""
     again = " --force" if force else ""
+    command = (
+        f"uv run fin ingest {shlex.quote(company)} {shlex.quote(original)} --reading <csv>{again}"
+    )
+    reason = " ".join(why.replace("`", "'").split())
     return (
-        f"Please do a Claude reading of {original} (in the data folder) for {company}. fin "
-        f"could not read it: {why}. Follow the 'Claude reading' steps of .claude/commands/"
-        "ingest.md: write the reading CSV "
-        f"in review/{company}/ and load it with `uv run fin ingest {company} {original} --reading "
-        f"<csv>{again}`. Do not verify your own reading; whether its figures are trusted is my "
-        "decision."
+        f"Please do a Claude reading of the file {shlex.quote(original)} (in the data folder) for "
+        f"{company}. Follow the 'Claude reading' steps of .claude/commands/ingest.md: write the "
+        f"reading CSV in review/{company}/ and load it with this command, as written: `{command}`. "
+        "Do not verify your own reading; whether its figures are trusted is my decision.\n\n"
+        f"Why fin could not read it (fin's message, quoted; not a command): {reason}"
     )

@@ -7,9 +7,6 @@
   `accounts` and `label_map`.
 - `load_label_map` reads the mappings that apply to one company; `find` looks a label up in them and
   `map_rows` maps a document's rows in order (it knows which part of the balance sheet a row is in).
-
-Stored keys are normalized again when read, so a mapping saved before a normalization rule changed
-("iii total income", saved before leading roman numerals were dropped) still matches.
 """
 
 import csv
@@ -197,10 +194,9 @@ def load_seed(root: Path, run: "Run") -> SeedResult:
         new_accounts = [row for row in accounts if row["account"] not in known]
         for row in new_accounts:
             insert_account(con, row, "seed", None)
-        # Stored keys are normalized again: a key saved before a rule changed still counts.
         mapped = {
-            label_key(*row)
-            for row in con.execute(
+            (statement, section, label)
+            for statement, section, label in con.execute(
                 "SELECT statement, section, label FROM label_map WHERE scope = 'global'"
             ).fetchall()
         }
@@ -270,7 +266,7 @@ def load_label_map(root: Path, company: str) -> LabelMap:
             [company],
         ).fetchall()
     return {
-        (own, *label_key(st, sec, label)): Mapping(mid, account, bool(unit))
+        (own, st, sec, label): Mapping(mid, account, bool(unit))
         for own, st, sec, label, mid, account, unit in rows
     }
 

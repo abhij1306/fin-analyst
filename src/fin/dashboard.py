@@ -120,11 +120,29 @@ def build(root: Path) -> Path:
             f"the last good build is kept in {last_good_build_dir(root)}:\n{_tail(result)}"
         )
     target = last_good_build_dir(root)
-    staging = temp_name(target)
+    swap_in(built, target)
+    return target
+
+
+def swap_in(built: Path, target: Path) -> None:
+    """Copy `built` to `target`, never deleting the last good build before the new one is in
+    place: the old one is renamed aside, the new one renamed in, and only then the old one removed.
+    A failure puts the old one back (E603)."""
+    staging, old = temp_name(target), temp_name(target)
     try:
         shutil.copytree(built, staging)
-        shutil.rmtree(target, ignore_errors=True)
-        staging.replace(target)
+        if target.exists():
+            target.replace(old)
+        try:
+            staging.replace(target)
+        except OSError:
+            if old.exists() and not target.exists():
+                old.replace(target)
+            raise
+    except OSError as exc:
+        raise DashboardBuildFailed(
+            f"cannot put the new build in place at {target}: {exc}; the last good build is kept"
+        ) from exc
     finally:
-        shutil.rmtree(staging, ignore_errors=True)  # gone already when it replaced the build
-    return target
+        shutil.rmtree(staging, ignore_errors=True)  # gone already when it became the build
+        shutil.rmtree(old, ignore_errors=True)  # the previous build, once the new one is in

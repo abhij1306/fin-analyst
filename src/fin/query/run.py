@@ -68,10 +68,38 @@ MASKED_TABLE = re.compile(
 )
 
 
+# Table functions that read a table or a database named as text; a call to `query` is refused,
+# and the other two names wherever they appear.
+READS_BY_NAME = ("query_table", "read_duckdb")
+
+
+def _reaches_masked(sql: str) -> bool:
+    """Whether DuckDB's own tokens, comments left out, name mask_values, call query, or name
+    query_table or read_duckdb: a comment is whitespace to DuckDB (`query_table/**/(`), so the
+    text alone cannot tell. SQL the tokenizer cannot read counts as reaching it."""
+    try:
+        tokens = duckdb.tokenize(sql)
+    except duckdb.Error:
+        return True
+    words = []
+    ends = [start for start, _ in tokens[1:]] + [len(sql)]
+    for (start, kind), end in zip(tokens, ends, strict=True):
+        if kind != duckdb.token_type.comment:
+            words.append(sql[start:end].strip().strip('"').lower())
+    for word, after in zip(words, [*words[1:], ""], strict=True):
+        name = word.rsplit(".", 1)[-1]
+        if name == "mask_values" or name in READS_BY_NAME:
+            return True
+        if name == "query" and after.startswith("("):
+            return True
+    return False
+
+
 def refuse_masked(sql: str) -> None:
-    """E810 when the SQL names `mask_values` or calls query, query_table or read_duckdb (a name
-    match is enough: when in doubt, refuse)."""
-    if MASKED_TABLE.search(sql):
+    """E810 when the SQL names `mask_values` or calls query, query_table or read_duckdb, in the
+    text or in DuckDB's tokens with comments left out (a name match is enough: when in doubt,
+    refuse)."""
+    if MASKED_TABLE.search(sql) or _reaches_masked(sql):
         raise MaskedTableRead(
             "`fin sql` does not read mask_values (nor run query, query_table or read_duckdb, "
             "which could reach it): it holds the real names behind the masked tokens, which fin "

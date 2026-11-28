@@ -268,6 +268,16 @@ def _recast_inputs(ctx: Context) -> dict[str, Any]:
 
 # G4 Adjustments
 
+# An adjustment (alias a) with no live evidence: no source reference, and its query (if any) is
+# withdrawn and its finding (if any) is resolved or superseded: neither is a live difference.
+NO_LIVE_EVIDENCE = (
+    "coalesce(a.source_ref, '') = '' "
+    "AND NOT EXISTS (SELECT 1 FROM accountant_queries q WHERE q.query_id = a.query_id "
+    "AND q.status <> 'withdrawn') "
+    "AND NOT EXISTS (SELECT 1 FROM findings f WHERE f.finding_id = a.finding_id "
+    "AND f.status IN ('open', 'accepted'))"
+)
+
 
 def _adjustments_checklist(ctx: Context) -> list[Line]:
     engagement_id = ctx.engagement["engagement_id"]
@@ -279,9 +289,8 @@ def _adjustments_checklist(ctx: Context) -> list[Line]:
     )
     bare = _rows(
         ctx,
-        "SELECT adj_id FROM adjustments WHERE engagement_id = ? AND status = 'accepted' "
-        "AND query_id IS NULL AND finding_id IS NULL AND coalesce(source_ref, '') = '' "
-        "ORDER BY adj_id",
+        "SELECT adj_id FROM adjustments a WHERE engagement_id = ? AND status = 'accepted' "
+        f"AND {NO_LIVE_EVIDENCE} ORDER BY adj_id",
         [engagement_id],
     )
     lines = [
@@ -294,7 +303,11 @@ def _adjustments_checklist(ctx: Context) -> list[Line]:
         ),
         (True, "every accepted adjustment has evidence")
         if not bare
-        else (False, f"accepted adjustments without evidence: {_ids(bare)}"),
+        else (
+            False,
+            f"accepted adjustments without evidence: {_ids(bare)} (a withdrawn query or a "
+            "resolved or superseded finding is not evidence)",
+        ),
     ]
     return lines + fdd_gate_checks.checklist(ctx)
 

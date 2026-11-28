@@ -303,12 +303,12 @@ def adjustment_rows(
     con: duckdb.DuckDBPyConnection, engagement_id: int, period: str
 ) -> list[AdjustmentRow]:
     """The period's standalone recast adjustments (the scope `fin recast run` proposes in). The
-    last field says whether `fin recast run` made it (its source reference starts
-    'service_recast'): only those may be replaced by a later run."""
+    last field says whether `fin recast run` made it (`recast_recon_id` is set, which no command
+    option can set): only those may be replaced by a later run."""
     return [
-        (a, s, Decimal(m), r, (ref or "").startswith("service_recast "))
-        for a, s, m, r, ref in con.execute(
-            "SELECT adj_id, status, amount, reason, source_ref FROM adjustments "
+        (a, s, Decimal(m), r, made is not None)
+        for a, s, m, r, made in con.execute(
+            "SELECT adj_id, status, amount, reason, recast_recon_id FROM adjustments "
             "WHERE engagement_id = ? AND period = ? AND category = ? AND scope = 'standalone' "
             "ORDER BY adj_id",
             [engagement_id, period, CATEGORY],

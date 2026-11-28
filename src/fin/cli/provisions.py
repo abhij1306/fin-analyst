@@ -64,6 +64,11 @@ def format_show(data: dict[str, Any]) -> str:
         )
     if not data["gratuity"]:
         out.append("  none: no payroll snapshot with its unit confirmed annual")
+    for r in data["absent"]:
+        out.append(
+            f"Warning: {r['period']} {r['kind']} provision unknown ('-', not zero): no confirmed "
+            f"{r['kind']} ledger is in the trial balance {r['trial_balance_file']}"
+        )
     waiting = [r for r in data["ledgers"] if r["status"] == "proposed"]
     if not any(r["status"] == "confirmed" for r in data["ledgers"]):
         out.append("No provision ledger is confirmed: provision figures show '-'")

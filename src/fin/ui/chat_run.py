@@ -212,10 +212,11 @@ class Chat:
             code = process.wait()
             drain.join(timeout=2)
             reader.finish(code, "".join(errors))
-            conv = chat_store.load(self.root, conv_id)
-            chat_store.items(conv).extend(reader.items)
-            conv["started"] = bool(conv["started"]) or reader.session
-            chat_store.save(self.root, conv)
+            with chat_store.LOCK:  # one change: load, add the turn's items, save
+                conv = chat_store.load(self.root, conv_id)
+                chat_store.items(conv).extend(reader.items)
+                conv["started"] = bool(conv["started"]) or reader.session
+                chat_store.save(self.root, conv)
         finally:
             with turn.cond:
                 turn.finished = True
