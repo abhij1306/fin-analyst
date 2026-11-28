@@ -10,7 +10,7 @@ The one line fin changes is `[pdf] parser`, through `fin parser use <name>` (`se
 
 import re
 import tomllib
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -407,7 +407,7 @@ def _display_values(
     own = dict(table)
     if "unit" in own and "unit_label" not in own:
         own["unit_label"] = UNIT_LABELS[own["unit"]]
-    return replace(base, **own)
+    return Display(**{**asdict(base), **own})
 
 
 def _archive_limit(table: dict[str, Any], path: Path) -> int:

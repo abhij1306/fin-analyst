@@ -29,7 +29,11 @@ LAKHS = (
 
 # Division by a unit's size (Python) and any division in a template expression. Loading a
 # document converts its own unit to rupees (extract/, ingest.py): that is storing, not showing.
-PY_DIVISION = re.compile(r"/\s*\(?\s*[\w.\[\]\"']*(?:per_unit|PER_UNIT|DISPLAY_UNITS|rupees_per)")
+PY_DIVISION = re.compile(
+    r"/\s*\(?\s*[\w.\[\]\"']*(?:per_unit|PER_UNIT|DISPLAY_UNITS|rupees_per)"
+    r"|/\s*\(?\s*(?:Decimal\(\s*[\"']?)?"
+    r"(?:1_?000|10_?000|100_?000|1_?000_?000|10_?000_?000|1e[3-9])\b"
+)
 TEMPLATE_EXPRESSION = re.compile(r"\{[{%].*?[}%]\}", re.DOTALL)
 QUOTED = re.compile(r"\"[^\"]*\"|'[^']*'")
 LOADING = ("extract", "ingest.py")
@@ -95,6 +99,8 @@ def _template_divisions(text: str) -> list[str]:
 
 def test_no_python_or_template_code_divides_a_stored_value() -> None:
     assert PY_DIVISION.search("value / RUPEES_PER_UNIT[unit]")  # what the search finds
+    assert PY_DIVISION.search('value / Decimal("100000")')
+    assert PY_DIVISION.search("value / 1_000_000")
     assert _template_divisions("{{ row.value / 100000 }}")
     assert not _template_divisions('{{ act("x", ask="backed up to backups/ first") }}')
     found = [

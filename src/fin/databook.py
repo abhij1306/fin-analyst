@@ -110,7 +110,9 @@ def format_databook(company: str, tables: list[dict[str, Any]]) -> str:
             + "".join(f"{c['title']:>{w}}" for c, w in zip(table["columns"], widths, strict=True))
         )
         for line in table["lines"]:
-            mark = "*" if line["rounding"] else "=" if line["subtotal"] else " "
+            mark = "=" if line["subtotal"] else " "
+            if line["rounding"]:
+                mark = "*"
             label = f"{mark} " + "  " * line["depth"] + line["label"]
             cells = "".join(f"{c['text']:>{w}}" for c, w in zip(line["cells"], widths, strict=True))
             out.append((f"{label:<52}" + cells).rstrip())

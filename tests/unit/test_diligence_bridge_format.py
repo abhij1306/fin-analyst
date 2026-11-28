@@ -3,7 +3,8 @@
 from datetime import datetime
 from decimal import Decimal
 
-from fin.diligence.bridge import format_bridge
+from fin.config import Display
+from fin.diligence.bridge import _bridge_block, format_bridge
 
 D = Decimal
 
@@ -111,3 +112,28 @@ def test_a_bridge_without_reported_ebitda_names_the_missing_input() -> None:
         "  Reported EBITDA" + " " * 41 + "n/a".rjust(17) + "  (missing: ebitda)",
         f"  {message}",
     ]
+
+
+def test_a_reclassification_names_the_amount_it_moves_in_the_display_unit() -> None:
+    summary = {
+        "period": "FY26",
+        "scope": "standalone",
+        "reported_ebitda": D("9000000"),
+        "accepted_revenue_effect": D("0"),
+        "proposed_count": 0,
+    }
+    step = {
+        "kind": "adjustment",
+        "adj_id": 4,
+        "category": "reclassification",
+        "description": "Freight",
+        "from_account": "other_expenses",
+        "account": "cost_of_materials",
+        "moved_amount": D("2500000"),
+        "amount": D("0"),
+    }
+    display = Display("millions", 1, "brackets", "INR Mn")
+
+    lines = _bridge_block("acme", display, summary, [step])
+
+    assert "(other_expenses to cost_of_materials, moves 2.5 INR Mn)" in lines[2]

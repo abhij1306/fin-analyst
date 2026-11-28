@@ -116,9 +116,8 @@ def _bridge_block(
         if step["kind"] == "adjustment":
             label = f"#{step['adj_id']} {step['category']}: {label}"
             if step["from_account"]:
-                label += (
-                    f" ({step['from_account']} to {step['account']}, moves {step['moved_amount']})"
-                )
+                moved = money(step["moved_amount"], display)
+                label += f" ({step['from_account']} to {step['account']}, moves {moved})"
         note = missing(summary, ("reported_ebitda",)) if step["amount"] is None else ""
         out.append(_line(label, step["amount"], display, note))
     if summary["accepted_revenue_effect"]:  # a margin on adjusted revenue differs from the reported

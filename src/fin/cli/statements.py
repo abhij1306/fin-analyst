@@ -32,6 +32,32 @@ def _one_of(choices: tuple[str, ...]) -> Callable[[str | None], str | None]:
     return check
 
 
+def _refuse_combinations(rebuilt: bool, scope: str | None, layout: str, extras: bool) -> None:
+    """Refuse options the chosen mode would ignore."""
+    if rebuilt and scope == "consolidated":
+        raise typer.BadParameter(
+            "the rebuilt statements are standalone (one company's trial balance)",
+            param_hint="--scope",
+        )
+    if extras and layout != "databook":
+        raise typer.BadParameter("needs --layout databook", param_hint="--of-revenue/--yoy")
+    if rebuilt and layout == "databook":
+        raise typer.BadParameter("--rebuilt has its own layout", param_hint="--layout")
+
+
+def _show_rebuilt(
+    run: Run, company: str, period: str | None, display: Display, json_output: bool
+) -> None:
+    result = rebuilt_rows(run.root, company, period, display)
+    if period is None:
+        result = select_period(result, latest_annual_period(result["rows"]))
+    if json_output:
+        shown = {key: value for key, value in result.items() if key != "display"}
+        typer.echo(json.dumps(shown, indent=2, default=str))
+    else:
+        typer.echo(format_rebuilt(company, result))
+
+
 @app.command("statements")
 def statements_command(
     company: Annotated[
@@ -85,20 +111,12 @@ def statements_command(
     Money is in the display unit (config.toml [display], or --unit), converted in SQL.
     With --rebuilt: each line as reported, as rebuilt from the trial balance, and the difference.
     With --layout databook: every period (or --period) as a column."""
-    if rebuilt and scope == "consolidated":
-        raise typer.BadParameter(
-            "the rebuilt statements are standalone (one company's trial balance)",
-            param_hint="--scope",
-        )
-    if (of_revenue or yoy) and layout != "databook":
-        raise typer.BadParameter("needs --layout databook", param_hint="--of-revenue/--yoy")
-    if rebuilt and layout == "databook":
-        raise typer.BadParameter("--rebuilt has its own layout", param_hint="--layout")
+    _refuse_combinations(rebuilt, scope, layout, of_revenue or yoy)
 
     def body(run: Run) -> None:
         display = display_settings(run.root, company, unit)
         if rebuilt:
-            show_rebuilt(run, display)
+            _show_rebuilt(run, company, period, display, json_output)
             return
         rows = statement_rows(run.root, company, period, scope, display)
         if layout == "databook":
@@ -114,16 +132,6 @@ def statements_command(
             typer.echo(json.dumps(rows, indent=2, default=str))
         else:
             typer.echo(format_statements(company, rows, display))
-
-    def show_rebuilt(run: Run, display: Display) -> None:
-        result = rebuilt_rows(run.root, company, period, display)
-        if period is None:
-            result = select_period(result, latest_annual_period(result["rows"]))
-        if json_output:
-            shown = {key: value for key, value in result.items() if key != "display"}
-            typer.echo(json.dumps(shown, indent=2, default=str))
-        else:
-            typer.echo(format_rebuilt(company, result))
 
     params = {
         "company": company, "period": period, "scope": scope, "rebuilt": rebuilt,
