@@ -71,8 +71,6 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
   and G1 lists it for the user before approving.
 - **How to change it**: `src/fin/diligence/recon.py: statement_figures`.
 
-## E505 covers documents too
-
 ## E505 covers documents and the reference tables too
 
 - **OWNER DECISION** (owner, 2026-11-28): asked whether `fin sql --write` should refuse to change the `documents` table,
