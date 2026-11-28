@@ -295,16 +295,18 @@ def _monthly_costs(books: Books) -> None:
                 "CARD-Nimbus Cloud Services",
             )
         )
-        salary = sum(e.ctc // 12 for e in d.EMPLOYEES if e.joined <= m)
-        books.add(
-            Voucher(
-                month_end(m),
-                "Payment",
-                f"SALARY/{m:%y%m}",
-                [("Salaries", salary, 0), (d.BANK, 0, salary)],
-                f"SALARY-{m:%b-%Y}",
+        paid = [e for e in d.EMPLOYEES if e.joined <= m]
+        for n, employee in enumerate(paid, 1):  # one transfer per employee
+            salary = employee.ctc // 12
+            books.add(
+                Voucher(
+                    month_end(m),
+                    "Payment",
+                    f"SALARY/{m:%y%m}/{n:02d}",
+                    [("Salaries", salary, 0), (d.BANK, 0, salary)],
+                    f"SALARY-{m:%b-%Y}",
+                )
             )
-        )
 
 
 def _gst(books: Books) -> None:
@@ -437,6 +439,14 @@ def _year_end(books: Books) -> None:
     )
 
 
+def _forensic(books: Books) -> None:
+    """The journals planted for the forensic tests (SPEC-18, `data.FORENSIC`)."""
+    for p in d.FORENSIC:
+        books.add(
+            Voucher(p.when, "Journal", p.number, [(p.debit, p.amount, 0), (p.credit, 0, p.amount)])
+        )
+
+
 def _tax(books: Books) -> None:
     """Tax at TAX_RATE on each year's profit before tax as provisionally closed (the auditor's
     adjustment is not deductible), paid on 31 July of the next year."""
@@ -494,6 +504,7 @@ def build() -> Books:
     _loan(books)
     _year_end(books)
     _gst(books)
+    _forensic(books)
     _tax(books)
     books.vouchers.sort(key=lambda v: (v.when, v.kind != "Sales", v.number))
     return books

@@ -1,0 +1,65 @@
+{% from "_ui.html" import head, badge, empty, no_company, no_engagement %}
+{% if data.empty %}
+{{ no_company() }}
+{% elif data.no_engagement %}
+{{ head("Forensic") }}
+{{ no_engagement(data.no_engagement, company, data.can_open) }}
+{% else %}
+{% call head("Forensic", "Tests over the ledger vouchers. A flag is an entry for the company to explain, never a conclusion; nothing is changed to clear one. The settings are on the Settings screen.") %}
+<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML"><input type="hidden" name="action" value="forensic-run"><input type="hidden" name="company" value="{{ company }}"><button type="submit" class="btn" data-size="sm">Run the forensic tests</button></form>
+<a class="btn" data-size="sm" data-variant="outline" href="/settings?company={{ company | urlencode }}#forensic-settings">Settings</a>
+{% endcall %}
+{#- Asked again when a job ends (job-done, sent by the Jobs card), so a run's status and flags show without a reload. -#}
+<div id="forensic-results" hx-get="/partials/forensic?company={{ company | urlencode }}" hx-trigger="job-done from:body" hx-select="#forensic-results" hx-swap="outerHTML">
+<div class="card">
+  <header><h2>Status</h2><p class="muted">Each test per period: ran, stale (the data, a mapping, the threshold or a setting changed since: run again), too few entries, cannot run (what it needs) or not run.</p></header>
+  <section class="flush"><div class="table-container"><table class="table">
+    <thead><tr><th>Test</th><th>Period</th><th>State</th></tr></thead>
+    <tbody>
+      {% for name, t in data.tests.items() %}{% for r in t.rows %}
+      <tr><td>{% if loop.first %}<strong>{{ t.title }}</strong> <code>{{ name }}</code>{% endif %}</td><td>{{ r.period }}</td><td>{{ badge(r.state, r.text, as="warn" if r.state == "stale" else none) }}</td></tr>
+      {% endfor %}{% endfor %}
+    </tbody>
+  </table></div></section>
+</div>
+{% if not data.count %}
+<div class="card"><section>{{ empty("No flags", "Run the forensic tests, or the latest runs flagged nothing.") }}</section></div>
+{% else %}
+<form class="card" hx-get="/partials/forensic-ask" hx-target="#forensic-outcome" aria-label="Forensic flags">
+  <input type="hidden" name="company" value="{{ company }}">
+  <header><h2>{{ data.count }} flags</h2>
+    <p class="muted">Tick the flags marked "can be queried" (one period at a time) and ask the assistant to draft one query; you approve it on the Queries screen.</p>
+    <button type="submit" class="btn" data-size="sm">Ask the assistant to draft a query</button>
+    <div id="forensic-outcome"></div>
+  </header>
+  <section>
+    {% for name, t in data.tests.items() if t.flags %}
+    <details open><summary><strong>{{ t.title }}</strong> <code>{{ name }}</code>: {{ t.flags | length }}</summary>
+      <ul class="tree">
+      {% for f in t.flags %}
+        <li>
+          {% if f.queryable %}<input type="checkbox" class="input" name="item" value="{{ f.flag_id }}" aria-label="Flag {{ f.flag_id }}">{% endif %}
+          <details><summary>
+            <strong>#{{ f.flag_id }} {{ f.period }}</strong> {{ f.voucher_no or "" }} {{ f.ledger or "" }}: <strong>{{ f.amount_text }}</strong>
+            {% if f.stale %}{{ badge("stale", as="warn") }}{% endif %}
+            {% if not f.over_threshold %}{{ badge("below the threshold", as="info") }}{% endif %}
+            {% if f.query_id %}<a href="/queries?company={{ company | urlencode }}">{{ badge(f.query_status, "query #" ~ f.query_id ~ " " ~ f.query_status) }}</a>{% elif f.queryable %}{{ badge("can be queried", as="info") }}{% endif %}
+          </summary>
+          <div class="sub">
+            <div>{{ f.reason }}</div>
+            <div>Source: {{ f.source }}</div>
+            {% if f.entry_date %}<div>{{ f.voucher_type or "" }} {{ f.voucher_no or "" }} dated {{ f.entry_date }}</div>{% endif %}
+            {% if f.account %}<div>Account {{ f.account }}{% if not f.mapping_confirmed %} (mapping not confirmed){% endif %}</div>{% endif %}
+            {% if f.party %}<div>Party {{ f.party }}</div>{% endif %}
+          </div></details>
+        </li>
+      {% endfor %}
+      </ul>
+    </details>
+    {% endfor %}
+  </section>
+</form>
+{% endif %}
+</div>
+{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
+{% endif %}

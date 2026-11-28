@@ -32,6 +32,7 @@ from fin.diligence.cli_options import (
     rupees_option,
     text_option,
 )
+from fin.forensic.handoff import raise_from_flags
 from fin.paths import data_dir
 from fin.reconcile import items as recon_items
 from fin.services import decisions
@@ -128,13 +129,23 @@ def query_raise(
             "e.g. 12,13,14; one period, at or above the threshold).",
         ),
     ] = None,
+    flags: Annotated[
+        str | None,
+        typer.Option(
+            "--flags",
+            metavar="IDS",
+            help="One query for these forensic flags (ids from `fin forensic flags`; one "
+            "period, at or above the threshold).",
+        ),
+    ] = None,
 ) -> None:
     """Raise a draft query: from a finding (its period, scope, difference and sources; the finding
     is not changed), from reconciliation lines (--items: one issue, many lines), as an inquiry
-    for management (--topic), or with --amount, --period and --source."""
+    for management (--topic), from forensic flags (--flags), or with --amount, --period and
+    --source."""
 
     # Usage errors, before the run starts (like the option callbacks).
-    item_ids = check_raise_options(items, finding, (amount, period, scope, source), topic)
+    item_ids = check_raise_options(items, finding, (amount, period, scope, source), topic, flags)
 
     def body(run: Run) -> None:
         if topic is not None:
@@ -142,6 +153,11 @@ def query_raise(
                 run, company, topic=topic, question=question, period=period, scope=scope
             )
             typer.echo(queries.format_query(row))
+            return
+        if flags is not None:
+            row = raise_from_flags(run, data_dir(), company, item_ids, question)
+            typer.echo(queries.format_query(row))
+            typer.echo(f"    flags: {len(item_ids)}")
             return
         if items is not None:
             row, summary = recon_items.raise_from_items(run, company, item_ids, question)
@@ -172,6 +188,7 @@ def query_raise(
         "scope": scope,
         "source": source,
         "items": items,
+        "flags": flags,
         "topic": topic,
     }
     execute("query raise", args, body)

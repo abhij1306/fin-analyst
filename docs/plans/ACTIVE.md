@@ -107,7 +107,7 @@ Updated: 2026-11-28.
 | 17 | 5 | Show the recast against the books in the differences list | | done (#134) |
 | review | data | System review of data intake and integrity across #116 to #134 | | done (#136) |
 | review | ui | Cross-PR system review of the web UI: seams, invariants and dead ends | high | done (#138) |
-| 18 | 1 | Add the forensic flags, settings, status and Forensic screen with the journal-entry tests | high | todo |
+| 18 | 1 | Add the forensic flags, settings, status and Forensic screen with the journal-entry tests | high | done (#144) |
 | 19 | 1 | Add the bank row and flow checks to the forensic tests | | todo |
 | 20 | 1 | Add the counterparty tests, the accrual and period-end measures and the GSTR-2B reconciliation | high | todo |
 | 21 | 1 | Add the forensic area and the forensic section of the FDD report | high | todo |

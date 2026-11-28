@@ -15,7 +15,7 @@ from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.extract.addon import ADDON_LABELS
 from fin.ingest import UNIT_ANSWERS
-from fin.services import addon, dataroom, ingest, questions, reports, system
+from fin.services import addon, dataroom, forensic, ingest, questions, reports, system
 from fin.services.jobs import Jobs, Work, list_jobs
 from fin.services.result import ActionResult, Progress, Refused
 from fin.ui.actions import ITEM_ID
@@ -34,6 +34,7 @@ LABELS = {
     "dashboard": "Build the dashboard",
     "update": "Update fin",
     "rerun": "Run a question again",
+    "forensic-run": "Run the forensic tests",
 }
 # The actions that take a choice: its values and the argument it becomes.
 CHOICES = {
@@ -96,6 +97,10 @@ def _rerun(root: Path, company: str, *, query_id: str, progress: Progress) -> Ac
     )
 
 
+def _forensic_run(root: Path, company: str, *, progress: Progress) -> ActionResult:
+    return forensic.run_tests(root, company, via="ui", actor=USER, progress=progress)
+
+
 WORK: dict[str, Work] = {
     "export": _export,
     "addon": _addon,
@@ -108,6 +113,7 @@ WORK: dict[str, Work] = {
     "dashboard": _dashboard,
     "update": _update,
     "rerun": _rerun,
+    "forensic-run": _forensic_run,
 }
 
 

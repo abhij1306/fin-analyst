@@ -30,6 +30,7 @@ from fin.ui.chat_run import Chat
 from fin.ui.csrf import origin_guard
 from fin.ui.differences_screen import query_prompt
 from fin.ui.diligence_routes import add_diligence_routes
+from fin.ui.forensic_screen import add_forensic_routes
 from fin.ui.job_routes import WORK, add_job_routes
 from fin.ui.nav import NAV_GROUPS, SCREENS
 from fin.ui.security import new_token, protect
@@ -61,7 +62,7 @@ def report_response(path: Path) -> FileResponse:
 
 
 def _add_drawer_routes(app: FastAPI, root: Path, templates: Jinja2Templates) -> None:
-    """A figure's source, the Differences screen's ask, and a report file."""
+    """A figure's source, the Differences and Forensic screens' asks, and a report file."""
 
     @app.get("/partials/statement-source", response_class=HTMLResponse)
     def statement_source(request: Request, company: str) -> HTMLResponse:
@@ -85,6 +86,8 @@ def _add_drawer_routes(app: FastAPI, root: Path, templates: Jinja2Templates) -> 
     def report_file(company: str, name: str) -> FileResponse:
         """A report or export of the company: HTML opens in the browser, the others download."""
         return report_response(screens.report_file(root, known(root, company) or "", name))
+
+    add_forensic_routes(app, root, templates, known)  # the Forensic screen's ask and settings
 
 
 def create_app(root: Path, token: str, port: int, claude: list[str] | None = None) -> FastAPI:

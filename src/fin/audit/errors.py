@@ -622,6 +622,14 @@ from fin.audit.errors_fdd import (  # noqa: E402, F401
     WalkthroughInvalid,
 )
 
+# E990-E993: the forensic layer, in fin.audit.errors_forensic (split for size), re-exported.
+from fin.audit.errors_forensic import (  # noqa: E402, F401
+    ForensicFlagNotQueryable,
+    ForensicFlagUnknown,
+    ForensicSettingInvalid,
+    ForensicTestUnknown,
+)
+
 # E822: rebuilt statements, in fin.audit.errors_rebuilt (split for size), re-exported.
 from fin.audit.errors_rebuilt import RebuildNotPossible  # noqa: E402, F401
 

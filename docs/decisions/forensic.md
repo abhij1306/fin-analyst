@@ -169,6 +169,31 @@ Given to the orchestrator on the plan, 2026-11-28.
   value. A second pass matches the lines left by invoice number and taxable value in the month, marked "vendor names
   differ" (a 2B legal name and a register trade name of one supplier); fin does not guess an alias otherwise. Like the four GST reconciliations, it is not a gate input.
 
+### Builder readings for SPEC-18 PR 1 (2026-11-28)
+
+The owner confirms or changes these.
+
+- **A flag is a line.** A test flags each Ledger Vouchers line it finds (a planted two-line journal gives two flags,
+  one per ledger), so each flag has one file, sheet!row, ledger and account; a pair flags the debit line with the
+  voucher's total, and a voucher gap is one flag with no amount and the series as its source.
+- **Near misses** (the "just outside" counts in the run log and the eval bundle): a single-entry amount or date within
+  20% of its threshold that is not flagged (for example a journal 6 days before the year end when the window is 5, a
+  reversal on day 16 when the window is 15, 2.2% below a limit when the band is 2%); a series with 80% of
+  `min_series` numbers that has a gap; a ledger one line over `rare_max_lines`; a pair seen in two vouchers; a
+  Benford group whose deviation is from 80% of the bound.
+- **A gap can go to a query.** It has no amount, so it counts as at or above the threshold.
+- **Minimum population is counted in lines** for rare ledgers and unusual pairs (the decision allows lines or whole
+  vouchers); vouchers that are not whole are left out of the pairs and counted.
+- **`je_period_end` and `je_reversed` cannot run** without the previous or the next period's Ledger Vouchers, and
+  say so; they do not run on half the comparison.
+- **The query stays on its flag when a test runs again**: a flag of a later run with the same test, period, source,
+  voucher and ledger shows the earlier flag's query, and cannot go to a second open query.
+- **Keyword lists** (the spec's user inputs) are not added: no SPEC-18 test reads one, and a setting no test reads is a
+  speculative feature. The first test that reads keywords adds its setting.
+- **The FDD hand-off** of a flag (spec scope 4) belongs to SPEC-21; this PR hands flags to a query only.
+- **The mock's salaries** are paid per employee (one Payment voucher each, `SALARY/<yymm>/<nn>`, with no employee
+  code), so a full year has the 500 lines the rare-ledger and pair tests need; the books' totals do not change.
+
 ### Who sets the inputs
 
 - **Decision:** approval limits, holidays, keyword lists and thresholds are the user's: Claude sets one only when the user gives it,
