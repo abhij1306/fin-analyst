@@ -66,7 +66,7 @@ jobs:
       - name: fin doctor passes
         run: |
           eval "$(brew shellenv)"
-          uv run --frozen fin doctor | tee "$RUNNER_TEMP/doctor.txt"
+          uv run --frozen fin doctor | tee "$RUNNER_TEMP/doctor.txt" # NOSONAR: uv refuses --no-build for the editable project install
           grep -q "ok    python source: uv's own Python" "$RUNNER_TEMP/doctor.txt"
           grep -q "ok    web ui: installed" "$RUNNER_TEMP/doctor.txt"
       - name: Smoke ingest and query

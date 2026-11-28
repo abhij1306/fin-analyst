@@ -55,7 +55,7 @@ Nothing in this section is behaviour until its PR changes the sections below.
 | Reports | Quarto | HTML, docx, Typst PDF (no LaTeX) |
 | Dashboards | Evidence | Node LTS, local dev server |
 | Tests / lint | pytest, ruff | |
-| CI | GitHub Actions | Linux on every push (including the Linux install in an `ubuntu:24.04` container); macOS on main, on demand and on a PR that changes the install |
+| CI | GitHub Actions | Linux on every PR and main push (including the Linux install in an `ubuntu:24.04` container); macOS on main, on demand and on a PR that changes the install |
 | System deps | macOS: Homebrew `Brewfile` and Quarto's release tarball; Linux: `install.sh` (apt-get and pinned downloads) | uv, node, quarto, poppler |
 
 Python dependencies are pinned exactly in `uv.lock`, and run on uv's own Python 3.12 (`.python-version`). Homebrew cannot pin versions, so on macOS `install.sh` takes its current
@@ -269,7 +269,7 @@ E401-E405 are findings (the document is held); setup, database and output errors
 **Install (end user)**
 
 ```
-git clone <repo-url> && cd fin-analyst
+git clone <repo-url> ~/fin-analyst && cd ~/fin-analyst
 ./install.sh             # or ./install.sh --parser docling|liteparse|llamaparse for the optional PDF add-on
 claude
 ```

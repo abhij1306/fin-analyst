@@ -167,7 +167,8 @@ def test_python_source_warns_on_a_python_from_path(
 ) -> None:
     monkeypatch.setattr("fin.doctor.uv_python_dir", lambda: tmp_path / "uv-python")
     check = check_python_source()
-    assert (check.ok, check.warning) == (True, True)
+    assert check.ok
+    assert check.warning
     assert check.detail.endswith("is not uv's own Python (one found on PATH was used)")
     assert check.fix == "run ./install.sh (it makes .venv again with uv's own Python)"
 
@@ -175,7 +176,8 @@ def test_python_source_warns_on_a_python_from_path(
 def test_python_source_warns_when_uv_does_not_answer(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("fin.doctor.uv_python_dir", lambda: None)
     check = check_python_source()
-    assert (check.ok, check.warning) == (True, True)
+    assert check.ok
+    assert check.warning
     assert "did not answer" in check.detail
 
 
@@ -186,7 +188,8 @@ def test_repo_in_a_temporary_folder_warns(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert in_temp_folder(Path("/var/folders/x1/T/fin-analyst"))
     monkeypatch.setattr("fin.doctor.REPO", repo)
     check = check_repo_folder()
-    assert (check.ok, check.warning) == (True, True)
+    assert check.ok
+    assert check.warning
     assert check.detail == f"{repo} is in a temporary folder, which the system or an app can delete"
     assert check.fix is not None and "~/fin-analyst" in check.fix
 
@@ -194,7 +197,7 @@ def test_repo_in_a_temporary_folder_warns(monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_repo_in_a_chosen_folder_is_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
     monkeypatch.setattr("fin.doctor.tempfile.gettempdir", lambda: str(tmp_path / "tmp"))
-    chosen = tmp_path / "home" / "fin-analyst"
+    chosen = Path("/srv/clients/fin-analyst")  # outside every temporary folder
     assert not in_temp_folder(chosen)
     monkeypatch.setattr("fin.doctor.REPO", chosen)
     assert check_repo_folder() == Check("repo folder", True, str(chosen))

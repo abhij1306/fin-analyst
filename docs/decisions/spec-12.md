@@ -22,7 +22,7 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
 ## `--ui` is gone; `--no-ui` removes an installed UI
 
 - **Decision**: every run installs the `ui` extra unless `--no-ui` is given. `--no-ui` on a checkout that has the
-  UI removes it (a plain sync), as `--parser none` removes an add-on. The old `--ui` flag is refused as unknown.
+  UI removes it (a sync without the `ui` extra), as `--parser none` removes an add-on. The old `--ui` flag is refused as unknown.
 - **Why**: greenfield, no compatibility code; one flag, and the second run without flags still changes nothing.
 - **How to change it**: `install.sh`, `NO_UI` and `EXTRAS`.
 

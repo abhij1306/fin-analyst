@@ -16,7 +16,7 @@ cd ~/fin-analyst
 ./install.sh             # Homebrew tools, Quarto (no sudo), uv's own Python, uv sync with the web UI, ~/FinAnalysis, fin init, fin doctor
 ```
 
-It needs no password. If it stops, it prints the failing command and the reason; a network failure is tried again
+It needs no password, except Homebrew's own installer on a Mac that has no Homebrew yet. If it stops, it prints the failing command and the reason; a network failure is tried again
 first. Its last line is the command that opens the web UI.
 
 `uv run fin doctor` must show every line `ok` or `warn`. PDF statements that pdfplumber cannot read need an add-on:

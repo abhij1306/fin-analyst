@@ -63,6 +63,13 @@ def test_a_password_prompt_is_not_retried_and_says_what_to_do(tmp_path: Path) ->
     assert "check the network" not in result.stderr
 
 
+def test_a_password_timeout_is_not_taken_for_a_network_failure(tmp_path: Path) -> None:
+    result, attempts = _run(tmp_path, ["sudo: timed out reading password"])
+    assert attempts == 1
+    assert result.returncode == 1
+    assert "run ./install.sh yourself in a terminal" in result.stderr
+
+
 def test_another_failure_is_not_retried_and_names_the_command(tmp_path: Path) -> None:
     result, attempts = _run(tmp_path, ["Error: No such file or directory - Brewfile"])
     assert attempts == 1
@@ -70,6 +77,22 @@ def test_another_failure_is_not_retried_and_names_the_command(tmp_path: Path) ->
     assert "'step --flag' failed (exit 3) and it is not a network failure: see the lines above" in (
         result.stderr
     )
+
+
+def test_a_missing_package_is_not_taken_for_a_network_failure(tmp_path: Path) -> None:
+    result, attempts = _run(
+        tmp_path, ["E: Failed to fetch http://deb.example/p.deb  404  Not Found"]
+    )
+    assert attempts == 1
+    assert "it is not a network failure: see the lines above" in result.stderr
+
+
+def test_a_mirror_server_error_is_tried_again(tmp_path: Path) -> None:
+    result, attempts = _run(
+        tmp_path, ["E: Failed to fetch http://deb.example/p.deb  503  Service Unavailable"]
+    )
+    assert attempts == 2
+    assert result.returncode == 0
 
 
 def test_a_network_failure_is_tried_three_times(tmp_path: Path) -> None:

@@ -114,13 +114,13 @@ in_temp_folder() { # in_temp_folder DIR: DIR is inside a folder the system may e
   return 1
 }
 if in_temp_folder "$REPO_DIR"; then
-  echo "install: WARNING: $REPO_DIR is in a temporary folder, which the system or an app can delete. Clone fin into a folder you choose (for example ~/fin-analyst) and run ./install.sh there."
+  echo "install: WARNING: $REPO_DIR is in a temporary folder, which the system or an app can delete. Clone fin into a folder you choose (for example ~/fin-analyst) and run ./install.sh there." >&2
 fi
 
 # A failed step is tried again only when its output shows a network failure (a name lookup, a refused, reset or
 # timed-out connection, an HTTP 5xx from a mirror or GitHub). Anything else, such as a password prompt with no
 # terminal to ask in or a missing permission, stops at once with the command and what to do.
-NETWORK_PATTERN='Could not resolve|Temporary failure (in name resolution|resolving)|Failed to connect|Could not connect|Connection (refused|reset|failed)|timed out|Network is unreachable|returned error: 5[0-9][0-9]|HTTP/[0-9.]+ 5[0-9][0-9]|curl: \((6|7|18|28|35|52|56)\)|SSL_ERROR|Hash Sum mismatch|Failed to fetch'
+NETWORK_PATTERN='Could not resolve|Temporary failure (in name resolution|resolving)|Failed to connect|Could not connect|Connection (refused|reset|failed)|timed out|Network is unreachable|returned error: 5[0-9][0-9]|HTTP/[0-9.]+ 5[0-9][0-9]|curl: \((6|7|18|28|35|52|56)\)|SSL_ERROR|Hash Sum mismatch|Failed to fetch [^ ]+ +5[0-9][0-9] '
 PERMISSION_PATTERN='password|a terminal is required|askpass|Sorry, try again|sudo access|must be run as root|Permission denied|Operation not permitted|not writable'
 
 run_retrying() { # run_retrying PAUSE_SECONDS COMMAND...: up to 3 attempts, again only after a network failure
@@ -134,11 +134,15 @@ run_retrying() { # run_retrying PAUSE_SECONDS COMMAND...: up to 3 attempts, agai
       rm -f "$out"
       return 0
     fi
-    if ! grep -Eqi "$NETWORK_PATTERN" "$out"; then
+    # A password or permission failure stops even when its output also looks like a network one
+    # (sudo: "timed out reading password").
+    hint=""
+    if grep -Eqi "$PERMISSION_PATTERN" "$out"; then
+      hint="it needs a password or a permission it does not have, and there may be no terminal to ask in; run ./install.sh yourself in a terminal (on Linux as root or with sudo)"
+    elif ! grep -Eqi "$NETWORK_PATTERN" "$out"; then
       hint="see the lines above"
-      if grep -Eqi "$PERMISSION_PATTERN" "$out"; then
-        hint="it needs a password or a permission it does not have, and there may be no terminal to ask in; run ./install.sh yourself in a terminal (on Linux as root or with sudo)"
-      fi
+    fi
+    if [[ -n "$hint" ]]; then
       rm -f "$out"
       die "'$*' failed (exit $status) and it is not a network failure: $hint. Fix that and run ./install.sh again."
     fi
@@ -216,6 +220,7 @@ install_quarto_macos() {
   rm -rf "$QUARTO_HOME"
   mv "$top" "$QUARTO_HOME"
   ln -sf "$QUARTO_HOME/bin/quarto" "$USER_BIN/quarto"
+  hash -r # bash remembers an older quarto found on PATH by the check above
   tool_ok quarto "$MIN_QUARTO" || die "quarto did not run from $USER_BIN/quarto after the install; run ./install.sh again"
   echo "quarto $(quarto --version) installed in $QUARTO_HOME, linked from $USER_BIN/quarto"
 }
@@ -410,7 +415,7 @@ if [[ "$PARSER" == none ]]; then
   echo
   echo "PDF add-on: none. PDF pages pdfplumber cannot read stay unread until you choose one (nothing is installed"
   echo "without your choice; later: uv run fin parser use NAME):"
-  echo "  ./install.sh --parser liteparse    your machine; small (about 60 MB with its models); fast"
+  echo "  ./install.sh --parser liteparse    your machine; small (its model about 50 MB); fast"
   echo "  ./install.sh --parser docling      your machine; about 1.4 GB; about 15 s a page; not on Intel Macs"
   echo "  ./install.sh --parser llamaparse   LlamaIndex's cloud: pages are uploaded; paid per page; needs LLAMA_CLOUD_API_KEY"
 fi
