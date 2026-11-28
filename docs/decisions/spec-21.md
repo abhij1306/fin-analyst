@@ -17,7 +17,7 @@ Builder's readings ([README](README.md)); the owner confirms or changes them.
 ## The Forensic screen's "to a finding" click
 
 - **Decision:** the click opens the chat with a request for the assistant to run `fin fdd finding propose --area
-  forensic --flags ...` (naming `--query N` when the ticked flags are in one open query), as the query hand-off does.
+  forensic --flags ...` (naming `--query N` when every ticked flag is in the same query, of any status but withdrawn, so its amount and response cover all of them), as the query hand-off does.
   It does not store a draft itself.
 - **Why:** a finding's title and observation are words Claude proposes (CLAUDE.md: "you propose them with evidence");
   fin has no neutral way to write them. The assistant runs the same command, so the same function and checks apply.
