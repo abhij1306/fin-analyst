@@ -129,6 +129,7 @@ def test_default_config_round_trips(tmp_path: Path) -> None:
             "recast",
             "error",
         ),
+        archive_limit_mb=2048,
     )
 
 
@@ -157,7 +158,7 @@ def test_diligence_values_come_from_the_file(tmp_path: Path) -> None:
 
 def test_a_config_without_the_diligence_table_is_e002(tmp_path: Path) -> None:
     start = DEFAULT_CONFIG_TOML.index("[diligence]")
-    end = DEFAULT_CONFIG_TOML.index("[pdf]")
+    end = DEFAULT_CONFIG_TOML.index("[fdd]")
     path = tmp_path / "config.toml"
     path.write_text(DEFAULT_CONFIG_TOML[:start] + DEFAULT_CONFIG_TOML[end:], encoding="utf-8")
     with pytest.raises(FinError) as caught:
@@ -218,6 +219,12 @@ def test_missing_config_is_e001(tmp_path: Path) -> None:
             "config_version = 2",
             "config_version = 2; this fin reads version 1",
         ),
+        (
+            "archive_limit_mb = 2048",
+            "archive_limit_mb = 0",
+            "dataroom.archive_limit_mb = 0; expected whole megabytes, 1 to 1000000",
+        ),
+        ("archive_limit_mb = 2048\n", "", "[dataroom] is missing archive_limit_mb"),
         (
             "query_threshold = 100000.00",
             "query_threshold = -5",

@@ -83,6 +83,11 @@ def reports_dir(root: Path, company: str) -> Path:
     return root / "reports" / company
 
 
+def dataroom_dir(root: Path, company: str) -> Path:
+    """Where `fin dataroom scan` unpacks a company's archives, one folder each. Made on use."""
+    return root / "dataroom" / company
+
+
 def exports_dir(root: Path, company: str) -> Path:
     return root / "exports" / company
 

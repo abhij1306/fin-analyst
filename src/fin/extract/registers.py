@@ -73,6 +73,11 @@ def _find_parts(book: Workbook, profile: Profile, problems: list[str]) -> dict[s
     return found
 
 
+def fits(book: Workbook, profile: Profile) -> bool:
+    """True when each sheet kind of the registers profile has its header on one sheet of `book`."""
+    return len(_find_parts(book, profile, [])) == len(profile.parts)
+
+
 def _read_profile(book: Workbook, profile: Profile, problems: list[str]) -> RegisterTable | None:
     """The table when the profile fits the workbook; else None, with the reason in `problems`."""
     found = _find_parts(book, profile, problems)
