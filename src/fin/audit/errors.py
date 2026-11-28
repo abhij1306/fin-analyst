@@ -330,9 +330,10 @@ class SqlFailed(FinError):
 
 class FigureTableWrite(FinError):
     """E505. `fin sql --write` was given a statement other than a SELECT that names facts,
-    raw_values, stated_figures, fact_corrections, documents or the reference tables: they change
-    only through fin (`fin ingest`, `fin review`, `fin fact`, `fin findings accept`, `fin document
-    delete`, `fin reference`). Nothing was run."""
+    raw_values, stated_figures, fact_corrections, documents, the reference tables, findings or
+    dataroom_files: they change only through fin (`fin ingest`, `fin review`, `fin fact`, `fin
+    findings accept`, `fin document delete`, `fin reference`, `fin dataroom approve`). Nothing was
+    run."""
 
     code = "E505"
 
@@ -624,9 +625,10 @@ from fin.audit.errors_fdd import (  # noqa: E402, F401
 # E822: rebuilt statements, in fin.audit.errors_rebuilt (split for size), re-exported.
 from fin.audit.errors_rebuilt import RebuildNotPossible  # noqa: E402, F401
 
-# E980-E982: reference documents, in fin.audit.errors_reference (split for size), re-exported.
+# E980-E983: reference documents, in fin.audit.errors_reference (split for size), re-exported.
 from fin.audit.errors_reference import (  # noqa: E402, F401
     ReferenceDifferenceUnknown,
     ReferenceInvalid,
     ReferenceLineInvalid,
+    ReferenceNotQueryable,
 )

@@ -116,7 +116,7 @@ def format_rows(company: str, result: dict[str, Any]) -> str:
             f"Rows marked 'can be queried' go to one query per period: `fin query raise {company} "
             "--items <ids> --question ...` (the user approves it)."
         )
-    if any(row["value_id"] is not None for row in rows):
+    if any(row["queryable"] and row["value_id"] is not None for row in rows):
         out.append(
             f"A ref-<n> row goes to a query with `fin reference query {company} <n> --question "
             "...` (the user approves it)."

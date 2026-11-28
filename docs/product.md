@@ -357,7 +357,7 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin document delete <co> <ids>` (the Files screen's Delete) | — | Either (when the user asks) |
 | `fin status [co]` | `/status` | Either |
 | `fin sql <co> --sql "…" [--question] [--evidence]` | `/ask`, `/report` | Either (reads) |
-| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit; refuses the figure tables, `documents` and the reference tables, E505) |
+| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit; refuses the figure tables, `documents`, the reference tables, `findings` and `dataroom_files`, E505) |
 | `fin fact state <co> --account --period --scope --value --reason`, `fin fact unstate <co> <id>`, `fin fact correct <co> <fact_id> --value --reason`, `fin fact list <co> [--json]` | `/ingest` | Either (state or correct only when the user says, in their words) |
 | `fin schema [co] [--table name] [--json]` | `/ask` | Either |
 | `fin metric add <name> --formula … --unit ratio\|rupees\|days --definition "…" [--company co]`, `fin metric list [co]`, `fin metric remove <name> [--company co]` | `/ask` (offers to save a hand-written ratio) | Either (add or remove when the user says) |
@@ -1141,8 +1141,10 @@ Decisions: [decisions/spec-10.md](decisions/spec-10.md).
 - **From a difference**: `fin reference query <co> <#id> --question "..."` drafts a query (as `fin query raise`, the
   difference as its amount, both sources in its sources) and `fin reference adjust <co> <#id> --category C
   --description D --amount A` proposes an adjustment with both sources as its evidence (the account when the line is
-  mapped to one). A figure that does not differ is refused (E982). Nothing is changed to make the figures tie; the
-  user approves the query or accepts the adjustment as for any other.
+  mapped to one). A figure that does not differ is refused (E982). The query is linked to its figure
+  (`reference_values.query_id`): a difference below the open engagement's query threshold, or a figure already in a
+  query that is not withdrawn, is refused (E983), so a figure is not queried twice. Nothing is changed to make the
+  figures tie; the user approves the query or accepts the adjustment as for any other.
 
 ### Rebuilt statements (SPEC-14, `fin statements --rebuilt`)
 
@@ -1205,7 +1207,10 @@ Every difference the reconciliations found, in one place, from the headline down
   row is a root (bank lines). `explained` is the sum of the rows under it and `unexplained` the difference less that;
   a foreign-currency line without a rupee value has a blank difference (missing is not zero), and so has its parent's
   explained amount. Each row carries its two sources, note, threshold, whether it is over the threshold, its query and
-  status, and whether a query can be raised on it.
+  status, and whether a query can be raised on it: at or above the threshold and in no query but a withdrawn one (a
+  reference row also needs a period of the engagement, as `fin reference query` does, E881). A
+  reference row's query is the one `fin reference query` linked to its figure, and it is compared with the latest
+  engagement's query threshold; the CLI, the sheet's Query column and the screen show the same.
 - **Recast against the books** (SPEC-17 item 5, decisions in [decisions/spec-17.md](decisions/spec-17.md)): per annual
   period that `fin recast run` ran for, the period's recast line is a headline row keyed `revenue` and labelled
   "recognition difference" (column `label`): books (the sales register by invoice date) against recast, difference =
@@ -1259,6 +1264,10 @@ Every difference the reconciliations found, in one place, from the headline down
   Mn" (narrative references stay inline references), the evidence page's figure titles add the value in the display
   unit after the stored rupees, `fin engagement bridge` and the diligence and FDD reports show the display unit, and
   the dashboards' statements table is in it.
+- **A missing amount is `n/a`**, never a dash (with brackets a zero is a dash): the diligence outputs in rupees
+  (`fin query list`, `fin adjust list`, `fin netdebt show`, `fin engagement status` and the others that format with
+  `fin.diligence.engagement.rupees`) and the Engagement, Queries and Findings screens, as `fin engagement bridge` and
+  the Bridge screen.
 
 ## Actor (SPEC-02)
 
@@ -1307,7 +1316,9 @@ states the figure; fin never invents one.
   user (`fin fact state`), or from a correction of fin's own misread (`fin fact correct`). It does not write a
   document's status or paths (owner, 2026-11-28): a status written by hand would release a held document without its
   findings accepted. fin's own commands change them (`fin ingest`, `fin findings accept`, `fin review confirm`,
-  `fin fact correct`, `fin document delete`).
+  `fin fact correct`, `fin document delete`). It also refuses `findings` and `dataroom_files` (E505; owner, 2026-11-28):
+  a finding is accepted only with `fin findings accept` and a data-room file approved only with `fin dataroom approve`,
+  each the user's decision with an audit record. `notes`, `company_profile` and the verification tables stay writable.
 - **Correcting a figure fin read wrongly**: `fin fact correct <co> <fact_id> --value V --reason "..."`, only on the
   user's word. It backs up the company database, sets `facts.value` (rupees; rupees per share for EPS), keeps the
   cell or page and the printed text in `raw_values`, and records the value before, the reason, the actor (`fin.actor`:

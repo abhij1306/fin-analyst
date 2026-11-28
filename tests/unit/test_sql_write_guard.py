@@ -1,6 +1,6 @@
 """`fin sql --write` refuses, before any statement runs, statements that write to a diligence table
-(E806), a figure table, documents or a reference table (E505), or that would end its transaction
-or reach past the company database (E504)."""
+(E806), a figure table, documents, a reference table, findings or dataroom_files (E505), or that
+would end its transaction or reach past the company database (E504)."""
 
 from pathlib import Path
 
@@ -57,8 +57,9 @@ def test_writes_naming_a_diligence_table_are_refused(tmp_path: Path, sql: str, f
     [
         "UPDATE notes SET section = 'x' WHERE doc_id = 2",
         "SELECT * FROM gate_approvals; UPDATE company_profile SET name = 'x'",
-        "DELETE FROM findings WHERE label = 'adjusted_ebitda'",
-        "UPDATE findings SET message = 'x' WHERE label = 'current_facts'",
+        "UPDATE company_profile SET name = 'x' WHERE code = 'adjusted_ebitda'",
+        "UPDATE notes SET section = 'x' WHERE section = 'fdd_findings_note'",
+        "DELETE FROM verify_lines",
     ],
 )
 def test_other_writes_pass(tmp_path: Path, sql: str) -> None:
@@ -82,6 +83,11 @@ def test_other_writes_pass(tmp_path: Path, sql: str) -> None:
         ("UPDATE reference_lines SET status = 'confirmed'", "reference_lines"),
         ("DELETE FROM main.Reference_Values", "reference_values"),
         ("INSERT INTO reference_files SELECT * FROM reference_files", "reference_files"),
+        ("UPDATE findings SET status = 'accepted' WHERE doc_id = 2", "findings"),
+        ("DELETE FROM main.Findings", "findings"),
+        ("UPDATE dataroom_files SET approved = true", "dataroom_files"),
+        ("UPDATE notes SET section = 'x'; UPDATE dataroom_files SET status = 'loaded'",
+         "dataroom_files"),
         ("INSERT INTO raw_values SELECT * FROM raw_values "
          "WHERE raw_id IN (SELECT raw_id FROM facts)", "facts, raw_values"),
     ],
@@ -91,12 +97,14 @@ def test_writes_naming_a_figure_table_are_e505(tmp_path: Path, sql: str, found: 
         check_write_sql(con, sql)
 
     assert str(e.value) == (
-        "E505: `fin sql --write` does not change the figures, the documents or the reference "
-        f"figures (found: {found}). Load a document (`fin ingest`, `--reading` for pages fin could "
-        "not read), map its lines (`fin review`), state a figure the documents do not give (`fin "
-        "fact state`), correct one fin misread (`fin fact correct`), accept a held document's "
-        "findings (`fin findings accept`), delete a document (`fin document delete`) or load, "
-        "confirm or reject reference lines (`fin reference add|confirm|reject`). Nothing was run"
+        "E505: `fin sql --write` does not change the figures, the documents, the reference "
+        f"figures, the findings or the data-room plan (found: {found}). Load a document (`fin "
+        "ingest`, `--reading` for pages fin could not read), map its lines (`fin review`), state "
+        "a figure the documents do not give (`fin fact state`), correct one fin misread (`fin fact "
+        "correct`), accept findings (`fin findings accept`, which also releases a held "
+        "document), delete a document (`fin document delete`), approve a data-room file (`fin "
+        "dataroom approve`) or load, confirm or reject reference lines (`fin reference "
+        "add|confirm|reject`). Nothing was run"
     )
 
 
@@ -257,6 +265,72 @@ def test_a_write_to_reference_lines_is_refused(tmp_path: Path, sql: str) -> None
     with connect(path) as con:
         assert con.execute("SELECT * FROM reference_lines").fetchall() == before
     assert not (tmp_path / "backups").exists()
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "UPDATE findings SET status = 'accepted' WHERE doc_id = 1",
+        "DELETE FROM findings",
+        "INSERT INTO findings (doc_id, check_name, finding, status, run_id, recorded_at, "
+        "status_run_id, status_at) VALUES (1, 'balance', 'x', 'accepted', 'r', now(), 'r', now())",
+    ],
+)
+def test_a_write_to_findings_is_refused_and_changes_nothing(tmp_path: Path, sql: str) -> None:
+    path = company_db_path(tmp_path, "acme")
+    ensure_database(path, "company")
+    with connect(path, write=True) as con:
+        con.execute(
+            "INSERT INTO findings (finding_id, doc_id, check_name, finding, status, run_id, "
+            "recorded_at, status_run_id, status_at) VALUES (1, 1, 'balance', 'unbalanced', "
+            "'open', 'r', now(), 'r', now())"
+        )
+    run = Run("sql", {}, tmp_path)
+
+    with pytest.raises(FigureTableWrite) as e:
+        write_sql(run, "acme", sql)
+
+    assert e.value.code == "E505"
+    with connect(path) as con:
+        assert con.execute("SELECT finding_id, status FROM findings").fetchall() == [(1, "open")]
+    assert not (tmp_path / "backups").exists()
+    assert [(table, row["mode"], row["row_count"]) for table, row in run._records] == [
+        ("queries", "write", None)
+    ]
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "UPDATE dataroom_files SET approved = true WHERE file_id = 1",
+        "DELETE FROM dataroom_files",
+        "INSERT INTO dataroom_files (folder, path, location, kind, duplicates, approved, run_id, "
+        "scanned_at) VALUES ('room', 'b.xlsx', 'room/b.xlsx', 'unknown', [], true, 'r', now())",
+    ],
+)
+def test_a_write_to_dataroom_files_is_refused_and_changes_nothing(tmp_path: Path, sql: str) -> None:
+    path = company_db_path(tmp_path, "acme")
+    ensure_database(path, "company")
+    with connect(path, write=True) as con:
+        con.execute(
+            "INSERT INTO dataroom_files (file_id, folder, path, location, kind, duplicates, "
+            "run_id, scanned_at) VALUES (1, 'room', 'a.xlsx', 'room/a.xlsx', 'trial_balance', [], "
+            "'r', now())"
+        )
+    run = Run("sql", {}, tmp_path)
+
+    with pytest.raises(FigureTableWrite) as e:
+        write_sql(run, "acme", sql)
+
+    assert e.value.code == "E505"
+    with connect(path) as con:
+        assert con.execute("SELECT file_id, approved, status FROM dataroom_files").fetchall() == [
+            (1, False, "planned")
+        ]
+    assert not (tmp_path / "backups").exists()
+    assert [(table, row["mode"], row["row_count"]) for table, row in run._records] == [
+        ("queries", "write", None)
+    ]
 
 
 def test_the_written_sql_cannot_read_files(tmp_path: Path) -> None:
