@@ -22,8 +22,8 @@ A headline row also comes from each reference figure that differs from fin's
 no parent or children; its `value_id` goes to `fin reference query`. Its query is the one that
 command linked (`reference_values.query_id`) when it is of the latest engagement; it can be queried
 as a line can: at or above the latest engagement's query threshold, of one of its periods and in no
-query but a withdrawn one (as `fin reference query` checks, E983 and E881). A figure fin does not hold
-(no_fin_figure) is not a difference and is not a row. `row_id` names every row: the line's item
+query but a withdrawn one (as `fin reference query` checks, E983 and E881). A figure fin does not
+hold (no_fin_figure) is not a difference and is not a row. `row_id` names every row: the line's item
 id, or ref-<value_id>.
 
 Only lines that differ are rows (kinds difference, left_only, right_only and fx); month roll-ups,
