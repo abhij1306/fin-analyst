@@ -157,6 +157,9 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 **Rules**
 
 - All values stored in rupees as exact DECIMAL. Original unit kept in `raw_values`. Display unit set in config.
+  A unit line names its unit after "in", "₹", "Rs" or "INR" ("₹ in Lakhs", "INR crores"); "in INR" with no unit
+  word after it ("All amounts in INR, unless otherwise stated") means rupees (`fin.extract.units`). A document that
+  failed with E203 on such a line loads when it is ingested again.
 - Indian fiscal year (Apr–Mar) default; `period_end` stored explicitly.
 - Periods: `FY25` is the year ended 31 March 2025 (12 months); `FY26-Q1`..`FY26-Q4` quarters, `FY26-H1`/`FY26-H2`
   half years, `FY26-9M` nine months (`fin.extract.periods`). A balance sheet's period is the part of the year it
@@ -181,7 +184,10 @@ Every `fin` command:
   top lines of the page or sheet where a unit line, period header or statement title was looked for, the cells of a
   row with no label (`fin.extract.diagnostics`). The lines are document text; like the labels in the log, they stay
   in the data folder. The notice for pages no add-on read names the pages and the parser in its context.
-- An exception with no error class is logged as E012 with its traceback and the platform, then raised again.
+- An exception with no error class is logged as E012 with its traceback and the platform. The user sees no
+  traceback: the command prints `E012: unexpected <type>: <message>`, the run_id and the log file that holds the
+  traceback, and exits 2; in the web UI the action shows the same line, code and run_id. An interrupt is logged with
+  no code and stops the command as before.
 
 **Tables in `shared/audit.duckdb`** (append-only; rows never updated or deleted)
 
@@ -222,6 +228,10 @@ Every `fin` command:
   behind it. `fin sql` with a `fact_ids` column gives every line's source ("sum of N sources: ..."), confirmed only
   when every line is; the evidence page shows each line. Traces show a per-share fact in rupees per
   share.
+- A figure whose raw value records no sheet, cell or page has no source: `fin sql` gives it `source_ref` NULL
+  ("no source" inside a sum). `--evidence` still writes the page with the sources of the other rows, names each
+  such figure, flags the result rows with no source (no id, or a figure with no source behind them) and lists their
+  numbers, from 1, in the output's `rows_without_source`. It is not a failure: the run exits 0.
 
 ## 9. Error handling
 
@@ -514,7 +524,8 @@ rejected). Every row added and every status change is appended to the
 audit table `diligence_events`. `config.toml` gets a required `[diligence]` table (`query_threshold`, default
 100000.00 rupees; `adjustment_categories`). Commands: `fin engagement open|status|close`, `fin query
 list|raise|edit|approve|sent|answer|close|withdraw`, `fin adjust propose|list|accept|reject`; every one but
-`engagement open` needs an open engagement (E803); an invalid adjustment is E804; an unknown id or a status change
+`engagement open` needs an open engagement (E803), except `fin query list` and `fin adjust list`, which print
+"<co> has no open engagement: no queries" (or adjustments; `[]` with `--json`) and exit 0; an invalid adjustment is E804; an unknown id or a status change
 not allowed is E805. fin never sends a query: `fin query sent` records that the user sent it. Rules in `CLAUDE.md`
 ("Diligence") and `/diligence`. Views (`db/schema/diligence_views.sql`, run after `diligence.sql`; also in `fin sql`),
 on the latest engagement (open or closed) and its annual periods: `adjusted_ebitda` (reported EBITDA, exactly the

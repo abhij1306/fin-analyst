@@ -1,7 +1,8 @@
 # Implementation tracker
 
-One row per PR-plan row of each spec ([specs/README.md](../specs/README.md)). A PR marks its own row
-`done (#n)` ([process.md](../process.md)). Work in flight is read from open PRs, not from this file.
+One row per PR-plan row of each spec ([specs/README.md](../specs/README.md)). A PR covers a whole spec, or a group
+of its rows that can ship together (the CLI rows, then the UI rows); it is split only where a later row waits on
+another spec (owner, 2026-11-28; [process.md](../process.md) step 2). A PR marks each of its rows `done (#n)`. Work in flight is read from open PRs, not from this file.
 
 Statuses: `todo`, `done (#n)`, `blocked (Qn)` (waits on an owner decision), `human`, `deferred`.
 

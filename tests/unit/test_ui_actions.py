@@ -19,6 +19,7 @@ from fin.db.conn import connect  # noqa: E402
 from fin.diligence import queries  # noqa: E402
 from fin.paths import audit_db_path  # noqa: E402
 from fin.ui import uploads  # noqa: E402
+from fin.ui.actions import perform  # noqa: E402
 from fin.ui.server import create_app  # noqa: E402
 from tests.engagement_root import engagement_root  # noqa: E402
 
@@ -85,6 +86,22 @@ def test_a_post_needs_the_token_cookie(root: Path) -> None:
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "E007"
     assert runs(root) == []
+
+
+def test_a_defect_in_an_action_shows_e012_and_the_run_id_instead_of_raising(root: Path) -> None:
+    def body(run: Run) -> list[str]:
+        raise TypeError("sequence item 4: expected str instance, NoneType found")
+
+    outcome = perform(root, "probe", {}, body)
+
+    assert (outcome.ok, outcome.code) == (False, "E012")
+    assert outcome.run_id is not None
+    [line] = outcome.lines
+    assert line.startswith(
+        "unexpected TypeError: sequence item 4: expected str instance, NoneType found. This is a "
+        f"defect in fin: report E012 and run_id {outcome.run_id}; the traceback is in logs/"
+    )
+    assert ("probe", "error") in runs(root)
 
 
 def test_gate_approve_refuses_what_the_cli_refuses_and_shows_code_and_run_id(

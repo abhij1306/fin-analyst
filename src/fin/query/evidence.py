@@ -102,6 +102,8 @@ def _fact_section(
     """One fact's evidence: details, then the crop or grid, or an E604 flag. `units`: each
     account's unit (an unmapped figure is in rupees)."""
     ref = fact["source_ref"]
+    if ref is None:
+        return _unsourced_section(run, fact)
     status = "confirmed" if fact["confirmed"] else "UNCONFIRMED mapping"
     readers = {"claude": "Claude", **ADDON_LABELS}
     status += f", read by {readers[fact['read_by']]}" if fact["read_by"] in readers else ""
@@ -122,6 +124,24 @@ def _fact_section(
         run.event("evidence", error.message, level="error", code=error.code, file=fact["file_name"])
         body = f"<p class='flag'>{html.escape(str(error))}</p>"
     return f"<section><h3>{html.escape(title)}</h3>{details}{body}</section>"
+
+
+def _unsourced_section(run: Run, fact: dict[str, Any]) -> str:
+    """A fact whose raw value records no sheet, cell or page: named on the page, nothing to show."""
+    message = (
+        f"fact {fact['fact_id']} ({fact['account'] or 'unmapped'} {fact['period']}): its raw value "
+        f"{fact['raw_label']!r} in {fact['file_name']} records no sheet, cell or page"
+    )
+    run.event("evidence", message, level="warning", file=fact["file_name"])
+    flag = "<p class='flag'>No source to show.</p>"
+    return f"<section><h3>{html.escape(message)}</h3>{flag}</section>"
+
+
+def _row_ids(rows: list[dict[str, Any]], column: str) -> list[list[Any]]:
+    """The fact or raw ids behind each result row (NULLs dropped)."""
+    if column == "fact_ids":
+        return [[i for i in row[column] or [] if i is not None] for row in rows]
+    return [[row[column]] if row.get(column) is not None else [] for row in rows]
 
 
 def _result_table(rows: list[dict[str, Any]]) -> str:
@@ -149,21 +169,19 @@ img { border: 1px solid #ccc; max-width: 100%; }
 
 def write_evidence(
     run: Run, company: str, question: str | None, sql: str, rows: list[dict[str, Any]]
-) -> str:
-    """Write the evidence page for this run's query result and return its path relative to the
-    data folder. `rows` are JSON rows (`fin.query.run.to_json_rows`)."""
+) -> tuple[str, list[int]]:
+    """Write the evidence page for this run's query result. Returns its path relative to the data
+    folder and the numbers (from 1) of the result rows with no source. `rows` are JSON rows
+    (`fin.query.run.to_json_rows`)."""
     query_id = run.run_id
     flags = []
     column = next((c for c in ("fact_ids", "fact_id") if rows and c in rows[0]), "raw_id")
-    if column == "fact_ids":
-        # Every fact behind each value: a summed value has one section per line.
-        lists = [[i for i in row[column] or [] if i is not None] for row in rows]
-        ids = list(dict.fromkeys(i for ids_ in lists for i in ids_))
-        sums = sum(1 for ids_ in lists if len(ids_) > 1)
-        if sums:
-            flags.append(f"{sums} row(s) are sums of several source lines; each line is below.")
-    else:
-        ids = list(dict.fromkeys(row[column] for row in rows if column in row))
+    # Every fact behind each value: a summed value has one section per line.
+    lists = _row_ids(rows, column) if rows and column in rows[0] else []
+    ids = list(dict.fromkeys(i for ids_ in lists for i in ids_))
+    sums = sum(1 for ids_ in lists if len(ids_) > 1)
+    if sums:
+        flags.append(f"{sums} row(s) are sums of several source lines; each line is below.")
     if not ids:
         flags.append("The result has no fact_id or raw_id column, so there is nothing to trace.")
     folder = run.root / "evidence" / query_id
@@ -174,10 +192,20 @@ def write_evidence(
     books: dict[Path, Workbook] = {}
     units = {name: account.unit for name, account in load_accounts(run.root).items()}
     sections = []
+    sourced = set()
     with connect(company_db_path(run.root, company)) as con:
         for id_ in ids:
             for fact in fetch_dicts(con, FACT_SQL.format(column=ID_COLUMN[column]), [id_]):
                 sections.append(_fact_section(run, fact, folder, books, units))
+                if fact["source_ref"] is not None:
+                    sourced.add(id_)
+    missing = [n for n, ids_ in enumerate(lists, 1) if not ids_ or not set(ids_) <= sourced]
+    if missing and ids:
+        flags.append(
+            f"Result row(s) {', '.join(map(str, missing))} have no source: no {column}, or a "
+            "figure whose raw value records no sheet, cell or page. The other rows' sources are "
+            "below."
+        )
     unconfirmed = sum(1 for row in rows if row.get("source_confirmed") is False)
     if unconfirmed:
         flags.append(f"{unconfirmed} row(s) use facts whose mapping is not confirmed.")
@@ -199,4 +227,4 @@ def write_evidence(
         path.write_text(page, encoding="utf-8")
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
-    return path.relative_to(run.root).as_posix()
+    return path.relative_to(run.root).as_posix(), missing if ids else []

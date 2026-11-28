@@ -206,7 +206,8 @@ def test_batch_killed_midway_resumes_without_duplicates(
 
     monkeypatch.setattr(fin.ingest, "check_document", crash_on_second_document)
     killed = runner.invoke(app, ["ingest-batch", str(batch)])
-    assert isinstance(killed.exception, RuntimeError)
+    assert killed.exit_code == 2
+    assert killed.stderr.startswith("E012: unexpected RuntimeError: simulated kill.")
     assert query(root, "bluepeak", "SELECT file_name FROM documents") == [
         ("Bluepeak_Polymers_FY2022-23.xlsx",)
     ]

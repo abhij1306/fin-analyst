@@ -64,20 +64,46 @@ def test_command_error_logged_while_the_log_is_broken_does_not_fail_again(
 
 
 def test_an_unexpected_exception_is_logged_with_e012_and_its_traceback(
-    root: Path, audit_query: Query
+    root: Path, audit_query: Query, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    runs: list[Run] = []
+
     def body(run: Run) -> None:
+        runs.append(run)
         raise KeyError("missing")
 
-    with pytest.raises(KeyError):
+    with pytest.raises(typer.Exit) as e:
         execute("probe", {}, body)
 
+    assert e.value.exit_code == 2
+    assert end_rows(audit_query) == [("probe", "error", 2)]
+    [run] = runs
+    log = run.jsonl_path.relative_to(root).as_posix()
+    assert capsys.readouterr().err.startswith(
+        "E012: unexpected KeyError: 'missing'. This is a defect in fin: report E012 and run_id "
+        f"{run.run_id}; the traceback is in {log}\n"
+    )
     [(code, message, context)] = audit_query("SELECT error_code, message, context FROM events")
     assert (code, message) == ("E012", "unexpected KeyError: 'missing'")
     seen = json.loads(context)
     assert "KeyError: 'missing'" in seen["traceback"][-1]
     assert any("in body" in line for line in seen["traceback"])
     assert seen["platform"]
+
+
+def test_an_interrupt_is_logged_without_a_code_and_raised_again(
+    root: Path, audit_query: Query
+) -> None:
+    def body(run: Run) -> None:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        execute("probe", {}, body)
+
+    assert audit_query("SELECT error_code, message FROM events") == [
+        (None, "unexpected KeyboardInterrupt: ")
+    ]
+    assert end_rows(audit_query) == [("probe", "error", 2)]
 
 
 def test_the_context_of_an_error_is_logged_with_it(root: Path, audit_query: Query) -> None:

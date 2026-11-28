@@ -34,8 +34,9 @@ and decisions where it can, and asks the owner only when it cannot.
 1. **Ready.** A row of a spec's PR plan is ready when the code it builds on is merged and its spec has no open
    decision without a default. The orchestrator reads ready rows from [plans/ACTIVE.md](plans/ACTIVE.md) and open
    work from GitHub (open PRs and branches), not from the tracker.
-2. **One PR per row.** Aim for under 800 changed lines outside tests and fixtures. Over 1,500, the body says why it
-   could not be split. (The median so far is 855; 31 PRs were over 1,500 and those drew most of the later fixes.)
+2. **One PR per spec,** or per group of rows that can ship together (the CLI rows, then the UI rows). Split only
+   where a later row waits on another spec. There is no line target; a PR over 1,500 changed lines gets a separate
+   reviewer (step 5). (Owner, 2026-11-28: small PRs are a waste of time.)
 3. **Build.** The builder reads `CLAUDE.md`, [engineering.md](engineering.md), the spec and
    [plans/RECURRING.md](plans/RECURRING.md). For each unit: write the failing test, see it fail for the right
    reason, make it pass, commit. Run only the tests for the files changed, and ruff on changed files. No full suite

@@ -1,11 +1,10 @@
 """`fin engagement open|status|close|bridge|passthrough`,
-`fin query list|raise|edit|approve|sent|answer|close|withdraw` and
-`fin adjust propose|list|accept|reject`. The logic is in `engagement.py`, `queries.py`,
-`adjustments.py`, `bridge.py` and `passthrough.py`. fin never sends a query: `fin query sent`
+`fin query list|raise|edit|approve|sent|answer|close|withdraw` and `fin gate status|approve`
+(`fin adjust` is in `adjust_cli.py`). The logic is in `engagement.py`, `queries.py`, `gates.py`,
+`bridge.py` and `passthrough.py`. fin never sends a query: `fin query sent`
 records that the user sent it."""
 
 import json
-import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
@@ -15,7 +14,6 @@ import typer
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
 from fin.diligence import (
-    adjustments,
     answers,
     bridge,
     engagement,
@@ -27,8 +25,20 @@ from fin.diligence import (
     queries,
 )
 from fin.diligence.cli_checks import check_raise_options
-from fin.diligence.stub import STUB
-from fin.paths import COMPANY_NAME
+from fin.diligence.cli_options import (
+    CompanyArg,
+    JsonOption,
+    QueryIds,
+    choice_of,
+    echo_rows,
+    period_option,
+    periods_option,
+    rupees_option,
+    stub_option,
+    text_option,
+    threshold_option,
+    tokens_option,
+)
 from fin.reconcile import items as recon_items
 
 engagement_app = typer.Typer(
@@ -38,90 +48,6 @@ query_app = typer.Typer(
     no_args_is_help=True,
     help="Accountant queries: Claude drafts, the user approves and sends; fin never sends.",
 )
-adjust_app = typer.Typer(
-    no_args_is_help=True,
-    help="Adjustments to EBITDA, with evidence: Claude proposes, the user accepts or rejects.",
-)
-
-
-def _company(value: str) -> str:
-    if not COMPANY_NAME.match(value):
-        raise typer.BadParameter("use lower-case letters, digits, '-' and '_' (e.g. kestrel)")
-    return value
-
-
-def _rupees(value: str) -> Decimal:
-    try:
-        return engagement.parse_rupees(value)
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-
-
-def _threshold(value: str) -> Decimal:
-    amount = _rupees(value)
-    if amount < 0:
-        raise typer.BadParameter("the threshold must be 0 or more rupees")
-    return amount
-
-
-def _periods(value: str) -> str:
-    """The periods in order, comma-separated: 'FY26,FY24' -> 'FY24,FY26'."""
-    try:
-        return ",".join(engagement.parse_periods(value))
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-
-
-def _stub(value: str | None) -> str | None:
-    if value is not None and not STUB.match(value.strip().upper()):
-        raise typer.BadParameter(
-            "name the stub by its fiscal year and end month, e.g. FY27-YTD-SEP"
-        )
-    return None if value is None else value.strip().upper()
-
-
-def _period(value: str | None) -> str | None:
-    if value is not None and not engagement.PERIOD.match(value):
-        raise typer.BadParameter("use a period such as FY25, FY26-Q1, FY26-H1 or FY26-9M")
-    return value
-
-
-def _text(value: str | None) -> str | None:
-    if value is not None and not value.strip():
-        raise typer.BadParameter("must not be empty")
-    return None if value is None else value.strip()
-
-
-def _tokens(values: list[str] | None) -> list[str] | None:
-    if values is not None and not all(re.fullmatch(r"[A-Z]+-\d+", v.strip()) for v in values):
-        raise typer.BadParameter(
-            "a customer is a token such as CUST-0001 (letters, a dash, digits)"
-        )
-    return None if values is None else [v.strip() for v in values]
-
-
-def _choice(choices: tuple[str, ...]) -> Any:
-    def check(value: str | None) -> str | None:
-        if value is not None and value not in choices:
-            raise typer.BadParameter(f"use one of: {', '.join(choices)}")
-        return value
-
-    return check
-
-
-def _echo(rows: list[dict[str, Any]], json_output: bool, line: Any, empty: str) -> None:
-    if json_output:
-        typer.echo(json.dumps(rows, indent=2, default=str))
-    else:
-        typer.echo("\n".join(map(line, rows)) if rows else empty)
-
-
-CompanyArg = Annotated[
-    str, typer.Argument(callback=_company, help="Company name, e.g. kestrel.", show_default=False)
-]
-JsonOption = Annotated[bool, typer.Option("--json", help="Print JSON.")]
-QueryIds = Annotated[list[int], typer.Argument(help="Query ids from `fin query list`.")]
-AdjustmentIds = Annotated[list[int], typer.Argument(help="Adjustment ids from `fin adjust list`.")]
 
 
 # fin engagement
@@ -134,7 +60,7 @@ def engagement_open(
         str,
         typer.Option(
             "--periods",
-            callback=_periods,
+            callback=periods_option,
             help="The annual periods in scope, comma-separated, e.g. FY24,FY25,FY26.",
         ),
     ],
@@ -142,7 +68,7 @@ def engagement_open(
         Decimal | None,
         typer.Option(
             "--threshold",
-            parser=_threshold,
+            parser=threshold_option,
             metavar="RUPEES",
             help="Query threshold in rupees. Default: query_threshold in config.toml.",
         ),
@@ -151,7 +77,7 @@ def engagement_open(
         str | None,
         typer.Option(
             "--stub",
-            callback=_stub,
+            callback=stub_option,
             help="Current-year stub after the last period, e.g. FY27-YTD-SEP (unaudited).",
         ),
     ] = None,
@@ -195,11 +121,14 @@ def engagement_close(company: CompanyArg) -> None:
 def engagement_bridge(
     company: CompanyArg,
     period: Annotated[
-        str | None, typer.Option("--period", callback=_period, help="Only this period, e.g. FY25.")
+        str | None,
+        typer.Option("--period", callback=period_option, help="Only this period, e.g. FY25."),
     ] = None,
     scope: Annotated[
         str | None,
-        typer.Option("--scope", callback=_choice(SCOPES), help="Only standalone or consolidated."),
+        typer.Option(
+            "--scope", callback=choice_of(SCOPES), help="Only standalone or consolidated."
+        ),
     ] = None,
     json_output: Annotated[
         bool, typer.Option("--json", help="Print JSON rows, in rupees.")
@@ -227,14 +156,14 @@ def engagement_passthrough(
         list[str] | None,
         typer.Option(
             "--customer",
-            callback=_tokens,
+            callback=tokens_option,
             help="A pass-through customer token (CUST-0001); repeat for each. Replaces the list.",
         ),
     ] = None,
     source: Annotated[
         str | None,
         typer.Option(
-            "--source", callback=_text, help="Where the list came from (with --customer)."
+            "--source", callback=text_option, help="Where the list came from (with --customer)."
         ),
     ] = None,
     clear: Annotated[bool, typer.Option("--clear", help="Empty the list.")] = False,
@@ -281,15 +210,18 @@ def query_list(
     company: CompanyArg,
     status: Annotated[
         str | None,
-        typer.Option(callback=_choice(engagement.QUERY_STATUSES), help="Only this status."),
+        typer.Option(callback=choice_of(engagement.QUERY_STATUSES), help="Only this status."),
     ] = None,
     json_output: JsonOption = False,
 ) -> None:
     """The open engagement's queries, with amounts, sources and answers."""
 
     def body(run: Run) -> None:
+        if not engagement.is_open(run, company):
+            typer.echo("[]" if json_output else f"{company} has no open engagement: no queries")
+            return
         rows = queries.list_queries(run, company, status)
-        _echo(rows, json_output, queries.format_query, "no queries")
+        echo_rows(rows, json_output, queries.format_query, "no queries")
 
     execute("query list", {"company": company, "status": status, "json": json_output}, body)
 
@@ -298,7 +230,8 @@ def query_list(
 def query_raise(
     company: CompanyArg,
     question: Annotated[
-        str, typer.Option("--question", callback=_text, help="The question for the accountant.")
+        str,
+        typer.Option("--question", callback=text_option, help="The question for the accountant."),
     ],
     finding: Annotated[
         int | None,
@@ -308,7 +241,7 @@ def query_raise(
         Decimal | None,
         typer.Option(
             "--amount",
-            parser=_rupees,
+            parser=rupees_option,
             metavar="RUPEES",
             help="Without --finding: the difference.",
         ),
@@ -316,14 +249,14 @@ def query_raise(
     period: Annotated[
         str | None,
         typer.Option(
-            "--period", callback=_period, help="Without --finding: the period, e.g. FY25."
+            "--period", callback=period_option, help="Without --finding: the period, e.g. FY25."
         ),
     ] = None,
     scope: Annotated[
         str | None,
         typer.Option(
             "--scope",
-            callback=_choice(SCOPES),
+            callback=choice_of(SCOPES),
             help="Without --finding: standalone or consolidated.",
         ),
     ] = None,
@@ -331,7 +264,7 @@ def query_raise(
         str | None,
         typer.Option(
             "--source",
-            callback=_text,
+            callback=text_option,
             help="Without --finding: where the figures are (file + sheet!cell or page).",
         ),
     ] = None,
@@ -339,7 +272,7 @@ def query_raise(
         str | None,
         typer.Option(
             "--topic",
-            callback=_text,
+            callback=text_option,
             help="An inquiry for management on this topic (config.toml [fdd] inquiry_topics): "
             "no amount or source; --period and --scope are optional.",
         ),
@@ -406,7 +339,9 @@ def query_raise(
 def query_edit(
     company: CompanyArg,
     query_id: Annotated[int, typer.Argument(help="A draft query's id.")],
-    question: Annotated[str, typer.Option("--question", callback=_text, help="The new wording.")],
+    question: Annotated[
+        str, typer.Option("--question", callback=text_option, help="The new wording.")
+    ],
 ) -> None:
     """Change the wording of a draft query."""
 
@@ -440,11 +375,13 @@ def query_answer(
     company: CompanyArg,
     query_id: Annotated[int, typer.Argument(help="A sent query's id.")],
     text: Annotated[
-        str | None, typer.Option("--text", callback=_text, help="The accountant's answer.")
+        str | None, typer.Option("--text", callback=text_option, help="The accountant's answer.")
     ] = None,
     source: Annotated[
         str | None,
-        typer.Option("--source", callback=_text, help="Where the answer is (a file, an email)."),
+        typer.Option(
+            "--source", callback=text_option, help="Where the answer is (a file, an email)."
+        ),
     ] = None,
     file: Annotated[
         Path | None,
@@ -482,7 +419,9 @@ _status_command(
 def query_withdraw(
     company: CompanyArg,
     ids: QueryIds,
-    reason: Annotated[str, typer.Option("--reason", callback=_text, help="Why it is dropped.")],
+    reason: Annotated[
+        str, typer.Option("--reason", callback=text_option, help="Why it is dropped.")
+    ],
 ) -> None:
     """Withdraw queries that are not closed or withdrawn already."""
 
@@ -496,169 +435,6 @@ def query_withdraw(
 export_cli.register(query_app, CompanyArg)
 inquiry_cli.register(query_app, CompanyArg)
 
-
-# fin adjust
-
-
-@adjust_app.command("propose")
-def adjust_propose(
-    company: CompanyArg,
-    period: Annotated[
-        str, typer.Option("--period", help="An annual period of the engagement, e.g. FY25.")
-    ],
-    scope: Annotated[
-        str, typer.Option("--scope", callback=_choice(SCOPES), help="standalone or consolidated.")
-    ],
-    category: Annotated[
-        str, typer.Option("--category", help="One of adjustment_categories in config.toml.")
-    ],
-    description: Annotated[
-        str, typer.Option("--description", callback=_text, help="What it is and why.")
-    ],
-    amount: Annotated[
-        Decimal | None,
-        typer.Option(
-            "--amount",
-            parser=_rupees,
-            metavar="RUPEES",
-            help="Signed effect on EBITDA (+ raises it). Alone, it is a cost effect of minus this.",
-        ),
-    ] = None,
-    revenue_effect: Annotated[
-        Decimal | None,
-        typer.Option(
-            "--revenue-effect",
-            parser=_rupees,
-            metavar="RUPEES",
-            help="Signed effect on revenue. The EBITDA effect is revenue effect - cost effect.",
-        ),
-    ] = None,
-    cost_effect: Annotated[
-        Decimal | None,
-        typer.Option(
-            "--cost-effect",
-            parser=_rupees,
-            metavar="RUPEES",
-            help="Signed effect on costs (+ raises them); stripping costs is negative.",
-        ),
-    ] = None,
-    account: Annotated[
-        str | None,
-        typer.Option(
-            "--account", help="The dictionary account it relates to (the cost moves to it)."
-        ),
-    ] = None,
-    from_account: Annotated[
-        str | None,
-        typer.Option(
-            "--from-account", help="Reclassification between cost accounts: the account it leaves."
-        ),
-    ] = None,
-    moved_amount: Annotated[
-        Decimal | None,
-        typer.Option(
-            "--moved-amount",
-            parser=_rupees,
-            metavar="RUPEES",
-            help="With --from-account: the positive amount moved. Its effects are all 0.",
-        ),
-    ] = None,
-    query: Annotated[int | None, typer.Option("--query", help="Evidence: a query id.")] = None,
-    finding: Annotated[
-        int | None, typer.Option("--finding", help="Evidence: a finding id.")
-    ] = None,
-    source: Annotated[
-        str | None,
-        typer.Option(
-            "--source", callback=_text, help="Evidence: file + sheet!cell or page reference."
-        ),
-    ] = None,
-) -> None:
-    """Propose an adjustment to EBITDA, revenue and costs (the EBITDA effect is revenue effect minus
-    cost effect). It needs evidence: --query, --finding or --source."""
-
-    def body(run: Run) -> None:
-        row = adjustments.propose(
-            run,
-            company,
-            period=period,
-            scope=scope,
-            category=category,
-            amount=amount,
-            revenue_effect=revenue_effect,
-            cost_effect=cost_effect,
-            description=description,
-            account=account,
-            from_account=from_account,
-            moved_amount=moved_amount,
-            evidence=adjustments.Evidence(query_id=query, finding_id=finding, source_ref=source),
-        )
-        typer.echo(adjustments.format_adjustment(row))
-
-    args = {
-        "company": company,
-        "period": period,
-        "scope": scope,
-        "category": category,
-        "amount": amount,
-        "revenue_effect": revenue_effect,
-        "cost_effect": cost_effect,
-        "description": description,
-        "account": account,
-        "from_account": from_account,
-        "moved_amount": moved_amount,
-        "query": query,
-        "finding": finding,
-        "source": source,
-    }
-    execute("adjust propose", args, body)
-
-
-@adjust_app.command("list")
-def adjust_list(
-    company: CompanyArg,
-    status: Annotated[
-        str | None,
-        typer.Option(callback=_choice(engagement.ADJUSTMENT_STATUSES), help="Only this status."),
-    ] = None,
-    json_output: JsonOption = False,
-) -> None:
-    """The open engagement's adjustments, with their evidence."""
-
-    def body(run: Run) -> None:
-        rows = adjustments.list_adjustments(run, company, status)
-        _echo(rows, json_output, adjustments.format_adjustment, "no adjustments")
-
-    execute("adjust list", {"company": company, "status": status, "json": json_output}, body)
-
-
-@adjust_app.command("accept")
-def adjust_accept(company: CompanyArg, ids: AdjustmentIds) -> None:
-    """Accept proposed adjustments (when the user accepts them)."""
-
-    def body(run: Run) -> None:
-        for row in adjustments.decide(run, company, ids, "accepted"):
-            typer.echo(adjustments.format_adjustment(row))
-
-    execute("adjust accept", {"company": company, "ids": ids}, body)
-
-
-@adjust_app.command("reject")
-def adjust_reject(
-    company: CompanyArg,
-    ids: AdjustmentIds,
-    reason: Annotated[str, typer.Option("--reason", callback=_text, help="Why it is rejected.")],
-) -> None:
-    """Reject proposed adjustments (when the user rejects them), with the reason."""
-
-    def body(run: Run) -> None:
-        for row in adjustments.decide(run, company, ids, "rejected", reason):
-            typer.echo(adjustments.format_adjustment(row))
-
-    execute("adjust reject", {"company": company, "ids": ids, "reason": reason}, body)
-
-
-# fin gate (logic in gates.py)
 
 gate_app = typer.Typer(
     no_args_is_help=True,

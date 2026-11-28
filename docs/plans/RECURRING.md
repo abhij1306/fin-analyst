@@ -23,7 +23,8 @@ in [engineering.md](../engineering.md) only where none can. Builders read this b
 | A behaviour change left another area's test failing | `test-left-behind` | 5 of 8 FDD branches | Rule 21 (no check found yet) |
 | Tests that skip without an optional extra ran in no CI job | `ci-config` | UI chat and format tests | Check: the `ui` job runs every UI test (SPEC-00 PR 1) |
 | Bot findings arrived after the merge and became fix PRs | process | #95 to #102, fixed in #105 | [process.md](../process.md) step 6: wait for the bots once |
-| PRs over 1,500 lines drew most later fixes | process | 31 of 113 PRs | [process.md](../process.md) step 2: one row per PR |
+| PRs over 1,500 lines drew most later fixes | process | 31 of 113 PRs | [process.md](../process.md) step 5: a separate reviewer over 1,500 lines |
+| PRs of two or three files, one per spec row, cost more than they saved | process | owner correction, 2026-11-28: "have u created like 2-3 files PRs ? thats just a waste of time" | [process.md](../process.md) step 2: one PR per spec, or per group of rows that ship together |
 | A product rule was rebuilt after the owner's decision arrived late | process | masking, 2026-11-26 | Owner decisions are read before a phase ([specs](../specs/README.md)) |
 | The assistant wrote straight into `facts` to get past a missing figure | `guard-bypass` | client run, 2026-11-27 | SPEC-08 PR 2 |
 

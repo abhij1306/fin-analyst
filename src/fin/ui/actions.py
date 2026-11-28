@@ -15,8 +15,9 @@ from fin.audit.errors import (
     EXIT_OK,
     FinError,
     UiActionInvalid,
+    UnexpectedError,
 )
-from fin.audit.logger import Run
+from fin.audit.logger import Run, is_defect
 from fin.diligence import adjustments, gates, queries
 from fin.fdd import findings as fdd
 from fin.findings import accept, recheck_held
@@ -118,7 +119,8 @@ def perform(
     root: Path, command: str, args: dict[str, Any], body: Callable[[Run], list[str]]
 ) -> Outcome:
     """Run `body` as an audited run of `command`, like `fin.audit.logger.execute` but returning the
-    outcome instead of exiting. A FinError is logged with its code and shown with the run_id."""
+    outcome instead of exiting. A FinError, or a defect (E012), is logged with its code and shown
+    with the run_id."""
     run = Run(command, args, root)
     lines: list[str] = []
     code: str | None = None
@@ -132,8 +134,14 @@ def perform(
         lines, code, exit_code = [exc.message], exc.code, exc.exit_code
     except BaseException as exc:
         run.log_unexpected(command, exc)
-        run.finish(EXIT_COMMAND_ERROR)
-        raise
+        if not is_defect(exc):
+            run.finish(EXIT_COMMAND_ERROR)
+            raise
+        lines, code, exit_code = (
+            [run.unexpected_message(exc)],
+            UnexpectedError.code,
+            EXIT_COMMAND_ERROR,
+        )
     exit_code = run.finish(exit_code)
     return Outcome(exit_code == EXIT_OK, lines, run.run_id, code)
 
