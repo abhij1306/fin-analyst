@@ -36,9 +36,10 @@ def discrepancies(
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
 ) -> None:
     """Every difference of the latest reconciliations of the open engagement, from the headline
-    (trial balance against statements, and reference figures that differ) through accounts and parties to invoices and bank lines,
-    each under its parent with what its children explain and what is left unexplained. Ranked by
-    amount, in the display unit. Rows that can be queried go to `fin query raise --items`."""
+    (trial balance against statements, and reference figures that differ) through accounts and
+    parties to invoices and bank lines, each under its parent with what its children explain and
+    what is left unexplained. Ranked by amount, in the display unit. Rows that can be queried go
+    to `fin query raise --items` (reference rows to `fin reference query`)."""
 
     def body(run: Run) -> None:
         result = discrepancy_rows(run.root, company, level, over)
