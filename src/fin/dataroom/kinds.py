@@ -3,8 +3,8 @@
 An Excel workbook whose headers fit a column profile (`templates/profiles/`, the test `fin ingest
 --kind` uses) has that profile's kind; else one with a sheet a diligence databook has
 (`REFERENCE_SHEETS`, matched on sheet names like a profile's headers) is `reference_databook`,
-listed and not loaded: a third party's figures never become company data, and fin has no reference
-loader yet (SPEC-10); else one with statement sheets (the test `fin ingest` uses) is `statements`. A
+loaded as a reference (`fin reference add`, SPEC-10), never as company data; else one with
+statement sheets (the test `fin ingest` uses) is `statements`. A
 text PDF fin reads statements from is `statements`. fin does not guess from file names or contents
 beyond that: every other file is listed with a reason and one next step (`REASONS`).
 """
@@ -56,13 +56,6 @@ REASONS = {
     "several_kinds": (
         "its headers fit column profiles of more than one kind",
         "Load it with fin ingest --kind <kind> --profile <name>, naming the one it is",
-    ),
-    "reference_databook": (
-        "a third party's diligence databook (it has a sheet such as quality of earnings, net debt "
-        "or net working capital): fin keeps a third party's figures apart from the company's and "
-        "cannot load them as a reference yet",
-        "Keep it in the data room: it is loaded as a reference once fin can hold reference "
-        "figures (SPEC-10); it is never loaded as company data",
     ),
     "statements_unreadable": (
         "it has statement sheets fin cannot read",
@@ -135,7 +128,7 @@ def _excel(path: Path) -> Kind:
         (profile,) = matches.values()
         return Kind(profile.kind, profile.name, _source_period(path, profile))
     if any(REFERENCE_SHEETS.search(norm(title)) for title in book.sheetnames):
-        return unusable("reference_databook", "reference_databook")
+        return Kind("reference_databook")
     try:
         values = extract_workbook(path).values
     except NoTablesFound:

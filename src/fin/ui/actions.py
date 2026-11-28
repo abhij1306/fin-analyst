@@ -15,7 +15,7 @@ from typing import Any
 from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.diligence import gates
-from fin.services import decisions, reviews
+from fin.services import dataroom, decisions, reviews
 from fin.services.files import delete_documents, upload
 from fin.services.result import ActionResult
 
@@ -72,6 +72,14 @@ ACTIONS: dict[str, Action] = {
     "gate-approve": Action("gates", decisions.approve_gate),
     "fdd-final": Action("findings", decisions.mark_fdd_findings),
     "fdd-draft": Action("findings", decisions.mark_fdd_findings, {"undo": True}),
+    "reference-confirm": Action(
+        "references", decisions.decide_reference_lines, {"target": "confirmed"}
+    ),
+    "reference-reject": Action(
+        "references", decisions.decide_reference_lines, {"target": "rejected"}
+    ),
+    "dataroom-approve": Action("files", dataroom.approve_rows),
+    "dataroom-undo": Action("files", dataroom.approve_rows, {"undo": True}),
 }
 
 

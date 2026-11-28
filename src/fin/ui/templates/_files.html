@@ -16,6 +16,20 @@
   <input class="input" type="file" id="upload" name="files" multiple required accept=".xlsx,.xlsm,.xls,.pdf">
   <button type="submit" class="btn" data-variant="outline">Upload</button>
 </form>
+<div class="upload">
+  <form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+    <input type="hidden" name="action" value="dataroom-scan"><input type="hidden" name="company" value="{{ company }}">
+    <label class="label" for="room">Data-room folder on this computer</label>
+    <input class="input" id="room" name="item" required placeholder="C:/data-room or ~/data-room">
+    <button type="submit" class="btn" data-variant="outline">Scan folder</button>
+  </form>
+  <form class="inline" hx-post="/dataroom-upload" hx-encoding="multipart/form-data" hx-target="#jobs" hx-swap="outerHTML">
+    <input type="hidden" name="company" value="{{ company }}">
+    <label class="label" for="room-zip">or a data room as .zip</label>
+    <input class="input" type="file" id="room-zip" name="files" required accept=".zip">
+    <button type="submit" class="btn" data-variant="outline">Upload and scan</button>
+  </form>
+</div>
 {% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
 {% with offer = data.addon_offer %}{% include "_addon_offer.html" %}{% endwith %}
 {% include "_file_rows.html" %}

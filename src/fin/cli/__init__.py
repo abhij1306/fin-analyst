@@ -19,6 +19,7 @@ from fin.cli import netdebt  # noqa: F401, E402
 from fin.cli import fdd  # noqa: F401, E402
 from fin.cli import ui  # noqa: F401, E402
 from fin.cli import dataroom  # noqa: F401, E402
+from fin.cli import reference  # noqa: F401, E402
 from fin.cli import questions  # noqa: F401, E402
 # isort: on
 

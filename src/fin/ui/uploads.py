@@ -38,11 +38,14 @@ def save_one(handle: BinaryIO, target: Path) -> None:
         shutil.copyfileobj(handle, out)
 
 
-def save_uploads(inbox: Path, files: list[tuple[str, BinaryIO]]) -> list[str]:
-    """Write the files into `inbox`; returns their names. E008 refuses all and writes none."""
+def save_uploads(
+    inbox: Path, files: list[tuple[str, BinaryIO]], suffixes: tuple[str, ...] = SUFFIXES
+) -> list[str]:
+    """Write the files into `inbox` (a data-room upload: its own folder, `.zip` only); returns
+    their names. E008 refuses all and writes none."""
     if not files:
         raise UiActionInvalid("choose at least one file")
-    names = [safe_name(raw) for raw, _ in files]
+    names = [safe_name(raw, suffixes) for raw, _ in files]
     folder = inbox.resolve()
     targets = [(folder / name) for name in names]
     if len({name.lower() for name in names}) != len(names):
