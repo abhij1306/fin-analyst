@@ -90,7 +90,7 @@ def test_a_bridge_without_reported_ebitda_names_the_missing_input() -> None:
         "unit": "rupees",
         "engagement": {"engagement_id": 1, "status": "open", "periods": "FY24",
                        "query_threshold": D("100000.00"), "opened_at": datetime(2026, 11, 9),
-                       "closed_at": None},
+                       "closed_at": None, "invoice_due_days": 90},
         "adjusted_ebitda": [{"period": "FY24", "scope": "standalone", "proposed_count": 0,
                              "accepted_revenue_effect": D("0.00"), "reported_ebitda": None}],
         "bridge": [{"period": "FY24", "scope": "standalone", "kind": "reported", "adj_id": None,

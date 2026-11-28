@@ -78,6 +78,7 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
         "    pass: no held documents\n"
         "    pass: no mapping items waiting for review\n"
         "    pass: no figures stated by the user\n"
+        "    pass: no figures corrected after fin read them\n"
         "    pass: no trial balance loaded and no stub: the trial balance checks apply once one"
         " is\n"
         "    unlocks: approving G2\n"
