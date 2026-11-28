@@ -374,7 +374,7 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin netdebt show <co> [--period] [--json]`, `fin netdebt propose <co> [file]`, `fin netdebt item propose\|list <co>` (FDD F4) | `/diligence` | Claude proposes classes and items |
 | `fin review confirm\|reject <co> <ids> --netdebt`, `fin netdebt item accept\|reject <co> <ids>` | `/diligence` | Either (when the user says) |
 | `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
-| `fin adjust import <co> <file.csv\|xlsx> [--sheet]` (or the walk-sheet upload on the Queries screen) | `/diligence` | Either |
+| `fin adjust import <co> <file.csv\|xlsx\|xlsm> [--sheet]` (or the walk-sheet upload on the Queries screen) | `/diligence` | Either |
 | `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
 | `fin gate status <co> [--json]` | `/diligence` | Either |
 | `fin gate approve <co> <gate>` | `/diligence` | Human (Claude only when the user says; the PreToolUse hook asks) |
@@ -1270,11 +1270,14 @@ Builder's readings: [decisions/spec-09.md](decisions/spec-09.md).
   `Source reference` (any case; `_` reads as a space). The EBITDA effect is revenue effect minus cost effect.
   Each adjustment's evidence is the file and the row's description cell (`walk.xlsx Walk!G5`), then the source
   reference. Every row is checked as `fin adjust propose` checks it before any is added, so one bad row, an unknown
-  column or a missing sheet is E847: the message names the row, nothing is imported and no event is logged. The file
-  is archived like an ingested document; one run, one `adjust import` event and one event per adjustment.
+  column or a missing sheet is E847: the message names the row (or the column or sheet), nothing is imported and no event is logged. A sheet
+  already imported into the engagement is E847 too (a row's evidence is already an adjustment that is not rejected):
+  importing it twice would count each adjustment twice. The file is archived like an ingested document; one run, one `adjust import` event and one event per adjustment.
 - **`adjusted_pl`** (view, `fin sql`): the P&L of the latest engagement's annual periods, reported and adjusted per
-  account, period and scope. Accepted adjustments land on `revenue` and `total_income` (revenue effect),
-  `total_expenses` (cost effect), `profit_before_exceptional_items` and `pbt` (the EBITDA effect), and a
+  account, period and scope (every annual account; the Bridge screen shows the P&L lines, and a balance sheet or
+  cash flow account is there as reported with adjustment 0). Accepted adjustments land on `revenue` and `total_income` (revenue effect),
+  `total_expenses` (cost effect), `profit_before_exceptional_items`, `profit_before_extraordinary_items` and `pbt`
+  (the EBITDA effect), and a
   reclassification moves `moved_amount` from `from_account` to `account`. Other lines are as reported. Proposed
   adjustments are not applied. A line with no reported figure has no adjusted figure.
 

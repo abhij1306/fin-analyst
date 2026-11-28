@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from fin.db.conn import connect  # noqa: E402
 from fin.paths import audit_db_path, company_db_path  # noqa: E402
 from fin.ui.server import create_app  # noqa: E402
+from fin.ui.views import gate_fix  # noqa: E402
 from tests.diligence_ui_fixtures import ROWS, build_root, write_walk  # noqa: E402
 
 TOKEN = "t0ken"
@@ -177,3 +178,21 @@ def test_an_engagement_opens_once_and_closes_from_the_screen(client: TestClient)
     closed = post(client, "/engagement/close")
     assert "Done" in closed
     assert "Open an engagement" in client.get("/engagement?company=acme").text
+
+
+@pytest.mark.parametrize(
+    ("line", "fix"),
+    [
+        ("3 labels wait for review (`fin review list acme`)", "mappings"),
+        ("2 net debt items wait (`fin review list acme --netdebt`)", None),
+        ("tax ledgers wait (`fin review list acme --tax`)", None),
+        ("1 open finding (`fin findings list acme`)", "files"),
+        ("2 draft queries (`fin query list acme`)", "queries"),
+        ("no command here", None),
+    ],
+)
+def test_a_failing_gate_line_links_to_the_screen_that_closes_it_or_to_claude(
+    line: str, fix: str | None
+) -> None:
+    found = gate_fix(line)
+    assert (found["screen"] if found else None) == fix

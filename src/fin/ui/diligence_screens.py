@@ -120,7 +120,7 @@ def _as_reported(root: Path, company: str) -> dict[str, Any]:
         if not out or out[-1]["key"] != key:
             title = f"{r['scope']} {r['period']}: {TITLES[r['statement']].lower()}, as reported"
             out.append({"key": key, "title": title, "lines": []})
-        value = amount(in_unit(r["value"], r["unit"]))
+        value = money(r["value"], r["unit"])
         out[-1]["lines"].append({"label": r["label"], "depth": r["depth"], "value": value})
     return {"message": None, "blocks": out}
 

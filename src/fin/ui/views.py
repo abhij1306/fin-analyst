@@ -63,10 +63,10 @@ COMMAND = re.compile(r"`(fin [^`]*)`")
 
 def gate_fix(text: str) -> dict[str, str] | None:
     """Where the user closes a failing checklist line: {"screen", "label"} from the first command
-    the line names, or None (then the screen offers to ask Claude). A review of another kind
-    (`--kind`) is not on the Mappings screen."""
+    the line names, or None (then the screen offers to ask Claude). A review with an option
+    (`--netdebt`, `--tax`, `--related`, ...) is another kind, not on the Mappings screen."""
     for command in COMMAND.findall(text):
-        if "--kind" in command:
+        if command.startswith("fin review") and "--" in command:
             return None
         for prefix, screen, label in GATE_FIXES:
             if command.startswith(prefix):

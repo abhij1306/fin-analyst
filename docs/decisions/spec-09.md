@@ -5,8 +5,8 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
 ## Where adjustments land in the adjusted P&L
 
 - **Decision**: the view `adjusted_pl` applies an accepted adjustment's revenue effect to `revenue` and
-  `total_income`, its cost effect to `total_expenses`, and its EBITDA effect to `profit_before_exceptional_items`
-  and `pbt`. A reclassification moves `moved_amount` from `from_account` to `account`. Every other line is as
+  `total_income`, its cost effect to `total_expenses`, and its EBITDA effect to `profit_before_exceptional_items`,
+  `profit_before_extraordinary_items` and `pbt` (every subtotal between them). A reclassification moves `moved_amount` from `from_account` to `account`. Every other line is as
   reported, including the account an adjustment names: the effect is on the totals, not split into detail lines.
 - **Why**: an adjustment carries a revenue and a cost effect, not a split by line. Putting it on the totals keeps
   "adjusted totals = reported totals + accepted adjustments" exact (a test checks it in SQL) without guessing which
@@ -43,6 +43,15 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
 - **Decision**: each imported adjustment's `source_ref` is the file, sheet and the row's description cell
   (`walk.xlsx Walk!G5`), then the row's source reference.
 - **Why**: the spec asks for the file and cell; the description cell is the one a reader goes to.
+
+## A sheet imported twice is refused
+
+- **Decision** (reviewer): `fin adjust import` refuses (E847) a sheet when a row's evidence (file, sheet, cell and
+  source reference) is already an adjustment of the engagement that is not rejected.
+- **Why**: importing the same walk sheet twice would propose every adjustment twice, and accepting both would count
+  each one twice in adjusted EBITDA (engineering rule 3, load twice). A changed sheet is imported under a new file
+  name, or after the earlier adjustments are rejected.
+- **How to change it**: `src/fin/diligence/adjust_import.py: _refuse_repeat`.
 
 ## `fin query raise` keeps its CLI body
 

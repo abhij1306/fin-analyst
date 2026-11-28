@@ -9,7 +9,8 @@ ignored. Each adjustment's evidence is the file and the row's description cell
 (`walk.xlsx Adjustments!G5`), then the row's source reference. The file is archived like a source.
 
 All rows or none: every row is checked before any is added, so a bad row refuses the whole file
-(E847) and names the row; nothing is imported.
+(E847) and names the row; nothing is imported. A sheet already imported into the engagement (a
+row's evidence is an adjustment that is not rejected) is refused the same way.
 """
 
 import csv
@@ -18,6 +19,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from xml.etree.ElementTree import ParseError
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
@@ -36,6 +38,8 @@ SUFFIXES = (".csv", ".xlsx", ".xlsm")
 REQUIRED = ("period", "scope", "category", "description")
 EFFECTS = ("revenue effect", "cost effect")
 COLUMNS = (*REQUIRED, *EFFECTS, "account", "source reference")
+# What a workbook that is not readable raises, on opening or while its rows are read.
+UNREADABLE = (OSError, KeyError, ValueError, zipfile.BadZipFile, InvalidFileException, ParseError)
 
 
 @dataclass(frozen=True)
@@ -77,14 +81,17 @@ def _grid(path: Path, sheet: str | None) -> tuple[str | None, list[list[Any]]]:
             raise _refuse(f"cannot read {path.name}: {exc}") from exc
     try:
         book = load_workbook(path, read_only=True, data_only=True)
-    except (OSError, KeyError, zipfile.BadZipFile, InvalidFileException) as exc:
+    except UNREADABLE as exc:
         raise _refuse(f"cannot read {path.name}: {exc}") from exc
     try:
         chosen = sheet or book.sheetnames[0]
         if chosen not in book.sheetnames:
             sheets = ", ".join(book.sheetnames)
             raise _refuse(f"{path.name} has no sheet {sheet!r} (sheets: {sheets})")
+        # read-only: the sheet's XML is read while its rows are iterated
         return chosen, [list(cells) for cells in book[chosen].iter_rows(values_only=True)]
+    except UNREADABLE as exc:
+        raise _refuse(f"cannot read {path.name}: {exc}") from exc
     finally:
         book.close()
 
@@ -182,15 +189,34 @@ def _checked(row: Row, step: Any) -> Any:
         ) from exc
 
 
+def _refuse_repeat(con: Any, engagement: dict[str, Any], rows: list[Row]) -> None:
+    """E847 when a row's evidence is already an adjustment of the engagement that is not rejected:
+    the same sheet imported twice would count every adjustment twice."""
+    by_evidence = {row.evidence: row for row in rows}
+    placeholders = ", ".join("?" for _ in by_evidence)
+    earlier = con.execute(
+        "SELECT adj_id, source_ref FROM adjustments WHERE engagement_id = ? "
+        f"AND status <> 'rejected' AND source_ref IN ({placeholders}) ORDER BY adj_id",
+        [engagement["engagement_id"], *by_evidence],
+    ).fetchone()
+    if earlier is not None:
+        row = by_evidence[earlier[1]]
+        raise _refuse(
+            f"{row.where}: adjustment #{earlier[0]} already has this evidence; this sheet was "
+            "imported before (reject those adjustments, or import a changed sheet under a new name)"
+        ).with_context(row=row.where, adj_id=earlier[0])
+
+
 def import_file(
     run: Run, company: str, path: Path, sheet: str | None = None
 ) -> list[dict[str, Any]]:
     """Propose an adjustment for every row of the file, in one transaction, after checking every
-    row (`adjustments.check_in`). E847 naming the first bad row; E803 without an open engagement.
-    Returns the adjustments proposed."""
+    row (`adjustments.check_in`). E847 naming the first bad row, or a row already imported; E803
+    without an open engagement. Returns the adjustments proposed."""
     rows = read_rows(path, sheet)
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
+        _refuse_repeat(con, engagement, rows)
         planned = []
         for row in rows:
             effects = _checked(

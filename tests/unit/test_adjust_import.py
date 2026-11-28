@@ -1,6 +1,7 @@
 """SPEC-09: `fin adjust import` proposes one adjustment per row of a walk sheet, all or none, and
 the adjusted P&L view applies only accepted adjustments."""
 
+import zipfile
 from decimal import Decimal
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fin.actor import USER
+from fin.audit.errors import AdjustmentImportInvalid
 from fin.audit.logger import Run
 from fin.cli import app
 from fin.db.conn import connect
@@ -93,6 +95,26 @@ def test_one_bad_row_imports_nothing_and_names_the_row(
     assert adjustment_events(root) == 0
 
 
+def test_the_same_sheet_imported_twice_is_refused_until_its_adjustments_are_rejected(
+    root: Path, tmp_path: Path
+) -> None:
+    walk = write_walk(tmp_path / "walk.xlsx")
+    first = services.import_adjustments(root, "acme", walk, None, via="cli", actor=USER)
+    assert first.ok, first.lines
+    again = services.import_adjustments(root, "acme", walk, None, via="cli", actor=USER)
+    assert (again.ok, again.code) == (False, "E847")
+    assert again.lines[-1].startswith(
+        "row 2 (walk.xlsx Walk!G2): adjustment #1 already has this evidence"
+    ), again.lines
+    assert [r[0] for r in rows(root)] == [1, 2]
+    assert adjustment_events(root) == 2
+    with connect(company_db_path(root, "acme"), write=True) as con:  # gates are tested elsewhere
+        con.execute("UPDATE adjustments SET status = 'rejected'")
+    third = services.import_adjustments(root, "acme", walk, None, via="cli", actor=USER)
+    assert third.ok, third.lines
+    assert [r[0] for r in rows(root)] == [1, 2, 3, 4]
+
+
 def test_a_file_fin_cannot_use_is_refused(root: Path, tmp_path: Path) -> None:
     extra = tmp_path / "extra.csv"
     extra.write_text("Period,Scope,Category,Amount,Description\n", encoding="utf-8")
@@ -104,6 +126,21 @@ def test_a_file_fin_cannot_use_is_refused(root: Path, tmp_path: Path) -> None:
     with pytest.raises(Exception) as missing_sheet:
         adjust_import.read_rows(walk, "Other")
     assert "walk.xlsx has no sheet 'Other' (sheets: Walk)" in str(missing_sheet.value)
+
+
+def test_a_workbook_whose_sheet_cannot_be_read_is_refused(tmp_path: Path) -> None:
+    good = write_walk(tmp_path / "good.xlsx")
+    broken = tmp_path / "broken.xlsx"
+    with zipfile.ZipFile(good) as source, zipfile.ZipFile(broken, "w") as target:
+        for item in source.infolist():
+            data = source.read(item.filename)
+            if item.filename == "xl/worksheets/sheet1.xml":
+                data = data[: len(data) // 2]  # the sheet's XML cut off: read only while iterating
+            target.writestr(item, data)
+    with pytest.raises(AdjustmentImportInvalid) as caught:
+        adjust_import.read_rows(broken)
+    assert caught.value.message.startswith("cannot read broken.xlsx: ")
+    assert caught.value.message.endswith("; nothing imported")
 
 
 def test_the_cli_imports_a_csv_and_prints_each_adjustment(
@@ -150,6 +187,8 @@ def test_adjusted_pl_totals_are_reported_plus_accepted_adjustments_in_sql(
                 SELECT 'revenue' AS account, rev AS adj FROM acc
                 UNION ALL SELECT 'total_income', rev FROM acc
                 UNION ALL SELECT 'total_expenses', cost FROM acc
+                UNION ALL SELECT 'profit_before_exceptional_items', ebitda FROM acc
+                UNION ALL SELECT 'profit_before_extraordinary_items', ebitda FROM acc
                 UNION ALL SELECT 'pbt', ebitda FROM acc
             )
             SELECT p.account FROM adjusted_pl p JOIN expected e USING (account)
@@ -161,7 +200,16 @@ def test_adjusted_pl_totals_are_reported_plus_accepted_adjustments_in_sql(
             "WHERE account IN ('revenue', 'total_expenses', 'pbt', 'employee_expense') "
             "ORDER BY account"
         ).fetchall()
+        moved = con.execute(
+            "SELECT account, adjustment FROM adjusted_pl WHERE adjustment <> 0 ORDER BY account"
+        ).fetchall()
     assert mismatches == []
+    assert moved == [  # every subtotal from the expenses down to profit before tax moves
+        ("pbt", Decimal("100000.00")),
+        ("profit_before_exceptional_items", Decimal("100000.00")),
+        ("profit_before_extraordinary_items", Decimal("100000.00")),
+        ("total_expenses", Decimal("-100000.00")),
+    ]
     assert totals == [
         ("employee_expense", Decimal("3000000.00"), Decimal("0.00"), Decimal("3000000.00")),
         ("pbt", Decimal("1300000.00"), Decimal("100000.00"), Decimal("1400000.00")),

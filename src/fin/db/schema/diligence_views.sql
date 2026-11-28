@@ -218,11 +218,13 @@ SELECT
 FROM walk;
 
 -- The P&L before and after accepted adjustments (SPEC-09, fin.diligence.adjusted), one row per period and scope of the
--- latest engagement and account: the account's reported figure (current_facts, annual), the accepted adjustments to
--- it, and adjusted = reported + adjustment. Where an accepted adjustment lands:
+-- latest engagement and account (every annual account: fin.diligence.adjusted reads the P&L lines; a balance sheet or
+-- cash flow account is there as reported, adjustment 0): the account's reported figure (current_facts, annual), the
+-- accepted adjustments to it, and adjusted = reported + adjustment. Where an accepted adjustment lands:
 --   revenue, total_income                     its revenue effect;
 --   total_expenses                            its cost effect;
---   profit_before_exceptional_items, pbt      its EBITDA effect (amount = revenue effect - cost effect);
+--   profit_before_exceptional_items, profit_before_extraordinary_items, pbt
+--                                             its EBITDA effect (amount = revenue effect - cost effect);
 --   a reclassification's account, from_account  plus and minus the amount moved (its effects are 0).
 -- Other lines have adjustment 0 (a true zero). Tax is not computed for an adjustment, so no line after profit before
 -- tax is adjusted (fin.diligence.adjusted shows the P&L down to pbt). A line with an adjustment and no reported figure
@@ -239,7 +241,7 @@ effects AS (
     UNION ALL
     SELECT period, scope, 'total_expenses', cost_effect FROM accepted
     UNION ALL
-    SELECT period, scope, unnest(['profit_before_exceptional_items', 'pbt']), amount FROM accepted
+    SELECT period, scope, unnest(['profit_before_exceptional_items', 'profit_before_extraordinary_items', 'pbt']), amount FROM accepted
     UNION ALL
     SELECT period, scope, account, moved_amount FROM accepted WHERE from_account IS NOT NULL
     UNION ALL
