@@ -6,7 +6,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 ## Module map (`src/fin/`)
 
-- `cli/`: the `fin` commands (Typer), one module per group: `core.py` (the root `app`, `--version`, shared argument checks), `init.py` (init, doctor), `ingest.py` (ingest, ingest-batch, verify), `findings.py` (findings, status), `statements.py` (statements, export), `data.py` (sql, dashboard, audit, delete, update, report), `evals.py` (eval init, run, bundle). Each command runs through the audit logger. To add a command group, make a module that does `from fin.cli.core import app` and decorates its commands, then add it to the import line in `cli/__init__.py` (the order is the order in `fin --help`).
+- `cli/`: the `fin` commands (Typer), one module per group: `core.py` (the root `app`, `--version`, shared argument checks), `init.py` (init, doctor), `ingest.py` (ingest, ingest-batch, verify), `findings.py` (findings, status), `statements.py` (statements, export), `data.py` (sql, dashboard, audit, delete, update, report), `evals.py` (eval init, run, bundle), `questions.py` (schema, metric add, list, remove). Each command runs through the audit logger. To add a command group, make a module that does `from fin.cli.core import app` and decorates its commands, then add it to the import line in `cli/__init__.py` (the order is the order in `fin --help`).
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
 - `audit/errors.py`: error classes and codes (the FDD ones, E9xx, in `audit/errors_fdd.py`, the data-room ones, E814, E815 and E819, in `audit/errors_dataroom.py`, and E830 to E874 in `audit/errors_dd.py`, all re-exported) (E001 to E972). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
@@ -92,10 +92,11 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   cleaning), `review.py` (with `review_accounts.py`: checks of a proposed or new account) and `commands.py` (`fin map propose|set|accounts`, `fin review list|confirm|reject`), with `proposal_commands.py` (`fin map ledgers|customers`).
 - `validate/gates.py`: the checks that run on a staged document (E401 to E405); a failed check is a finding.
 - `metrics/export.py`: copies every company's metrics, metric definitions, standard statements, findings,
-  coverage and unread pages to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
+  coverage and unread pages to `shared/analytics.duckdb` (`TABLES`), for the dashboards. `metrics/saved.py`:
+  saved metrics (`fin metric`): the formula parser, and the rewrite of the `saved_metrics_wide` view.
 - `statements.py`: the `standard_statements` view (made per connection from the dictionary's account tree) and
   `fin statements`. `workbook.py`: `fin export` (the Excel workbook).
-- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806, and the figure tables, E505), `evidence.py` (`fin sql --evidence` pages).
+- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806, and the figure tables, E505), `evidence.py` (`fin sql --evidence` pages), `guide.py` (`fin schema`: `QUESTION_VIEWS`, read from the database and the `-- about:` / `-- example:` comment lines above each view; the column hint of E504).
 - `facts.py`: figures the user states (`fin fact state|unstate|list`, CLI `cli/facts.py`; table `stated_figures`,
   merged into `current_facts`) and corrections of a figure fin misread (`fin fact correct`; table
   `fact_corrections`, view `corrected_now`). `metrics/missing.py`: why a metric is not computed (the inputs it lacks).
@@ -199,6 +200,9 @@ Metrics are SQL views in each company database, so they are always current. All 
 `src/fin/db/schema/company_views.sql` (macros, fact views and the rules at the top), `company_metric_definitions.sql`, `company_metric_inputs.sql` and `company_metrics.sql` (run in that order); read the rules at the top of `company_views.sql` first (facts come from `current_facts`,
 one value per account, period and scope; ratios use `div6`; nothing is guessed).
 
+A user can also save a metric without editing the schema: `fin metric add` (`metrics/saved.py`). Add a built-in one
+when every company should have it with its own definition and tests.
+
 1. `metric_definitions`: add a row: name, category (`profitability`, `returns`, `liquidity`, `solvency`,
    `efficiency`, `cash_flow`, `growth`, `earnings_quality`, `per_share`, `lender`, `ttm`, `headline`, or a new
    one), unit (`rupees`, `rupees_per_share`, `ratio` or `days`), periods (`annual`, `all`, `interim` or
@@ -215,9 +219,11 @@ one value per account, period and scope; ratios use `div6`; nothing is guessed).
 4. The views only exist in a company database when it is created, so apply the change to existing ones too:
    re-create the data folder (`fin init` and ingest again), or run the edited `CREATE OR REPLACE VIEW` statements
    through `fin sql --write` on each company.
-5. The report shows it in its category's table already. Optionally add it to `CHARTS` or `KEY_ROWS` in
+5. A view meant for questions (`fin.query.guide.QUESTION_VIEWS`) has an `-- about:` line and an `-- example:` line
+   right above its `CREATE VIEW`; `tests/unit/test_schema_guide.py` fails without them.
+6. The report shows it in its category's table already. Optionally add it to `CHARTS` or `KEY_ROWS` in
    `src/fin/report/data.py`. Every metric is in `fin sql`, the dashboard and the `fin export` workbook already.
-6. Test: add the expected values to `tests/fixtures/sample-financials/answer_key_analysis.json` (computed by hand
+7. Test: add the expected values to `tests/fixtures/sample-financials/answer_key_analysis.json` (computed by hand
    or with Python's `decimal` from the facts in `answer_key.json`, never by running the SQL) and run
    `tests/integration/test_metrics.py`. A metric the synthetic companies cannot have (lender, quarters, EPS) is
    tested on a synthetic PDF instead, as in `tests/integration/test_standard_formats.py` and
@@ -305,8 +311,8 @@ The fix for an oversized file is to split it along its seams (pure moves), never
 ## Schema
 
 Each database is created from its schema files in `src/fin/db/schema/`, run in the order `SCHEMA_FILES` in
-`src/fin/db/schema.py` lists them: `audit.sql`, `dictionary.sql`, `analytics.sql`, and for a company `company.sql`
-(tables), `company_views.sql` and the `company_metric_*.sql` / `company_metrics.sql` files (metric macros and
+`src/fin/db/schema.py` lists them: `audit.sql`, `dictionary.sql` with `dictionary_saved_metrics.sql`, `analytics.sql`, and for a company `company.sql`
+(tables), `company_views.sql`, `company_saved_metrics.sql` (saved metric tables) and the `company_metric_*.sql` / `company_metrics.sql` files (metric macros and
 views), `diligence.sql` (diligence tables), `diligence_views.sql` (EBITDA bridge and walk views), `sources.sql` and
 `sources_views.sql` (source tables and their views) and the other diligence view files, then the FDD files (`fdd_bsheet.sql`: F3's provision ledgers and views; `fdd_orderbook.sql`: F7's orderbook table and visibility views; `fdd_gst.sql`: F6's GST returns, tax ledgers and tax views; `fdd_netdebt.sql`: F4's net debt classes, items and views; `fdd_findings.sql`: F8's FDD findings). `fin init` creates the
 shared databases, and a company database is created the first time that company is used. Nothing alters a database that exists; there are no migrations and no version

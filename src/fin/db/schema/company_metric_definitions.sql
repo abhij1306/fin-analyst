@@ -4,7 +4,10 @@
 -- and the dashboard. periods: 'annual' (fiscal years only), 'all' (years, quarters, half years and nine months),
 -- 'interim' (every period but years: for a year the figure is a fact), 'quarter' (quarters only). when_missing:
 -- see the rules at the top. label: the display name (report tables, charts). times: a ratio shown as times ("2.35x")
--- instead of a percentage. position: display order (the order of the rows below; CAGRs come after them).
+-- instead of a percentage. position: display order (the order of the rows below; CAGRs come after them, then saved
+-- metrics). Saved metrics (`fin metric add`, table saved_metrics) have category 'user'.
+-- about: What each metric means: category, unit, the periods it is for, its definition and formula.
+-- example: SELECT metric, category, unit, definition, formula FROM metric_definitions WHERE category = 'profitability'
 CREATE VIEW metric_definitions AS
 SELECT row_number() OVER () AS position, * FROM (VALUES
     -- headline figures of an interim period (for a year they are facts: revenue, pat)
@@ -172,4 +175,7 @@ SELECT
     position, metric, 'growth', 'ratio', 'annual', 'absent', name || ' CAGR, ' || n || ' years', false,
     'Compound annual growth of ' || what || ' over ' || n || ' years (both ends loaded and positive).',
     '(' || account || ' / ' || account || ' ' || n || ' years before) ^ (1/' || n || ') - 1'
-FROM cagr_metrics;
+FROM cagr_metrics
+UNION ALL
+SELECT 2000 + position, metric, 'user', unit, periods, 'null', metric, false, definition, formula
+FROM saved_metrics;

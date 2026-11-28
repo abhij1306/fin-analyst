@@ -143,7 +143,9 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `facts` — fact_id, raw_id, account, fiscal_year, period, period_months, period_end, scope, value `DECIMAL(20,2)` in rupees, mapping_id, confirmed, run_id
 - `document_facts` and `current_facts` (views): one value per account, period and scope (lines a document maps to the same account are summed, a total line is not added to its parts; nil lines are left out of this test; of just two equal lines, one is the total only when it is labelled "Total..." or the other sits under it)
 - `notes` — doc_id, section, markdown_path
+- `fact_sources` (view): each fact with its file, `sheet!cell` or page, printed label, confirmation, reader and document status
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
+- `saved_metrics`, `saved_metric_operands` (tables) and `saved_metrics_wide` (view rewritten by `fin metric`): saved metrics; the shared ones also in `shared/dictionary.duckdb` `saved_metrics`
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - Diligence: `engagement`, `accountant_queries`, `adjustments`, `passthrough_customers` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`, `revenue_split`, `passthrough_lines`, `customer_revenue`, `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`, `product_revenue`, `product_pvm`, `product_pvm_summary` (views on the latest engagement; `customers` is a table)
 - Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
@@ -313,6 +315,8 @@ claude
 | `fin sql <co> --sql "…" [--question] [--evidence]` | `/ask`, `/report` | Either (reads) |
 | `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit; refuses the figure tables, E505) |
 | `fin fact state <co> --account --period --scope --value --reason`, `fin fact unstate <co> <id>`, `fin fact correct <co> <fact_id> --value --reason`, `fin fact list <co> [--json]` | `/ingest` | Either (state or correct only when the user says, in their words) |
+| `fin schema [co] [--table name] [--json]` | `/ask` | Either |
+| `fin metric add <name> --formula … --unit ratio\|rupees\|days --definition "…" [--company co]`, `fin metric list [co]`, `fin metric remove <name> [--company co]` | `/ask` (offers to save a hand-written ratio) | Either (add or remove when the user says) |
 | `fin statements <co> [--period] [--scope] [--json]`, `fin export <co>` | `/statements` | Either |
 | `fin report <co> [--scope] [--peers] [--render]` | `/report` | Either |
 | `fin dashboard [--build]` | `/dashboard` | Either |
@@ -1113,6 +1117,27 @@ states the figure; fin never invents one.
   reopens it; `fin status` and the Home screen count them. `fin fact list` lists stated and corrected figures.
 - A data folder made before this has no `stated_figures` table: re-ingest into a new data folder.
 - Readings behind these choices: `docs/decisions/spec-08.md`.
+
+Questions (SPEC-07):
+- `fin schema [co] [--table name] [--json]` lists the views meant for questions (`current_facts`, `fact_sources`,
+  `standard_statements`, `metrics`, `metric_inputs`, `metric_definitions`, `document_facts`) with each column and
+  type read from the database (the company's, or an empty one made from the schema files), one line of meaning and an
+  example query (the `-- about:` and `-- example:` comment lines above each view in its schema file).
+- When `fin sql` (read or write) fails on a column that does not exist, E504 lists the columns of the tables named
+  in the query, the question views that have a column of that name, and points to `fin schema`.
+- `fact_sources` joins a fact to its file (`source_file`), `source_ref`, sheet, cell, page, printed `label` and
+  `section`, `source_confirmed`, `source_read_by` and `document_status`: `JOIN fact_sources USING (fact_id)`.
+- Saved metrics: `fin metric add <name> --formula ... --unit ratio|rupees|days --definition "..."` saves a metric for
+  one company (`--company`) or for every company (also copied into a company created later). The formula has
+  accounts, metrics (built-in or saved before it), numbers, `+ - * /` and brackets; a name that is both a metric and
+  an account is the metric. It is computed in SQL with the built-in metrics (in DOUBLE, rounded once: rupees to 2
+  places, ratio and days to 6); a missing input or a zero divisor gives NULL. It is annual when it uses an
+  annual-only metric, else for every period. It is in `metrics` and `metric_definitions` with category `user`, its
+  inputs in `metric_inputs` (an account as printed; a metric's own inputs), and so in the Excel export, the analytics
+  tables and the dashboards; the analytics are refreshed after each change. `fin metric list [co]` shows them;
+  `fin metric remove <name> [--company co]` removes one (E507 while another saved metric uses it). Both back up the
+  databases they change. `fin sql --write` refuses to change the saved metric tables (E504). E506 when a metric
+  cannot be saved.
 
 ## Web UI (optional, `fin ui`)
 

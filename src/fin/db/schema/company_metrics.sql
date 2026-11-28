@@ -212,6 +212,10 @@ SELECT
     div6(ttm_pat, ttm_revenue) AS ttm_pat_margin
 FROM derived;
 
+-- metrics_wide plus one column per saved metric (`fin metric add`). fin.metrics.saved rewrites this view from the
+-- saved_metrics table whenever a saved metric is added or removed; with none it is metrics_wide.
+CREATE VIEW saved_metrics_wide AS SELECT * FROM metrics_wide;
+
 -- Metrics, one row per period, scope and metric (long format). Which periods get a metric, and whether a metric
 -- without a value is a NULL row or no row, is in metric_definitions (periods, when_missing).
 --
@@ -219,9 +223,11 @@ FROM derived;
 -- metrics that make sense on one period's flows ('all' and 'interim'; 'quarter' for quarters only). Ratios that
 -- need a full year of flows or balance-sheet averages (days, returns, leverage, cash conversion) are annual: a
 -- quarter's revenue against a closing balance is not comparable to the annual figure.
+-- about: Every metric, built-in and saved, one row per period, scope and metric; value is a fraction for a ratio.
+-- example: SELECT period, scope, metric, value, unit FROM metrics WHERE metric = 'ebitda_margin' ORDER BY period
 CREATE VIEW metrics AS
 WITH long AS (
-    FROM metrics_wide UNPIVOT INCLUDE NULLS (
+    FROM saved_metrics_wide UNPIVOT INCLUDE NULLS (
         value FOR metric IN (COLUMNS(* EXCLUDE (fiscal_year, period, period_months, scope, period_end)))
     )
 )
@@ -254,6 +260,8 @@ WHERE CASE d.periods
 -- then; a line held in another reported line, as cash in cash and bank balances, does not). EBITDA's PBT before exceptional items lists only the lines that period uses (metric_input_accounts
 -- exceptional). stated_id is set (fact_id NULL, value the stated value) when the input is a figure the user stated
 -- (current_facts.stated_id).
+-- about: The facts each metric used, one row per input line; fact_id and stated_id both NULL means the input is missing.
+-- example: SELECT metric, account, input_period, fact_id, value FROM metric_inputs WHERE metric = 'current_ratio' AND period = 'FY25'
 CREATE VIEW metric_inputs AS
 WITH wanted AS (
     SELECT
