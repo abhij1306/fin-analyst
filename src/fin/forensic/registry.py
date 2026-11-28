@@ -22,10 +22,11 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class Flag:
-    """One flagged row: its lineage (file_id + sheet + row, or page), the voucher, the ledger as
-    filed, the amount (None for a voucher gap, never 0) and the reason in words. The runner adds the
-    account, the party token and whether the amount is at or above the query threshold. A bank
-    test gives the account itself (the statement's `ACCT-` token, no mapping) and the party."""
+    """One flagged row: its lineage (file_id + sheet + row, or page), the voucher (a register
+    line's invoice number), the ledger as filed, the amount (None for a voucher gap, never 0) and
+    the reason in words. The runner adds the account, the party token and whether the amount is at
+    or above the query threshold. A bank test gives the account itself (the statement's `ACCT-`
+    token, no mapping) and the party; a register test gives the party (a register token)."""
 
     file_id: int | None
     sheet: str | None
@@ -39,7 +40,7 @@ class Flag:
     entry_date: date | None = None
     page: int | None = None
     account: str | None = None
-    party: str | None = None
+    party: str | None = None  # a register or bank test's token; else read off the ledger
 
 
 @dataclass

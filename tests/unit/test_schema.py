@@ -33,7 +33,7 @@ def test_every_metric_has_a_definition_and_inputs(tmp_path: Path) -> None:
         formulas = first_column("DESCRIBE metrics_wide")
         defined = first_column("SELECT metric FROM metric_definitions")
         with_inputs = first_column("SELECT metric FROM metric_input_accounts")
-    assert len(defined) == 66
+    assert len(defined) == 68
     assert formulas - PERIOD_COLUMNS == defined
     assert with_inputs == defined
 

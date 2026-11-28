@@ -20,7 +20,7 @@ CREATE TABLE recon_runs (
         'purchase_register_vs_gl', 'gl_vs_tb', 'payroll_vs_gl', 'bank_vs_invoices', 'bank_vs_tb', 'service_recast', 'walkthrough',
         'sales_cutoff', 'purchase_cutoff', 'orderbook_vs_register',
         'gstr1_vs_sales_register', 'gstr3b_vs_gstr1', 'gstr3b_vs_books', 'rcm',
-        'rpt_vs_books')),
+        'rpt_vs_books', 'purchase_register_vs_gstr2b')),
     period VARCHAR NOT NULL,
     scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
     left_file_id INTEGER NOT NULL,

@@ -22,6 +22,10 @@
     </tbody>
   </table></div></section>
 </div>
+<div class="card">
+  <header><h2>Period-end revenue</h2><p class="muted">Sales register revenue invoiced in the last month and the last days of each period (the period_end_days setting), and its share of the period's revenue. A measure: nothing is flagged.</p></header>
+  <section>{% if data.period_end %}<ul>{% for line in data.period_end %}<li>{{ line }}</li>{% endfor %}</ul>{% else %}{{ empty("No sales register", "Load the sales register to see it.") }}{% endif %}</section>
+</div>
 {% if not data.count %}
 <div class="card"><section>{{ empty("No flags", "Run the forensic tests, or the latest runs flagged nothing.") }}</section></div>
 {% else %}

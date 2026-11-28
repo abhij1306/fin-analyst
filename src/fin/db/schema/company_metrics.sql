@@ -171,6 +171,8 @@ SELECT
     rupees(cfo + cf_capex) AS free_cash_flow,
     div6(cfo, ebitda) AS cfo_to_ebitda,
     div6(cfo, pat) AS cfo_to_pat,
+    rupees(pat - cfo) AS accruals,
+    div6(pat - cfo, total_assets) AS accruals_to_assets,
     div6(-cf_capex, revenue) AS capex_to_revenue,
     div6(-cf_capex, depreciation) AS capex_to_depreciation,
     -- growth

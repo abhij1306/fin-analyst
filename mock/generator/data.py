@@ -9,6 +9,8 @@ To extend the set, add a plan, a party or a planted item here and regenerate.
 from dataclasses import dataclass, field
 from datetime import date
 
+from mock.generator import data_counterparty as counterparty
+
 COMPANY = "Corvane Analytics Private Limited"
 CODE = "corvane"
 BANNER = "SYNTHETIC TEST DATA - fictitious company, generated for testing fin"
@@ -66,6 +68,7 @@ LEDGERS = {
     "Donations": ("Indirect Expenses", "other_expenses"),  # SPEC-18: a rare ledger, planted
     "Staff Welfare": ("Indirect Expenses", "other_expenses"),  # SPEC-18: a near miss
     "Income Tax Expense": ("Indirect Expenses", "tax_expense"),
+    **counterparty.LEDGERS,  # SPEC-20: two new vendors and a loan
 }
 PL_GROUPS = ("Sales Accounts", "Purchase Accounts", "Indirect Incomes", "Indirect Expenses")
 # Debit (+) or credit (-) balances on 31-Mar-2022; the Profit & Loss A/c balances the rest.
@@ -623,8 +626,6 @@ FORENSIC_EXISTING: list[tuple[str, str, str, str, str]] = [
      "doubtful debts provision, mapped to trade receivables"),
     ("je_unusual_pair", "FY25", AJ, AUDIT_ADJUSTMENT["debit"], "the only voucher debiting other "
      "expenses and crediting trade receivables"),
-    ("je_unusual_pair", "FY25", CN, "Subscription Revenue", "the only credit note: revenue "
-     "debited, trade receivables credited"),
     ("je_unusual_pair", "FY25", f"P-{CN}", CUSTOMERS[CREDIT_NOTE["customer"]].ledger, "the only "
      "refund to a customer: trade receivables debited, cash credited"),
     *(
@@ -635,5 +636,8 @@ FORENSIC_EXISTING: list[tuple[str, str, str, str, str]] = [
      "the legal settlement"),
     ("je_rare_ledger", "FY23", f"OO/{ONE_OFFS[0][0]:%y%m%d}", ONE_OFFS[0][1], "a one-off cost, "
      "the office relocation"),
+    # SPEC-20 removed CN-2412-01's je_unusual_pair row (data_counterparty.CREDIT_NOTES book the pair
+    # twice more) and adds the under-limit purchase's je_under_limit rows
+    *counterparty.JE_EXISTING,
 ]  # fmt: skip
 APPROVAL_LIMIT = 500000  # the limit the user states for the mock company (je_under_limit)

@@ -42,7 +42,7 @@ def test_snapshot_copies_the_analytics_tables(data_root: Path) -> None:
             ("bluepeak",),
             ("kestrel",),
         ]
-        assert con.execute("SELECT count(*) FROM metrics").fetchone() == (461,)
+        assert con.execute("SELECT count(*) FROM metrics").fetchone() == (483,)
         # Every table the pages read is in the snapshot.
         tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
         assert tables == {

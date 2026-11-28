@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from mock.generator import data as d
+from mock.generator import data_counterparty as cp
 
 
 @dataclass
@@ -447,6 +448,48 @@ def _forensic(books: Books) -> None:
         )
 
 
+def _counterparty(books: Books) -> None:
+    """The entries planted for the counterparty tests (SPEC-20, `data_counterparty`)."""
+    for vendor, when, number, amount, _ in cp.PURCHASES:
+        gst = amount * d.GST_RATE // 100
+        entries = [
+            (vendor, 0, amount + 2 * gst),
+            ("Purchase of Licences", amount, 0),
+            ("Input CGST", gst, 0),
+            ("Input SGST", gst, 0),
+        ]
+        books.add(Voucher(when, "Purchase", number, entries))
+        service = (when, month_end(when))
+        books.invoices.append(
+            Invoice("purchase", number, when, vendor, "Analytics engine licences", amount, "INR",
+                    1.0, amount, service)
+        )  # fmt: skip
+        paid = when + timedelta(days=cp.PAY_DAYS)
+        if paid <= d.PERIODS[d.STUB][1]:
+            total = amount + 2 * gst
+            books.add(
+                Voucher(paid, "Payment", f"P-{number}", [(vendor, total, 0), (d.BANK, 0, total)],
+                        f"NEFT-{vendor}-{number}")
+            )  # fmt: skip
+    for when, number, amount, _ in cp.UNDER_LIMIT:
+        entries = [(d.LICENCE_VENDOR, 0, amount), ("Purchase of Licences", amount, 0)]
+        books.add(Voucher(when, "Purchase", number, entries))
+        books.invoices.append(
+            Invoice("purchase", number, when, d.LICENCE_VENDOR, "Analytics engine licences",
+                    amount, "INR", 1.0, amount, (when, month_end(when)))
+        )  # fmt: skip
+    customer = d.CUSTOMERS["C3"].ledger
+    for when, number, amount, _ in cp.CREDIT_NOTES:
+        entries = [(customer, 0, amount), (cp.CREDIT_LEDGER, amount, 0)]
+        books.add(Voucher(when, "Credit Note", number, entries))
+    for when, number, amount, _ in cp.LOANS:
+        entries = [(cp.LOAN, amount, 0), (d.BANK, 0, amount)]
+        books.add(Voucher(when, "Payment", number, entries, "NEFT-Vireo Ventures Pvt Ltd"))
+    for number, when, credit, amount, _ in cp.CAPITALISED:
+        entries = [("Computer Equipment", amount, 0), (credit, 0, amount)]
+        books.add(Voucher(when, "Journal", number, entries))
+
+
 def _tax(books: Books) -> None:
     """Tax at TAX_RATE on each year's profit before tax as provisionally closed (the auditor's
     adjustment is not deductible), paid on 31 July of the next year."""
@@ -503,6 +546,7 @@ def build() -> Books:
     _monthly_costs(books)
     _loan(books)
     _year_end(books)
+    _counterparty(books)
     _gst(books)
     _forensic(books)
     _tax(books)

@@ -14,42 +14,43 @@ Paths are under `mock/dataroom/` (the same tree is in `mock/zipped/corvane_datar
 | `02_auditor/corvane_fy25_annual_report_audited.pdf` | the auditor | statements | 3 statements, 50 lines per year, 2 year(s), unit lakhs | version 2 of FY25: audited, with notes (pages 5) |
 | `01_company/trial_balances/corvane_tb_fy23_2023-05-10.xlsx` | the company (management) | trial_balance | 31 ledgers, grand total 39,110,000 |  |
 | `01_company/trial_balances/corvane_tb_fy24_2024-05-12.xlsx` | the company (management) | trial_balance | 31 ledgers, grand total 50,918,000 |  |
-| `01_company/trial_balances/corvane_tb_fy25_v1_2025-04-15.xlsx` | the company (management) | trial_balance | 32 ledgers, grand total 76,334,000 | version 1: before the auditor's adjustment |
-| `01_company/trial_balances/corvane_tb_fy25_v2_2025-06-20.xlsx` | the company (management) | trial_balance | 34 ledgers, grand total 76,634,000 | version 2, sent again after the audit: supersedes v1 |
-| `01_company/trial_balances/corvane_tb_fy26_h1_2025-10-15.xlsx` | the company (management) | trial_balance | 31 ledgers, grand total 54,612,000 | the stub: unaudited management accounts |
+| `01_company/trial_balances/corvane_tb_fy25_v1_2025-04-15.xlsx` | the company (management) | trial_balance | 34 ledgers, grand total 75,359,000 | version 1: before the auditor's adjustment |
+| `01_company/trial_balances/corvane_tb_fy25_v2_2025-06-20.xlsx` | the company (management) | trial_balance | 36 ledgers, grand total 75,659,000 | version 2, sent again after the audit: supersedes v1 |
+| `01_company/trial_balances/corvane_tb_fy26_h1_2025-10-15.xlsx` | the company (management) | trial_balance | 33 ledgers, grand total 51,856,000 | the stub: unaudited management accounts |
 | `01_company/ledgers/corvane_ledger_vouchers_fy23.xlsx` | the company (management) | ledger_vouchers | 558 entries (opening and closing rows not loaded) |  |
 | `01_company/ledgers/corvane_ledger_vouchers_fy24.xlsx` | the company (management) | ledger_vouchers | 614 entries (opening and closing rows not loaded) |  |
-| `01_company/ledgers/corvane_ledger_vouchers_fy25.xlsx` | the company (management) | ledger_vouchers | 644 entries (opening and closing rows not loaded) |  |
-| `01_company/ledgers/corvane_ledger_vouchers_fy26_h1.xlsx` | the company (management) | ledger_vouchers | 326 entries (opening and closing rows not loaded) |  |
-| `01_company/billing/corvane_registers_fy23_to_fy26_h1.xlsx` | the company (management) | registers | Sales Register: 88 invoices, Purchase Register: 14 invoices | 1-Apr-2022 to 30-Sep-2025; fin labels it FY23-FY26 |
+| `01_company/ledgers/corvane_ledger_vouchers_fy25.xlsx` | the company (management) | ledger_vouchers | 680 entries (opening and closing rows not loaded) |  |
+| `01_company/ledgers/corvane_ledger_vouchers_fy26_h1.xlsx` | the company (management) | ledger_vouchers | 342 entries (opening and closing rows not loaded) |  |
+| `01_company/billing/corvane_registers_fy23_to_fy26_h1.xlsx` | the company (management) | registers | Sales Register: 88 invoices, Purchase Register: 22 invoices | 1-Apr-2022 to 30-Sep-2025; fin labels it FY23-FY26 |
 | `01_company/billing/corvane_orderbook_2025-03-31.xlsx` | the company (management) | orderbook | 4 rows |  |
 | `01_company/hr/corvane_employee_master_2025-03-31.xlsx` | the company (management) | payroll | 9 rows | amounts are annual: `fin payroll confirm-unit ... --annual` |
 | `01_company/gst/corvane_gstr1_fy25.xlsx` | the company (management) | gst (gstr1) | 12 rows |  |
 | `01_company/gst/corvane_gstr3b_fy25.xlsx` | the company (management) | gst (gstr3b) | 12 rows | the plan names profile gstr1 (the first that matches): load it with --profile gstr3b |
+| `01_company/gst/corvane_gstr2b_fy25.xlsx` | the company (management) | gst (gstr2b) | B2B: 9 supplier documents, B2B-CDNR: 0 supplier documents | SPEC-20: load it with --profile gstr2b; see EXPECTED.md for its differences |
 | `01_company/contracts/bellwether_renewal_2025-26.pdf` | the company (management) | skipped (no statement page) | nothing: Claude reads it when asked (`fin recast contracts`) | a contract: Claude reads it (fin recast contracts) |
 | `03_bank/icici_004105012345_fy24.xlsx` | the bank | bank | 175 transactions, account masked |  |
-| `03_bank/icici_004105012345_fy25.xlsx` | the bank | bank | 182 transactions, account masked |  |
-| `03_bank/icici_004105012345_fy26_h1.xlsx` | the bank | bank | 99 transactions, account masked |  |
+| `03_bank/icici_004105012345_fy25.xlsx` | the bank | bank | 187 transactions, account masked |  |
+| `03_bank/icici_004105012345_fy26_h1.xlsx` | the bank | bank | 102 transactions, account masked |  |
 | `01_company/bank/icici_004105012345_fy25.xlsx` | the company (management) | bank (duplicate) | nothing new: the same bytes as `03_bank/icici_004105012345_fy25.xlsx` (one plan row, a duplicate) | the company forwarded the bank's file |
 | `04_adviser/saltmarsh_databook_corvane_fy23-fy25.xlsx` | a third-party adviser | reference_databook | reference figures: 12 P&L lines x 3 years | FY25 from the provisional statements |
 
 ## Versions, sources and storage
 
 - FY25 statements: the provisional workbook (company, 30-Apr-2025) is version 1; the audited annual report PDF (auditor) is version 2 and **current**. They differ by the auditor's adjustment AJ-1 of 300,000 (Bad and Doubtful Debts / Provision for Doubtful Debts):
-  - cf_change_receivables: provisional (8,850,000), audited (8,550,000)
-  - cf_op_profit_before_wc: provisional 22,929,000, audited 22,629,000
-  - cf_pbt: provisional 21,113,000, audited 20,813,000
-  - ebitda: provisional 22,929,000, audited 22,629,000
-  - other_equity: provisional 29,371,000, audited 29,071,000
+  - cf_change_receivables: provisional (8,650,000), audited (8,350,000)
+  - cf_op_profit_before_wc: provisional 18,229,000, audited 17,929,000
+  - cf_pbt: provisional 16,413,000, audited 16,113,000
+  - ebitda: provisional 18,229,000, audited 17,929,000
+  - other_equity: provisional 25,846,000, audited 25,546,000
   - other_expenses: provisional 6,811,000, audited 7,111,000
-  - pat: provisional 15,835,000, audited 15,535,000
-  - pbt: provisional 21,113,000, audited 20,813,000
-  - total_assets: provisional 41,280,000, audited 40,980,000
-  - total_current_assets: provisional 40,064,000, audited 39,764,000
-  - total_equity: provisional 30,371,000, audited 30,071,000
-  - total_equity_and_liabilities: provisional 41,280,000, audited 40,980,000
-  - total_expenses: provisional 29,007,000, audited 29,307,000
-  - trade_receivables: provisional 10,974,000, audited 10,674,000
+  - pat: provisional 12,310,000, audited 12,010,000
+  - pbt: provisional 16,413,000, audited 16,113,000
+  - total_assets: provisional 36,980,000, audited 36,680,000
+  - total_current_assets: provisional 35,764,000, audited 35,464,000
+  - total_equity: provisional 26,846,000, audited 26,546,000
+  - total_equity_and_liabilities: provisional 36,980,000, audited 36,680,000
+  - total_expenses: provisional 33,507,000, audited 33,807,000
+  - trade_receivables: provisional 10,774,000, audited 10,474,000
   Ingested after the provisional one, the audited PDF is held with 13 open findings (E404 cross_document, each naming the PDF page and the workbook cell). `fin findings accept` on them (the user's call) loads it, and it becomes current: the latest document for the period. FY24 in both FY25 documents agrees with the FY24 audited workbook.
 - FY25 trial balance: v1 (15-Apr-2025) then v2 (20-Jun-2025, **current**, supersedes v1). They differ in:
   - Bad and Doubtful Debts: v1 0, v2 300,000
@@ -63,15 +64,15 @@ Paths are under `mock/dataroom/` (the same tree is in `mock/zipped/corvane_datar
 
 | Line | FY23 | FY24 | FY25 | FY26-YTD-SEP | FY25 provisional |
 |---|---|---|---|---|---|
-| Revenue from operations | 30,240,000 | 37,152,000 | 50,040,000 | 19,740,000 | 50,040,000 |
+| Revenue from operations | 30,240,000 | 37,152,000 | 49,840,000 | 19,440,000 | 49,840,000 |
 | Other income | 60,000 | 72,000 | 80,000 | 40,000 | 80,000 |
-| EBITDA (PBT + finance costs + depreciation) | 8,380,000 | 13,120,000 | 22,629,000 | 5,564,000 | 22,929,000 |
-| Profit before tax | 7,275,000 | 11,973,000 | 20,813,000 | 5,950,000 | 21,113,000 |
-| Profit for the year | 5,456,000 | 8,980,000 | 15,535,000 | 5,950,000 | 15,835,000 |
-| Trade receivables | 1,770,000 | 2,124,000 | 10,674,000 | 4,066,000 | 10,974,000 |
-| Cash and cash equivalents | 9,446,000 | 18,362,000 | 28,590,000 | 33,304,000 | 28,590,000 |
+| EBITDA (PBT + finance costs + depreciation) | 8,380,000 | 13,120,000 | 17,929,000 | 4,980,000 | 18,229,000 |
+| Profit before tax | 7,275,000 | 11,973,000 | 16,113,000 | 5,451,000 | 16,413,000 |
+| Profit for the year | 5,456,000 | 8,980,000 | 12,010,000 | 5,451,000 | 12,310,000 |
+| Trade receivables | 1,770,000 | 2,124,000 | 10,474,000 | 3,566,000 | 10,774,000 |
+| Cash and cash equivalents | 9,446,000 | 18,362,000 | 24,490,000 | 28,389,000 | 24,490,000 |
 | Borrowings | 4,800,000 | 3,600,000 | 2,400,000 | 1,800,000 | 2,400,000 |
-| Total assets | 13,366,000 | 22,674,000 | 40,980,000 | 39,984,000 | 41,280,000 |
+| Total assets | 13,366,000 | 22,674,000 | 36,680,000 | 36,944,000 | 36,980,000 |
 
 FY24 is as printed (after the statement reclassification below). The stub is the management trial balance; no statements are filed for it.
 
@@ -85,7 +86,7 @@ Query threshold 100,000: a line at or above it needs a query.
 | Credit note | Ledger Vouchers FY25 CN-2412-01 (20-Dec-2024), not in the register; refunded through the bank | 200,000 | sales_register_vs_gl FY25 (invoice, right_only; month 2024-12) |
 | Auditor's adjustment | AJ-1 31-Mar-2025: in TB v2 and the audited PDF, not in TB v1, the provisional statements or the databook | 300,000 | versions (above); the databook against the statements (reference difference, FY25) |
 | Statement reclassification | FY24 statements: lease interest shown in finance costs, booked in Rent | 150,000 | tb_vs_statements FY24: other_expenses 150,000, finance_cost (150,000) (books - statements) |
-| Uncleared cheque | Payment P-QSD/25/012, booked 31-Mar-2025, cleared 03-Apr-2025 (cheque 004512) | 1,180,000 | bank_vs_tb FY25 (balance): TB 28,590,000, bank 29,770,000 |
+| Uncleared cheque | Payment P-QSD/25/012, booked 31-Mar-2025, cleared 03-Apr-2025 (cheque 004512) | 1,180,000 | bank_vs_tb FY25 (balance): TB 24,490,000, bank 25,670,000 |
 | One-off: Office relocation to Baner | Ledger Vouchers FY23, Office Relocation Expenses, 10-Aug-2022 | 200,000 | walk sheet row: `fin adjust import` (normalisation, EBITDA effect 200,000); bridge FY23 |
 | One-off: Settlement of a contract dispute with a former reseller | Ledger Vouchers FY25, Legal and Professional Fees, 18-Nov-2024 | 600,000 | walk sheet row: `fin adjust import` (normalisation, EBITDA effect 600,000); bridge FY25 |
 | Mid-year joiner | Employee master: CA009 joined 01-Jan-2025; master CTC vs books employee expense FY25 | 1,140,000 | payroll_vs_gl FY25 (payroll): CTC 17,520,000, books 16,380,000 |
@@ -119,6 +120,7 @@ Intended ledger mappings:
 | Cloud Hosting | other_expenses |
 | Computer Equipment | ppe_net |
 | Consultancy Fees | other_expenses |
+| Corbel Systems Pvt Ltd | trade_payables |
 | Depreciation | depreciation |
 | Donations | other_expenses |
 | Foreign Exchange Gain | other_income |
@@ -132,6 +134,7 @@ Intended ledger mappings:
 | Interest on Term Loan | finance_cost |
 | Kinfolk Hotels Pvt Ltd | trade_receivables |
 | Legal and Professional Fees | other_expenses |
+| Loan to Vireo Ventures Pvt Ltd | loans_current |
 | Office Relocation Expenses | other_expenses |
 | Orrery Retail Pvt Ltd | trade_receivables |
 | Output CGST | other_current_liabilities |
@@ -151,6 +154,7 @@ Intended ledger mappings:
 | Staff Welfare | other_expenses |
 | Subscription Revenue | revenue |
 | Term Loan - Axis Bank | lt_borrowings |
+| Tessellate Data Labs Pvt Ltd | trade_payables |
 
 Tax classes: Output CGST = gst_output, Output SGST = gst_output, Input CGST = gst_input, Input SGST = gst_input, Provision for Income Tax = income_tax
 
@@ -265,6 +269,8 @@ Near misses (not flagged):
 |---|---|---|---|
 | FY25 | JV/25/010 | Cloud Hosting | planted: 1% below the stated limit of 5,00,000 |
 | FY25 | JV/25/010 | Rent | planted: 1% below the stated limit of 5,00,000 |
+| FY26-YTD-SEP | QSD/25/U01 | Purchase of Licences | the purchase 1% under the approval limit |
+| FY26-YTD-SEP | QSD/25/U01 | Quillfeather Software Distribution Pvt Ltd | the purchase 1% under the approval limit |
 
 Near misses (not flagged):
 
@@ -277,7 +283,6 @@ Near misses (not flagged):
 | Period | Voucher | Ledger | Why |
 |---|---|---|---|
 | FY25 | AJ-1 | Bad and Doubtful Debts | the only voucher debiting other expenses and crediting trade receivables |
-| FY25 | CN-2412-01 | Subscription Revenue | the only credit note: revenue debited, trade receivables credited |
 | FY25 | JV/25/019 | Interest on Term Loan | planted: finance cost debited against other expenses, once |
 | FY25 | P-CN-2412-01 | Halcyon Freight Systems Pvt Ltd | the only refund to a customer: trade receivables debited, cash credited |
 
@@ -324,9 +329,9 @@ Near misses (not flagged):
 | Period | Row | Date | Amount | Why |
 |---|---|---|---|---|
 | FY24 | icici_004105012345_fy24.xlsx Statement!64 | 31-Jul-2023 | - | the default cash word SELF in the yearly self-assessment tax payment |
-| FY25 | icici_004105012345_fy25.xlsx Statement!67 | 31-Jul-2024 | - | the default cash word SELF in the yearly self-assessment tax payment |
+| FY25 | icici_004105012345_fy25.xlsx Statement!68 | 31-Jul-2024 | - | the default cash word SELF in the yearly self-assessment tax payment |
 | FY25 | icici_004105067890_fy25_q4.xlsx Statement!19 | 10-Feb-2025 | 60,000 credit | February's cash: a deposit of 60,000 and a withdrawal of 50,000, 1,10,000 in all |
-| FY26-YTD-SEP | icici_004105012345_fy26_h1.xlsx Statement!74 | 31-Jul-2025 | - | the default cash word SELF in the yearly self-assessment tax payment |
+| FY26-YTD-SEP | icici_004105012345_fy26_h1.xlsx Statement!76 | 31-Jul-2025 | - | the default cash word SELF in the yearly self-assessment tax payment |
 
 Near misses (not flagged):
 
@@ -420,3 +425,41 @@ Near misses (not flagged):
 | Period | Row | Why |
 |---|---|---|
 | FY25 | icici_004105067890_fy25_q4.xlsx Statement!16 | near miss: the same amount back 8 days later (window 7) |
+
+## Counterparty tests and GSTR-2B (SPEC-20)
+
+With the registers (`--kind registers`) and the FY25 GSTR-2B (`--kind gst --profile gstr2b`) loaded as well, `fin forensic run corvane` flags exactly these rows of the counterparty tests (a register line has no ledger: its party is the customer's or vendor's token) and logs these near misses. cp_credit_note cannot run for the stub (no next period).
+
+| Test | Period | Voucher or invoice | Ledger | Why |
+|---|---|---|---|---|
+| cp_capitalised | FY26-YTD-SEP | CP/26/001 | Computer Equipment | salaries capitalised |
+| cp_capitalised | FY26-YTD-SEP | JV/26/001 | Computer Equipment | SPEC-18's reversal: depreciation |
+| cp_capitalised | FY26-YTD-SEP | JV/26/002 | Computer Equipment | SPEC-18's reversal: depreciation |
+| cp_credit_note | FY25 | INV-2503-02 | - | C3's 31-Mar-2025 invoice, then CN-2504-01 |
+| cp_loan_no_trade | FY26-YTD-SEP | LN/26/001 | Loan to Vireo Ventures Pvt Ltd | a loan to a party that never traded |
+| cp_new_vendor | FY25 | TDL/24/0611 | - | Tessellate: new in FY25, its first invoice |
+| cp_setoff | FY25 | JV/25/017 | Bellwether Clinics LLP | the customer-to-customer journal |
+| cp_setoff | FY25 | JV/25/017 | Halcyon Freight Systems Pvt Ltd | its other side |
+| cp_under_limit | FY26-YTD-SEP | QSD/25/U01 | - | 1% under the approval limit |
+| cp_vendor_spike | FY25 | QSD/25/X02 | - | Quillfeather's January, the month's largest |
+
+Near misses (not flagged):
+
+| Test | Period | Voucher or invoice | Why |
+|---|---|---|---|
+| cp_capitalised | FY26-YTD-SEP | CP/26/002 | below the threshold |
+| cp_credit_note | FY24 | CN-2406-01 | C3's 31-Mar-2024 invoice credited on day 66 |
+| cp_loan_no_trade | FY26-YTD-SEP | LN/26/002 | below the threshold |
+| cp_new_vendor | FY25 | CSP/24-25/118 | Corbel: 9.4% of FY25's purchases |
+| cp_setoff | FY25 | JV/25/018 | the customer-to-customer journal below the threshold |
+| cp_under_limit | FY26-YTD-SEP | QSD/25/U02 | 2.2% under the approval limit |
+| cp_vendor_spike | FY25 | QSD/24/X01 | Quillfeather's October: 2.5 times its median |
+
+`fin reconcile corvane purchase_register_vs_gstr2b --period FY25`: 10 register invoices; every other invoice matches. Taxable values (difference = GSTR-2B - register):
+
+| Invoice | Kind | GSTR-2B | Register | Difference | Why |
+|---|---|---|---|---|---|
+| CSP/24-25/164 | right_only | 0 | 400,000 | (400,000) | in the register, not reported by the vendor |
+| QSD/25/X02 | difference | 1,300,000 | 1,500,000 | (200,000) | reported at a lower taxable value |
+| TDL/24/0611 | matched | 600,000 | 600,000 | 0 | vendor names differ |
+| TDL/24/0907 | matched | 600,000 | 600,000 | 0 | vendor names differ |

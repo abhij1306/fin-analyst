@@ -1,4 +1,4 @@
-"""The forensic layer's error classes (E990-E993; SPEC-18, fin.forensic; the table is in
+"""The forensic layer's error classes (E990-E993, SPEC-18; E996, SPEC-20; the table is in
 docs/errors.md). They are re-exported by `fin.audit.errors`, so import them from there like every
 other error. Each stops the command: exit 2."""
 
@@ -33,3 +33,12 @@ class ForensicFlagNotQueryable(FinError):
     in a query that is not withdrawn, or flags of several periods. Nothing raised."""
 
     code = "E993"
+
+
+class Gstr2bLineInvalid(FinError):
+    """E996. `fin ingest <co> <file> --kind gst --profile gstr2b` (SPEC-20): a file with no supplier
+    document, a line with no supplier name, document number or taxable value, a document date that
+    cannot be read or is outside the file's period, a filing date that cannot be read, or the same
+    supplier and document twice. Nothing loaded."""
+
+    code = "E996"

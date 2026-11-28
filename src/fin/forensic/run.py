@@ -4,9 +4,9 @@ Each (test, period) gets a forensic_runs row and its flags. Earlier runs and the
 query keeps the flags it was raised on); the latest is current. A test reports "cannot run" when a
 file it reads is not loaded for the period or an input it needs is not set, and "too few entries"
 below its minimum population. The input hash is the test's settings, the query threshold, the
-loaded Ledger Vouchers and trial balances and the confirmed mappings (a bank test's: the loaded
-bank statements and the register parties): when any changes, the run is stale. Each run logs, per
-test, the thresholds used, the population, the flagged count and the count just outside a
+loaded Ledger Vouchers, trial balances and registers and the confirmed mappings (a bank test's: the
+loaded bank statements and the register parties): when any changes, the run is stale. Each run logs,
+per test, the thresholds used, the population, the flagged count and the count just outside a
 threshold, with no ledger or party name (owner, 2026-11-28: "tune later but keep logs").
 """
 

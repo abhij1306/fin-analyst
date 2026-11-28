@@ -79,7 +79,7 @@ def _check_proposal(row: PlanRow, kind: str, profile: str | None, reason: str) -
     if kind in ("statements", "reference_databook") and profile is not None:
         raise DataroomRowInvalid(f"{where}: {kind} take no column profile")
     if kind == "gst" and profile is None:
-        raise DataroomRowInvalid(f"{where}: a GST return needs its profile (gstr1, gstr3b)")
+        raise DataroomRowInvalid(f"{where}: a GST return needs its profile (gstr1, gstr3b, gstr2b)")
     if profile is not None:
         try:
             found = load_profile(profile).kind

@@ -22,6 +22,8 @@ One line per check, the value a person read in the company's document and checke
 - `gst_return`: a GST return month's figure as filed (`fin.evals.gst`);
 - `rpt_vs_books` (F5): a related party transaction the notes disclose less the books; `ledger` is
   the line's key (`CUST-0001 sales`, or `<party> debit <ledger>`).
+- `purchase_register_vs_gstr2b` (SPEC-20): one invoice's GSTR-2B taxable value less the purchase
+  register's; `ledger` is the line's key (`2025-01 VEND-0001 QSD/25/X02`).
 - `net_debt` (F4): fin.evals.netdebt.
 - `query_issue`: an exported issue's amount at issue (the lines' differences added without their
   signs) for a query that is approved or later; `ledger` is the query id.
@@ -113,6 +115,7 @@ RECON_KINDS = (
     "gstr3b_vs_books",
     "rcm",
     "rpt_vs_books",
+    "purchase_register_vs_gstr2b",
 )
 QUERY_KINDS = ("query_issue", "query_difference")
 RECAST_KINDS = ("recast_revenue", "recast_difference", "recast_undated")

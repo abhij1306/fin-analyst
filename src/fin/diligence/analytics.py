@@ -13,6 +13,7 @@ from fin.audit.logger import Run
 from fin.db.rows import fetch_dicts
 from fin.diligence.customers import UNMAPPED
 from fin.diligence.engagement import company_database, rupees
+from fin.forensic import measures
 
 VIEWS = {
     "concentration": "SELECT * FROM customer_concentration ORDER BY period, segment",
@@ -30,7 +31,8 @@ VIEWS = {
 
 
 def collect(run: Run, company: str) -> dict[str, Any]:
-    """Every analytics view for the latest engagement. E869 when it has no sales register lines."""
+    """Every analytics view for the latest engagement, and the period-end revenue (SPEC-20).
+    E869 when it has no sales register lines."""
     with company_database(run, company) as con:
         found = con.execute("SELECT count(*) FROM analytics_sales").fetchone()
         if not found or not found[0]:
@@ -39,7 +41,9 @@ def collect(run: Run, company: str) -> dict[str, Any]:
                 f"analyse. Open an engagement (`fin engagement open {company}`) and load the "
                 f"registers (`fin ingest {company} <file> --kind registers`)"
             )
-        return {name: fetch_dicts(con, sql) for name, sql in VIEWS.items()}
+        data = {name: fetch_dicts(con, sql) for name, sql in VIEWS.items()}
+        data["period_end"] = measures.rows(con, run.root, company)
+        return data
 
 
 def _pct(value: Any) -> str:
@@ -96,4 +100,6 @@ def format_report(company: str, data: dict[str, Any]) -> str:
         )
     if not data["pvm_summary"]:
         out.append("  no product with a quantity and a rate in two consecutive annual periods")
+    out.append("period-end revenue (invoiced in the last month and the last days of each period):")
+    out += [f"  {line}" for line in measures.lines(data["period_end"])]
     return "\n".join(out)

@@ -2,7 +2,8 @@
 
 A reconciliation is required for a period when its inputs are loaded (sales and purchase register
 vs GL: the period's Ledger Vouchers and registers covering it; gl_vs_tb: its trial balance and
-Ledger Vouchers; payroll_vs_gl: an annual period's payroll file and Ledger Vouchers). The stub is
+Ledger Vouchers; payroll_vs_gl: an annual period's payroll file and Ledger Vouchers). The
+reconciliations in `NOT_GATED` (purchase_register_vs_gstr2b) are never required. The stub is
 checked like an annual period, except payroll. For each required one the checklist says:
 
 - it ran on the current data (its latest run's input hash equals what is compared now);
@@ -19,7 +20,7 @@ from typing import Any
 import duckdb
 
 from fin.audit.errors import ReconCannotRun
-from fin.reconcile import RECONCILIATIONS, periods_of, store
+from fin.reconcile import NOT_GATED, RECONCILIATIONS, periods_of, store
 from fin.reconcile.base import input_hash
 
 Line = tuple[bool, str]
@@ -30,7 +31,7 @@ def required(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> list
         (name, period)
         for period in periods_of(engagement)
         for name, (_, applies) in RECONCILIATIONS.items()
-        if applies(con, engagement, period)
+        if name not in NOT_GATED and applies(con, engagement, period)
     ]
 
 

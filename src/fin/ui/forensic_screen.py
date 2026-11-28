@@ -43,7 +43,13 @@ def _load(root: Path, company: str) -> dict[str, Any]:
     for flag in flags:
         shown = {**flag, "amount_text": rupees(flag["amount"]), "queryable": queryable(flag)}
         groups[flag["test"]]["flags"].append(shown)
-    return {"tests": groups, "count": len(flags), **jobs_card(root, company)}
+    period_end = services.read_period_end(run, root, company)
+    return {
+        "tests": groups,
+        "count": len(flags),
+        "period_end": period_end,
+        **jobs_card(root, company),
+    }
 
 
 def forensic_screen(root: Path, company: str) -> dict[str, Any]:

@@ -433,12 +433,12 @@ class DiligenceTableWrite(FinError):
     ledger_blocks, register_lines, payroll_lines, payroll_units, ledger_accounts, recon_runs,
     recon_items, passthrough_customers, recon_match_lines, match_proposals, contracts, samples,
     sample_lines, walkthroughs, provision_ledgers, inquiries, orderbook_lines, engagement_rates,
-    gst_returns, tax_ledgers, disclosure_files, disclosures, related_party_links, netdebt_classes,
-    netdebt_items, fdd_findings): those change only through `fin engagement`, `fin query`,
-    `fin adjust`, `fin gate`, `fin ingest --kind`, `fin map ledgers|tax` with `fin review`,
-    `fin reconcile` (with `fin review --matches`), `fin recast`, `fin sample`, `fin walkthrough`,
-    `fin disclosures` (with `fin review --related`), `fin provisions`, `fin netdebt` and
-    `fin fdd finding`. Nothing was run."""
+    gst_returns, gstr2b_lines, tax_ledgers, disclosure_files, disclosures, related_party_links,
+    netdebt_classes, netdebt_items, fdd_findings): those change only through `fin engagement`,
+    `fin query`, `fin adjust`, `fin gate`, `fin ingest --kind`, `fin map ledgers|tax` with
+    `fin review`, `fin reconcile` (with `fin review --matches`), `fin recast`, `fin sample`,
+    `fin walkthrough`, `fin disclosures` (with `fin review --related`), `fin provisions`,
+    `fin netdebt` and `fin fdd finding`. Nothing was run."""
 
     code = "E806"
 
@@ -622,12 +622,13 @@ from fin.audit.errors_fdd import (  # noqa: E402, F401
     WalkthroughInvalid,
 )
 
-# E990-E993: the forensic layer, in fin.audit.errors_forensic (split for size), re-exported.
+# E990-E993, E996: the forensic layer, in fin.audit.errors_forensic (split for size), re-exported.
 from fin.audit.errors_forensic import (  # noqa: E402, F401
     ForensicFlagNotQueryable,
     ForensicFlagUnknown,
     ForensicSettingInvalid,
     ForensicTestUnknown,
+    Gstr2bLineInvalid,
 )
 
 # E822: rebuilt statements, in fin.audit.errors_rebuilt (split for size), re-exported.

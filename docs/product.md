@@ -704,7 +704,7 @@ pending/proposed/confirmed/rejected, sector, confidence, reason; `fin sql --writ
 `ledger_accounts`: a registers load adds the customers as pending, `fin map customers <co> [file.json]` lists them and stores
 Claude's proposals, `fin review list|confirm|reject <co> ... --customers [--sector]` is the user's decision (E868), each step in
 `mapping_decisions` (scope `customer`). `fin analytics <co> [--json]` (`fin/diligence/analytics.py`, `fin/cli/analytics.py`; E869)
-prints the views. Export: tables `customer_concentration`, `customer_retention`, `sector_mix`, `price_volume_mix` in
+prints the views, then the period-end revenue of SPEC-20 (`fin.forensic.measures`, below). Export: tables `customer_concentration`, `customer_retention`, `sector_mix`, `price_volume_mix` in
 `shared/analytics.duckdb` and the dashboard page `dashboards/pages/customers.md`; the health report's `{{section:customers}}`
 (`fin/report/customers.py`, data read in `collect`) is a describe-only section, with no narrative, that D7 includes as it is.
 Eval kinds: `customer_revenue`, `sector_revenue`, `product_revenue`, `top_customers_revenue`, `retained_revenue`,
@@ -994,6 +994,23 @@ ledgers) and `tax_ledger_balances`. `fin sql --write` refuses `gst_returns` and 
 kinds `gst_return` (`ledger` `gstr3b 2024-05 itc`) and the four reconciliation names. The FDD report's tax section
 reads `fin.fdd.tax_data.collect`.
 
+GSTR-2B (SPEC-20, `fin/fdd/gstr2b.py`): `fin ingest <co> <file> --kind gst --profile gstr2b` loads the portal's GSTR-2B
+Excel download for an engagement period (the statement period in the preamble, "dd-mm-yyyy to dd-mm-yyyy") into
+`gstr2b_lines`, one row per supplier document of the B2B and B2B-CDNR sheets with sheet!row: the supplier's trade
+name masked as kind `vendor` on load (the register's token for the same name), document number, type (a credit note's
+amounts are negative), date, invoice value (blank: unknown, not 0), taxable value, IGST, CGST, SGST, cess, the supplier's return period and
+filing date, and ITC availability. Stored as `source_files.kind` `gstr2b` (a later file of the period supersedes it).
+Profile `templates/profiles/gstr2b.toml` (headings from the published layout; human task H8 checks one real download).
+A document with no supplier, number or taxable value, a date that cannot be read or is outside the period, or a
+supplier and number twice is E996 (nothing loaded). Reconciliation `purchase_register_vs_gstr2b` (`fin/reconcile/gstr2b.py`, run by
+`fin reconcile`): the purchase register's lines dated in the 2B period against the 2B lines, taxable values, by
+vendor token and invoice number; what is left, by invoice number and taxable value in the same month, is matched with
+the note "vendor names differ" and both tokens; a credit or debit note is its own line, never added to an invoice. Level `invoice`, key `<month> <vendor token> <number>`, difference
+2B - register: right_only (in the register, not reported by the supplier), left_only and a difference need a query at
+or above the threshold (`fin query raise --items`); it is a transaction row of the discrepancies view. It is not a
+gate G2 input (`fin.reconcile.NOT_GATED`). Golden eval kind `purchase_register_vs_gstr2b`. `fin sql --write`
+refuses `gstr2b_lines` (E806).
+
 Contingencies, commitments, notices and related parties (FDD F5, `docs/fdd.md` F5; decisions in
 `docs/decisions/fdd-f5.md`): `fin disclosures load <co> <file> --reading <csv>` (`fin/disclosures/`) stores Claude's
 reading of notes to accounts and legal and tax notices for the open engagement in `disclosures` (with
@@ -1234,9 +1251,9 @@ Every difference the reconciliations found, in one place, from the headline down
   differences yet (and the threshold filter is off), **Ask the assistant to run them** puts a request to run `fin reconcile` in the chat box.
 - **Nothing is fixed**: a difference is the company's, for a query or an adjustment with evidence.
 
-### Forensic tests (SPEC-18, `fin forensic`)
+### Forensic tests (SPEC-18 and SPEC-20, `fin forensic`)
 
-Tests over the Ledger Vouchers and the bank statements of the open engagement's periods. A flag is an entry for the company to explain: it
+Tests over the Ledger Vouchers, the bank statements and the registers of the open engagement's periods. A flag is an entry for the company to explain: it
 becomes a query the user approves; nothing is changed to clear it, and no test scores or rates an entry (flags are only
 ordered by amount). Defaults, minimum populations and readings: [decisions/forensic.md](decisions/forensic.md).
 
@@ -1276,6 +1293,24 @@ ordered by amount). Defaults, minimum populations and readings: [decisions/foren
   single-row tests flag amounts at or above `min_amount` (a balance break: the difference). A bank flag's account is
   the statement's `ACCT-` token (no mapping); remarks are not printed. The tests read rupee statements only: a
   statement in another currency is left out, and the period's state names it (the thresholds are in rupees).
+- **Counterparty tests** (SPEC-20, `families/counterparty.py`): `cp_new_vendor` (a vendor with no invoice in an earlier
+  loaded period and `new_vendor_share` of the period's purchase register, one flag on its first invoice),
+  `cp_vendor_spike` (a vendor's month at `spike_factor` times the median of its earlier months with purchases, with
+  `spike_history` of them; the flag is on the month's largest invoice), `cp_under_limit` (purchase register invoices
+  within `limit_band` below an approval limit), `cp_credit_note` (a sales invoice in the last `period_end_days` of a
+  period, then a voucher of a `credit_note_types` type crediting the customer's ledger in the first 60 days of the next
+  period; cannot run without the next period's Ledger Vouchers), `cp_setoff` (a journal debiting one party ledger and
+  crediting another: a register party's ledger, or a ledger mapped to trade receivables or payables), `cp_loan_no_trade`
+  (a debit to a ledger mapped to `loans_current`, `loans_non_current` or `loans` whose name holds no party with a sales
+  or purchase invoice in any loaded period) and `cp_capitalised` (a fixed-asset debit in a voucher whose credits are
+  neither cash and bank nor a party). A register flag's voucher is the invoice number, its source the register row and
+  its party the customer's or vendor's token; it has no ledger. Without a register the register tests cannot run.
+  A loaded register file makes the runs stale too.
+- **Measures** (SPEC-20): metrics `accruals` (PAT - CFO) and `accruals_to_assets` (over total assets), annual, no value
+  when an input is missing; and period-end revenue, the table macro `period_end_revenue(days)`
+  (`db/schema/diligence_analytics.sql`; `fin.forensic.measures`): per period of the latest engagement, the sales
+  register revenue, the revenue invoiced in its last calendar month and in its last `period_end_days` days, and each
+  as a share of the period's revenue. A measure flags nothing; the Forensic screen and `fin analytics` show it.
 - **`fin forensic run <co> [--test T] [--period P]`** runs the tests (E991 for an unknown test or a period not in the
   engagement). The run log holds one line per test and period: the outcome, the flagged and at-or-above-threshold
   counts, the population and the count just outside a threshold, with no ledger or party name.
@@ -1472,7 +1507,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Questions: the questions asked of the company's data and saved (`fin sql --question`; read runs with a result), newest first, the latest 100: question, SQL, rows, when. **Open evidence** shows the evidence page (sandboxed, as a report), **Download** saves it, **Run again** is a job that runs the same SQL again with a new evidence page (a run "sql" with `rerun_of`). **Ask a question** puts `/ask` in the chat box: Claude writes the SQL. An id the company does not have is E001.
   - Dashboards: **Build the dashboard** (a job, as `fin dashboard --build`: `fin.dashboard.build()`) and the last good build in a frame. The Evidence site is built under the base path `/dashboard-site` (`dashboards/evidence.config.yaml`), which is where the UI serves `<data>/dashboard/build`; the dev server (`fin dashboard`) is at `http://localhost:3000/dashboard-site`. A page outside the build is E001.
   - Settings (opens without a company): the data folder, the display settings the company's numbers are shown with (unit, decimals, negatives, caption: `[display]`, or the company's own `[display.companies.<name>]`; read-only here, the Statements screen picks another unit for a view), config.toml's PDF add-on (or why config.toml cannot be read), and **Install** for each PDF add-on (the add-on job, as `fin parser use`). Other AI providers are on hold (SPEC-16). With a company, the forensic settings (SPEC-18): each with its value, where it comes from, its default and why, and **Set** (as `fin forensic set`; `default` resets it).
-  - Forensic (SPEC-18): each test's state per period (as `fin forensic status`), **Run the forensic tests** (a job, as `fin forensic run`), and the flags by test, largest first, each opening to its reason, source file and sheet!row, voucher, account and party token, with its query and status. Flags of a current run at or above the threshold and in no open query can be ticked (one period at a time) to open the chat with a request to draft one query (`fin query raise --flags`); E008 otherwise. The user approves it on the Queries screen.
+  - Forensic (SPEC-18, SPEC-20): each test's state per period (as `fin forensic status`), the period-end revenue of each period (SPEC-20), **Run the forensic tests** (a job, as `fin forensic run`), and the flags by test, largest first, each opening to its reason, source file and sheet!row, voucher, account and party token, with its query and status. Flags of a current run at or above the threshold and in no open query can be ticked (one period at a time) to open the chat with a request to draft one query (`fin query raise --flags`); E008 otherwise. The user approves it on the Queries screen.
   - Health (opens without a company): `fin doctor`'s checks, each with its fix, and **Update fin** (a job, as `fin update`: refused when doctor fails afterwards, with its problems).
   - Log: the company's latest 100 runs (newest first) with who ran each (the run's `actor`, or "not recorded") and their problems, filtered by command and by actor; a figure's trail (`fin audit`) by fact id, or by metric and period (E504 for a fact id that is not a number or a figure the company does not have).
   - Queries, Gates, Bridge, Findings and Differences say so (E803, or nothing loaded) when the company has no open engagement; Queries, Gates, Findings and Differences then link to the Engagement screen, where one is opened (Bridge shows the latest engagement, closed or not).

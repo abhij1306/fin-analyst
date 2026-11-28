@@ -1,4 +1,6 @@
-"""The Ledger Vouchers lines of an engagement's periods, and the vouchers rebuilt from them.
+"""The Ledger Vouchers lines of an engagement's periods, the vouchers rebuilt from them, and the
+register invoice lines by period (SPEC-20; parties as tokens, joined to ledgers through
+`fin.diligence.mask.Parties`).
 
 Each voucher appears once in the block of every ledger it touches, so the lines of one file with the
 same voucher type, number and date are one voucher (docs/decisions/forensic.md, question 2). A
@@ -16,6 +18,7 @@ from typing import Any
 
 import duckdb
 
+from fin.diligence.mask import Parties
 from fin.forensic import bank as forensic_bank
 from fin.forensic.registry import Flag, ForensicTest
 from fin.reconcile import periods_of
@@ -68,6 +71,38 @@ class Line:
         )
 
 
+@dataclass(frozen=True)
+class Invoice:
+    """A register line: kind 'sales' or 'purchase', the party's token, Amount in Rs."""
+
+    file_id: int
+    file_name: str
+    sheet: str
+    row: int
+    kind: str
+    party: str | None
+    number: str
+    day: date
+    amount: Decimal
+
+    @property
+    def source(self) -> str:
+        return f"{self.file_name} {self.sheet}!{self.row}"
+
+    def flag(self, reason: str, amount: Decimal | None = None) -> Flag:
+        return Flag(
+            self.file_id,
+            self.sheet,
+            self.row,
+            self.source,
+            reason,
+            amount if amount is not None else self.amount,
+            voucher_no=self.number,
+            entry_date=self.day,
+            party=self.party,
+        )
+
+
 @dataclass
 class Voucher:
     lines: list[Line]
@@ -85,7 +120,7 @@ class Voucher:
 class Books:
     """What the engagement has loaded: per period, its Ledger Vouchers file (file_id, name, first
     day, last day), lines and the Tally group of each ledger (from the period's trial balance), and
-    the confirmed ledger mappings."""
+    the confirmed ledger mappings; the register lines by period and the party tokens."""
 
     periods: list[str]
     files: dict[str, tuple[int, str, date, date]]
@@ -94,6 +129,8 @@ class Books:
     accounts: dict[str, str]
     data_hash: str
     loaded: dict[str, set[str]] = field(default_factory=dict)  # period -> loaded file kinds
+    invoices: dict[str, list[Invoice]] = field(default_factory=dict)  # period -> register lines
+    parties: Parties | None = None
     _vouchers: dict[str, list[Voucher]] = field(default_factory=dict)
     bank: forensic_bank.Bank | None = None  # the bank statements (SPEC-19)
     bank_hash: str = ""
@@ -102,6 +139,10 @@ class Books:
         """The data a test reads, as one hash: the bank statements for a bank test, else the
         Ledger Vouchers, trial balances and confirmed mappings."""
         return self.bank_hash if "bank" in test.kinds else self.data_hash
+
+    def earlier(self, period: str) -> list[str]:
+        """The engagement's periods before this one (they are in order)."""
+        return self.periods[: self.periods.index(period)]
 
     def previous(self, period: str) -> str | None:
         """The loaded period that ends last before this one starts."""
@@ -156,6 +197,14 @@ class Context:
         """The confirmed account of a ledger, else the ledger itself."""
         return self.books.accounts.get(ledger, ledger)
 
+    def party(self, ledger: str) -> str | None:
+        """The register token of a ledger that is a register customer or vendor."""
+        return self.books.parties.token(ledger) if self.books.parties else None
+
+    def invoices(self, kind: str, period: str | None = None) -> list[Invoice]:
+        """The register lines of a kind dated in the period (default this one)."""
+        return [x for x in self.books.invoices.get(period or self.period, []) if x.kind == kind]
+
     def whole_vouchers(self) -> tuple[list[Voucher], int]:
         """(the period's whole vouchers, how many are not whole)."""
         all_ = self.books.vouchers(self.period)
@@ -193,6 +242,14 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], lines: bool
             files[period] = found
         if tb := loaded_file(con, eid, "trial_balance", period):
             trial[period] = tb[0]
+    registers = [
+        file_id
+        for (file_id,) in con.execute(
+            "SELECT file_id FROM source_files WHERE engagement_id = ? AND kind = 'registers' "
+            "AND status = 'loaded'",
+            [eid],
+        ).fetchall()
+    ]
     kinds: dict[str, set[str]] = {}
     for kind, period in con.execute(
         "SELECT DISTINCT kind, period FROM source_files WHERE engagement_id = ? "
@@ -210,13 +267,24 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], lines: bool
                 "SELECT ledger, account FROM ledger_accounts WHERE status = 'confirmed'"
             ).fetchall()
         ),
-        _hash(con, sorted([f[0] for f in files.values()] + list(trial.values()))),
+        _hash(con, sorted([f[0] for f in files.values()] + list(trial.values()) + registers)),
         kinds,
         bank_hash=forensic_bank.bank_hash(con, eid),
     )
     if not lines:
         return books
     books.bank = forensic_bank.load(con, engagement)
+    books.parties = Parties(con)
+    for row in con.execute(
+        'SELECT r.file_id, f.file_name, r.sheet, r."row", r.kind, '
+        "CASE r.kind WHEN 'sales' THEN r.customer ELSE r.vendor END, r.invoice_no, "
+        "r.invoice_date, r.amount_inr, r.period FROM register_lines r JOIN source_files f "
+        "USING (file_id) WHERE f.engagement_id = ? AND f.kind = 'registers' "
+        "AND f.status = 'loaded' AND r.amount_inr <> 0 "
+        'ORDER BY r.invoice_date, r.file_id, r.sheet, r."row"',
+        [eid],
+    ).fetchall():
+        books.invoices.setdefault(row[-1], []).append(Invoice(*row[:-1]))
     for period, (file_id, name, _, _) in files.items():
         books.lines[period] = [
             Line(file_id, name, *row)
