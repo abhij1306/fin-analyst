@@ -72,6 +72,7 @@ def test_ingest_writes_the_pending_list(root: Path) -> None:
             "label": LABEL,
             "facts": 2,
             "where": ["edited.xlsx Standalone BS!B23", "edited.xlsx Standalone BS!C23"],
+            "sample": "FY25: 55.24",
             "account": None,
             "confidence": None,
             "reason": None,
@@ -386,7 +387,7 @@ def test_a_confirm_that_fails_on_the_facts_leaves_the_dictionary_as_it_was(
         raise DatabaseLocked("companies/bluepeak.duckdb is locked by another process")
 
     with monkeypatch.context() as patch:
-        patch.setattr("fin.map.review._confirm_facts", locked)
+        patch.setattr("fin.map.review_confirm._confirm_facts", locked)
         failed = fin("review", "confirm", "bluepeak", "1")
 
     assert failed.exit_code == 2
