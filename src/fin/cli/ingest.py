@@ -53,14 +53,19 @@ def _check_usage(
     if unit is not None and not one_file:
         raise typer.BadParameter("--unit needs PATH to be the one file whose unit it answers")
     if kind is not None:
-        if kind not in KINDS or not one_file:
-            raise typer.BadParameter(f"--kind takes {' or '.join(KINDS)} and PATH as one file")
-        if force or reading is not None or unit is not None:
-            raise typer.BadParameter("--kind does not take --force, --reading or --unit")
-        if kind == "gst" and profile is None:
-            raise typer.BadParameter("--kind gst needs --profile gstr1 or gstr3b (or your own)")
+        _check_kind(kind, profile, one_file, force or reading is not None or unit is not None)
     elif profile is not None:
         raise typer.BadParameter("--profile needs --kind")
+
+
+def _check_kind(kind: str, profile: str | None, one_file: bool, other_mode: bool) -> None:
+    """Usage errors of `--kind`: `other_mode` is whether --force, --reading or --unit was given."""
+    if kind not in KINDS or not one_file:
+        raise typer.BadParameter(f"--kind takes {' or '.join(KINDS)} and PATH as one file")
+    if other_mode:
+        raise typer.BadParameter("--kind does not take --force, --reading or --unit")
+    if kind == "gst" and profile is None:
+        raise typer.BadParameter("--kind gst needs --profile gstr1 or gstr3b (or your own)")
 
 
 def _unit_answer(value: str | None) -> str | None:

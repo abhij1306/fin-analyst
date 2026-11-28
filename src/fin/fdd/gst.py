@@ -87,10 +87,17 @@ def rows(table: Table, file: dict[str, Any], run_id: str) -> list[list[Any]]:
         values = [amount(r.cells.get(f), profile, where) for f in AMOUNTS]
         extra = [amount(r.cells.get(f), profile, where) if is_3b else None for f in EXTRA_3B]
         out.append(
-            [file["file_id"], r.sheet, r.row, profile.gst_return, file["period"], month]
-            + values
-            + extra
-            + [run_id]
+            [
+                file["file_id"],
+                r.sheet,
+                r.row,
+                profile.gst_return,
+                file["period"],
+                month,
+                *values,
+                *extra,
+                run_id,
+            ]
         )
     if not out:
         raise GstReturnInvalid(f"{name}: no month rows below the column header; nothing loaded")

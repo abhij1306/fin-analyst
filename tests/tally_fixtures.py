@@ -18,7 +18,7 @@ COMPANY = "Acme Synthetic Private Limited"
 CUSTOMERS = ("Orchid Systems Pvt Ltd", "Lotus Infotech LLP")
 VENDORS = ("Banyan Traders", "Teak Hardware Supplies")
 
-# (level, name, debit, credit, is_group)
+# Each row: level, name, debit, credit and whether it is a group.
 TRIAL_BALANCE = [
     (0, "Capital Account", 0, 500000, True),
     (1, "Share Capital", 0, 500000, False),

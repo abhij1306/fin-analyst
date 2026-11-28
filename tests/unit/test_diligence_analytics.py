@@ -205,7 +205,7 @@ def test_retention_and_cohorts_match_the_key(root: Path) -> None:
         D("0.781250"),
         D("1.000000"),
     )
-    # retained = prior - lost - contraction + expansion
+    # Retained revenue is prior revenue less lost and contraction, plus expansion.
     assert ret["retained_revenue"] == (
         ret["prior_revenue"] - ret["lost_revenue"] - ret["contraction"] + ret["expansion"]
     )
@@ -245,7 +245,7 @@ def test_price_volume_mix_matches_the_key(root: Path) -> None:
         D("0.00"),
     )
     assert (total["new_revenue"], total["discontinued_revenue"]) == (D("120000.00"), D("15000.00"))
-    # change = price + volume + mix + new - discontinued
+    # The change is price, volume, mix and new revenue, less discontinued revenue.
     assert total["change"] == D("440000.00") - D("160000.00")
     assert total["change"] == (
         total["price_effect"] + total["volume_effect"] + total["mix_effect"]

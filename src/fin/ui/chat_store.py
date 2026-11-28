@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fin.audit.errors import UiActionInvalid
+from fin.paths import atomic_write
 
 Conversation = dict[str, object]
 TITLE_LENGTH = 48
@@ -61,10 +62,8 @@ def save(root: Path, conv: Conversation) -> None:
     path = _path(root, str(conv["id"]))
     path.parent.mkdir(parents=True, exist_ok=True)
     conv["updated"] = datetime.now(UTC).isoformat(timespec="seconds")
-    temp = path.with_suffix(".tmp")
     with LOCK:
-        temp.write_text(json.dumps(conv, indent=1), encoding="utf-8")
-        temp.replace(path)
+        atomic_write(path, json.dumps(conv, indent=1))
 
 
 def items(conv: Conversation) -> list[dict[str, object]]:

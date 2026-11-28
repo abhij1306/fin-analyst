@@ -1,7 +1,7 @@
 # macOS checks: install.sh twice with no sudo and a broken python3 first on PATH, fin doctor, a smoke ingest.
 # The test suite runs on Linux in ci.yml.
-# macOS runners can queue for a long time, so this runs after merges to main, on demand, and on a PR that
-# changes the install.
+# macOS runners can queue for a long time, so this runs after merges to main, on demand, and on a PR
+# only when it changes the install (install.sh, Brewfile or this file); other PRs use ci.yml.
 name: macOS
 
 on:

@@ -20,7 +20,7 @@ from fin.audit.errors import (
     DependencyMissing,
     DependencyVersionMismatch,
 )
-from fin.paths import config_path
+from fin.paths import atomic_write, config_path
 
 CONFIG_VERSION = 1
 # [display] unit -> rupees in one unit, and the caption a unit gets when no unit_label is given.
@@ -225,13 +225,7 @@ def set_parser(root: Path, name: str) -> None:
         ok = False
     if not ok:
         raise _invalid(path, 'cannot set [pdf] parser; write it as `parser = "none"`')
-    temp = path.with_name(path.name + ".tmp")
-    try:
-        with temp.open("w", encoding="utf-8") as handle:
-            handle.write(candidate)
-        temp.replace(path)
-    except OSError as exc:
-        raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc
+    atomic_write(path, candidate)
 
 
 def write_default_config(root: Path) -> bool:

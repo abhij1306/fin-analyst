@@ -298,8 +298,18 @@ def _reconcile(
         "INSERT INTO recon_runs (engagement_id, name, period, scope, left_file_id, threshold, "
         "input_hash, unmapped, run_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "RETURNING recon_id",
-        [engagement_id, NAME, period, SCOPE, tb[0], threshold]
-        + [input_hash(con, engagement, period), len(unmapped), run.run_id, utcnow()],
+        [
+            engagement_id,
+            NAME,
+            period,
+            SCOPE,
+            tb[0],
+            threshold,
+            input_hash(con, engagement, period),
+            len(unmapped),
+            run.run_id,
+            utcnow(),
+        ],
     ).fetchone()
     assert new is not None
     columns = list(lines[0]) if lines else []

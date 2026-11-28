@@ -11,6 +11,7 @@ import subprocess
 import threading
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fin.audit.errors import ChatBusy, ChatNotLoggedIn, ChatUnavailable
 from fin.ui import chat_args, chat_store
@@ -21,7 +22,7 @@ LOGIN_HINTS = ("not logged in", "/login", "authentication_failed", "invalid api 
 STDERR_TAIL = 600
 SUMMARY_LENGTH = 90
 
-Item = dict[str, object]
+Item = dict[str, Any]  # a stream-json message or a stored chat item, as parsed
 
 
 def summary_of(tool: str, tool_input: dict[str, object]) -> str:

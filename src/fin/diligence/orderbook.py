@@ -62,11 +62,21 @@ def rows(table: Table, file: dict[str, Any], run_id: str, masker: Masker) -> lis
             )
         currency = (clean_text(cells.get("currency")) or profile.currency).upper()
         out.append(
-            [file["file_id"], r.sheet, r.row, table.end, masker.token("customer", customer)]
-            + [order_no, _day(cells.get("order_date"), profile, f"{where} order date"), value]
-            + [currency, _day(cells.get("start_date"), profile, f"{where} start date")]
-            + [_day(cells.get("end_date"), profile, f"{where} end date")]
-            + [money(cells.get("billed"), profile, f"{where} billed"), run_id]
+            [
+                file["file_id"],
+                r.sheet,
+                r.row,
+                table.end,
+                masker.token("customer", customer),
+                order_no,
+                _day(cells.get("order_date"), profile, f"{where} order date"),
+                value,
+                currency,
+                _day(cells.get("start_date"), profile, f"{where} start date"),
+                _day(cells.get("end_date"), profile, f"{where} end date"),
+                money(cells.get("billed"), profile, f"{where} billed"),
+                run_id,
+            ]
         )
     return out
 

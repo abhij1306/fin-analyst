@@ -20,10 +20,17 @@ from fin.paths import company_db_path
 from fin.rebuilt.view import add_views, readiness
 from fin.statements import STATEMENTS, TITLES
 
-SHOWN = ("reported", "rebuilt", "difference", "unmapped")
-
 _COMPARE_SQL = """
-SELECT c.*, {shown} FROM (
+SELECT c.*,
+    display_value(reported, CASE WHEN unit = 'rupees' THEN $per_unit ELSE 1 END,
+        CASE WHEN unit = 'rupees' THEN $decimals ELSE 2 END) AS reported_shown,
+    display_value(rebuilt, CASE WHEN unit = 'rupees' THEN $per_unit ELSE 1 END,
+        CASE WHEN unit = 'rupees' THEN $decimals ELSE 2 END) AS rebuilt_shown,
+    display_value(difference, CASE WHEN unit = 'rupees' THEN $per_unit ELSE 1 END,
+        CASE WHEN unit = 'rupees' THEN $decimals ELSE 2 END) AS difference_shown,
+    display_value(unmapped, CASE WHEN unit = 'rupees' THEN $per_unit ELSE 1 END,
+        CASE WHEN unit = 'rupees' THEN $decimals ELSE 2 END) AS unmapped_shown
+FROM (
 WITH r AS (SELECT * FROM rebuilt_statements WHERE $period IS NULL OR period = $period),
 s AS (
     SELECT * FROM standard_statements
@@ -53,13 +60,7 @@ FULL JOIN s ON s.period = r.period AND s.statement = r.statement AND s.account =
 LEFT JOIN statement_accounts a ON a.account = coalesce(r.account, s.account)
 ) c
 ORDER BY period_end, period, array_position($statements, statement), line_no, label
-""".format(
-    shown=", ".join(
-        f"display_value({c}, CASE WHEN unit = 'rupees' THEN $per_unit ELSE 1 END, "
-        f"CASE WHEN unit = 'rupees' THEN $decimals ELSE 2 END) AS {c}_shown"
-        for c in SHOWN
-    )
-)
+"""
 
 
 def _check(company: str, years: list[dict[str, Any]], period: str | None) -> None:

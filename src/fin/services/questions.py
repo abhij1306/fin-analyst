@@ -14,7 +14,6 @@ from fin.query.run import query
 from fin.services.result import ActionResult, Progress, perform
 
 SHOWN = 100  # the newest questions listed
-COLUMNS = "query_id, run_id, recorded_at, question, sql, row_count, evidence_path"
 
 
 def saved_questions(root: Path, company: str) -> list[dict[str, Any]]:
@@ -25,7 +24,8 @@ def saved_questions(root: Path, company: str) -> list[dict[str, Any]]:
     with connect(path) as con:
         rows = fetch_dicts(
             con,
-            f"SELECT {COLUMNS} FROM queries WHERE company = ? AND mode = 'read' "
+            "SELECT query_id, run_id, recorded_at, question, sql, row_count, evidence_path "
+            "FROM queries WHERE company = ? AND mode = 'read' "
             "AND row_count IS NOT NULL ORDER BY recorded_at DESC LIMIT ?",
             [company, SHOWN],
         )
@@ -37,7 +37,8 @@ def saved_question(root: Path, company: str, query_id: str) -> dict[str, Any]:
     with connect(audit_db_path(root)) as con:
         rows = fetch_dicts(
             con,
-            f"SELECT {COLUMNS} FROM queries WHERE company = ? AND mode = 'read' "
+            "SELECT query_id, run_id, recorded_at, question, sql, row_count, evidence_path "
+            "FROM queries WHERE company = ? AND mode = 'read' "
             "AND row_count IS NOT NULL AND query_id = ?",
             [company, query_id],
         )

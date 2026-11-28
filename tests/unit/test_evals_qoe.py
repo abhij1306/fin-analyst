@@ -64,7 +64,7 @@ def test_init_lists_every_working_capital_line_with_its_source(root: Path) -> No
     assert len(monthly) == 18 * 6
     assert {r["source"] for r in year_end} == {"tb24.xlsx", "tb25.xlsx", "tb-stub.xlsx"}
     assert all(
-        "lv.xlsx on the closing of tb24.xlsx" == r["source"]
+        r["source"] == "lv.xlsx on the closing of tb24.xlsx"
         for r in monthly
         if r["period"] < "2025-04"
     )

@@ -176,7 +176,7 @@ def _company_lines(c: dict[str, Any]) -> list[str]:
             f"{f['relative_difference'] or 'n/a'}{figures}; "
             f"codes {', '.join(f['codes']) or 'none'})"
         )
-    return out + ["", "```json", json.dumps(c["counts"], indent=2, default=str), "```"]
+    return [*out, "", "```json", json.dumps(c["counts"], indent=2, default=str), "```"]
 
 
 def make_bundle(run: Run, company: str | None, with_figures: bool) -> tuple[Path, Path]:

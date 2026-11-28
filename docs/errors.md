@@ -18,6 +18,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E010 | The UI chat: Claude Code is installed but not logged in | Run `claude` in a terminal once and log in (`/login`) with your own account |
 | E011 | The UI chat: a turn of this conversation is still running | Wait for it, or press Stop |
 | E012 | An unexpected error: an exception with no error class, which is a defect in fin. The user sees the code, the message and the run id (no traceback); the run log has the traceback and the platform in the event's context | Report the code and the run id; send `logs/<date>/<run_id>.jsonl` |
+| E013 | A path from a file, a request or a database row leads outside the folder it must stay in (after following links) | Use a file inside the folder; remove the link that leads out of it |
 | E101 | File is unreadable or corrupt, or the path does not exist (the message says where a company's files go: `<data folder>/inbox/<company>/`, lower-case name) | Replace it with a good copy and ingest again. The file is in `review/<company>/` |
 | E102 | File is password protected | Save an unprotected copy and ingest that |
 | E103 | Unsupported file format | Convert it to `.xlsx` or a text PDF |

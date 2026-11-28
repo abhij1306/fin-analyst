@@ -131,8 +131,18 @@ def save(
             con.execute(
                 "INSERT INTO recon_match_lines VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT DO NOTHING",
-                [new[0], number, m["side"], *m["key"], m["party"], m["day"], m["reference"]]
-                + [m["currency"], m["amount"], m["amount_inr"]],
+                [
+                    new[0],
+                    number,
+                    m["side"],
+                    *m["key"],
+                    m["party"],
+                    m["day"],
+                    m["reference"],
+                    m["currency"],
+                    m["amount"],
+                    m["amount_inr"],
+                ],
             )
         if line["query_id"] is not None:
             con.execute(

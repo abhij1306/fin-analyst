@@ -2,9 +2,10 @@
 
 import os
 import re
+import uuid
 from pathlib import Path
 
-from fin.audit.errors import DataFolderNotWritable
+from fin.audit.errors import DataFolderNotWritable, PathOutsideFolder
 
 # A company name: also the name of its folders, so it can never point outside them.
 COMPANY_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
@@ -130,3 +131,36 @@ def ensure_data_folder(root: Path) -> tuple[list[Path], list[Path]]:
         created.append(folder)
     probe_writable(root)
     return created, existing
+
+
+def inside(root: Path, path: Path) -> Path:
+    """`path` resolved (links followed), or E013 when it is not inside `root` (also resolved).
+    Every path from a file, a request or a database row is checked with this before it is read or
+    written (docs/engineering.md rule 8)."""
+    base, resolved = root.resolve(), path.resolve()
+    if not resolved.is_relative_to(base):
+        raise PathOutsideFolder(f"{path} is outside {root}").with_context(
+            root=str(base), path=str(resolved)
+        )
+    return resolved
+
+
+def temp_name(path: Path) -> Path:
+    """A unique hidden sibling of `path` for a write that is replaced into place: two runs never
+    share it (docs/engineering.md rule 9)."""
+    return path.with_name(f".{path.name}.{uuid.uuid4().hex}.part")
+
+
+def atomic_write(path: Path, data: str | bytes) -> None:
+    """Write `data` (text as UTF-8) to a unique temporary sibling, then replace `path` with it in
+    one step, so a reader sees the old file or the new one, never part of it. E003 when it cannot
+    be written; the temporary file is removed."""
+    temp = temp_name(path)
+    body = data.encode("utf-8") if isinstance(data, str) else data
+    try:
+        with temp.open("xb") as handle:
+            handle.write(body)
+        temp.replace(path)
+    except OSError as exc:
+        temp.unlink(missing_ok=True)
+        raise DataFolderNotWritable(f"cannot write {path}: {exc}") from exc

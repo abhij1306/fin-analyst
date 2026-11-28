@@ -41,6 +41,7 @@ from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
 from fin.discrepancies.sheet import differences_sheet
 from fin.display import add_macro, display_settings, excel_format, sql_params
+from fin.output import escape
 from fin.paths import company_db_path
 from fin.rebuilt.compare import flag, rebuilt_rows
 from fin.statements import ROUNDING_NOTE, STATEMENTS, statement_rows
@@ -186,7 +187,9 @@ def export_workbook(root: Path, company: str, display: Display | None = None) ->
         metrics = fetch_dicts(con, _METRICS_SQL, sql_params(display))
 
     book = Workbook()
-    book.remove(book.active)
+    first = book.active
+    if first is not None:
+        book.remove(first)
     for table in databook(lines, display):
         _statement_sheet(book, company, table, display)
     _metrics_sheet(book, metrics, display)
@@ -196,7 +199,7 @@ def export_workbook(root: Path, company: str, display: Display | None = None) ->
     path = export_path(root, company)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        book.save(path)
+        escape.excel_book(book).save(path)
     except OSError as exc:
         raise DataFolderNotWritable(f"cannot write {path} (is it open in Excel?): {exc}") from exc
     return path

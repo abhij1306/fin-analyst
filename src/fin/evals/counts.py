@@ -321,9 +321,10 @@ def _period_finding_codes(con: duckdb.DuckDBPyConnection, check: Check) -> set[s
 
 def _recon_markers(con: duckdb.DuckDBPyConnection, check: Check) -> set[str]:
     codes: set[str] = set()
-    if check.kind == "sector_revenue":
-        if _count(con, "SELECT count(*) FROM customers WHERE status <> 'confirmed'"):
-            codes.add("unconfirmed_sectors")
+    if check.kind == "sector_revenue" and _count(
+        con, "SELECT count(*) FROM customers WHERE status <> 'confirmed'"
+    ):
+        codes.add("unconfirmed_sectors")
     if check.kind in ("core_revenue", "passthrough_revenue", *ANALYTICS_KINDS):
         listed = _count(
             con,

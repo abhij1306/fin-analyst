@@ -53,8 +53,15 @@ def _header(bank: str, currency: str) -> list[str]:
             f"Deposit Amount {cur}",
             f"Balance {cur}",
         ],
-        "sbi": ["Txn Date", "Value Date", "Description", "Ref No./Cheque No.", "Debit", "Credit"]
-        + ["Balance"],
+        "sbi": [
+            "Txn Date",
+            "Value Date",
+            "Description",
+            "Ref No./Cheque No.",
+            "Debit",
+            "Credit",
+            "Balance",
+        ],
         "axis": ["Tran Date", "CHQNO", "PARTICULARS", "DR", "CR", "BAL", "SOL"],
     }[bank]
 

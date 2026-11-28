@@ -78,7 +78,7 @@ def describe(
 ) -> list[dict[str, Any]]:
     """The question views (or one), in QUESTION_VIEWS order: view, about, example, columns. From
     the company's database, or an empty one made from the schema files."""
-    views = [table] if table else list(QUESTION_VIEWS)
+    views: list[str] = [table] if table else list(QUESTION_VIEWS)
     with _database(root, company) as con:
         columns = _columns(con, views)
     meta = notes()

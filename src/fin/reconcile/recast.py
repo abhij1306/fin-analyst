@@ -239,7 +239,7 @@ def _undated_lines(
                 None,
                 kind="undated",
                 note=text,
-            )  # fmt: skip
+            )
         )
     return lines
 

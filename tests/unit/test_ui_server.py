@@ -10,10 +10,10 @@ pytest.importorskip("fastapi")
 pytest.importorskip("jinja2")
 pytest.importorskip("httpx")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from fin.ui.security import COOKIE  # noqa: E402
-from fin.ui.server import create_app  # noqa: E402
+from fin.ui.security import COOKIE
+from fin.ui.server import create_app
 
 TOKEN = "t0ken"
 PORT = 8765

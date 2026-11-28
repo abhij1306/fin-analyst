@@ -205,6 +205,12 @@ Every `fin` command:
   traceback: the command prints `E012: unexpected <type>: <message>`, the run_id and the log file that holds the
   traceback, and exits 2; in the web UI the action shows the same line, code and run_id. An interrupt is logged with
   no code and stops the command as before.
+- A path read from a file, a request or a database row (an archive entry, a document's archive path, a saved bank
+  parse, an export's source workbook) that resolves outside its folder, links followed, is refused with E013 and
+  both paths in its context; an archive entry that does so still makes the archive `archive_unsafe`. Files fin
+  rewrites (config.toml, chat conversations, bank parses) go through a unique temporary file replaced in one step,
+  so two runs never share it and a reader never sees half a file. Excel exports write text that starts with `=` as
+  text, never as a formula.
 
 **Tables in `shared/audit.duckdb`** (append-only; rows never updated or deleted)
 
@@ -345,8 +351,8 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin reference confirm\|reject <co> <ids>` | — | Either (only when the user says) |
 | `fin verify <co> <file> --reading <csv>` | `/verify` | Either (when the user asks) |
 | `fin map propose <co> <file.json>` | used inside `/ingest` | Claude |
-| `fin map set <co> --statement --label --account [--section]` (applied to the loaded facts, their documents checked again: no re-ingest), `fin map accounts` | `/ingest` (fixing a finding) | Either |
-| `fin review list [co]`, `fin review confirm\|reject <co> <ids> [--each]` (a proposal below confidence 0.8 is confirmed only named alone or with `--each`; a bulk confirm skips it and says so, and refuses with E304 when every id is low) | `/review` | Either (confirm when the user says) |
+| `fin map set <co> --statement --label --account [--section]` (applied to the loaded facts, their documents checked again: no re-ingest), `fin map accounts [--added]` | `/ingest` (fixing a finding) | Either |
+| `fin review list [co]`, `fin review confirm\|reject <co> <ids> [--each]` (a proposal below confidence 0.8 is confirmed only named alone or with `--each`; a bulk confirm skips it and says so, and refuses with E304 when every id is low; `--name`, `--parent`: a new account under another name or parent) | `/review` | Either (confirm when the user says) |
 | `fin findings list [co]`, `fin findings accept <co> <ids>` | `/ingest`, `/verify` | Either (accept when the user says save as is) |
 | `fin document delete <co> <ids>` (the Files screen's Delete) | — | Either (when the user asks) |
 | `fin status [co]` | `/status` | Either |
@@ -364,7 +370,7 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin engagement open <co> --periods FY24,FY25,FY26 [--threshold] [--due-days N]`, `fin engagement status\|close <co>` | `/diligence` | Either (`close` needs gate G4 approved) |
 | `fin engagement terms <co> --due-days N` | `/diligence` | The user's credit terms; Claude changes them only when asked |
 | `fin engagement bridge <co> [--period] [--scope] [--json]` (views `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`) | `/diligence` | Either |
-| `fin query list\|raise\|edit <co>` | `/diligence` | Claude drafts |
+| `fin query list\|raise\|edit <co>` (`list --status`) | `/diligence` | Claude drafts |
 | `fin query approve\|sent\|answer\|close\|withdraw <co> <ids>` | `/diligence` | Either (when the user says; `sent` only once the user sent it) |
 | `fin engagement passthrough <co> [--customer ... --source] [--clear]` | `/diligence` | The user's list; Claude records it when given |
 | `fin engagement rate <co> [<CUR> <rate> --as-at <date>]` | `/diligence` | The user's exchange rate for orders not in INR; Claude records it only when given |
@@ -377,7 +383,7 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin provisions confirm\|reject <co> <ids>` | `/diligence` | Either (when the user says) |
 | `fin netdebt show <co> [--period] [--json]`, `fin netdebt propose <co> [file]`, `fin netdebt item propose\|list <co>` (FDD F4) | `/diligence` | Claude proposes classes and items |
 | `fin review confirm\|reject <co> <ids> --netdebt`, `fin netdebt item accept\|reject <co> <ids>` | `/diligence` | Either (when the user says) |
-| `fin adjust propose\|list <co>` | `/diligence` | Claude proposes |
+| `fin adjust propose\|list <co>` (`propose --category`, `list --status`) | `/diligence` | Claude proposes |
 | `fin adjust import <co> <file.csv\|xlsx\|xlsm> [--sheet]` (or the walk-sheet upload on the Queries screen) | `/diligence` | Either |
 | `fin adjust accept\|reject <co> <ids>` | `/diligence` | Either (when the user says; needs gate G2 approved) |
 | `fin gate status <co> [--json]` | `/diligence` | Either |
@@ -1018,7 +1024,7 @@ ledger (an indicative gratuity shortfall, a probable contingency, a cut-off item
 `fin netdebt item propose <co> --period P --amount N --description ... --evidence <ref>` (signed rupees, positive
 raises net debt; a year of the open engagement or its stub; E932) and accepted or
 rejected by the user (`fin netdebt item accept <co> <ids>`, `fin netdebt item reject <co> <ids> --reason`, E933;
-`fin netdebt item list <co>`). Tables `netdebt_classes` and `netdebt_items` (`db/schema/fdd_netdebt.sql`), refused by
+`fin netdebt item list <co> [--status]`). Tables `netdebt_classes` and `netdebt_items` (`db/schema/fdd_netdebt.sql`), refused by
 `fin sql --write` (E806); each change is a run event. `fin netdebt show <co> [--period P] [--json]` (E934 without an
 engagement) prints the view `net_debt`: per period end (annual periods, then the stub as unaudited management
 accounts) cash (debit less credit, so an overdrawn bank is negative cash), debt and debt-like (credit less debit),
@@ -1398,7 +1404,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Every change is a `POST` that needs the token cookie and an `Origin` header naming the server (else E007, nothing runs). A missing reason, an unknown action or a bad id is E008 and starts no run.
 - **Chat (step 4)**: the panel on the right of every screen runs the installed Claude Code headless (`claude -p --output-format stream-json --verbose --include-partial-messages`) in the repo folder, so CLAUDE.md, skills and the client's hooks apply (never `--bare`, never a bypass mode), with `FIN_DATA_DIR` set to the UI's data folder. It uses the user's own Claude Code login; the UI warns when `ANTHROPIC_API_KEY` is set (Claude Code would bill that key) and is for one person on one machine, not for hosting or sharing.
   - One `claude` process per conversation at a time (E011 while one runs); each turn is a process (`--session-id` first, `--resume` after), so a conversation resumes after `fin ui` restarts. Conversations are JSON files in `<data folder>/chat/`; the list and **New chat** are in the panel header. **Stop** ends the process. Text streams in over server-sent events (htmx SSE extension); tool calls show collapsed; errors show with their code.
-  - The user's decisions are denied to Claude with `--disallowedTools` (`fin gate approve`, `fin fdd finding final|draft`, `fin query approve|sent|close|withdraw`, `fin adjust accept|reject`, `fin review confirm|reject`, `fin findings accept`, provisions confirm/reject, net debt item accept/reject, each also as `uv run fin ...`); Claude points to the button. Any other request that is not already allowed is shown in the chat with **Allow once** (the next turn gets `--allowedTools` for exactly that command or file) or **Deny**.
+  - The user's decisions are denied to Claude with `--disallowedTools` (`fin gate approve`, `fin fdd finding final` (also with `--undo`), `fin query approve|sent|close|withdraw`, `fin adjust accept|reject`, `fin review confirm|reject`, `fin findings accept`, provisions confirm/reject, net debt item accept/reject, each also as `uv run fin ...`); Claude points to the button. Any other request that is not already allowed is shown in the chat with **Allow once** (the next turn gets `--allowedTools` for exactly that command or file) or **Deny**.
   - **Ask Claude** buttons (every screen, and rows of Mappings, Queries and Findings) and the skill chips `/ask`, `/ingest`, `/diligence`, `/report`, `/status` put text in the message box; the user sends it. Claude missing or not startable is E009, not logged in is E010.
 - **Jobs**: a long action runs as a background job, so the page answers at once. One worker thread runs the jobs one at a time in order; a later one is shown as queued. Each job is a row of `jobs` in audit.duckdb (action, arguments, state, the last progress line, result lines, code, run_id, times); the Jobs card (Files, Reports, Questions, Dashboards, Settings and Health) asks for itself every second while a job is queued or running, and a reload shows the same jobs. States: queued, running, done, refused (the action's error code and message), failed (E012, the run has the traceback), interrupted (the server stopped before it ended: marked at the next `fin ui`; start it again). `POST /job` needs the token cookie and the Origin (E007); an action that is not a job is E008. The jobs: Export to Excel, Make a report, Install a PDF add-on (Files and Settings; the service `fin.services.addon`, which `fin parser use` calls too), Ingest, Re-ingest, Load with the unit, Scan a data room and Load the approved files (`fin.services.dataroom`, which `fin dataroom` calls too), Build the dashboard, Update fin and Run a question again (each job's run records `via` `ui` and `actor` `user`; Install a PDF add-on and Update fin also run before any company exists, from Settings and Health once `fin init` has run); `POST /job` takes `item` for Re-ingest (the doc_id), Load with the unit (the held file's name), Run a question again (the query_id) and Scan a data room (the folder, which must exist), and `choice` for Install a PDF add-on (the add-on), Load with the unit (the answer) and Make a report (health, diligence or fdd); anything else is E008. While a job writes, a page that reads the same database waits for it (as for another command; E501 after the retries).
 - **Uploads**: the Files screen saves .xlsx, .xlsm, .xls and .pdf files into `inbox/<company>/` of the chosen company (a run "ui upload", one event per file). The name must be plain (letters, digits, space, `. _ - ( ) &`; a path is cut to its last part; no leading dot, no `..`), at most 50 MB per file and 100 MB per request, and it never overwrites a file already in the inbox; all files are checked first, so a refusal (E008) saves none; before any company exists the upload is refused (E008). The button does not ingest: the screen says the files are waiting; **Ingest** loads them.

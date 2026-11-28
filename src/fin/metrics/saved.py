@@ -113,21 +113,21 @@ class _Parser:
         return left
 
     def factor(self) -> str:
-        token = self.take()
-        if token is None:
+        part = self.take()
+        if part is None:
             raise _invalid(self.formula, "it ends too early")
-        if token == "-":
+        if part == "-":
             return f"(-{self.factor()})"
-        if token == "(":
+        if part == "(":
             inner = self.expr()
             if self.take() != ")":
                 raise _invalid(self.formula, "a bracket is not closed")
             return inner
-        if token[0].isdigit():
-            return f"CAST({token} AS DOUBLE)"
-        if token in _OPERATORS:
-            raise _invalid(self.formula, f"{token!r} where a name or number should be")
-        return self.name(token)
+        if part[0].isdigit():
+            return f"CAST({part} AS DOUBLE)"
+        if part in _OPERATORS:
+            raise _invalid(self.formula, f"{part!r} where a name or number should be")
+        return self.name(part)
 
     def name(self, token: str) -> str:
         catalogue = self.catalogue

@@ -42,8 +42,11 @@ VOUCHERS = {
         (J, INTEREST, "Journal", 33, 0, 10000),  # an accrual reversed by voucher 34
         (J, INTEREST, "Journal", 34, 10000, 0),
     ],
-    INTEREST: [(J, LOAN, "Journal", 31, 50000, 0), (J, LOAN, "Journal", 33, 10000, 0)]
-    + [(J, LOAN, "Journal", 34, 0, 10000)],
+    INTEREST: [
+        (J, LOAN, "Journal", 31, 50000, 0),
+        (J, LOAN, "Journal", 33, 10000, 0),
+        (J, LOAN, "Journal", 34, 0, 10000),
+    ],
 }
 COLUMNS = [
     "kind", "period", "counterparty", "nature", "amount", "unit", "relationship", "books",

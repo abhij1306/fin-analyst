@@ -287,8 +287,17 @@ def refresh_analytics(run: Run) -> Refresh:
         rows["metrics"].extend([company, *row] for row in fetched["metrics"])
         documents, facts, unconfirmed, last_ingested, *findings = summary
         rows["companies"].append(
-            [company, documents, facts, unconfirmed, failed.get(company, 0), last_ingested]
-            + [now, run.run_id, *findings]
+            [
+                company,
+                documents,
+                facts,
+                unconfirmed,
+                failed.get(company, 0),
+                last_ingested,
+                now,
+                run.run_id,
+                *findings,
+            ]
         )
         for row in fetched["metric_definitions"]:
             definitions.setdefault(row[0], list(row))

@@ -94,7 +94,7 @@ def sections(data: dict[str, Any]) -> list[str]:
         keys.append("quarters")
     if data["peers"]:
         keys.append("peers")
-    return keys + ["findings", "coverage"]
+    return [*keys, "findings", "coverage"]
 
 
 def stub(company: str, scope: str, data: dict[str, Any]) -> str:

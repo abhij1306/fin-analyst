@@ -14,11 +14,11 @@ pytest.importorskip("fastapi")
 pytest.importorskip("jinja2")
 pytest.importorskip("httpx")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from fin.ui.server import create_app  # noqa: E402
-from tests.unit.test_discrepancies import make_root, reconcile, rows  # noqa: E402
-from tests.unit.test_reconcile_d4 import template  # noqa: E402, F401
+from fin.ui.server import create_app
+from tests.unit.test_discrepancies import make_root, reconcile, rows
+from tests.unit.test_reconcile_d4 import template  # noqa: F401
 
 TOKEN = "t0ken"
 PORT = 8765

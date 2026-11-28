@@ -24,7 +24,7 @@ import duckdb
 from fin.audit.errors import DataroomFolderInvalid, DataroomPlanMissing, FileUnreadable
 from fin.audit.logger import Run
 from fin.config import Config
-from fin.dataroom.kinds import ARCHIVE_SUFFIXES, REASONS, Kind, kind_of, unusable
+from fin.dataroom.kinds import ARCHIVE_SUFFIXES, REASONS, FileKind, kind_of, unusable
 from fin.dataroom.unpack import Budget, unpack
 from fin.db.conn import connect, transaction
 from fin.db.schema import ensure_database
@@ -151,7 +151,7 @@ def _archive(
     target = dataroom_dir(state.run.root, state.scan.company) / sha256[:16]
     reason = unpack(entry, target, budget)
     if known is None:
-        _add(state, sha256, name, entry, Kind("archive", reason=reason))
+        _add(state, sha256, name, entry, FileKind("archive", reason=reason))
     elif reason is None and known[1] is not None:
         state.con.execute(
             "UPDATE dataroom_files SET reason = NULL, next_step = NULL WHERE file_id = ?",
@@ -193,7 +193,7 @@ def _known(state: _Walk, sha256: str, name: str) -> tuple[int, str | None] | Non
     return file_id, reason
 
 
-def _add(state: _Walk, sha256: str | None, name: str, location: Path, kind: Kind) -> None:
+def _add(state: _Walk, sha256: str | None, name: str, location: Path, kind: FileKind) -> None:
     if (
         sha256 is None
         and state.con.execute(
@@ -206,8 +206,19 @@ def _add(state: _Walk, sha256: str | None, name: str, location: Path, kind: Kind
         "INSERT INTO dataroom_files (sha256, folder, path, location, kind, profile, period, "
         "reason, next_step, duplicates, run_id, scanned_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, [], ?, ?)",
-        [sha256, str(state.scan.folder), name, str(location), kind.kind, kind.profile]
-        + [kind.period, reason, step, state.run.run_id, datetime.now(UTC).replace(tzinfo=None)],
+        [
+            sha256,
+            str(state.scan.folder),
+            name,
+            str(location),
+            kind.kind,
+            kind.profile,
+            kind.period,
+            reason,
+            step,
+            state.run.run_id,
+            datetime.now(UTC).replace(tzinfo=None),
+        ],
     )
     state.scan.new += 1
 

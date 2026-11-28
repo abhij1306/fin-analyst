@@ -193,11 +193,10 @@ def _refuse_repeat(con: Any, engagement: dict[str, Any], rows: list[Row]) -> Non
     """E847 when a row's evidence is already an adjustment of the engagement that is not rejected:
     the same sheet imported twice would count every adjustment twice."""
     by_evidence = {row.evidence: row for row in rows}
-    placeholders = ", ".join("?" for _ in by_evidence)
     earlier = con.execute(
         "SELECT adj_id, source_ref FROM adjustments WHERE engagement_id = ? "
-        f"AND status <> 'rejected' AND source_ref IN ({placeholders}) ORDER BY adj_id",
-        [engagement["engagement_id"], *by_evidence],
+        "AND status <> 'rejected' AND source_ref IN (SELECT unnest(?)) ORDER BY adj_id",
+        [engagement["engagement_id"], list(by_evidence)],
     ).fetchone()
     if earlier is not None:
         row = by_evidence[earlier[1]]

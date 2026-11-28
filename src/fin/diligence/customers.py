@@ -141,8 +141,14 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
             con.execute(
                 "UPDATE customers SET status = 'proposed', sector = ?, confidence = ?, reason = ?, "
                 "run_id = ?, changed_at = ? WHERE customer_id = ?",
-                [row["sector"], row["confidence"], row["reason"], run.run_id, utcnow()]
-                + [row["customer_id"]],
+                [
+                    row["sector"],
+                    row["confidence"],
+                    row["reason"],
+                    run.run_id,
+                    utcnow(),
+                    row["customer_id"],
+                ],
             )
             _decide(run, company, row, "proposed", CLAUDE)
             if row["confidence"] < LOW_CONFIDENCE:

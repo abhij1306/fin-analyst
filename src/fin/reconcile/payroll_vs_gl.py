@@ -15,6 +15,7 @@ from typing import Any
 import duckdb
 
 from fin.audit.errors import ReconCannotRun
+from fin.db.rows import fetch_one
 from fin.reconcile.base import (
     ZERO,
     Computed,
@@ -35,12 +36,13 @@ def applies(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], period: 
     return (
         period in engagement["periods"].split(",")
         and loaded_file(con, eid, "ledger_vouchers", period) is not None
-        and con.execute(
+        and fetch_one(
+            con,
             "SELECT count(*) FROM source_files s JOIN payroll_units u USING (file_id) "
             "WHERE s.engagement_id = ? AND s.kind = 'payroll' AND s.period = ? "
             "AND s.status = 'loaded' AND u.unit = 'annual'",
             [eid, period],
-        ).fetchone()[0]
+        )[0]
         > 0
     )
 

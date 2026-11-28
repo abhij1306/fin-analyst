@@ -33,8 +33,11 @@ TRIAL_BALANCES = {
         "Sundry Debtors": [("Orchid Systems Pvt Ltd", 400000, 0)],
         "Bank Accounts": [("Axis Bank Current Account", 250000, 0)],
         "Sales Accounts": [("Software Sales", 0, 2000000)],
-        "Indirect Expenses": [("Salaries", 1500000, 0), ("Depreciation", 100000, 0)]
-        + [("Rent", 350000, 0)],
+        "Indirect Expenses": [
+            ("Salaries", 1500000, 0),
+            ("Depreciation", 100000, 0),
+            ("Rent", 350000, 0),
+        ],
     },
     "FY25": {
         "Capital Account": [("Share Capital", 0, 600000)],
@@ -46,8 +49,11 @@ TRIAL_BALANCES = {
         "Sundry Debtors": [("Orchid Systems Pvt Ltd", 500000, 0)],
         "Bank Accounts": [("Axis Bank Current Account", 320000, 0)],
         "Sales Accounts": [("Software Sales", 0, 2400000)],
-        "Indirect Expenses": [("Salaries", 1700000, 0), ("Depreciation", 120000, 0)]
-        + [("Rent", 360000, 0)],
+        "Indirect Expenses": [
+            ("Salaries", 1700000, 0),
+            ("Depreciation", 120000, 0),
+            ("Rent", 360000, 0),
+        ],
     },
 }
 ACCOUNTS = {

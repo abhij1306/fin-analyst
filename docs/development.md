@@ -7,7 +7,13 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 ## Module map (`src/fin/`)
 
 - `cli/`: the `fin` commands (Typer), one module per group: `core.py` (the root `app`, `--version`, shared argument checks), `init.py` (init, doctor), `ingest.py` (ingest, ingest-batch, verify), `findings.py` (findings, status), `statements.py` (statements, export), `data.py` (sql, dashboard, audit, delete, update, report), `evals.py` (eval init, run, bundle), `questions.py` (schema, metric add, list, remove). Each command runs through the audit logger. To add a command group, make a module that does `from fin.cli.core import app` and decorates its commands, then add it to the import line in `cli/__init__.py` (the order is the order in `fin --help`).
-- `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
+- `config.py`, `paths.py`: `config.toml` settings, and every data-folder path. `paths.inside(root, path)` resolves a
+  path from a file, a request or a database row and refuses one outside `root` (E013); `paths.atomic_write` writes
+  a file through a unique temporary sibling (`paths.temp_name`) and replaces it in one step. Use them; a test bans
+  fixed temporary names.
+- `output/escape.py`: the only escaping of document text: `html`, `markdown_text`, `markdown_cell` (a table cell),
+  `excel_book` (formula-looking text saved as text). A test fails on any other escaping and on a saved workbook that
+  skips `excel_book`.
 - `audit/errors.py`: error classes and codes (the FDD ones, E9xx, in `audit/errors_fdd.py`, the data-room ones, E814, E815 and E819, in `audit/errors_dataroom.py`, the reference ones, E980 to E982, in `audit/errors_reference.py`, and E830 to E874 in `audit/errors_dd.py`, all re-exported) (E001 to E982). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
@@ -360,6 +366,11 @@ reconciliation lines, adjusted EBITDA) adds a check kind so the client's golden 
 6. Test in `tests/unit/test_evals.py`: a correct golden line for the kind passes and a planted wrong one fails.
 
 ## Tests and fixtures
+
+- Registries with a test that fails when they fall behind: a new gate input goes in `diligence/gate_inputs.py` (the
+  test changes each column and expects the gate hash to change); a new text column of a company database goes in
+  `diligence/mask_columns.py` (masked or as filed); a new command or option goes in `docs/product.md`
+  (`tests/unit/test_cli_consistency.py`).
 
 - `uv run pytest tests/path/to/test_file.py`. Unit tests are in `tests/unit/`; `tests/integration/` runs the real CLI
   with Typer's `CliRunner` against a temporary data folder (`FIN_DATA_DIR`). Never touch `~/FinAnalysis` in a test.

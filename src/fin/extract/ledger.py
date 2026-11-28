@@ -11,6 +11,7 @@ a profile. E808 when no header line gives the period, or sheets give different p
 """
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -178,7 +179,7 @@ def _lines(sheet: Worksheet, first_data_row: int, profile: Profile) -> list[str]
 def _rows(sheet: Worksheet, first: int, columns: dict[int, str]) -> list[SheetRow]:
     lead = min(columns)
     out = []
-    for cells in sheet.iter_rows(min_row=first):
+    for number, cells in enumerate(sheet.iter_rows(min_row=first), start=first):
         values = {field: cells[c - 1].value for c, field in columns.items() if c <= len(cells)}
         if all(v is None or (isinstance(v, str) and not v.strip()) for v in values.values()):
             continue
@@ -186,7 +187,7 @@ def _rows(sheet: Worksheet, first: int, columns: dict[int, str]) -> list[SheetRo
         out.append(
             SheetRow(
                 sheet.title,
-                cell.row,
+                number,
                 values,
                 bool(cell.font and cell.font.b),
                 float(cell.alignment.indent or 0) if cell.alignment else 0.0,
@@ -251,7 +252,7 @@ def read_table(
 
 
 def _table(
-    path: Path, profile: Profile, headers: list[tuple[Worksheet, tuple[int, dict[int, str]]]]
+    path: Path, profile: Profile, headers: Sequence[tuple[Worksheet, tuple[int, dict[int, str]]]]
 ) -> Table:
     periods, rows, lines = set(), [], []
     for sheet, (first, columns) in headers:

@@ -19,7 +19,8 @@ import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
-from fin.audit.errors import DataFolderNotWritable
+from fin.audit.errors import DataFolderNotWritable, PathOutsideFolder
+from fin.paths import inside
 
 CHUNK = 1 << 20
 MAX_ENTRIES = 100_000  # entries one archive and the archives inside it may hold
@@ -103,9 +104,11 @@ def _extract_all(
 
 def _extract(book: zipfile.ZipFile, info: zipfile.ZipInfo, staging: Path, budget: int) -> int:
     """Write one entry under `staging`; the bytes written."""
-    root = staging.resolve()
-    dest = (staging / Path(*_SEPARATORS.split(info.filename.rstrip("/\\")))).resolve()
-    if not dest.is_relative_to(root) or dest == root:
+    try:
+        dest = inside(staging, staging / Path(*_SEPARATORS.split(info.filename.rstrip("/\\"))))
+    except PathOutsideFolder:
+        raise _Refused("archive_unsafe") from None
+    if dest == staging.resolve():
         raise _Refused("archive_unsafe")
     written = 0
     try:

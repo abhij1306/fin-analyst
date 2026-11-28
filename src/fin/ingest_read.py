@@ -145,7 +145,8 @@ def read_document(
             f"{path.name}: --unit {unit.unit} was given, but every statement sheet or page names "
             "its own unit; nothing loaded. Ingest it without --unit"
         )
-    return replace(document, unit_given=unit)
+    # dataclasses.replace returns the type it is given (Sonar S5886 reads it as any dataclass)
+    return replace(document, unit_given=unit)  # NOSONAR
 
 
 def _read_excel(path: Path, config: Config, unit: GivenUnit | None) -> Document:
@@ -231,16 +232,7 @@ def _read_pdf(
         for v in values
         if v.statement != "notes"
     ]
-    notices: list[str] = []  # the add-on's own are logged as it runs (`fallback._log`)
-    notes: list[tuple[str, Path]] = []
-    if not read.scanned:
-        # one folder per file content: two different PDFs with the same name keep their own notes
-        written = write_notes_markdown(path, notes_dir(run.root, company) / sha256_of(path)[:12])
-        notes = [(note.name[len(path.stem) + 1 : -len(".md")], note) for note in written]
-        in_notes = sum(1 for v in read.by_fin if v.statement == "notes")
-        notices.append(
-            f"{in_notes} note-table values kept in the notes Markdown, not loaded as facts"
-        )
+    notes, notices = _notes(run, path, company, read)
     values = read.by_fin + read.by_addon
     assumed = sorted({v.page for v in values if v.scope is None and v.statement != "notes"})
     if assumed:
@@ -253,6 +245,23 @@ def _read_pdf(
         for s in read.unread
     ]
     return Document(rows, notes, notices, warnings, unread)
+
+
+def _notes(
+    run: Run, path: Path, company: str, read: fallback.PdfRead
+) -> tuple[list[tuple[str, Path]], list[str]]:
+    """The notes Markdown of a text PDF (none for a scanned one) and the notice about it."""
+    notices: list[str] = []  # the add-on's own are logged as it runs (`fallback._log`)
+    notes: list[tuple[str, Path]] = []
+    if not read.scanned:
+        # one folder per file content: two different PDFs with the same name keep their own notes
+        written = write_notes_markdown(path, notes_dir(run.root, company) / sha256_of(path)[:12])
+        notes = [(note.name[len(path.stem) + 1 : -len(".md")], note) for note in written]
+        in_notes = sum(1 for v in read.by_fin if v.statement == "notes")
+        notices.append(
+            f"{in_notes} note-table values kept in the notes Markdown, not loaded as facts"
+        )
+    return notes, notices
 
 
 def _row(

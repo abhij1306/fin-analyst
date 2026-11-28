@@ -15,7 +15,7 @@ from typing import Any
 
 from fin.audit.errors import UiActionInvalid, UnexpectedError
 from fin.db.conn import connect, utcnow
-from fin.db.rows import fetch_dicts
+from fin.db.rows import fetch_dicts, fetch_one
 from fin.paths import audit_db_path
 from fin.services.result import ActionResult
 
@@ -53,11 +53,12 @@ class Jobs:
         if action not in self.work:
             raise UiActionInvalid(f"unknown job {action!r}")
         with connect(audit_db_path(self.root), write=True) as con:
-            (job_id,) = con.execute(
+            (job_id,) = fetch_one(
+                con,
                 "INSERT INTO jobs (company, action, arguments, state, queued_at) "
                 "VALUES (?, ?, ?, 'queued', ?) RETURNING job_id",
                 [company, action, json.dumps(arguments), utcnow()],
-            ).fetchone()
+            )
         self._queue.put(job_id)
         with self._lock:
             if self._thread is None or not self._thread.is_alive():

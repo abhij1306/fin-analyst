@@ -17,7 +17,7 @@ import typer
 from fin.audit.errors import DashboardBuildFailed, DependencyMissing
 from fin.db.conn import connect
 from fin.metrics.export import TABLES
-from fin.paths import analytics_db_path
+from fin.paths import analytics_db_path, temp_name
 
 PROJECT_DIR = Path(__file__).resolve().parents[2] / "dashboards"
 # The path the site is served under (`deployment.basePath` in dashboards/evidence.config.yaml), so
@@ -42,14 +42,16 @@ def snapshot_analytics(root: Path) -> Path:
     folder = dashboard_dir(root)
     folder.mkdir(parents=True, exist_ok=True)
     snapshot = folder / "analytics.duckdb"
-    partial = folder / "analytics.duckdb.partial"
-    partial.unlink(missing_ok=True)
-    with connect(analytics_db_path(root)) as con:
-        con.execute("ATTACH ? AS snap (READ_WRITE, STORAGE_VERSION 'v1.0.0')", [str(partial)])
-        for table in TABLES:
-            con.execute(f"CREATE TABLE snap.{table} AS SELECT * FROM main.{table}")
-        con.execute("DETACH snap")
-    partial.replace(snapshot)
+    partial = temp_name(snapshot)
+    try:
+        with connect(analytics_db_path(root)) as con:
+            con.execute("ATTACH ? AS snap (READ_WRITE, STORAGE_VERSION 'v1.0.0')", [str(partial)])
+            for table in TABLES:
+                con.execute(f"CREATE TABLE snap.{table} AS SELECT * FROM main.{table}")
+            con.execute("DETACH snap")
+        partial.replace(snapshot)
+    finally:
+        partial.unlink(missing_ok=True)  # gone already when it replaced the snapshot
     return snapshot
 
 
@@ -118,9 +120,11 @@ def build(root: Path) -> Path:
             f"the last good build is kept in {last_good_build_dir(root)}:\n{_tail(result)}"
         )
     target = last_good_build_dir(root)
-    staging = target.with_name("build.new")
-    shutil.rmtree(staging, ignore_errors=True)
-    shutil.copytree(built, staging)
-    shutil.rmtree(target, ignore_errors=True)
-    staging.replace(target)
+    staging = temp_name(target)
+    try:
+        shutil.copytree(built, staging)
+        shutil.rmtree(target, ignore_errors=True)
+        staging.replace(target)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)  # gone already when it replaced the build
     return target

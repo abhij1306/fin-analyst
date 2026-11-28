@@ -98,9 +98,15 @@ def write_payroll(
     divisor = 12 if monthly else 1
     for i, (code, name, *middle, joined, resigned, gross, ctc) in enumerate(EMPLOYEES):
         sheet.append(
-            [None if blank_code and i == 1 else code, name, *middle]
-            + ["not a date" if bad_date and i == 0 else datetime(*joined)]
-            + [datetime(*resigned) if resigned else None, gross // divisor, ctc // divisor]
+            [
+                None if blank_code and i == 1 else code,
+                name,
+                *middle,
+                "not a date" if bad_date and i == 0 else datetime(*joined),
+                datetime(*resigned) if resigned else None,
+                gross // divisor,
+                ctc // divisor,
+            ]
         )
     sheet.append(["Total", None, None, None, None, None, None, None, 1, 1])
     book.save(path)

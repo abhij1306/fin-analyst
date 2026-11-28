@@ -163,8 +163,14 @@ def test_a_commit_in_the_batch_runs_nothing(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "sql",
-    ["DROP VIEW current_facts", "CREATE TABLE early (x INT)", "ALTER TABLE facts ADD COLUMN x INT"]
-    + ["PRAGMA threads=1", "SET threads=1", "VACUUM"],
+    [
+        "DROP VIEW current_facts",
+        "CREATE TABLE early (x INT)",
+        "ALTER TABLE facts ADD COLUMN x INT",
+        "PRAGMA threads=1",
+        "SET threads=1",
+        "VACUUM",
+    ],
 )
 def test_schema_changes_are_refused_and_the_database_is_unchanged(tmp_path: Path, sql: str) -> None:
     path = company_db_path(tmp_path, "acme")

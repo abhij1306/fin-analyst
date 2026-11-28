@@ -18,7 +18,8 @@ from starlette.responses import JSONResponse, RedirectResponse, Response
 from fin.audit.errors import UiRequestRefused
 
 COOKIE = "fin_ui_token"
-TOKEN_PARAM = "token"
+# The query parameter's name, not a secret.
+TOKEN_PARAM = "token"  # noqa: S105
 
 
 def new_token() -> str:
@@ -56,7 +57,8 @@ def protect(
             rest = [(k, v) for k, v in request.query_params.multi_items() if k != TOKEN_PARAM]
             target = request.url.path + (f"?{urlencode(rest)}" if rest else "")
             response = RedirectResponse(target, status_code=303)
-            response.set_cookie(  # NOSONAR: plain http on 127.0.0.1; Safari drops Secure cookies
+            # No Secure flag: plain http on 127.0.0.1, where Safari drops Secure cookies.
+            response.set_cookie(  # NOSONAR
                 COOKIE, token, httponly=True, samesite="strict", path="/"
             )
             return response

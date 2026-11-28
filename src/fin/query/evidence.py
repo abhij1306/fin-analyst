@@ -8,7 +8,6 @@ the page with E604; the page is still written. Output: `evidence/<query_id>.html
 `evidence/<query_id>/` (the query_id is the run_id of the `fin sql` run).
 """
 
-import html
 import json
 from pathlib import Path
 from typing import Any
@@ -29,7 +28,8 @@ from fin.display import display_settings, money
 from fin.extract.addon import ADDON_LABELS
 from fin.extract.pdf_reader import render_crop
 from fin.map.dictionary import load_accounts
-from fin.paths import company_db_path
+from fin.output import escape
+from fin.paths import company_db_path, inside
 
 GRID_ROWS_AROUND = 2  # rows shown above and below an Excel value
 
@@ -65,7 +65,7 @@ def _grid(workbook: Workbook, sheet: str, cell: str) -> str:
         cells = []
         for c in range(1, last_column + 1):
             value = ws.cell(row=r, column=c).value
-            text = "" if value is None else html.escape(str(value))
+            text = "" if value is None else escape.html(str(value))
             mark = " class='hit'" if (r, c) == (row, target_column) else ""
             cells.append(f"<td{mark}>{text}</td>")
         lines.append(f"<tr><th>{r}</th>{''.join(cells)}</tr>")
@@ -77,7 +77,7 @@ def _source_view(run: Run, fact: dict[str, Any], folder: Path, books: dict[Path,
     """The crop or grid of a fact's archived source; the whole page for a PDF figure with no
     position (read by Claude from the page image). Raises E604 when the archived file is missing
     or cannot be opened, or has no such page."""
-    source = run.root / fact["archive_path"]
+    source = inside(run.root, run.root / fact["archive_path"])
     if not source.is_file():
         raise EvidenceSourceMissing(
             f"{fact['file_name']}: archived source {fact['archive_path']} is missing"
@@ -95,7 +95,7 @@ def _source_view(run: Run, fact: dict[str, Any], folder: Path, books: dict[Path,
     image = folder / f"fact_{fact['fact_id']}.png"
     bbox = None if fact["bbox"] is None else tuple(json.loads(fact["bbox"]))
     render_crop(source, fact["page"], bbox, image)
-    img = f"<img src='{folder.name}/{image.name}' alt='{html.escape(fact['source_ref'])}'>"
+    img = f"<img src='{folder.name}/{image.name}' alt='{escape.html(fact['source_ref'])}'>"
     if bbox is None:
         return f"<p>No position on the page was recorded for this figure: the whole page.</p>{img}"
     return img
@@ -126,19 +126,19 @@ def _fact_section(
         f"({status})"
     )
     details = (
-        f"<p>Source: <span class='ref'>{html.escape(fact['file_name'])}, {html.escape(ref)}"
-        f"</span><br>As written: {html.escape(fact['raw_label'])} = "
-        f"{html.escape(fact['raw_value_text'])} {html.escape(fact['raw_unit'])}</p>"
+        f"<p>Source: <span class='ref'>{escape.html(fact['file_name'])}, {escape.html(ref)}"
+        f"</span><br>As written: {escape.html(fact['raw_label'])} = "
+        f"{escape.html(fact['raw_value_text'])} {escape.html(fact['raw_unit'])}</p>"
     )
     if fact["correction_id"] is not None:
-        details += f"<p>Correction reason: {html.escape(fact['correction'])}</p>"
+        details += f"<p>Correction reason: {escape.html(fact['correction'])}</p>"
     try:
         body = _source_view(run, fact, folder, books)
     except EvidenceSourceMissing as error:
         run.failed += 1
         run.event("evidence", error.message, level="error", code=error.code, file=fact["file_name"])
-        body = f"<p class='flag'>{html.escape(str(error))}</p>"
-    return f"<section><h3>{html.escape(title)}</h3>{details}{body}</section>"
+        body = f"<p class='flag'>{escape.html(str(error))}</p>"
+    return f"<section><h3>{escape.html(title)}</h3>{details}{body}</section>"
 
 
 def _unsourced_section(run: Run, fact: dict[str, Any]) -> str:
@@ -149,7 +149,7 @@ def _unsourced_section(run: Run, fact: dict[str, Any]) -> str:
     )
     run.event("evidence", message, level="warning", file=fact["file_name"])
     flag = "<p class='flag'>No source to show.</p>"
-    return f"<section><h3>{html.escape(message)}</h3>{flag}</section>"
+    return f"<section><h3>{escape.html(message)}</h3>{flag}</section>"
 
 
 def _row_ids(rows: list[dict[str, Any]], column: str) -> list[list[Any]]:
@@ -174,8 +174,8 @@ def _stated_section(stated: dict[str, Any], units: dict[str, str], display: Disp
     )
     withdrawn = "<br>Withdrawn since." if stated["status"] == "withdrawn" else ""
     return (
-        f"<section><h3>{html.escape(title)}</h3><p>Reason given: "
-        f"{html.escape(stated['reason'])}{withdrawn}</p></section>"
+        f"<section><h3>{escape.html(title)}</h3><p>Reason given: "
+        f"{escape.html(stated['reason'])}{withdrawn}</p></section>"
     )
 
 
@@ -183,9 +183,9 @@ def _result_table(rows: list[dict[str, Any]]) -> str:
     if not rows:
         return "<p>No rows.</p>"
     columns = list(rows[0])
-    head = "".join(f"<th>{html.escape(c)}</th>" for c in columns)
+    head = "".join(f"<th>{escape.html(c)}</th>" for c in columns)
     body = "".join(
-        "<tr>" + "".join(f"<td>{html.escape(str(row[c]))}</td>" for c in columns) + "</tr>"
+        "<tr>" + "".join(f"<td>{escape.html(str(row[c]))}</td>" for c in columns) + "</tr>"
         for row in rows
     )
     return f"<table><tr>{head}</tr>{body}</table>"
@@ -289,13 +289,13 @@ def write_evidence(
             f"{len(stated_ids)} figure(s) were stated by the user, not read from a document "
             "(`fin fact list`)."
         )
-    flag_html = "".join(f"<p class='flag'>{html.escape(flag)}</p>" for flag in flags)
+    flag_html = "".join(f"<p class='flag'>{escape.html(flag)}</p>" for flag in flags)
     page = f"""<!doctype html>
-<html><head><meta charset="utf-8"><title>Evidence {html.escape(query_id)}</title>
+<html><head><meta charset="utf-8"><title>Evidence {escape.html(query_id)}</title>
 <style>{STYLE}</style></head><body>
-<h1>Evidence for query {html.escape(query_id)}</h1>
-<p>Company: {html.escape(company)}<br>Question: {html.escape(question or "")}</p>
-<h2>SQL</h2><pre>{html.escape(sql)}</pre>
+<h1>Evidence for query {escape.html(query_id)}</h1>
+<p>Company: {escape.html(company)}<br>Question: {escape.html(question or "")}</p>
+<h2>SQL</h2><pre>{escape.html(sql)}</pre>
 {flag_html}
 <h2>Result</h2>{_result_table(rows)}
 <h2>Sources</h2>

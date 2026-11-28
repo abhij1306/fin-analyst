@@ -13,6 +13,7 @@ own sections, figures and lint:
 from typing import Any
 
 from fin.audit.logger import Run
+from fin.config import Display
 from fin.report import dd_tables as t
 from fin.report import fdd_tables as f
 from fin.report.dd_data import FIGURES
@@ -42,7 +43,7 @@ RULES = """- Findings, severity, implications and deal considerations are allowe
   --drafts); the narrative summarises them."""
 
 
-def parts(data: dict[str, Any], u: str) -> tuple[dict[str, str], dict[str, str]]:
+def parts(data: dict[str, Any], u: Display) -> tuple[dict[str, str], dict[str, str]]:
     tables = {
         "draft_note": f.draft_note(data),
         "key_findings": f.key_findings(data, u),

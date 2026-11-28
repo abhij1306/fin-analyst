@@ -20,7 +20,7 @@ import duckdb
 from fin.audit.errors import NetDebtClassInvalid, NetDebtClassUnknown, NetDebtUnavailable
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
-from fin.db.rows import fetch_dicts
+from fin.db.rows import fetch_dicts, fetch_one
 from fin.diligence.engagement import company_database, rupees
 
 CLASSES = ("cash", "debt", "debt_like", "none")
@@ -75,14 +75,15 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
         for p in proposals:
             reason = p["reason"].strip()
             values = [p["ledger"], p["class"], reason, run.run_id, utcnow()]
-            (class_id,) = con.execute(
+            (class_id,) = fetch_one(
+                con,
                 "INSERT INTO netdebt_classes (ledger, debt_class, status, reason, run_id, "
                 "changed_at) VALUES (?, ?, 'proposed', ?, ?, ?) ON CONFLICT (ledger) DO UPDATE "
                 "SET debt_class = excluded.debt_class, status = 'proposed', "
                 "reason = excluded.reason, run_id = excluded.run_id, "
                 "changed_at = excluded.changed_at RETURNING class_id",
                 values,
-            ).fetchone()
+            )
             ids.append(class_id)
             _log(run, company, class_id, f"proposed {p['ledger']!r} as {p['class']}")
     return ids

@@ -142,7 +142,7 @@ def test_confirm_unit_names_a_loaded_payroll_file(root: Path, tmp_path: Path) ->
     with pytest.raises(PayrollFileNotFound, match="Loaded payroll files: none"):
         confirm(root, "payroll.xlsx", "annual")
     load(root, write_payroll(tmp_path / "payroll.xlsx"))
-    with pytest.raises(PayrollFileNotFound, match="file_id 1 payroll.xlsx"):
+    with pytest.raises(PayrollFileNotFound, match=r"file_id 1 payroll\.xlsx"):
         confirm(root, "other.xlsx", "annual")
     load(
         root,

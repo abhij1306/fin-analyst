@@ -65,7 +65,7 @@ def test_gst_returns_tax_ledgers_and_reconciliations(root: Path, tmp_path: Path)
             [
                 {"ledger": k, "class": v, "confidence": 0.9, "reason": "name"}
                 for k, v in CLASSES.items()
-            ]  # noqa: E501
+            ]
         ),
         encoding="utf-8",
     )

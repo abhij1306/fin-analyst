@@ -232,7 +232,7 @@ def test_gate_g3_needs_the_recast_the_queries_and_the_adjustments(root: Path) ->
     assert [ok for ok, _ in g3(root)] == [False, False]
     assert "has not run" in g3(root)[0][1]
 
-    [fy25, fy26] = run_recast(run(root), "acme", None)
+    [fy25, _fy26] = run_recast(run(root), "acme", None)
     assert [ok for ok, _ in g3(root)] == [False, True]
     assert "no service dates and are not in a query" in g3(root)[0][1]
 

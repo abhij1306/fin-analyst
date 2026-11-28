@@ -55,7 +55,10 @@ PERIOD = re.compile(r"^FY(\d{2})(?:-(Q[1-4]|H[12]|9M))?$")
 LENGTH = {None: 12, "Q": 3, "H": 6, "9": 9}
 TOO_LARGE = Decimal(10) ** 16  # as E890: a figure this large is a wrong unit, not a figure
 # Commas only as thousands separators: 1,234,567 or the Indian 12,34,567 (never "1,2,3").
-GROUPED = re.compile(r"^[+-]?(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3})(?:\.\d*)?$")
+GROUPED = (
+    re.compile(r"^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d*)?$"),
+    re.compile(r"^[+-]?\d{1,2}(?:,\d{2})*,\d{3}(?:\.\d*)?$"),
+)
 
 # The loaded document's figure for an account, period and scope, where it was printed, and the
 # stated value minus it.
@@ -76,7 +79,7 @@ FROM stated_now ORDER BY scope, account, period_end, period_months DESC, stated_
 
 
 @dataclass(frozen=True)
-class Statement:
+class StatedFigure:
     """A figure as the user states it, checked: `period_months`, `period_end` and
     `fiscal_year` follow from `period`."""
 
@@ -102,7 +105,8 @@ def period_dates(period: str, start_month: int) -> tuple[str, int, date]:
         )
     part = match.group(2)
     months = LENGTH[part[0] if part else None]
-    elapsed = 9 if part == "9M" else months * (int(part[1]) if part else 1)
+    count = 1 if part is None or part == "9M" else int(part[1])  # which quarter or half
+    elapsed = 9 if part == "9M" else months * count
     end_year = 2000 + int(match.group(1))
     first_year = end_year - 1 if start_month > 1 else end_year
     month_index = start_month - 1 + elapsed  # months from January of first_year to the day after
@@ -113,7 +117,7 @@ def period_dates(period: str, start_month: int) -> tuple[str, int, date]:
 def parse_value(text: str) -> Decimal:
     """The value in rupees as given: a number with at most two decimals, below 10^16. E407."""
     plain = text.strip()
-    if "," in plain and not GROUPED.match(plain):
+    if "," in plain and not any(form.match(plain) for form in GROUPED):
         raise FigureCannotBeStated(
             f"value {text!r}: commas only between digit groups (1,23,456 or 123,456). Nothing "
             "stated"
@@ -138,7 +142,9 @@ def parse_value(text: str) -> Decimal:
     return value
 
 
-def check(root: Path, account: str, period: str, scope: str, value: str, reason: str) -> Statement:
+def check(
+    root: Path, account: str, period: str, scope: str, value: str, reason: str
+) -> StatedFigure:
     """Check what the user states against the chart of accounts and config.toml. E407."""
     accounts = load_accounts(root)
     if account not in accounts:
@@ -153,7 +159,7 @@ def check(root: Path, account: str, period: str, scope: str, value: str, reason:
     fiscal_year, months, period_end = period_dates(
         period, load_config(root).fiscal_year_start_month
     )
-    return Statement(
+    return StatedFigure(
         account,
         accounts[account].statement,
         period,
@@ -174,7 +180,7 @@ def _database(root: Path, company: str) -> Path:
     return path
 
 
-def _refuse_twice(con: duckdb.DuckDBPyConnection, s: Statement) -> None:
+def _refuse_twice(con: duckdb.DuckDBPyConnection, s: StatedFigure) -> None:
     row = con.execute(
         "SELECT stated_id, value FROM stated_figures WHERE status = 'stated' AND account = ? "
         "AND period = ? AND scope = ?",
@@ -187,14 +193,14 @@ def _refuse_twice(con: duckdb.DuckDBPyConnection, s: Statement) -> None:
         ).with_context(stated_id=row[0], value=str(row[1]))
 
 
-def _finding_scope(s: Statement) -> tuple[str, list[Any]]:
+def _finding_scope(s: StatedFigure) -> tuple[str, list[Any]]:
     """The findings of a statement's conflict check (`where` and its parameters)."""
     where = "check_name = 'stated_figure' AND scope = ? AND period = ? AND label = ?"
     return where, [s.scope, s.period, s.account]
 
 
 def _finding(
-    run: Run, company: str, con: duckdb.DuckDBPyConnection, s: Statement, doc: dict[str, Any]
+    run: Run, company: str, con: duckdb.DuckDBPyConnection, s: StatedFigure, doc: dict[str, Any]
 ) -> int:
     """Record the conflict with the loaded document's figure as a finding; its id."""
     where, params = _finding_scope(s)
@@ -289,8 +295,19 @@ def state(
                 "INSERT INTO stated_figures (account, fiscal_year, period, period_months, "
                 "period_end, scope, value, reason, actor, status, run_id, stated_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'stated', ?, ?) RETURNING stated_id",
-                [s.account, s.fiscal_year, s.period, s.period_months, s.period_end, s.scope]
-                + [s.value, s.reason, actor, run.run_id, utcnow()],
+                [
+                    s.account,
+                    s.fiscal_year,
+                    s.period,
+                    s.period_months,
+                    s.period_end,
+                    s.scope,
+                    s.value,
+                    s.reason,
+                    actor,
+                    run.run_id,
+                    utcnow(),
+                ],
             ).fetchall()
             out |= {"outcome": "stated", "stated_id": stated_id}
             # no loaded document gives it any more: an earlier conflict finding is resolved
@@ -422,8 +439,17 @@ def correct(
             "INSERT INTO fact_corrections (fact_id, doc_id, original_value, value, reason, actor, "
             "on_request, run_id, corrected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "RETURNING correction_id",
-            [fact_id, fact["doc_id"], fact["value"], new, reason.strip(), actor, on_request]
-            + [run.run_id, utcnow()],
+            [
+                fact_id,
+                fact["doc_id"],
+                fact["value"],
+                new,
+                reason.strip(),
+                actor,
+                on_request,
+                run.run_id,
+                utcnow(),
+            ],
         ).fetchall()
     out = {
         "company": company,

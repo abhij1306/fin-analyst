@@ -248,6 +248,13 @@ def test_collections_view(root: Path) -> None:
     assert got["CUST-0006"] == (D(450000), D(0), D(450000), None, D(150000), D(300000))
 
 
+def test_a_boolean_is_not_a_line_reference(root: Path) -> None:
+    flagged = [{"bank": [[True, "S", 6]], "invoices": [[REG, "Sales", 7]], "reason": "x"}]
+
+    with pytest.raises(MatchProposalInvalid, match="file_id, sheet, row"):
+        bank_proposals.propose(run(root), "acme", flagged)
+
+
 def test_a_confirmed_proposal_is_applied_and_a_rejected_one_is_not(root: Path) -> None:
     ref = [BANK, "S", 6]
     bad = [{"bank": [[BANK, "S", 99]], "invoices": [[REG, "Sales", 7]], "reason": "x"}]

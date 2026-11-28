@@ -40,6 +40,7 @@ asked.
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 import duckdb
 
@@ -65,6 +66,7 @@ from fin.ingest_read import (
     UNIT_ANSWERS,
     Document,
     GivenUnit,
+    Row,
     check_range,
     files_in,
     read_document,
@@ -159,23 +161,7 @@ def _load(
                     "SELECT nextval('raw_values_seq') FROM range(?)", [len(rows)]
                 ).fetchall()
             ]
-            raw_values, facts = [], []
-            keys = ((r.statement, r.scope, r.section, r.label) for r in rows)
-            for raw_id, r, mapping in zip(raw_ids, rows, map_rows(label_map, keys), strict=True):
-                if mapping is None:
-                    unmapped[(r.statement, r.label)] = None
-                # A per-share figure (EPS) is stored as printed: the statement unit is not its unit.
-                value = r.rupees / r.rupees_per_unit if mapping and mapping.per_share else r.rupees
-                raw_values.append(
-                    [raw_id, doc_id, r.sheet, r.cell, r.page, r.bbox, r.statement, r.section]
-                    + [r.label, r.raw, r.unit_text, r.rupees_per_unit, run.run_id]
-                )
-                facts.append(
-                    [raw_id, doc_id, mapping and mapping.account, r.fiscal_year, r.period]
-                    + [r.period_months, r.period_end]
-                    + [r.scope, value, mapping and mapping.mapping_id, mapping is not None]
-                    + [run.run_id, r.read_by]
-                )
+            raw_values, facts = _staged(run, doc_id, raw_ids, rows, label_map, unmapped)
             _insert_many(con, "raw_values", RAW_VALUE_COLUMNS, raw_values)
             _insert_many(con, "facts", FACT_COLUMNS, facts)
             for section, note in document.notes:
@@ -196,6 +182,60 @@ def _load(
             con.execute("ROLLBACK")
             raise
     return doc_id, version, list(unmapped), open_findings
+
+
+def _staged(
+    run: Run,
+    doc_id: int,
+    raw_ids: list[int],
+    rows: list[Row],
+    label_map: LabelMap,
+    unmapped: dict[tuple[str, str], None],
+) -> tuple[list[list[Any]], list[list[Any]]]:
+    """The raw_values and facts rows of a document's values; labels with no mapping are added to
+    `unmapped`."""
+    raw_values, facts = [], []
+    keys = ((r.statement, r.scope, r.section, r.label) for r in rows)
+    for raw_id, r, mapping in zip(raw_ids, rows, map_rows(label_map, keys), strict=True):
+        if mapping is None:
+            unmapped[(r.statement, r.label)] = None
+        # A per-share figure (EPS) is stored as printed: the statement unit is not its unit.
+        value = r.rupees / r.rupees_per_unit if mapping and mapping.per_share else r.rupees
+        raw_values.append(
+            [
+                raw_id,
+                doc_id,
+                r.sheet,
+                r.cell,
+                r.page,
+                r.bbox,
+                r.statement,
+                r.section,
+                r.label,
+                r.raw,
+                r.unit_text,
+                r.rupees_per_unit,
+                run.run_id,
+            ]
+        )
+        facts.append(
+            [
+                raw_id,
+                doc_id,
+                mapping and mapping.account,
+                r.fiscal_year,
+                r.period,
+                r.period_months,
+                r.period_end,
+                r.scope,
+                value,
+                mapping and mapping.mapping_id,
+                mapping is not None,
+                run.run_id,
+                r.read_by,
+            ]
+        )
+    return raw_values, facts
 
 
 def _refuse_duplicate(run: Run, company: str, name: str, sha256: str, force: bool) -> None:
@@ -265,7 +305,7 @@ def ingest_file(
         run.event("ingest", exc.message, level="warning", code=exc.code, file=name)
         return f"skipped ({exc})"
     except UnitNotDetected as exc:
-        if exc.context.get("question") != "unit":
+        if (exc.context or {}).get("question") != "unit":
             return _failed(run, config, company, path, exc, reading, document)
         return _held_for_unit(run, company, path, exc, reading)
     except DocumentFailure as exc:
@@ -386,7 +426,7 @@ def _to_review(
         reason["reading"] = str(reading)
     if error.context:
         reason["context"] = error.context
-    if error.context.get("question") == "unit":
+    if (error.context or {}).get("question") == "unit":
         reason["question"] = "which unit?"
         reason["answers"] = list(UNIT_ANSWERS)
     if unread:

@@ -37,7 +37,7 @@ from fin.extract.addon import Request, page_count
 from fin.extract.fallback import cache_dir, engine
 from fin.extract.ledger import is_data, parse_date
 from fin.extract.profiles import Profile, load_profile, norm, profiles_for
-from fin.paths import company_db_path
+from fin.paths import atomic_write, company_db_path
 
 HEADER_SEARCH_ROWS = 8  # a table's column header is looked for in its first rows
 SHOWN_ROWS = 12  # header lines listed when no profile matches
@@ -107,7 +107,7 @@ def read_parse(
     }
     masked = data | {"pages": mask_parse(run, db, data["pages"], profiles)}
     saved.parent.mkdir(parents=True, exist_ok=True)
-    saved.write_text(json.dumps(masked), encoding="utf-8")
+    atomic_write(saved, json.dumps(masked))
     return data, rel
 
 
@@ -210,6 +210,8 @@ def _top_lines(pages: Pages) -> list[str]:
 
 
 def _period(lines: list[str], profile: Profile) -> tuple[Any, Any] | None:
+    if profile.period is None:
+        return None
     for line in lines:
         match = profile.period.search(line)
         if match is not None:
@@ -246,7 +248,7 @@ def read_pdf(
         if period is None:
             raise SourcePeriodInvalid(
                 f"{path.name}: no header line gives the period covered (profile {profile.name}, "
-                f"pattern {profile.period.pattern!r}; saved parse {rel})"
+                f"pattern {profile.period and profile.period.pattern!r}; saved parse {rel})"
             )
         return Raw(profile, period[0], period[1], lines, rows, data["engine"], rel)
     names = ", ".join(p.name for p in candidates) or "none"

@@ -21,7 +21,7 @@ from fin.audit.errors import ProvisionLedgerInvalid, ProvisionLedgerUnknown, Pro
 from fin.audit.logger import Run
 from fin.config import load_config
 from fin.db.conn import transaction, utcnow
-from fin.db.rows import fetch_dicts
+from fin.db.rows import fetch_dicts, fetch_one
 from fin.diligence.engagement import company_database
 
 KINDS = ("doubtful_debts", "gratuity")
@@ -76,14 +76,15 @@ def propose(run: Run, company: str, proposals: Any) -> list[int]:
         ids = []
         for p in proposals:
             values = [p["kind"], p["reason"].strip(), run.run_id, utcnow()]
-            (provision_id,) = con.execute(
+            (provision_id,) = fetch_one(
+                con,
                 "INSERT INTO provision_ledgers (ledger, kind, status, reason, run_id, changed_at) "
                 "VALUES (?, ?, 'proposed', ?, ?, ?) ON CONFLICT (ledger) DO UPDATE SET "
                 "kind = excluded.kind, status = 'proposed', reason = excluded.reason, "
                 "run_id = excluded.run_id, changed_at = excluded.changed_at "
                 "RETURNING provision_id",
                 [p["ledger"], *values],
-            ).fetchone()
+            )
             ids.append(provision_id)
             _log(run, company, provision_id, f"proposed {p['ledger']!r} as {p['kind']}")
     return ids

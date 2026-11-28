@@ -56,8 +56,14 @@ def customers_section(data: dict[str, Any], display: Display) -> str:
     sectors = table(
         ["Period", "Segment", "Sector", "Customers", "Revenue", "Share"],
         [
-            [r["period"], r["segment"], r["sector"], str(r["customers"]), money_of(r["revenue"])]
-            + [_share(r["share"])]
+            [
+                r["period"],
+                r["segment"],
+                r["sector"],
+                str(r["customers"]),
+                money_of(r["revenue"]),
+                _share(r["share"]),
+            ]
             for r in rows["sectors"]
         ],
         "No sales register lines.",
@@ -76,7 +82,7 @@ def customers_section(data: dict[str, Any], display: Display) -> str:
                     "discontinued_revenue",
                     "change",
                 )
-            ]  # fmt: skip
+            ]
             for r in rows["pvm"]
         ],
         "No product has a quantity and a rate in two consecutive annual periods.",

@@ -61,7 +61,7 @@ OUTCOMES = ("agree", "differ", "missing_in_fin", "missing_in_reading")
 
 _LOADED_LINES = """
 SELECT f.fact_id, f.read_by, r.statement, f.scope, f.period, r.section, r.raw_label,
-       r.raw_value_text, f.value, f.account IN (SELECT unnest(?)),
+       r.raw_value_text, f.value, coalesce(f.account IN (SELECT unnest(?)), false),
        coalesce(r.sheet || '!' || r.cell, 'page ' || r.page)
 FROM facts f
 JOIN raw_values r ON r.raw_id = f.raw_id
@@ -188,7 +188,7 @@ def _loaded_document(root: Path, db: Path, sha256: str) -> tuple[Any, list[Loade
         doc_id = doc[0]
         per_share = [a for a, account in load_accounts(root).items() if account.unit == PER_SHARE]
         rows = con.execute(_LOADED_LINES, [per_share, doc_id]).fetchall()
-        loaded = [Loaded(*row[:9], bool(row[9]), row[10]) for row in rows]
+        loaded = [Loaded(*row) for row in rows]
     return doc_id, loaded
 
 

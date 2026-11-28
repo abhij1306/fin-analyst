@@ -25,6 +25,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 from fin.audit.errors import ExportFileError
 from fin.diligence.engagement import rupees
 from fin.diligence.export_data import Issue, Unmasker
+from fin.output import escape
+from fin.paths import inside
 from fin.reconcile.format import LEFT
 from fin.reconcile.items import line_rupees
 
@@ -155,10 +157,14 @@ def source_marks(issues: list[Issue], files: list[tuple[int, str, str, str, str]
 def _copy_sheet(source: Worksheet, target: Worksheet) -> None:
     for row in source.iter_rows():
         for cell in row:
+            if cell.row is None or cell.column is None:
+                continue
             new = target.cell(cell.row, cell.column, cell.value)
             if cell.has_style:
-                new.font, new.border, new.fill = copy(cell.font), copy(cell.border), copy(cell.fill)
-                new.number_format, new.alignment = cell.number_format, copy(cell.alignment)
+                # openpyxl's stubs type a copied style as its proxy; copy() returns the style itself
+                old: Any = cell
+                new.font, new.border, new.fill = copy(old.font), copy(old.border), copy(old.fill)
+                new.number_format, new.alignment = cell.number_format, copy(old.alignment)
     for key, dim in source.column_dimensions.items():
         target.column_dimensions[key].width = dim.width
     for merged in source.merged_cells.ranges:
@@ -176,7 +182,7 @@ def _title(book: Workbook, number: int, sheet: str) -> str:
 
 def _load(root: Path, name: str, archive: str) -> Any:
     """The archived workbook (values as saved), or None for a file that is not a workbook."""
-    path = root / archive
+    path = inside(root, root / archive)
     if path.suffix.lower() not in (".xlsx", ".xlsm"):
         return None
     try:
@@ -239,6 +245,6 @@ def write_workbook(
         _issue_sheet(book, issue, u)
     _source_sheets(book, root, files, source_marks(issues, files))
     try:
-        book.save(path)
+        escape.excel_book(book).save(path)
     except OSError as exc:
         raise ExportFileError(f"cannot write {path}: {exc}") from exc

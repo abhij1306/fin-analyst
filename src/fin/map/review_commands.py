@@ -200,8 +200,9 @@ def _confirm_choice(kind: str, flags: dict[str, bool], options: dict[str, Any]) 
     return options[allowed] if allowed else None
 
 
+# One parameter per CLI option: Typer reads the options from them (docs/decisions/spec-00.md).
 @review_app.command("confirm")
-def review_confirm(
+def review_confirm(  # NOSONAR  # noqa: PLR0913
     company: CompanyArg,
     ids: Annotated[list[int], typer.Argument(help="Item ids from `fin review list`.")],
     account: Annotated[

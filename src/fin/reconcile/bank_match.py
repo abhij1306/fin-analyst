@@ -21,6 +21,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import cast
 
 Key = tuple[int, str, int]  # file_id, sheet, row
 PASSES = ("confirmed", "reference", "party_amount_date", "amount_date")
@@ -136,8 +137,9 @@ class _Pool:
 
     def confirmed(self, raw_bank: list[Key], raw_invoices: list[Key]) -> Group | None:
         """The confirmed group, or None when a line is no longer free or currencies differ."""
-        bank_keys = list(dict.fromkeys(tuple(k) for k in raw_bank))
-        invoice_keys = list(dict.fromkeys(tuple(k) for k in raw_invoices))
+        # the keys come from JSON as lists: back to (file_id, sheet, row)
+        bank_keys = list(dict.fromkeys(cast(Key, tuple(k)) for k in raw_bank))
+        invoice_keys = list(dict.fromkeys(cast(Key, tuple(k)) for k in raw_invoices))
         if not all(k in self.free_r for k in bank_keys):
             return None
         if not all(k in self.free_i for k in invoice_keys):

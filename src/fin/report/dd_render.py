@@ -73,8 +73,8 @@ class Kind:
     figures: dict[str, tuple[str, str, str]]
     rules: str  # the narrative rules the stub states
     collect: Callable[..., dict[str, Any]]  # (root, company, scope, **options)
-    # (data, display unit) -> (tables, sections) by placeholder name
-    parts: Callable[[dict[str, Any], str], tuple[dict[str, str], dict[str, str]]]
+    # (data, display settings) -> (tables, sections) by placeholder name
+    parts: Callable[[dict[str, Any], Display], tuple[dict[str, str], dict[str, str]]]
     lint: Callable[[str, str], None]
 
     @property
@@ -152,7 +152,7 @@ def substitute(
     return FIGURE.sub(lambda m: values[m.group()], text), values
 
 
-def diligence_parts(data: dict[str, Any], u: str) -> tuple[dict[str, str], dict[str, str]]:
+def diligence_parts(data: dict[str, Any], u: Display) -> tuple[dict[str, str], dict[str, str]]:
     """The diligence report's tables and sections, by placeholder name."""
     tables = {
         "basis": t.basis_text(data),

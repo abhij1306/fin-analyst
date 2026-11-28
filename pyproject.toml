@@ -60,10 +60,105 @@ target-version = "py312"
 extend-exclude = ["tests/fixtures/sample-financials/generator"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "BLE", "S110", "PTH", "T20"]
+# C901, PLR0913: SonarCloud's limits (complexity 15, 13 arguments), so a PR that passes ruff passes
+# Sonar on them (docs/engineering.md rule 13). S: security, including fixed temporary paths (S108).
+select = [
+    "E", "F", "W", "I", "B", "UP", "BLE", "S", "PTH", "T20", "C901", "PLR0913", "PLR0915", "SIM",
+    "RUF", "ERA",
+]
+# S603: fin starts fixed programs (git, npm, quarto, uv, claude) with an argument list, never through
+# a shell; the shell rules (S602, S604, S605) and partial paths (S607) stay on.
+ignore = ["S603"]
+
+# Document text uses these characters; the extractors and their tests name them on purpose.
+allowed-confusables = ["–", "‘", "’", "٥"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-args = 13
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S110"]
+# Tests assert, use fixed tokens and SQL text, and pass made-up /tmp paths to the hooks as data.
+"tests/**" = ["S101", "S105", "S108", "S110", "S607", "S608", "PLR0915"]
+# Existing code, when S was turned on (SPEC-00). S101: an assert that narrows a type for the type
+# check; S608: SQL text built from fin's own table and column names, values always bound with ?.
+# This list only shrinks: a new file follows the rules, and an entry goes when its file is clean.
+"src/fin/audit/logger.py" = ["S608"]
+"src/fin/audit/trace.py" = ["S608"]
+"src/fin/dashboard.py" = ["S608"]
+"src/fin/dataroom/scan.py" = ["S608"]
+"src/fin/diligence/adjustments.py" = ["S101", "S608"]
+"src/fin/diligence/bank.py" = ["S101"]
+"src/fin/diligence/bank_checks.py" = ["S101", "S608"]
+"src/fin/diligence/bank_proposals.py" = ["S101", "S608"]
+"src/fin/diligence/bridge.py" = ["S608"]
+"src/fin/diligence/cli.py" = ["S101"]
+"src/fin/diligence/customers.py" = ["S608"]
+"src/fin/diligence/engagement.py" = ["S101", "S608"]
+"src/fin/diligence/engagement_cli.py" = ["S101"]
+"src/fin/diligence/export_xlsx.py" = ["S101"]
+"src/fin/diligence/gates.py" = ["S101"]
+"src/fin/diligence/ledgers.py" = ["S608"]
+"src/fin/diligence/loading.py" = ["S101", "S608"]
+"src/fin/diligence/mask.py" = ["S101"]
+"src/fin/diligence/netdebt.py" = ["S608"]
+"src/fin/diligence/netdebt_items.py" = ["S608"]
+"src/fin/diligence/orderbook.py" = ["S101"]
+"src/fin/diligence/passthrough.py" = ["S608"]
+"src/fin/diligence/payroll.py" = ["S101"]
+"src/fin/diligence/provisions.py" = ["S608"]
+"src/fin/diligence/queries.py" = ["S101", "S608"]
+"src/fin/diligence/recon.py" = ["S101", "S608"]
+"src/fin/diligence/tb_checks.py" = ["S101"]
+"src/fin/disclosures/data.py" = ["S608"]
+"src/fin/disclosures/load.py" = ["S101", "S608"]
+"src/fin/disclosures/related.py" = ["S608"]
+"src/fin/disclosures/rpt.py" = ["S101", "S608"]
+"src/fin/documents.py" = ["S608"]
+"src/fin/evals/counts.py" = ["S608"]
+"src/fin/evals/fdd_contracts.py" = ["S608"]
+"src/fin/evals/fdd_orderbook.py" = ["S608"]
+"src/fin/evals/gst.py" = ["S608"]
+"src/fin/evals/qoe.py" = ["S608"]
+"src/fin/evals/scaffold.py" = ["S608"]
+"src/fin/evals/score.py" = ["S608"]
+"src/fin/extract/addon.py" = ["S101"]
+"src/fin/extract/fallback.py" = ["S101"]
+"src/fin/extract/pdf_columns.py" = ["S101"]
+"src/fin/extract/pdf_reader.py" = ["S101"]
+"src/fin/facts.py" = ["S101", "S608"]
+"src/fin/fdd/findings.py" = ["S608"]
+"src/fin/fdd/tax_data.py" = ["S608"]
+"src/fin/findings.py" = ["S101", "S608"]
+"src/fin/ingest.py" = ["S101", "S608"]
+"src/fin/map/dictionary.py" = ["S101"]
+"src/fin/metrics/export.py" = ["S101", "S608"]
+"src/fin/metrics/saved.py" = ["S608"]
+"src/fin/reconcile/base.py" = ["S101", "S608"]
+"src/fin/reconcile/checks.py" = ["S101"]
+"src/fin/reconcile/contracts.py" = ["S608"]
+"src/fin/reconcile/gst.py" = ["S101", "S608"]
+"src/fin/reconcile/items.py" = ["S608"]
+"src/fin/reconcile/recast_checks.py" = ["S101"]
+"src/fin/reconcile/registers.py" = ["S101", "S608"]
+"src/fin/reconcile/store.py" = ["S101", "S608"]
+"src/fin/reconcile/walkthrough.py" = ["S101"]
+"src/fin/sampling/draw.py" = ["S101"]
+"src/fin/services/jobs.py" = ["S608"]
+"src/fin/status.py" = ["S101"]
+"src/fin/ui/chat_run.py" = ["S101"]
+"src/fin/validate/gates.py" = ["S101"]
+"src/fin/verify.py" = ["S101", "S608"]
+
+[tool.pyright]
+# Basic mode on the app: argument and return types (docs/engineering.md rule 13). CI only.
+include = ["src/fin"]
+typeCheckingMode = "basic"
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -90,6 +185,8 @@ explicit = true
 [dependency-groups]
 dev = [
     "httpx==0.28.1",
+    # The type check (CI typecheck job, SPEC-00); nodejs: brings its own Node, none to install.
+    "pyright[nodejs]==1.1.414",
     "pytest==9.2.0",
     "pytest-split==0.11.0",
     "pytest-timeout==2.4.0",

@@ -171,8 +171,14 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
                 "UPDATE ledger_accounts SET status = 'proposed', account = ?, statement = NULL, "
                 "side = NULL, confidence = ?, reason = ?, run_id = ?, changed_at = ? "
                 "WHERE ledger_id = ?",
-                [row["account"], row["confidence"], row["reason"], run.run_id, utcnow()]
-                + [row["ledger_id"]],
+                [
+                    row["account"],
+                    row["confidence"],
+                    row["reason"],
+                    run.run_id,
+                    utcnow(),
+                    row["ledger_id"],
+                ],
             )
             _decide(run, company, row, "proposed", CLAUDE)
             if row["confidence"] < LOW_CONFIDENCE:
@@ -225,8 +231,14 @@ def confirm(
             con.execute(
                 "UPDATE ledger_accounts SET status = 'confirmed', account = ?, statement = ?, "
                 "side = ?, run_id = ?, changed_at = ? WHERE ledger_id = ?",
-                [chosen, row["statement"], side(accounts, chosen), run.run_id, utcnow()]
-                + [row["ledger_id"]],
+                [
+                    chosen,
+                    row["statement"],
+                    side(accounts, chosen),
+                    run.run_id,
+                    utcnow(),
+                    row["ledger_id"],
+                ],
             )
             _decide(run, company, row, "edited" if edited else "confirmed", actor)
         return _rows(con, ids)

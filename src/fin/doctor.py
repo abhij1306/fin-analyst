@@ -36,9 +36,9 @@ REPO = Path(__file__).resolve().parents[2]
 # tests/unit/test_doctor.py keeps them equal). They are only compared with the repo's path, never
 # written to, hence the suppressions of the publicly-writable-folder rule (S5443).
 TEMP_ROOTS = (
-    "/tmp",  # NOSONAR
+    "/tmp",  # NOSONAR  # noqa: S108
     "/private/tmp",  # NOSONAR
-    "/var/tmp",  # NOSONAR
+    "/var/tmp",  # NOSONAR  # noqa: S108
     "/private/var/tmp",  # NOSONAR
     "/var/folders",
     "/private/var/folders",

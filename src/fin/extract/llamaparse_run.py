@@ -15,6 +15,9 @@ its markdown. LlamaParse gives boxes per table, not per cell, in points from the
 corner, so every figure points at its table's box.
 """
 
+# The engine is an optional extra, not installed for the type check (ci.yml typecheck job).
+# pyright: reportMissingImports=false
+
 import hashlib
 import importlib.util
 import json
@@ -27,10 +30,10 @@ from fin.audit.errors import PdfAddonFailed
 from fin.extract.addon import Found, PageRead, Request, subset
 from fin.extract.pdf_tables import Box, Cell, Table
 
-NAME = "llamaparse"
-LABEL = "LlamaParse"
-MODULE = "llama_cloud"
-OCR = True  # short scanned PDFs are uploaded and read too
+NAME: str = "llamaparse"
+LABEL: str = "LlamaParse"
+MODULE: str = "llama_cloud"
+OCR: bool = True  # short scanned PDFs are uploaded and read too
 API_KEY_ENV = "LLAMA_CLOUD_API_KEY"
 TIER = "agentic"  # LlamaParse's tier for complex tables
 VERSION = "latest"

@@ -47,7 +47,8 @@ def choose(
     chosen = [{**x, "selection": "threshold"} for x in above[:n]]
     below = [x for x in population if abs(x["amount_inr"]) < threshold]
     take = min(n - len(chosen), len(below))
-    drawn = random.Random(seed).sample(below, take) if take > 0 else []
+    # A seeded draw the user can repeat, not a secret: S311 does not apply.
+    drawn = random.Random(seed).sample(below, take) if take > 0 else []  # noqa: S311
     return chosen + [{**x, "selection": "random"} for x in drawn], len(above)
 
 

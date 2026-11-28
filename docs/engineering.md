@@ -39,9 +39,9 @@ Sonar found style. The bots and the review rounds found the defects that change 
    that picks the current version. (#81 used the oldest archived workbook; #76 combined two engagements.)
    *Enforced by:* a test that loads the same file twice for every new reader (review checklist).
 4. **A gate covers everything it depends on.** Each gate names its input tables and columns in one registry, and
-   changing any of them reopens it. (#77, #84, #85 and #105 twice.) *Enforced by:* to add (gate registry test).
+   changing any of them reopens it. (#77, #84, #85 and #105 twice.) *Enforced by:* the gate-input registry (`fin.diligence.gate_inputs`) and its test.
 5. **Every text column has a masking decision.** A new column that can hold a name is either masked or recorded as
-   "as filed" in the masking registry. (#69, #73, #82, #101, #112.) *Enforced by:* to add (masking registry test).
+   "as filed" in the masking registry. (#69, #73, #82, #101, #112.) *Enforced by:* the masking registry (`fin.diligence.mask_columns`) and its test.
 6. **Every number shown comes from SQL.** No arithmetic in Python formatting, templates or prose
    (`CLAUDE.md`). *Enforced by:* the report linter (E602, E972) for narrative; to add for templates.
 
@@ -49,18 +49,18 @@ Sonar found style. The bots and the review rounds found the defects that change 
 
 7. **Escape at output, through one helper.** Text from a document reaches Markdown, HTML and Excel only through the
    shared escaping functions. (HTML injection in reports, #102, #104, #105; Excel formula injection, #81.)
-   *Enforced by:* to add (`fin.output.escape` and its test).
+   *Enforced by:* `fin.output.escape` and `tests/unit/test_guardrails_structure.py` (no other escaping; every saved workbook escaped).
 8. **A path from a file, a request or a database row is checked against its root** after resolving symlinks.
-   (#37, #108.) *Enforced by:* to add (`fin.paths.inside`); Sonar S2083.
+   (#37, #108.) *Enforced by:* `fin.paths.inside` (E013); Sonar S2083.
 9. **Temporary files have unique names and replace atomically.** No fixed `*.new` or `*.tmp` path shared by two
-   runs. (#13, #54, #64, #90.) *Enforced by:* to add (`fin.paths.atomic_write`, lint ban).
+   runs. (#13, #54, #64, #90.) *Enforced by:* `fin.paths.atomic_write`, ruff `S108` and the fixed-temporary-name test (`tests/unit/test_guardrails_structure.py`).
 10. **Enforce a rule in the function, not by matching the command.** A guard that inspects a shell command or a SQL
     string can be walked around (#45, #51, #69, #102). The refusal belongs in the Python function that does the
     work, where every interface meets it. Hooks are a second line, not the rule.
     *Enforced by:* a test per refusal at the function; known bypasses kept as test cases.
 11. **Validate at the edge, then trust the types.** CLI arguments, config, uploaded files, database rows and model
     output are parsed into typed values once. Inside, no re-checking and no `dict` of optionals passed three
-    levels down. *Enforced by:* to add (type check in CI).
+    levels down. *Enforced by:* Pyright in basic mode (CI `typecheck` job).
 
 ## Code shape
 
@@ -69,13 +69,13 @@ Sonar found style. The bots and the review rounds found the defects that change 
     today; do not add a third copy.
 13. **A function stays under complexity 15 and 13 parameters.** Extract named steps; replace a chain of branches
     with a table; pass a dataclass instead of the 14th parameter. No nested conditional expressions.
-    *Enforced by:* Sonar (S3776, S107, S3358); to add in ruff (`C901`, `PLR0913`) so it fails before the push.
+    *Enforced by:* ruff `C901`, `PLR0913`, `PLR0915` at Sonar's limits, so it fails before the push; Sonar (S3776, S107, S3358).
 14. **A file stays under 6,000 tokens.** Split along a seam before the limit, not at it. Five files are within
     1,000 tokens of it (`ingest.py`, `audit/errors.py`, `map/commands.py`, `map/review.py`,
     `validate/gates.py`): a PR that adds to one splits it first.
     *Enforced by:* `tools/check_file_size.mjs` (pre-commit and CI).
 15. **An option the chosen mode ignores is refused.** A command never accepts a flag and does nothing with it, and
-    never exits 0 when the work did not happen. (#13, #54, #93, #107.) *Enforced by:* to add (CLI test).
+    never exits 0 when the work did not happen. (#13, #54, #93, #107.) *Enforced by:* `tests/unit/test_cli_consistency.py` (help, usage errors exit 2, options a mode ignores refused).
 16. **Every failure has an error class and a code,** registered in `docs/errors.md` first. No bare `except`, no
     silent default. An exception with no class is a defect. *Enforced by:* ruff `BLE`, the error-table test.
 17. **Regular expressions are simple and linear.** No nested quantifiers over the same characters; split a pattern
@@ -86,7 +86,7 @@ Sonar found style. The bots and the review rounds found the defects that change 
 18. **Pinned and locked.** Actions by commit SHA; `uv sync --frozen`; `npm ci --ignore-scripts`; downloads over
     HTTPS with a pinned version. *Enforced by:* Sonar (S7637, S8544, S6505).
 19. **A test that never runs is not a test.** A test that skips when an optional extra is missing must be named in
-    a CI job that installs the extra. (24 UI tests skip in every CI job today.) *Enforced by:* to add (SPEC-00 PR 1).
+    a CI job that installs the extra. (24 UI tests skip in every CI job today.) *Enforced by:* the CI `ui` job runs every `tests/unit/test_ui_*.py`.
 
 ## Tests
 
@@ -105,7 +105,7 @@ Sonar found style. The bots and the review rounds found the defects that change 
 
 23. **Docs say what the code does today.** `docs/product.md` changes in the PR that changes behaviour; a spec says
     what will be built and is not edited to match the code afterwards. Do not restate code in docs or comments;
-    a comment says why. (16 comment-mismatch findings; five docs-fix PRs.) *Enforced by:* to add (CLI and docs test).
+    a comment says why. (16 comment-mismatch findings; five docs-fix PRs.) *Enforced by:* `tests/unit/test_cli_consistency.py` (every command and option is in docs/product.md, and no command that does not exist).
 
 ## Review checklist
 

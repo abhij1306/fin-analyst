@@ -43,8 +43,16 @@ def write_orderbook(
         if omit_second and customer == CUSTOMERS[1]:
             continue
         sheet.append(
-            [customer, number, datetime(*ordered), None if bad_value and number == "O-1" else value]
-            + [currency, datetime(*start), datetime(*end) if end else None, billed]
+            [
+                customer,
+                number,
+                datetime(*ordered),
+                None if bad_value and number == "O-1" else value,
+                currency,
+                datetime(*start),
+                datetime(*end) if end else None,
+                billed,
+            ]
         )
     sheet.append(["Total", None, None, 1, None, None, None, 1])
     book.save(path)

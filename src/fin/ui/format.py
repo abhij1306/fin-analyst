@@ -7,7 +7,9 @@ from datetime import datetime
 from typing import Any
 
 from jinja2 import Environment
-from markupsafe import Markup, escape
+from markupsafe import Markup
+
+from fin.output import escape
 
 OK = {"loaded", "approved", "final", "accepted", "confirmed", "closed", "ok", "done", "success",
       "passed", "complete"}  # fmt: skip
@@ -59,7 +61,8 @@ def problems_view(problems: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 def code(text: Any) -> Markup:
     """Text with its `backticked` commands shown as code; everything else is escaped."""
-    return Markup(re.sub(r"`([^`]+)`", r"<code>\1</code>", str(escape(text or ""))))
+    escaped = escape.html(text or "")  # Markup below is safe: the text is escaped first
+    return Markup(re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped))  # noqa: S704
 
 
 def gate_names(lines: list[str]) -> list[str]:

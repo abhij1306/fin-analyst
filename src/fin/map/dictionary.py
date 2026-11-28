@@ -345,8 +345,9 @@ def _map_lender_rows(
             sides[place] = "lender liabilities"
         elif "asset" in heading:
             sides[place] = "lender assets"
-        found[n] = find(label_map, statement, section, label, sides.get(place, "lender assets"))
-        if found[n] is not None and found[n].account == "total_assets":
+        mapping = find(label_map, statement, section, label, sides.get(place, "lender assets"))
+        found[n] = mapping
+        if mapping is not None and mapping.account == "total_assets":
             sides[place] = "lender liabilities"
 
 

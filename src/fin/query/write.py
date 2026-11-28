@@ -136,31 +136,7 @@ def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
     except duckdb.Error as exc:
         raise SqlFailed(f"cannot parse the SQL: {' '.join(str(exc).split())}") from exc
     for statement in statements:
-        if statement.type in REFUSED:
-            raise SqlFailed(
-                f"`fin sql --write` runs the SQL in its own transaction on the company database; "
-                f"{REFUSED[statement.type]} are not allowed. Nothing was run"
-            )
-        if statement.type == duckdb.StatementType.SELECT:
-            continue
-        named = sorted(set(DILIGENCE_TABLE.findall((statement.query or sql).lower())))
-        if named:
-            raise DiligenceTableWrite(
-                f"`fin sql --write` does not change the diligence tables (found: "
-                f"{', '.join(named)}); use `fin engagement`, `fin query`, `fin adjust`, "
-                "`fin gate` or `fin ingest --kind`. Nothing was run"
-            )
-        if SAVED_METRIC_TABLE.search((statement.query or sql).lower()):
-            raise SqlFailed(
-                "`fin sql --write` does not change saved metrics; use `fin metric add` or "
-                "`fin metric remove`. Nothing was run"
-            )
-        if statement.type in SCHEMA_CHANGE:
-            raise SqlFailed(
-                f"schema changes are not allowed ({statement.type.name}): `fin sql --write` "
-                "changes data only; restore from backups/<run_id> if a company database was "
-                "changed. Nothing was run"
-            )
+        _refuse_statement(statement, sql)
     for statement in statements:
         if statement.type == duckdb.StatementType.SELECT:
             continue
@@ -172,6 +148,35 @@ def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
                 "lines (`fin review`), state a figure the documents do not give (`fin fact "
                 "state`) or correct one fin misread (`fin fact correct`). Nothing was run"
             ).with_context(tables=named)
+
+
+def _refuse_statement(statement: Any, sql: str) -> None:
+    """E504 or E806 for one statement of `fin sql --write` (check_write_sql)."""
+    if statement.type in REFUSED:
+        raise SqlFailed(
+            f"`fin sql --write` runs the SQL in its own transaction on the company database; "
+            f"{REFUSED[statement.type]} are not allowed. Nothing was run"
+        )
+    if statement.type == duckdb.StatementType.SELECT:
+        return
+    named = sorted(set(DILIGENCE_TABLE.findall((statement.query or sql).lower())))
+    if named:
+        raise DiligenceTableWrite(
+            f"`fin sql --write` does not change the diligence tables (found: "
+            f"{', '.join(named)}); use `fin engagement`, `fin query`, `fin adjust`, "
+            "`fin gate` or `fin ingest --kind`. Nothing was run"
+        )
+    if SAVED_METRIC_TABLE.search((statement.query or sql).lower()):
+        raise SqlFailed(
+            "`fin sql --write` does not change saved metrics; use `fin metric add` or "
+            "`fin metric remove`. Nothing was run"
+        )
+    if statement.type in SCHEMA_CHANGE:
+        raise SqlFailed(
+            f"schema changes are not allowed ({statement.type.name}): `fin sql --write` "
+            "changes data only; restore from backups/<run_id> if a company database was "
+            "changed. Nothing was run"
+        )
 
 
 def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> dict[str, Any]:

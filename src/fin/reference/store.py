@@ -23,6 +23,7 @@ from fin.audit.errors import (
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, no_company_message, transaction, utcnow
+from fin.db.rows import fetch_one
 from fin.ingest_read import (
     GivenUnit,
     Row,
@@ -34,9 +35,10 @@ from fin.ingest_read import (
 from fin.map.dictionary import LabelMap, find, label_key, load_label_map
 from fin.paths import archive_dir, company_db_path
 
-VALUE_COLUMNS = (
-    "ref_file_id, line_id, sheet, cell, page, raw_value_text, raw_unit, rupees_per_unit, "
-    "fiscal_year, period, period_months, period_end, scope, value, read_by"
+INSERT_VALUE = (
+    "INSERT INTO reference_values (ref_file_id, line_id, sheet, cell, page, raw_value_text, "
+    "raw_unit, rupees_per_unit, fiscal_year, period, period_months, period_end, scope, value, "
+    "read_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
 
 
@@ -100,12 +102,21 @@ def add_reference(
         reading_path = _archive(run, company, reading, f"{sha256_of(reading)}.reading.csv")
     label_map = load_label_map(run.root, company)
     with connect(db, write=True) as con, transaction(con):
-        (ref_file_id,) = con.execute(
+        (ref_file_id,) = fetch_one(
+            con,
             "INSERT INTO reference_files (source, file_name, sha256, archive_path, reading_path, "
             "unit_given, run_id, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING ref_file_id",
-            [source, path.name, sha256, archived, reading_path]
-            + [unit and unit.unit, run.run_id, utcnow()],
-        ).fetchone()
+            [
+                source,
+                path.name,
+                sha256,
+                archived,
+                reading_path,
+                unit and unit.unit,
+                run.run_id,
+                utcnow(),
+            ],
+        )
         lines: dict[tuple[str, str, str], int] = {}
         new = 0
         for row in document.rows:
@@ -113,15 +124,13 @@ def add_reference(
             if key not in lines:
                 lines[key], created = _line(run, con, label_map, row, key)
                 new += created
-        con.executemany(
-            f"INSERT INTO reference_values ({VALUE_COLUMNS}) VALUES ({', '.join('?' * 15)})",
-            [_value(ref_file_id, lines, r) for r in document.rows],
-        )
-        (waiting,) = con.execute(
+        con.executemany(INSERT_VALUE, [_value(ref_file_id, lines, r) for r in document.rows])
+        (waiting,) = fetch_one(
+            con,
             "SELECT count(*) FROM reference_lines WHERE status NOT IN ('dictionary', 'confirmed') "
             "AND list_contains(?::INTEGER[], line_id)",
             [list(lines.values())],
-        ).fetchone()
+        )
     added = Added(ref_file_id, len(document.rows), new, waiting)
     run.event("reference", f"{company}/{path.name} ({source}): {added.line}")
     return added
@@ -153,14 +162,23 @@ def _line(
         return found[0], 0
     mapping = find(label_map, row.statement, row.section, row.label)
     mapped = mapping is not None and not mapping.per_share  # a per-share line is not money
-    (line_id,) = con.execute(
+    (line_id,) = fetch_one(
+        con,
         "INSERT INTO reference_lines (statement, section_key, label_key, section, label, status, "
         "target_kind, target, actor, run_id, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "RETURNING line_id",
-        [*key, row.section, row.label, "dictionary" if mapped else "pending"]
-        + ["account" if mapped else None, mapping.account if mapped and mapping else None]
-        + ["fin" if mapped else None, run.run_id, utcnow()],
-    ).fetchone()
+        [
+            *key,
+            row.section,
+            row.label,
+            "dictionary" if mapped else "pending",
+            "account" if mapped else None,
+            mapping.account if mapped and mapping else None,
+            "fin" if mapped else None,
+            run.run_id,
+            utcnow(),
+        ],
+    )
     return line_id, 1
 
 

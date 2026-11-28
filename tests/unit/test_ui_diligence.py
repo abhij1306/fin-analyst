@@ -12,13 +12,13 @@ pytest.importorskip("jinja2")
 pytest.importorskip("httpx")
 pytest.importorskip("multipart")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from fin.db.conn import connect  # noqa: E402
-from fin.paths import audit_db_path, company_db_path  # noqa: E402
-from fin.ui.server import create_app  # noqa: E402
-from fin.ui.views import gate_fix  # noqa: E402
-from tests.diligence_ui_fixtures import ROWS, build_root, write_walk  # noqa: E402
+from fin.db.conn import connect
+from fin.paths import audit_db_path, company_db_path
+from fin.ui.server import create_app
+from fin.ui.views import gate_fix
+from tests.diligence_ui_fixtures import ROWS, build_root, write_walk
 
 TOKEN = "t0ken"
 PORT = 8765
