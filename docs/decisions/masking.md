@@ -40,7 +40,9 @@
 - **Still anonymous: the eval bundle.** `fin eval bundle` goes to the fin developers, whom the client's ZDR does not
   cover: companies as `company-N`, ledgers as `ledger-N`, no file names; E833 now also refuses a ledger name or a
   related party name, since ledgers are no longer tokens.
-- **Open with the client:** [Client question 1](../client-questions.md) (mask more: locations, product names, account numbers; option 3 below)
+- **Answered 2026-11-27:** bank account numbers are to be masked too ([client-answers.md](client-answers.md),
+  answer 1; [SPEC-17](../specs/SPEC-17-client-answers.md)); nothing else was asked for.
+- **Was open with the client:** [Client question 1](../client-questions.md) (mask more: locations, product names, account numbers; option 3 below)
   and [client question 2](../client-questions.md) (a token shown beside a ledger name). LlamaParse, the optional cloud PDF
   add-on, sees pages unmasked; the owner allowed it with a warning in the README; Docling and LiteParse run locally.
 

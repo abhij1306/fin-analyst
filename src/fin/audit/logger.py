@@ -20,6 +20,7 @@ import json
 import platform
 import shutil
 import subprocess
+import traceback
 import uuid
 from collections import Counter
 from collections.abc import Callable
@@ -41,6 +42,7 @@ from fin.audit.errors import (
     DataFolderNotWritable,
     DependencyMissing,
     FinError,
+    UnexpectedError,
 )
 from fin.db.conn import connect
 from fin.db.schema import is_old_format, old_format_error
@@ -146,11 +148,27 @@ class Run:
             },
         )
 
-    def log_error(self, stage: str, message: str, code: str | None = None) -> None:
+    def log_error(
+        self,
+        stage: str,
+        message: str,
+        code: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
         """Record an error event. A failure to write the JSONL log here is not raised again:
         `finish` reports it and raises the exit code."""
         with suppress(DataFolderNotWritable):
-            self.event(stage, message, level="error", code=code)
+            self.event(stage, message, level="error", code=code, context=context)
+
+    def log_unexpected(self, stage: str, exc: BaseException) -> None:
+        """Record an exception that has no error class, with its traceback and the platform. A
+        defect (any `Exception`) gets E012; an interrupt or exit has no code."""
+        self.log_error(
+            stage,
+            f"unexpected {type(exc).__name__}: {exc}",
+            UnexpectedError.code if isinstance(exc, Exception) else None,
+            {"traceback": traceback.format_exception(exc), "platform": platform.platform()},
+        )
 
     def _run_row(self, record: str, exit_code: int | None) -> dict[str, Any]:
         end = record == "end"
@@ -279,9 +297,9 @@ def execute(
 ) -> None:
     """Run a command body inside an audited run, then exit with the run's exit code.
 
-    A raised FinError is printed, logged as an error event with its code, and becomes the exit code.
-    The body sets `run.exit_code` (for example EXIT_FAILURES) and the summary counters. Any other
-    exception is logged and re-raised.
+    A raised FinError is printed, logged as an error event with its code and context, and becomes
+    the exit code. The body sets `run.exit_code` (for example EXIT_FAILURES) and the summary
+    counters. Any other exception is logged (E012, with its traceback) and re-raised.
     """
     run = Run(command, args, data_dir())
     exit_code = EXIT_OK
@@ -291,10 +309,10 @@ def execute(
         exit_code = run.exit_code
     except FinError as exc:
         typer.echo(str(exc), err=True)
-        run.log_error(command, exc.message, exc.code)
+        run.log_error(command, exc.message, exc.code, exc.context)
         exit_code = exc.exit_code
     except BaseException as exc:
-        run.log_error(command, f"unexpected {type(exc).__name__}: {exc}")
+        run.log_unexpected(command, exc)
         run.finish(EXIT_COMMAND_ERROR)
         raise
     exit_code = run.finish(exit_code)

@@ -58,6 +58,7 @@ from fin.config import Config
 from fin.db.conn import connect, utcnow
 from fin.extract import fallback
 from fin.extract.addon import ADDON_LABELS
+from fin.extract.diagnostics import failure_context
 from fin.extract.excel import ExcelValue, extract_workbook
 from fin.extract.pdf_model import PdfValue
 from fin.extract.periods import fiscal_year_of, period_of, resolve_months
@@ -503,7 +504,10 @@ def ingest_file(
         run.failed += 1
         run.failure_codes.append(exc.code)
         run.exit_code = EXIT_FAILURES
-        run.event("ingest", exc.message, level="error", code=exc.code, file=name)
+        exc.context = failure_context(path, config, exc, reading)
+        run.event(
+            "ingest", exc.message, level="error", code=exc.code, file=name, context=exc.context
+        )
         unread = list(exc.pages) if document is None else document.unread
         _to_review(run, company, path, exc, reading, unread)
         return (
@@ -569,6 +573,8 @@ def _to_review(
     }
     if reading is not None:
         reason["reading"] = str(reading)
+    if error.context:
+        reason["context"] = error.context
     if unread:
         reason["unread_pages"] = unread  # statement pages fin could not read: offer a reading
     try:

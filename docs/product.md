@@ -15,6 +15,23 @@ further with Claude Code, so the code and docs stay simple and easy to modify.
 - Logs every action; any number, report, or change can be audited.
 - Analysis only: no scoring, ranking, or recommendations. Decisions stay human.
 
+### Direction (owner, 2026-11-28)
+
+This file describes what fin does today. What is being built next is in [specs/](specs/README.md), written after the
+first run on a client's documents ([test-run/2026-11-27-client.md](test-run/2026-11-27-client.md)):
+
+- **The web UI is the main interface.** A user who is not technical works in the browser from adding files to
+  downloading a report; chat is for judgement (questions, readings, proposals, narrative). The CLI stays as it is
+  and both call the same functions.
+- **Who it is for.** A diligence user at an investment firm, working on a company's own documents next to third-party
+  databooks, who wants figures in their unit and layout and a trail for every number.
+- **Order of work:** guardrails and the client-run fixes; ingest, mapping, statements and diligence in the UI;
+  install; and the three pieces the client asked for: data-room intake, statements rebuilt from the books, and one
+  list of all differences down to the transaction. Other AI providers through an API key are optional and on hold
+  until the owner says so.
+
+Nothing in this section is behaviour until its PR changes the sections below.
+
 ## 2. Constraints
 
 - macOS (Apple Silicon and Intel) and Linux (Debian and Ubuntu, x86_64 and aarch64), single user. 16 GB RAM is sufficient.
@@ -157,6 +174,14 @@ Every `fin` command:
   rises after the row was made, so a copy of it written to the other log records the lower code; fin then prints both
   codes on stderr.
 - Ends with a summary: loaded, skipped, failed, pending review, held, run_id.
+- An error event carries what was seen in its `context` (`FinError.with_context`). For a document that fails
+  (E1xx/E2xx) the context, also written to `review/<company>/<file>.error.json`, has the file type and size, the
+  reader and its version (pdfplumber or openpyxl), the PDF add-on chosen (`[pdf] parser`), the reading given, the
+  statement pages left unread, and under `seen` what the reader found: page and image counts of a scanned PDF, the
+  top lines of the page or sheet where a unit line, period header or statement title was looked for, the cells of a
+  row with no label (`fin.extract.diagnostics`). The lines are document text; like the labels in the log, they stay
+  in the data folder. The notice for pages no add-on read names the pages and the parser in its context.
+- An exception with no error class is logged as E012 with its traceback and the platform, then raised again.
 
 **Tables in `shared/audit.duckdb`** (append-only; rows never updated or deleted)
 

@@ -1,6 +1,7 @@
 """A run whose JSONL log cannot be written ends cleanly: the error is reported once, and the end row
 in the audit database records the exit code the command returns."""
 
+import json
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -60,3 +61,30 @@ def test_command_error_logged_while_the_log_is_broken_does_not_fail_again(
     assert end_rows(audit_query) == [("probe", "error", 2)]
     assert audit_query("SELECT error_code, message FROM events") == [("E504", "boom")]
     assert capsys.readouterr().err.startswith("E504: boom\n")
+
+
+def test_an_unexpected_exception_is_logged_with_e012_and_its_traceback(
+    root: Path, audit_query: Query
+) -> None:
+    def body(run: Run) -> None:
+        raise KeyError("missing")
+
+    with pytest.raises(KeyError):
+        execute("probe", {}, body)
+
+    [(code, message, context)] = audit_query("SELECT error_code, message, context FROM events")
+    assert (code, message) == ("E012", "unexpected KeyError: 'missing'")
+    seen = json.loads(context)
+    assert "KeyError: 'missing'" in seen["traceback"][-1]
+    assert any("in body" in line for line in seen["traceback"])
+    assert seen["platform"]
+
+
+def test_the_context_of_an_error_is_logged_with_it(root: Path, audit_query: Query) -> None:
+    def body(run: Run) -> None:
+        raise SqlFailed("boom").with_context(table="facts")
+
+    with pytest.raises(typer.Exit):
+        execute("probe", {}, body)
+
+    assert audit_query("SELECT error_code, context FROM events") == [("E504", '{"table": "facts"}')]

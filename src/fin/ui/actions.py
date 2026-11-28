@@ -128,10 +128,10 @@ def perform(
         lines = body(run)
         exit_code = run.exit_code
     except FinError as exc:
-        run.log_error(command, exc.message, exc.code)
+        run.log_error(command, exc.message, exc.code, exc.context)
         lines, code, exit_code = [exc.message], exc.code, exc.exit_code
     except BaseException as exc:
-        run.log_error(command, f"unexpected {type(exc).__name__}: {exc}")
+        run.log_unexpected(command, exc)
         run.finish(EXIT_COMMAND_ERROR)
         raise
     exit_code = run.finish(exit_code)

@@ -129,6 +129,8 @@ def test_scanned_pdf_raises_e104() -> None:
     with pytest.raises(ScannedPdf) as caught:
         extract_pdf(SAMPLES / "broken/Tarang_FY2024-25_SCANNED.pdf")
     assert caught.value.code == "E104"
+    assert caught.value.context is not None  # what was seen: for the log
+    assert caught.value.context["pages"] >= 1
 
 
 def test_file_that_is_not_a_pdf_raises_e101(tmp_path: Path) -> None:
@@ -207,3 +209,7 @@ def test_statement_without_unit_raises_e203(tmp_path: Path) -> None:
     with pytest.raises(UnitNotDetected) as caught:
         extract_pdf(path)
     assert caught.value.code == "E203"
+    assert caught.value.context is not None  # what was seen on the page: for the log
+    [page] = caught.value.context["skipped"]
+    assert page["page"] == 1
+    assert "Inventories 178.54 150.94" in page["lines"]

@@ -54,6 +54,7 @@ from fin.audit.errors import (
     PeriodsNotDetected,
     UnitNotDetected,
 )
+from fin.extract.diagnostics import top_lines
 from fin.extract.pdf_columns import _is_value_like
 from fin.extract.pdf_lines import (
     is_results,
@@ -100,7 +101,7 @@ def extract_pdf(path: Path, start_month: int = FY_START_MONTH) -> PdfExtraction:
             number, lines, previous, values, skipped, results=results, start_month=start_month
         )
     if not any(v.statement in STATEMENTS for v in values):
-        raise _nothing_read(path, skipped)
+        raise _nothing_read(path, skipped, parts)
     return PdfExtraction(values, skipped)
 
 
@@ -167,14 +168,24 @@ def _carried_from(
     return previous if number - previous.number <= 1 else None
 
 
-def _nothing_read(path: Path, skipped: list[SkippedPage]) -> DocumentFailure:
-    """The error for a PDF where no statement page could be read."""
+def _nothing_read(
+    path: Path, skipped: list[SkippedPage], parts: list[tuple[int, list[Line]]]
+) -> DocumentFailure:
+    """The error for a PDF where no statement page could be read. Its context holds what was seen:
+    the top lines of the first pages when none is titled as a statement, else each skipped page."""
     if not skipped:
-        return NoTablesFound(f"{path.name}: no statement tables with values found")
+        tops = [
+            {"page": number, "lines": top_lines(map(line_text, lines), 4)}
+            for number, lines in parts[:6]
+        ]
+        return NoTablesFound(f"{path.name}: no statement tables with values found").with_context(
+            pages=len({number for number, _ in parts}), tops=tops
+        )
     reasons = "; ".join(s.error.message for s in skipped[:5])
     more = f" (and {len(skipped) - 5} more)" if len(skipped) > 5 else ""
     error = type(skipped[0].error)(f"{path.name}: no statement page could be read: {reasons}{more}")
     error.pages = tuple(s.as_dict() for s in skipped)
+    error.context = {"skipped": [{"page": s.page, **(s.error.context or {})} for s in skipped[:10]]}
     return error
 
 
@@ -194,7 +205,9 @@ def _read_part(
     E204."""
     unit = unit_of(lines) or (continues.unit if continues else None)
     if unit is None:
-        raise UnitNotDetected(f"page {number}: no unit line such as '₹ in Lakhs'")
+        raise UnitNotDetected(f"page {number}: no unit line such as '₹ in Lakhs'").with_context(
+            lines=top_lines(map(line_text, lines))
+        )
     page_values, columns = read_page(
         lines,
         number,

@@ -53,6 +53,17 @@ Rules for diligence work (`fin engagement`, `fin query`, `fin adjust`, `fin gate
 
 This app is meant to be modified with Claude Code. Keep modules small and readable, and update `docs/product.md` with every change that changes behaviour (`CHANGELOG.md` is written at release). How to add an account, metric, validation gate or report section, how the schema and tests work, and the module map: `docs/development.md`.
 
+## Development
+
+- What to build next: `docs/specs/README.md` (one spec per feature, each with its PR plan). Status: `docs/plans/ACTIVE.md`.
+  SPEC-16 (AI providers and API keys) is on hold: build no row of it until the owner says so (owner, 2026-11-28).
+- How to write it: `docs/engineering.md` (rules from the defects found so far, and the review checklist).
+- How a spec becomes a merged PR, when the owner is asked, and the retro that turns repeated mistakes into checks:
+  `docs/process.md`. Read `docs/plans/RECURRING.md` before opening a PR; end the PR body with its `Categories:` line.
+- The web UI (`fin ui`) is the main interface (owner, 2026-11-28); the CLI stays as it is. New behaviour goes into a
+  function both call.
+- The client's answers to the standing questions: `docs/decisions/client-answers.md`. What a client sends back stays in `/client/` (ignored) and is written up without names or figures in `docs/test-run/`.
+
 ## Coding rules
 
 - Python 3.12 via uv. Add dependencies only with `uv add`, and say why. Commit lockfiles. macOS and Linux (Debian/Ubuntu) are the targets; `install.sh` supports both.
