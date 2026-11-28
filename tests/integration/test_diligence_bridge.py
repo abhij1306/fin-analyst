@@ -14,6 +14,7 @@ import pytest
 from typer.testing import CliRunner, Result
 
 from fin.cli import app
+from fin.config import DEFAULT_CONFIG_TOML
 from fin.db.conn import connect
 from fin.paths import company_db_path
 
@@ -32,6 +33,13 @@ WALK = (
     "adjusted_cash_conversion",
 )
 D = Decimal
+# The bridge in lakhs to two decimals with a minus sign (config.toml [display]).
+LAKHS = (
+    DEFAULT_CONFIG_TOML.replace('unit = "millions"', 'unit = "lakhs"')
+    .replace("decimals = 1", "decimals = 2")
+    .replace('negatives = "brackets"', 'negatives = "minus"')
+    .replace('unit_label = "INR Mn"', 'unit_label = "₹ in lakh"')
+)
 
 
 def fin(*args: str) -> Result:
@@ -211,7 +219,8 @@ def test_walk_shows_non_cash_and_other_operating_lines(engaged: Path) -> None:
     assert sum(D(fy25[name]) for name in (*lines, "other_operating")) == D("104506000.00")
 
 
-def test_bridge_text_in_the_document_unit(engaged: Path) -> None:
+def test_bridge_text_in_the_display_unit(engaged: Path) -> None:
+    (engaged / "config.toml").write_text(LAKHS, encoding="utf-8")
     result = fin("engagement", "bridge", "kestrel", "--period", "FY25")
 
     assert result.exit_code == 0, result.output
@@ -222,7 +231,7 @@ def test_bridge_text_in_the_document_unit(engaged: Path) -> None:
         "#1 normalisation: Owner pay above market 50.00",
         "#3 normalisation: Rent below market -12.50",
         "Adjusted EBITDA 2,451.17",
-        "not applied: 1 proposed, 7.00",
+        "not applied: 1 proposed, 7.00 ₹ in lakh",
         "kestrel standalone FY25: EBITDA to cash (₹ in lakh)",
         "EBITDA 2,413.67",
         "Non-cash and other items 0.00",

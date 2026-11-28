@@ -54,7 +54,7 @@ def test_init_creates_data_folder_config_and_shared_databases(data_root: Path) -
 def test_init_twice_creates_nothing_and_overwrites_nothing(data_root: Path) -> None:
     runner.invoke(app, ["init"])
     (data_root / "inbox" / "keep.txt").write_text("user file", encoding="utf-8")
-    edited = DEFAULT_CONFIG_TOML.replace('unit = "crores"', 'unit = "lakhs"')
+    edited = DEFAULT_CONFIG_TOML.replace('unit = "millions"', 'unit = "lakhs"')
     (data_root / "config.toml").write_text(edited, encoding="utf-8")
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0
@@ -108,7 +108,7 @@ def test_doctor_passes_after_init(data_root: Path, monkeypatch: pytest.MonkeyPat
         "ok    poppler: 24.2.0",
         f"ok    repo folder: {REPO}",
         f"ok    data folder: {data_root}",
-        "ok    config: display unit crores",
+        "ok    config: display unit millions (INR Mn)",
         "ok    audit schema: present",
         "ok    dictionary schema: present",
         "ok    pdf parser: none (optional; `uv run fin parser use <name>` or /parser)",
@@ -169,13 +169,13 @@ def test_doctor_reports_invalid_config_as_e002(
     runner.invoke(app, ["init"])
     config = data_root / "config.toml"
     config.write_text(
-        DEFAULT_CONFIG_TOML.replace('unit = "crores"', 'unit = "millions"'), encoding="utf-8"
+        DEFAULT_CONFIG_TOML.replace('unit = "millions"', 'unit = "billions"'), encoding="utf-8"
     )
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 1
     assert (
-        f"FAIL  config: {config} is invalid: display.unit = 'millions'; expected one of rupees, "
-        "thousands, lakhs, crores [E002]"
+        f"FAIL  config: {config} is invalid: display.unit = 'billions'; expected one of rupees, "
+        "thousands, lakhs, millions, crores [E002]"
     ) in result.stdout
 
 

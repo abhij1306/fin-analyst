@@ -7,6 +7,7 @@ from fin.audit.errors import FinError
 from fin.config import (
     DEFAULT_CONFIG_TOML,
     Config,
+    Display,
     load_config,
     set_parser,
     write_default_config,
@@ -112,7 +113,7 @@ def test_the_pdf_table_is_checked(tmp_path: Path, written: str, problem: str) ->
 def test_default_config_round_trips(tmp_path: Path) -> None:
     assert write_default_config(tmp_path) is True
     assert load_config(tmp_path) == Config(
-        display_unit="crores",
+        display=Display("millions", 1, "brackets", "INR Mn"),
         default_scope="standalone",
         fiscal_year_start_month=4,
         tolerances={
@@ -135,13 +136,14 @@ def test_default_config_round_trips(tmp_path: Path) -> None:
 
 def test_values_come_from_the_file(tmp_path: Path) -> None:
     edited = (
-        DEFAULT_CONFIG_TOML.replace('unit = "crores"', 'unit = "lakhs"')
+        DEFAULT_CONFIG_TOML.replace('unit = "millions"', 'unit = "lakhs"')
         .replace("subtotal = 100000.00", "subtotal = 0.5")
         .replace("cash_flow = 100000.00", "cash_flow = 7")
     )
     (tmp_path / "config.toml").write_text(edited, encoding="utf-8")
     config = load_config(tmp_path)
-    assert config.display_unit == "lakhs"
+    assert config.display.unit == "lakhs"
+    assert config.display.unit_label == "INR Mn"  # the file's caption, as written
     assert config.tolerances["subtotal"] == Decimal("0.5")
     assert config.tolerances["cash_flow"] == Decimal("7")
 
@@ -184,9 +186,22 @@ def test_missing_config_is_e001(tmp_path: Path) -> None:
     ("old", "new", "problem"),
     [
         (
-            'unit = "crores"',
             'unit = "millions"',
-            "display.unit = 'millions'; expected one of rupees, thousands, lakhs, crores",
+            'unit = "billions"',
+            "display.unit = 'billions'; expected one of rupees, thousands, lakhs, millions, crores",
+        ),
+        ("decimals = 1", "decimals = 5", "display.decimals = 5; expected a whole number, 0 to 4"),
+        (
+            'negatives = "brackets"',
+            'negatives = "red"',
+            "display.negatives = 'red'; expected one of minus, brackets",
+        ),
+        ('unit_label = "INR Mn"\n', "", "[display] is missing unit_label"),
+        (
+            '# [display.companies.acme]\n# unit = "lakhs"',
+            '[display.companies.acme]\nunit = "lakh"',
+            "display.companies.acme.unit = 'lakh'; expected one of rupees, thousands, lakhs, "
+            "millions, crores",
         ),
         (
             "balance_sheet = 100000.00",
@@ -270,3 +285,19 @@ def test_unparseable_config_is_e002(tmp_path: Path) -> None:
         load_config(tmp_path)
     assert caught.value.code == "E002"
     assert "is invalid: not valid TOML" in caught.value.message
+
+
+def test_a_company_can_be_shown_in_its_own_unit(tmp_path: Path) -> None:
+    edited = DEFAULT_CONFIG_TOML.replace(
+        '# [display.companies.acme]\n# unit = "lakhs"',
+        '[display.companies.acme]\nunit = "lakhs"\ndecimals = 2',
+    )
+    (tmp_path / "config.toml").write_text(edited, encoding="utf-8")
+    config = load_config(tmp_path)
+    assert config.display_for("acme") == Display("lakhs", 2, "brackets", "INR lakh")
+    assert (
+        config.display_for("other")
+        == config.display
+        == Display("millions", 1, "brackets", "INR Mn")
+    )
+    assert config.display.in_unit("crores") == Display("crores", 1, "brackets", "INR Cr")

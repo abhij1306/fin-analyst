@@ -10,21 +10,22 @@ references to type.
 from decimal import Decimal
 from typing import Any
 
+from fin.config import Display
 from fin.report.tables import metric_text, money, table
 
 
 def _share(value: Decimal | None) -> str:
-    return metric_text("ratio", value, "rupees")
+    return metric_text("ratio", value, None)
 
 
-def customers_section(data: dict[str, Any], display_unit: str) -> str:
+def customers_section(data: dict[str, Any], display: Display) -> str:
     """The section as Markdown (empty when the company has none)."""
     rows = data.get("customers")
     if not rows:
         return ""
 
     def money_of(value: Decimal | None) -> str:
-        return money(value, display_unit)
+        return money(value, display)
 
     concentration = table(
         ["Period", "Segment", "Customers", "Revenue", "Top 1", "Top 5", "Top 10"],

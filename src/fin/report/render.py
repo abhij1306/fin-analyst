@@ -20,7 +20,7 @@ are they moved into place, so a failed render (E601) keeps the last good report.
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -28,9 +28,10 @@ from typing import Any
 from fin import installhint, systools
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing, ReportRenderFailed
 from fin.audit.logger import Run
-from fin.config import load_config
+from fin.config import Display, load_config
 from fin.db.conn import no_company_message
 from fin.db.schema import ensure_database
+from fin.display import convert
 from fin.paths import company_db_path
 from fin.report.chart import line_chart
 from fin.report.customers import customers_section
@@ -46,7 +47,6 @@ from fin.report.data import (
 )
 from fin.report.lint import REFERENCE, lint, references, split_sections, strip_comments
 from fin.report.tables import (
-    MONEY_UNITS,
     category_rows,
     coverage_tables,
     definitions_table,
@@ -127,7 +127,7 @@ Accounts: {accounts}
 {headings}"""
 
 
-def substitute(text: str, data: dict[str, Any], display_unit: str) -> tuple[str, dict[str, str]]:
+def substitute(text: str, data: dict[str, Any], display: Display) -> tuple[str, dict[str, str]]:
     """Replace every reference with its value. Raises E601 for a reference to an unknown metric,
     account or period. A value that is missing (NULL metric, no fact that period) becomes "n/a"."""
     values: dict[str, str] = {}
@@ -144,9 +144,9 @@ def substitute(text: str, data: dict[str, Any], display_unit: str) -> tuple[str,
                 problems.append(f"line {number}: {match.group()}: no account {name}")
             elif kind == "metric":
                 value = data["metrics"][name].get(period)
-                values[match.group()] = metric_value_text(data, name, value, display_unit)
+                values[match.group()] = metric_value_text(data, name, value, display)
             else:
-                values[match.group()] = fact_text(fact_row(data, name, period), display_unit)
+                values[match.group()] = fact_text(fact_row(data, name, period), display)
     if problems:
         raise ReportRenderFailed(
             "the narrative has references that cannot be filled:\n"
@@ -155,7 +155,7 @@ def substitute(text: str, data: dict[str, Any], display_unit: str) -> tuple[str,
     return REFERENCE.sub(lambda match: values[match.group()], text), values
 
 
-def _chart(data: dict[str, Any], category: str, display_unit: str) -> str | None:
+def _chart(data: dict[str, Any], category: str, display: Display) -> str | None:
     """The category's chart as SVG (its CHARTS metrics with at least two values in the years
     shown), or None."""
     years = data["years"][-YEARS_SHOWN:]
@@ -166,14 +166,18 @@ def _chart(data: dict[str, Any], category: str, display_unit: str) -> str | None
     if len(years) < 2 or not series:
         return None
     unit = data["metric_info"][names[0]]["unit"]
-    per_unit = MONEY_UNITS[display_unit][0] if unit == "rupees" else Decimal(1)
     scale = Decimal(100) if unit == "ratio" and not is_times(data, names[0]) else Decimal(1)
     plotted = [
-        (name, [None if v is None else float(v * scale / per_unit) for v in values])
-        for name, values in series
+        (name, [None if v is None else float(v * scale) for v in values]) for name, values in series
     ]
-    if unit in ("rupees", "rupees_per_share"):
-        prefix, suffix = "₹", MONEY_UNITS[display_unit][1] if unit == "rupees" else ""
+    if unit == "rupees":  # money in the display unit, converted by the display_value SQL macro
+        plotted = [
+            (name, [None if v is None else float(v) for v in convert(values, display)])
+            for name, values in series
+        ]
+        prefix, suffix = "", f" {display.unit_label}"
+    elif unit == "rupees_per_share":
+        prefix, suffix = "₹", ""
     else:
         prefix, suffix = "", {"days": " days"}.get(unit, "%" if scale == 100 else "x")
 
@@ -189,11 +193,11 @@ def _section(*parts: str) -> str:
 
 
 def category_section(
-    data: dict[str, Any], key: str, narrative: str, display_unit: str, charts: dict[str, str]
+    data: dict[str, Any], key: str, narrative: str, display: Display, charts: dict[str, str]
 ) -> str:
     """Heading, narrative, trend table and chart of one category."""
     years = data["years"][-YEARS_SHOWN:]
-    svg = _chart(data, key, display_unit)
+    svg = _chart(data, key, display)
     picture = ""
     if svg is not None:
         name = f"chart-{key}.svg"
@@ -202,7 +206,7 @@ def category_section(
     return _section(
         f"## {TITLES[key]}",
         narrative,
-        trend_table(data, category_rows(data, key), years, display_unit),
+        trend_table(data, category_rows(data, key), years, display),
         picture,
     )
 
@@ -227,14 +231,14 @@ def _narrative_sections(filled: str, data: dict[str, Any]) -> dict[str, str]:
 
 
 def _blocks(
-    data: dict[str, Any], texts: dict[str, str], display_unit: str, charts: dict[str, str]
+    data: dict[str, Any], texts: dict[str, str], display: Display, charts: dict[str, str]
 ) -> dict[str, str]:
     """The report's optional sections (categories, quarters, peers) as text; chart SVGs are
     added to `charts`."""
     present = sections(data)
     blocks = {
         "categories": "\n\n".join(
-            category_section(data, key, texts.get(key, ""), display_unit, charts)
+            category_section(data, key, texts.get(key, ""), display, charts)
             for key, _ in CATEGORIES
             if key in present
         ),
@@ -246,36 +250,36 @@ def _blocks(
             "Quarters loaded from results statements (fiscal year April to March: Q1 ends in "
             "June). Growth is on the same quarter a year before unless it says the previous "
             "quarter; last four quarters (TTM) need four consecutive quarters.",
-            quarters_table(data, display_unit),
+            quarters_table(data, display),
         )
     if data.get("customers"):
-        blocks["customers"] = customers_section(data, display_unit)
+        blocks["customers"] = customers_section(data, display)
     if "peers" in present:
         blocks["peers"] = _section(
-            f"## {TITLES['peers']}", texts.get("peers", ""), peers_table(data, display_unit)
+            f"## {TITLES['peers']}", texts.get("peers", ""), peers_table(data, display)
         )
     return blocks
 
 
 def build(
-    company: str, scope: str, display_unit: str, narrative: str, data: dict[str, Any]
+    company: str, scope: str, display: Display, narrative: str, data: dict[str, Any]
 ) -> Built:
     """Fill the template with the data and the (already linted) narrative."""
-    filled, references = substitute(strip_comments(narrative), data, display_unit)
+    filled, references = substitute(strip_comments(narrative), data, display)
     texts = _narrative_sections(filled, data)
     charts: dict[str, str] = {}
-    blocks = _blocks(data, texts, display_unit, charts)
+    blocks = _blocks(data, texts, display, charts)
     tables = {
-        "summary": summary_tables(data, display_unit),
-        "findings": findings_table(data, display_unit),
-        "statements": statements_tables(data, display_unit),
+        "summary": summary_tables(data, display),
+        "findings": findings_table(data, display),
+        "statements": statements_tables(data, display),
         "definitions": definitions_table(data),
-        "facts": facts_table(data, display_unit),
+        "facts": facts_table(data, display),
         **coverage_tables(data),
     }
     fields = {
         "title": f"{company}: financial health",
-        "subtitle": f"{scope.capitalize()} statements, money in {display_unit}",
+        "subtitle": f"{scope.capitalize()} statements, money in {display.unit_label}",
     }
 
     def fill(match: re.Match[str]) -> str:
@@ -432,11 +436,12 @@ def make_report(
         }
 
     lint(narrative, str(narrative_path))
-    built = build(company, scope, config.display_unit, narrative, data)
+    display = config.display_for(company)
+    built = build(company, scope, display, narrative, data)
     report_data = {
         "company": company,
         "scope": scope,
-        "display_unit": config.display_unit,
+        "display": asdict(display),
         "data_hash": built.data_hash,
         "references": built.references,
         "data": built.data,

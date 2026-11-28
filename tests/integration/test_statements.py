@@ -11,9 +11,17 @@ from openpyxl import load_workbook
 from typer.testing import CliRunner
 
 from fin.cli import app
+from fin.config import DEFAULT_CONFIG_TOML
 from tests.synthetic_pdf import PROFIT_AND_LOSS, WIDTH, statement, write_pdf
 
 runner = CliRunner()
+# Shown in lakhs to two decimals with a minus sign, as the document prints them.
+LAKHS = (
+    DEFAULT_CONFIG_TOML.replace('unit = "millions"', 'unit = "lakhs"')
+    .replace("decimals = 1", "decimals = 2")
+    .replace('negatives = "brackets"', 'negatives = "minus"')
+    .replace('unit_label = "INR Mn"', 'unit_label = "₹ in lakh"')
+)
 
 BALANCE_SHEET = statement(
     "BALANCE SHEET",
@@ -44,6 +52,7 @@ BALANCE_SHEET = statement(
 @pytest.fixture
 def root(data_root: Path, tmp_path: Path) -> Path:
     assert runner.invoke(app, ["init"]).exit_code == 0
+    (data_root / "config.toml").write_text(LAKHS, encoding="utf-8")
     path = write_pdf(tmp_path / "acme_ar25.pdf", BALANCE_SHEET, PROFIT_AND_LOSS, width=WIDTH)
     result = runner.invoke(app, ["ingest", "acme", str(path)])
     assert result.exit_code == 0, result.output
@@ -58,7 +67,7 @@ def test_statements_show_the_standard_order_and_what_the_lines_do_not_explain(ro
     assert result.stdout == EXPECTED_FY25 + "\n"
 
 
-# The latest fiscal year, standalone (the document's only scope), in the document's unit (lakh).
+# The latest fiscal year, standalone (the document's only scope), in the display unit (lakh).
 # Exceptional items are a gain the company adds (22 + 3 = 25), so profit before tax is explained.
 EXPECTED_FY25 = """\
 acme standalone FY25: profit and loss (₹ in lakh)
@@ -125,7 +134,7 @@ def test_statements_json_has_coverage_and_lineage(root: Path) -> None:
     assert total["fact_id"] is not None
     assert other["fact_id"] is None
     assert (total["unit"], by_label[("profit_and_loss", "Basic earnings per share")]["unit"]) == (
-        "lakh",
+        "rupees",
         "rupees_per_share",
     )
     assert {row["period"] for row in rows} == {"FY24"}
@@ -163,13 +172,16 @@ def test_export_writes_one_sheet_per_statement_and_a_metrics_sheet(root: Path) -
 
     sheet = book["Balance sheet standalone"]
     rows = [[cell.value for cell in row] for row in sheet.iter_rows()]
-    assert rows[:4] == [
-        ["Line (₹ in lakh)", "FY24", "FY25"],
+    assert rows[:5] == [
+        ["acme: Balance sheet, standalone (₹ in lakh)", None, None],
+        ["Line", "FY24", "FY25"],
         ["Property, plant and equipment, net block", 50, 60],
         ["Unmapped / other", 5, 5],
         ["Total non-current assets", 55, 65],
     ]
-    assert sheet["A2"].alignment.indent == 2
+    assert sheet["A3"].alignment.indent == 2
+    assert sheet["B3"].number_format == "#,##0.00;-#,##0.00"
+    assert sheet["A5"].font.bold
 
     metrics = book["Metrics"]
     header = [cell.value for cell in metrics[1]]

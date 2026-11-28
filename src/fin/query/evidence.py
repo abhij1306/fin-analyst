@@ -22,8 +22,10 @@ from openpyxl.workbook.workbook import Workbook
 from fin.actor import CLAUDE
 from fin.audit.errors import DataFolderNotWritable, EvidenceSourceMissing
 from fin.audit.logger import Run
+from fin.config import Display
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
+from fin.display import display_settings, money
 from fin.extract.addon import ADDON_LABELS
 from fin.extract.pdf_reader import render_crop
 from fin.map.dictionary import load_accounts
@@ -105,9 +107,10 @@ def _fact_section(
     folder: Path,
     books: dict[Path, Workbook],
     units: dict[str, str],
+    display: Display,
 ) -> str:
     """One fact's evidence: details, then the crop or grid, or an E604 flag. `units`: each
-    account's unit (an unmapped figure is in rupees)."""
+    account's unit (an unmapped figure is in rupees); money also in the display unit."""
     ref = fact["source_ref"]
     if ref is None:
         return _unsourced_section(run, fact)
@@ -119,7 +122,8 @@ def _fact_section(
     unit = units.get(fact["account"], "rupees").replace("_", " ")
     title = (
         f"fact {fact['fact_id']}: {fact['account'] or '(unmapped)'} {fact['period']} "
-        f"{fact['scope']} = {fact['value']} {unit} ({status})"
+        f"{fact['scope']} = {fact['value']} {unit}{_shown(fact['value'], unit, display)} "
+        f"({status})"
     )
     details = (
         f"<p>Source: <span class='ref'>{html.escape(fact['file_name'])}, {html.escape(ref)}"
@@ -155,12 +159,18 @@ def _row_ids(rows: list[dict[str, Any]], column: str) -> list[list[Any]]:
     return [[row[column]] if row.get(column) is not None else [] for row in rows]
 
 
-def _stated_section(stated: dict[str, Any], units: dict[str, str]) -> str:
+def _shown(value: Any, unit: str, display: Display) -> str:
+    """' = 1,234.5 INR Mn': a rupee value in the display unit (the display_value SQL macro)."""
+    return f" = {money(value, display)}" if unit == "rupees" else ""
+
+
+def _stated_section(stated: dict[str, Any], units: dict[str, str], display: Display) -> str:
     """A figure the user stated: no document to show, the user's reason instead."""
     unit = units.get(stated["account"], "rupees").replace("_", " ")
     title = (
         f"stated figure {stated['stated_id']}: {stated['account']} {stated['period']} "
-        f"{stated['scope']} = {stated['value']} {unit} (stated by the user, not from a document)"
+        f"{stated['scope']} = {stated['value']} {unit}{_shown(stated['value'], unit, display)} "
+        "(stated by the user, not from a document)"
     )
     withdrawn = "<br>Withdrawn since." if stated["status"] == "withdrawn" else ""
     return (
@@ -198,12 +208,13 @@ def _sections(
     """One section per fact behind `ids`, and the ids whose facts all have a source."""
     books: dict[Path, Workbook] = {}
     units = {name: account.unit for name, account in load_accounts(run.root).items()}
+    display = display_settings(run.root, company)
     sections = []
     sourced = set()
     with connect(company_db_path(run.root, company)) as con:
         for id_ in ids:
             for fact in fetch_dicts(con, FACT_SQL.format(column=ID_COLUMN[column]), [id_]):
-                sections.append(_fact_section(run, fact, folder, books, units))
+                sections.append(_fact_section(run, fact, folder, books, units, display))
                 if fact["source_ref"] is not None:
                     sourced.add(id_)
     return sections, sourced
@@ -214,9 +225,10 @@ def _stated_sections(run: Run, company: str, stated_ids: list[Any]) -> list[str]
     if not stated_ids:
         return []
     units = {name: account.unit for name, account in load_accounts(run.root).items()}
+    display = display_settings(run.root, company)
     with connect(company_db_path(run.root, company)) as con:
         return [
-            _stated_section(stated, units)
+            _stated_section(stated, units, display)
             for id_ in stated_ids
             for stated in fetch_dicts(con, STATED_SQL, [id_])
         ]

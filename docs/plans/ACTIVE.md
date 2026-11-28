@@ -56,10 +56,10 @@ Updated: 2026-11-28.
 | 05 | 3 | Recheck after a mapping change and name the mapping behind a finding | | done (#126) |
 | 05 | 4 | Complete the Mappings screen | | done (#126) |
 | 05 | 5 | List the checks that did not run and what they need | | done (#126) |
-| 06 | 1 | Add display unit settings and convert in SQL | high | todo |
-| 06 | 2 | Add the databook layout to statements and the Excel export | | todo |
-| 06 | 3 | Add the Statements screen | | todo |
-| 06 | 4 | Use the display settings in reports and evidence pages | | todo |
+| 06 | 1 | Add display unit settings and convert in SQL | high | done (#127) |
+| 06 | 2 | Add the databook layout to statements and the Excel export | | done (#127) |
+| 06 | 3 | Add the Statements screen | | done (#127) |
+| 06 | 4 | Use the display settings in reports and evidence pages | | done (#127) |
 | 07 | 1 | Add fin schema and name the available columns in E504 | | done (#121) |
 | 07 | 2 | Add a fact sources view | | done (#121) |
 | 07 | 3 | Add saved metrics | | done (#121) |

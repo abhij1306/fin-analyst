@@ -17,7 +17,7 @@ from fin.actor import USER
 from fin.audit.errors import AnalyticsUnavailable, CustomerMappingInvalid
 from fin.audit.logger import Run
 from fin.cli import app
-from fin.config import load_config, write_default_config
+from fin.config import Display, load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
@@ -35,6 +35,8 @@ from tests.tally_fixtures import CUSTOMERS
 D = Decimal
 CEDAR, MAPLE = "Cedar Retail Ltd", "Maple Logistics Pvt Ltd"
 FY24 = {"Invoice Date": "10-05-2023"}
+
+RUPEES = Display("rupees", 2, "minus", "INR")
 
 
 def line(n: int, customer: str, amount: int, qty: int, **over: object) -> list[object]:
@@ -316,7 +318,7 @@ def test_the_report_section_and_the_data_have_no_names(root: Path) -> None:
     with connect(company_db_path(root, "acme")) as con:
         data = {"customers": customer_analytics(con)}
 
-    text = customers_section(data, "rupees")
+    text = customers_section(data, RUPEES)
 
     assert "## Customers, sectors and pricing" in text
     assert "63.6%" in text
@@ -324,7 +326,7 @@ def test_the_report_section_and_the_data_have_no_names(root: Path) -> None:
     assert "unmapped" in text
     assert "Orchid" not in text
     assert "Lotus" not in text
-    assert customers_section({"customers": None}, "rupees") == ""
+    assert customers_section({"customers": None}, RUPEES) == ""
 
 
 def test_a_cohort_with_nobody_left_keeps_its_rows(root: Path) -> None:

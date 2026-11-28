@@ -524,7 +524,7 @@ this file.
 - `fin engagement bridge <company> [--period FY25] [--scope standalone] [--json]`: per period and scope of the
   latest engagement, the EBITDA bridge (reported EBITDA, each accepted adjustment, adjusted EBITDA; proposed ones are
   listed as not applied) and the EBITDA-to-cash walk down to CFO and free cash flow, with cash conversion. Money in
-  the documents' unit, as `fin statements`; `--json` in rupees. A line whose input is missing shows `-` and names it.
+  the display unit (config.toml `[display]`), as `fin statements`; `--json` in rupees. A line whose input is missing shows `-` and names it.
   The same figures are the views `adjusted_ebitda` (also adjusted revenue and the margin on it), `ebitda_bridge` and
   `ebitda_to_cash`, queryable with `fin sql`.
 - Service-period recast: `fin recast run <company> [--period FY25]` spreads each sales register line's Amount in Rs over its

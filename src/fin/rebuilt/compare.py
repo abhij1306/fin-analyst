@@ -4,30 +4,27 @@ rebuilt sheets and the Statements screen's rebuilt view; SPEC-14).
 Each line of the standalone `standard_statements` (reported) and of `rebuilt_statements` is
 joined by period, statement and account; difference = rebuilt - reported, computed in SQL, and
 NULL when either side has no figure (missing is not zero). Lines only one side has are shown with
-the other blank. Money is shown in the documents' unit, as `fin statements`.
+the other blank. Money is shown in the display unit, as `fin statements`: each of reported,
+rebuilt, difference and unmapped converted in SQL (`*_shown`, `fin.display`).
 """
 
 from pathlib import Path
 from typing import Any
 
 from fin.audit.errors import DependencyMissing, RebuildNotPossible
+from fin.config import Display
 from fin.db.conn import connect, no_company_message
 from fin.db.rows import fetch_dicts
+from fin.display import PER_SHARE, display_settings, number, sql_params
 from fin.paths import company_db_path
 from fin.rebuilt.view import add_views, readiness
-from fin.statements import (
-    PER_SHARE,
-    STATEMENTS,
-    TITLES,
-    amount,
-    document_unit,
-    in_unit,
-    unit_title,
-)
+from fin.statements import STATEMENTS, TITLES
+
+SHOWN = ("reported", "rebuilt", "difference", "unmapped")
 
 _COMPARE_SQL = """
-SELECT * FROM (
-WITH r AS (SELECT * FROM rebuilt_statements WHERE ? IS NULL OR period = ?),
+SELECT c.*, {shown} FROM (
+WITH r AS (SELECT * FROM rebuilt_statements WHERE $period IS NULL OR period = $period),
 s AS (
     SELECT * FROM standard_statements
     WHERE scope = 'standalone' AND period IN (SELECT period FROM r)
@@ -47,13 +44,22 @@ SELECT
     r.value - s.value AS difference,
     coalesce(r.incomplete, false) AS incomplete,
     r.unmapped, r.unmapped_ledgers, r.ledgers, r.sources, r.note, s.fact_ids,
-    CASE WHEN a.unit = ? THEN a.unit ELSE ? END AS unit
+    CASE WHEN a.unit = 'rupees_per_share' THEN a.unit ELSE 'rupees' END AS unit,
+    EXISTS (
+        SELECT 1 FROM statement_paths p WHERE p.ancestor = coalesce(r.account, s.account)
+    ) AS subtotal
 FROM r
 FULL JOIN s ON s.period = r.period AND s.statement = r.statement AND s.account = r.account
 LEFT JOIN statement_accounts a ON a.account = coalesce(r.account, s.account)
+) c
+ORDER BY period_end, period, array_position($statements, statement), line_no, label
+""".format(
+    shown=", ".join(
+        f"display_value({c}, CASE WHEN unit = 'rupees' THEN $per_unit ELSE 1 END, "
+        f"CASE WHEN unit = 'rupees' THEN $decimals ELSE 2 END) AS {c}_shown"
+        for c in SHOWN
+    )
 )
-ORDER BY period_end, period, array_position(?, statement), line_no, label
-"""
 
 
 def _check(company: str, years: list[dict[str, Any]], period: str | None) -> None:
@@ -72,27 +78,31 @@ def _check(company: str, years: list[dict[str, Any]], period: str | None) -> Non
         ).with_context(company=company)
 
 
-def rebuilt_rows(root: Path, company: str, period: str | None = None) -> dict[str, Any]:
-    """{"rows": reported, rebuilt and difference per line (rupees), "years": `readiness` of each
-    period, "unit": the documents' unit}. E001 without a company database; E822 when nothing (or
-    not the period asked for) can be rebuilt."""
+def rebuilt_rows(
+    root: Path, company: str, period: str | None = None, display: Display | None = None
+) -> dict[str, Any]:
+    """{"rows": reported, rebuilt and difference per line (rupees, and `*_shown` in `display`,
+    default the company's), "years": `readiness` of each period, "unit_label": the display's
+    caption}. E001 without a company database; E822 when nothing (or not the period asked for)
+    can be rebuilt."""
     db = company_db_path(root, company)
     if not db.is_file():
         raise DependencyMissing(no_company_message(company))
+    display = display or display_settings(root, company)
     with connect(db) as con:
         add_views(con, root)
         years = readiness(con, company)
         _check(company, years, period)
-        unit = document_unit(con)
-        rows = fetch_dicts(con, _COMPARE_SQL, [period, period, PER_SHARE, unit, list(STATEMENTS)])
-    return {"rows": rows, "years": years, "unit": unit}
+        params = {"period": period, "statements": list(STATEMENTS), **sql_params(display)}
+        rows = fetch_dicts(con, _COMPARE_SQL, params)
+    return {"rows": rows, "years": years, "unit_label": display.unit_label, "display": display}
 
 
-def _money(value: Any, unit: str) -> str:
-    return "" if value is None else amount(in_unit(value, unit))
+def _money(row: dict[str, Any], column: str, display: Display) -> str:
+    return number(row[f"{column}_shown"], display, row["unit"] == PER_SHARE)
 
 
-def flag(row: dict[str, Any]) -> str:
+def flag(row: dict[str, Any], display: Display) -> str:
     """What a reader must know about a rebuilt line: why it has no value, or that unmapped
     ledgers sit under it."""
     if row["note"]:
@@ -108,28 +118,29 @@ def flag(row: dict[str, Any]) -> str:
         )
     return (
         f"incomplete: {row['unmapped_ledgers']} unmapped ledgers under it, "
-        f"{amount(in_unit(row['unmapped'], row['unit']))} (debit - credit)"
+        f"{_money(row, 'unmapped', display)} {display.unit_label} (debit - credit)"
     )
 
 
 def blocks(result: dict[str, Any]) -> list[dict[str, Any]]:
-    """One block per period and statement, its lines as display text in the documents' unit."""
+    """One block per period and statement, its lines as display text in the display unit."""
     out: list[dict[str, Any]] = []
+    display = result["display"]
     for row in result["rows"]:
         key = (row["period"], row["statement"])
         if not out or out[-1]["key"] != key:
             title = f"{row['period']}: {TITLES[row['statement']].lower()}"
             out.append({"key": key, "title": title, "lines": []})
-        unit = row["unit"]
         out[-1]["lines"].append(
             {
                 "label": row["label"],
                 "depth": row["depth"],
                 "line_type": row["line_type"],
-                "reported": _money(row["reported"], unit),
-                "rebuilt": _money(row["rebuilt"], unit),
-                "difference": _money(row["difference"], unit),
-                "flag": flag(row),
+                "subtotal": row["subtotal"],
+                "reported": _money(row, "reported", display),
+                "rebuilt": _money(row, "rebuilt", display),
+                "difference": _money(row, "difference", display),
+                "flag": flag(row, display),
                 "sources": row["sources"] or "",
             }
         )
@@ -157,7 +168,7 @@ def format_rebuilt(company: str, result: dict[str, Any]) -> str:
             out.append("")
         out.append(
             f"{company} standalone {block['title']}, reported and rebuilt from the trial balance "
-            f"({unit_title(result['unit'])})"
+            f"({result['unit_label']})"
         )
         out.append(f"{'':<56} {'Reported':>18} {'Rebuilt':>18} {'Difference':>18}")
         for line in block["lines"]:

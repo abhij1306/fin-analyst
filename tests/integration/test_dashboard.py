@@ -84,27 +84,27 @@ def test_analytics_has_categories_statements_and_coverage(data_root: Path) -> No
         assert con.execute(
             "SELECT category, unit, periods FROM metric_definitions WHERE metric = 'roe_avg'"
         ).fetchall() == [("returns", "ratio", "annual")]
-        # Statements in the documents' unit (Rs. in Crores).
+        # Statements in the display unit (the default, INR Mn); the documents are in crores.
         assert con.execute(
             "SELECT scope, statement, label, value, unit FROM statements "
             "WHERE period = 'FY25' AND label IN ('Total assets', 'Revenue from operations') "
             "ORDER BY ALL"
         ).fetchall() == [
-            ("consolidated", "balance_sheet", "Total assets", Decimal("289.05"), "₹ in crore"),
+            ("consolidated", "balance_sheet", "Total assets", Decimal("2890.5"), "INR Mn"),
             (
                 "consolidated",
                 "profit_and_loss",
                 "Revenue from operations",
-                Decimal("285.75"),
-                "₹ in crore",
+                Decimal("2857.5"),
+                "INR Mn",
             ),
-            ("standalone", "balance_sheet", "Total assets", Decimal("272.03"), "₹ in crore"),
+            ("standalone", "balance_sheet", "Total assets", Decimal("2720.3"), "INR Mn"),
             (
                 "standalone",
                 "profit_and_loss",
                 "Revenue from operations",
-                Decimal("268.82"),
-                "₹ in crore",
+                Decimal("2688.2"),
+                "INR Mn",
             ),
         ]
         assert con.execute(

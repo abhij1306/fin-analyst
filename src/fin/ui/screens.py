@@ -18,23 +18,15 @@ from fin.map.dictionary import load_accounts
 from fin.map.review import open_items, read_pending
 from fin.map.review_confirm import BULK_CONFIDENCE, low_confidence
 from fin.paths import company_db_path, dictionary_db_path, reports_dir
-from fin.rebuilt.compare import blocks, notes, rebuilt_rows, select_period
 from fin.services.addon import offer
 from fin.services.jobs import list_jobs
 from fin.services.reviews import KINDS
-from fin.statements import (
-    TITLES,
-    amount,
-    in_unit,
-    latest_annual_period,
-    statement_rows,
-    unit_title,
-)
 from fin.status import company_status
 from fin.ui import views
 from fin.ui.actions import MAX_IDS
 from fin.ui.file_rows import company_name, file_rows
 from fin.ui.job_routes import LABELS as JOB_LABELS
+from fin.ui.statements_screen import statements_screen
 
 REPORT_SUFFIXES = (".html", ".docx", ".pdf", ".xlsx")
 LOG_LIMIT = 100
@@ -185,50 +177,6 @@ def report_file(root: Path, company: str, name: str) -> Path:
     return reports_dir(root, company) / name
 
 
-STATEMENT_VIEWS = ("reported", "rebuilt")
-
-
-def _reported(root: Path, company: str) -> dict[str, Any]:
-    rows = statement_rows(root, company)
-    rows = [r for r in rows if r["period"] == latest_annual_period(rows)]
-    out: list[dict[str, Any]] = []
-    for r in rows:
-        key = (r["scope"], r["statement"])
-        if not out or out[-1]["key"] != key:
-            title = f"{r['scope']} {r['period']}: {TITLES[r['statement']].lower()}"
-            out.append({"key": key, "title": title, "lines": []})
-        value = amount(in_unit(r["value"], r["unit"]))
-        out[-1]["lines"].append({"label": r["label"], "depth": r["depth"], "value": value})
-    unit = next((r["unit"] for r in rows if r["unit"] != "rupees_per_share"), "rupees")
-    return {"blocks": out, "unit": unit_title(unit)}
-
-
-def _rebuilt(root: Path, company: str) -> dict[str, Any]:
-    result = rebuilt_rows(root, company)
-    result = select_period(result, latest_annual_period(result["rows"]))
-    shown = {row["period"] for row in result["rows"]}
-    return {
-        "blocks": blocks(result),
-        "unit": unit_title(result["unit"]),
-        "notes": notes(result, shown),
-    }
-
-
-def statements_screen(root: Path, company: str, view: str | None = None) -> dict[str, Any]:
-    """The latest fiscal year's statements: as reported, or (view "rebuilt") reported, rebuilt
-    from the trial balance and the difference. Why there is nothing to show when there is not.
-    E001 for a view that is not one of STATEMENT_VIEWS."""
-    chosen = view or "reported"
-    if chosen not in STATEMENT_VIEWS:
-        raise DependencyMissing(f"no statements view {view!r}; use reported or rebuilt")
-    load = _rebuilt if chosen == "rebuilt" else _reported
-    try:
-        data = load(root, company)
-    except FinError as error:
-        data = {"message": f"{error.code}: {error.message}"}
-    return {**data, "view": chosen, "views": STATEMENT_VIEWS}
-
-
 def log_screen(root: Path, company: str) -> dict[str, Any]:
     runs = company_history(root, company)["runs"]
     return {"runs": list(reversed(runs))[:LOG_LIMIT]}
@@ -245,5 +193,5 @@ LOADERS: dict[str, Loader] = {
     "reports": reports_screen,
     "log": log_screen,
 }
-# Screens whose loader also takes the `view` query parameter.
-WITH_VIEW = ("statements",)
+# Screens whose loader also takes the query parameters (the Statements screen's pickers).
+WITH_QUERY = ("statements",)

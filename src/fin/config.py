@@ -10,7 +10,7 @@ The one line fin changes is `[pdf] parser`, through `fin parser use <name>` (`se
 
 import re
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -23,7 +23,23 @@ from fin.audit.errors import (
 from fin.paths import config_path
 
 CONFIG_VERSION = 1
-DISPLAY_UNITS = ("rupees", "thousands", "lakhs", "crores")
+# [display] unit -> rupees in one unit, and the caption a unit gets when no unit_label is given.
+DISPLAY_UNITS = {
+    "rupees": 1,
+    "thousands": 1_000,
+    "lakhs": 100_000,
+    "millions": 1_000_000,
+    "crores": 10_000_000,
+}
+UNIT_LABELS = {
+    "rupees": "INR",
+    "thousands": "INR '000",
+    "lakhs": "INR lakh",
+    "millions": "INR Mn",
+    "crores": "INR Cr",
+}
+NEGATIVES = ("minus", "brackets")
+DISPLAY_KEYS = ("unit", "decimals", "negatives", "unit_label")
 SCOPES = ("standalone", "consolidated")
 TOLERANCE_CHECKS = ("balance_sheet", "subtotal", "cash_flow", "cross_document")
 PARSERS = ("none", "docling", "liteparse", "llamaparse")  # [pdf] parser: the PDF add-on
@@ -56,9 +72,18 @@ DEFAULT_CONFIG_TOML = """\
 config_version = 1
 
 [display]
-# Unit used to display money in reports and dashboards: rupees, thousands, lakhs or crores.
-# Values are always stored in rupees.
-unit = "crores"
+# How money is shown in fin statements, the Statements screen, the Excel export, reports, evidence
+# pages and dashboards. Values are always stored in rupees; fin converts them in SQL.
+# unit: rupees, thousands, lakhs, millions or crores. decimals: 0 to 4. negatives: "minus"
+# (-1,234.5) or "brackets" ((1,234.5), and a zero shows as a dash). unit_label: the caption every
+# table names its unit with.
+unit = "millions"
+decimals = 1
+negatives = "brackets"
+unit_label = "INR Mn"
+# One company shown differently: a table named after it with any of the keys above, e.g.
+# [display.companies.acme]
+# unit = "lakhs"
 
 [defaults]
 # Statement scope used when a command is not told which one: standalone or consolidated.
@@ -124,8 +149,29 @@ parser = "none"
 
 
 @dataclass(frozen=True)
+class Display:
+    """How money is shown ([display]): the unit, decimals, the sign of a negative and the caption.
+    The conversion itself is SQL (`fin.display`)."""
+
+    unit: str
+    decimals: int
+    negatives: str
+    unit_label: str
+
+    @property
+    def rupees_per_unit(self) -> int:
+        return DISPLAY_UNITS[self.unit]
+
+    def in_unit(self, unit: str | None) -> "Display":
+        """These settings with another unit (a picker's), captioned with that unit's label."""
+        if unit is None or unit == self.unit:
+            return self
+        return replace(self, unit=unit, unit_label=UNIT_LABELS[unit])
+
+
+@dataclass(frozen=True)
 class Config:
-    display_unit: str
+    display: Display
     default_scope: str
     fiscal_year_start_month: int
     tolerances: dict[str, Decimal]
@@ -138,6 +184,11 @@ class Config:
     invoice_due_days: int = 90  # [diligence]: an unmatched invoice is overdue after this
     coverage_top_n: int = 10  # [fdd]: the top customers and vendors checked for a contract
     fdd: dict[str, Any] = field(default_factory=lambda: dict(FDD_DEFAULTS))  # [fdd], FDD_DEFAULTS
+    display_companies: dict[str, Display] = field(default_factory=dict)  # [display.companies.*]
+
+    def display_for(self, company: str | None) -> Display:
+        """The company's display settings: its [display.companies.<name>] table, else [display]."""
+        return self.display_companies.get(company or "", self.display)
 
 
 # The value only, so indentation, a quoted key and a trailing comment are kept.
@@ -255,9 +306,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
             path, f"config_version = {version!r}; this fin reads version {CONFIG_VERSION}"
         )
 
-    display = _table(data, "display", path)
-    _keys(display, ("unit",), "[display]", path)
-    unit = _choice(display, "unit", DISPLAY_UNITS, "display", path)
+    display, display_companies = _display(_table(data, "display", path), path)
 
     defaults = _table(data, "defaults", path)
     _keys(defaults, ("scope", "fiscal_year_start_month"), "[defaults]", path)
@@ -302,7 +351,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
     fdd = _fdd(_table(data, "fdd", path) if "fdd" in data else {}, path)
 
     return Config(
-        display_unit=unit,
+        display=display,
         default_scope=scope,
         fiscal_year_start_month=month,
         tolerances=tolerances,
@@ -315,7 +364,50 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         invoice_due_days=diligence["invoice_due_days"],
         coverage_top_n=fdd["coverage_top_n"],
         fdd=fdd,
+        display_companies=display_companies,
     )
+
+
+def _display(table: dict[str, Any], path: Path) -> tuple[Display, dict[str, Display]]:
+    """[display] and its [display.companies.<name>] tables (each with any of DISPLAY_KEYS)."""
+    companies = table.get("companies", {})
+    if not isinstance(companies, dict) or not all(isinstance(t, dict) for t in companies.values()):
+        raise _invalid(path, "[display.companies] must hold one table per company")
+    own = {key: value for key, value in table.items() if key != "companies"}
+    base = _display_values(own, "display", path)
+    return base, {
+        name: _display_values(values, f"display.companies.{name}", path, base)
+        for name, values in companies.items()
+    }
+
+
+def _display_values(
+    table: dict[str, Any], where: str, path: Path, base: Display | None = None
+) -> Display:
+    """One display table. With `base` (a company's table) every key is optional: a missing one is
+    the base's, and a unit without a unit_label gets the unit's label (UNIT_LABELS)."""
+    if base is None:
+        _keys(table, DISPLAY_KEYS, f"[{where}]", path)
+    elif unknown := sorted(set(table) - set(DISPLAY_KEYS)):
+        raise _invalid(path, f"[{where}] has unknown key(s) {', '.join(unknown)}")
+    if "unit" in table:
+        _choice(table, "unit", tuple(DISPLAY_UNITS), where, path)
+    if "negatives" in table:
+        _choice(table, "negatives", NEGATIVES, where, path)
+    decimals = table.get("decimals", 0)
+    if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 4:
+        raise _invalid(path, f"{where}.decimals = {decimals!r}; expected a whole number, 0 to 4")
+    label = table.get("unit_label", "-")
+    if not isinstance(label, str) or not label.strip() or len(label) > 20:
+        raise _invalid(
+            path, f"{where}.unit_label = {label!r}; expected a caption of 1 to 20 characters"
+        )
+    if base is None:
+        return Display(**table)
+    own = dict(table)
+    if "unit" in own and "unit_label" not in own:
+        own["unit_label"] = UNIT_LABELS[own["unit"]]
+    return replace(base, **own)
 
 
 def _archive_limit(table: dict[str, Any], path: Path) -> int:

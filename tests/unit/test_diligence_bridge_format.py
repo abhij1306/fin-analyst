@@ -28,7 +28,7 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
     }
     result = {
         "company": "acme",
-        "unit": "rupees",
+        "display": {"unit": "rupees", "decimals": 2, "negatives": "minus", "unit_label": "₹"},
         "engagement": {
             "engagement_id": 4,
             "status": "open",
@@ -87,7 +87,7 @@ def test_a_bridge_without_reported_ebitda_names_the_missing_input() -> None:
     )
     result = {
         "company": "acme",
-        "unit": "rupees",
+        "display": {"unit": "rupees", "decimals": 2, "negatives": "minus", "unit_label": "₹"},
         "engagement": {"engagement_id": 1, "status": "open", "periods": "FY24",
                        "query_threshold": D("100000.00"), "opened_at": datetime(2026, 11, 9),
                        "closed_at": None, "invoice_due_days": 90},

@@ -18,7 +18,7 @@ is replaced with the value from the company database. Describe, don't judge.
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +28,7 @@ from fin.audit.errors import (
     ReportRenderFailed,
 )
 from fin.audit.logger import Run
-from fin.config import load_config
+from fin.config import Display, load_config
 from fin.report import dd_tables as t
 from fin.report.data import data_hash, to_json
 from fin.report.dd_data import FIGURES, collect
@@ -116,16 +116,16 @@ Figures: {names}
 {headings}"""
 
 
-def _text(name: str, value: Any, display_unit: str, figures: dict[str, Any]) -> str:
+def _text(name: str, value: Any, display: Display, figures: dict[str, Any]) -> str:
     return (
-        metric_text("ratio", value, display_unit)
+        metric_text("ratio", value, display)
         if figures[name][1] == "ratio"
-        else money(value, display_unit)
+        else money(value, display)
     )
 
 
 def substitute(
-    text: str, data: dict[str, Any], display_unit: str, figures: dict[str, Any] = FIGURES
+    text: str, data: dict[str, Any], display: Display, figures: dict[str, Any] = FIGURES
 ) -> tuple[str, dict[str, str]]:
     """Replace every figure reference with its value. E874 for an unknown figure or a period that is
     not the engagement's; a value that is missing becomes "n/a"."""
@@ -143,7 +143,7 @@ def substitute(
                 )
             else:
                 value = data["figures"][name].get(period)
-                values[match.group()] = _text(name, value, display_unit, figures)
+                values[match.group()] = _text(name, value, display, figures)
     if problems:
         raise FigureReferenceUnknown(
             "the narrative has references that cannot be filled:\n"
@@ -189,24 +189,24 @@ def _read_template(kind: Kind) -> str:
 def build(
     company: str,
     scope: str,
-    display_unit: str,
+    display: Display,
     narrative: str,
     data: dict[str, Any],
     kind: "Kind | None" = None,
 ) -> Built:
     """Fill the template with the data and the (already linted) narrative."""
     kind = kind or DILIGENCE
-    filled, refs = substitute(strip_comments(narrative), data, display_unit, kind.figures)
+    filled, refs = substitute(strip_comments(narrative), data, display, kind.figures)
     texts, unknown = split_sections(filled, kind.sections)
     if unknown:
         raise ReportRenderFailed(
             f"narrative headings {', '.join(repr(h) for h in unknown)} are not report sections; "
             f"use: {', '.join(kind.sections.values())}"
         )
-    tables, sections = kind.parts(data, display_unit)
+    tables, sections = kind.parts(data, display)
     fields = {
         "title": f"{company}: {'FDD' if kind.name == 'fdd' else kind.name} report",
-        "subtitle": f"{scope.capitalize()} statements, money in {display_unit}",
+        "subtitle": f"{scope.capitalize()} statements, money in {display.unit_label}",
     }
 
     def fill(match: re.Match[str]) -> str:
@@ -271,11 +271,12 @@ def make(
     except (OSError, UnicodeDecodeError) as exc:
         raise ReportRenderFailed(f"cannot read {narrative_path}: {exc}") from exc
     kind.lint(narrative, str(narrative_path))
-    built = build(company, scope, config.display_unit, narrative, data, kind)
+    display = config.display_for(company)
+    built = build(company, scope, display, narrative, data, kind)
     report_data = {
         "company": company,
         "scope": scope,
-        "display_unit": config.display_unit,
+        "display": asdict(display),
         "data_hash": built.data_hash,
         "gates": data["gates"],
         **options,

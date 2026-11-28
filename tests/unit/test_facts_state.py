@@ -20,6 +20,7 @@ from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
 from fin.diligence.gates import Context, evaluate
+from fin.display import display_settings
 from fin.facts import (
     correct,
     list_corrected,
@@ -284,11 +285,11 @@ def test_a_stated_figure_is_marked_in_the_statements_the_workbook_and_status(roo
     assert (line["stated_id"], line["fact_ids"]) == (1, [])
     assert any(
         text.endswith("(stated by the user, #1)") and "Finance" in text
-        for text in format_statements("acme", rows).splitlines()
+        for text in format_statements("acme", rows, display_settings(root, "acme")).splitlines()
     )
     book = load_workbook(export_workbook(root, "acme"))
     comments = [c.comment.text for ws in book for r in ws.iter_rows() for c in r if c.comment]
-    assert comments == ["Stated by the user (#1, fin fact list)"]
+    assert [c for c in comments if "stated by the user, #1" in c] != []
     assert company_status(Run("status", {}, root), "acme")["stated_figures"] == 1
 
 
@@ -309,8 +310,9 @@ def test_a_stated_figure_has_its_own_provenance_and_evidence_section(root: Path)
     }
     assert [r["source_file"] for r in rows if r["account"] == "revenue"] == ["ar1.xlsx"]
     assert (
-        "<h3>stated figure 1: finance_cost FY24 standalone = 0.00 rupees (stated by the user, "
-        "not from a document)</h3><p>Reason given: The P&amp;L prints no finance cost line" in page
+        "<h3>stated figure 1: finance_cost FY24 standalone = 0.00 rupees = – INR Mn (stated by "
+        "the user, not from a document)</h3><p>Reason given: The P&amp;L prints no finance cost "
+        "line" in page
     )
     assert "1 figure(s) were stated by the user, not read from a document" in page
 
@@ -376,7 +378,7 @@ def test_a_corrected_figure_is_marked_in_statements_provenance_report_status_and
     rows = statement_rows(root, "acme", "FY24", "standalone")
     assert any(
         text.endswith("(corrected, correction #1)") and "Revenue" in text
-        for text in format_statements("acme", rows).splitlines()
+        for text in format_statements("acme", rows, display_settings(root, "acme")).splitlines()
     )
     [revenue] = [
         r

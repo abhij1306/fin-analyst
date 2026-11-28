@@ -20,8 +20,9 @@ from fin.audit.errors import ReportRenderFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.schema import ensure_database, remove_database
+from fin.display import PER_SHARE, display_settings
 from fin.paths import analytics_db_path, audit_db_path, companies_dir
-from fin.statements import PER_SHARE, in_unit, statement_rows, unit_title
+from fin.statements import statement_rows
 
 # The diligence analytics tables: (table, company view, columns); empty for a
 # company with no engagement.
@@ -227,17 +228,17 @@ _QUERIES = {
 
 
 def _statements(root: Path, company: str) -> list[list[Any]]:
-    """Every standard statement line, in the company's document unit."""
+    """Every standard statement line, in the company's display unit (converted in SQL)."""
+    display = display_settings(root, company)
     try:
-        rows = statement_rows(root, company)
+        rows = statement_rows(root, company, display=display)
     except ReportRenderFailed:  # no current figures (nothing loaded, or every document held)
         return []
-    unit = next((r["unit"] for r in rows if r["unit"] != PER_SHARE), "rupees")
     return [
         [
             company, r["scope"], r["period"], r["period_months"], r["period_end"], r["statement"],
-            r["line_no"], r["depth"], r["line_type"], r["label"], in_unit(r["value"], r["unit"]),
-            "₹ per share" if r["unit"] == PER_SHARE else unit_title(unit),
+            r["line_no"], r["depth"], r["line_type"], r["label"], r["shown"],
+            "₹ per share" if r["unit"] == PER_SHARE else display.unit_label,
         ]
         for r in rows
     ]  # fmt: skip

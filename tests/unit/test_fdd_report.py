@@ -16,6 +16,7 @@ from fin.audit.errors import (
     NarrativeHasTypedNumbers,
     NarrativeJudges,
 )
+from fin.config import Display
 from fin.db.conn import connect
 from fin.diligence.mask import PREFIX
 from fin.fdd import findings
@@ -58,6 +59,8 @@ Net debt at the stub end was {{figure:net_debt:FY26-YTD-SEP}}.
 
 Adjusted EBITDA {{figure:adjusted_ebitda:FY25}}.
 """
+
+RUPEES = Display("rupees", 2, "minus", "INR")
 
 
 @pytest.fixture(scope="module")
@@ -155,7 +158,7 @@ def test_a_final_finding_shows_what_was_signed_off_and_flags_later_changes(root:
     text = findings.format_finding(row)
     assert "FLAG: changed since final: now" in text and "adjustment #1 (rejected)" in text
     assert "**Flag**: linked adjustment #1 is rejected" in key_findings(
-        {"fdd_findings": [row], "drafts": False}, "rupees"
+        {"fdd_findings": [row], "drafts": False}, RUPEES
     )
     [back] = findings.set_status(run(root), "acme", [signed], "draft")
     assert back["amount_source"] == "adjustment #1 (rejected)" and back["final_amount"] is None
@@ -184,7 +187,7 @@ def test_the_report_has_the_findings_by_severity_and_every_section(
     report_data: dict[str, Any],
 ) -> None:
     lint_fdd(NARRATIVE, "n")
-    qmd = dd_render.build("acme", "standalone", "rupees", NARRATIVE, report_data, FDD).qmd
+    qmd = dd_render.build("acme", "standalone", RUPEES, NARRATIVE, report_data, FDD).qmd
 
     assert "{{" not in qmd
     assert "acme: FDD report" in qmd
@@ -192,11 +195,11 @@ def test_the_report_has_the_findings_by_severity_and_every_section(
     assert "#### One-off legal fees added back (finding #1) [final]" in qmd
     assert "#### Minor cut-off item (finding #2) [draft]" in qmd
     assert "**Draft copy**" in qmd
-    assert "amount: ₹100,000.00 (adjustment #1 (accepted))" in qmd
-    assert "amount: ₹40,000.00 (adjustment #2 (proposed))" in qmd
+    assert "amount: 100,000.00 INR (adjustment #1 (accepted))" in qmd
+    assert "amount: 40,000.00 INR (adjustment #2 (proposed))" in qmd
     assert "Deal consideration: SPA indemnity or warranty" in qmd
     assert "Management response: no query raised" in qmd
-    assert "Adjusted EBITDA ₹1,600,000.00." in qmd
+    assert "Adjusted EBITDA 1,600,000.00 INR." in qmd
     for title in SECTIONS.values():
         assert f"## {title}" in qmd
     # sections whose data is not loaded say so
@@ -232,7 +235,7 @@ def test_valuation_rating_and_buy_language_is_e972(line: str) -> None:
 def test_stored_text_is_escaped_in_the_report() -> None:
     row = {**FINDING, "finding_id": 7, "status": "final", "amount": None, "query_id": None,
            "observation": "<script>alert(1)</script> found"}  # fmt: skip
-    text = key_findings({"fdd_findings": [row], "drafts": False}, "rupees")
+    text = key_findings({"fdd_findings": [row], "drafts": False}, RUPEES)
     assert "<script>" not in text and "&lt;script&gt;" in text
 
 
@@ -278,10 +281,10 @@ def test_collected_data_that_was_not_shown_is_in_the_tables() -> None:
              "contract_on_file": True, "expires_within_12m": False, "change_of_control": False,
              "auto_renew": True, "lock_in_left_months": 5, "notice_days": 90,
              "file_name": "c.pdf", "page": 2}  # fmt: skip
-    text = coverage_table({"coverage": [cover]}, "rupees")
+    text = coverage_table({"coverage": [cover]}, RUPEES)
     assert "Lock-in left" in text and "5 months" in text and "90 days" in text
     assert (
-        coverage_table({"coverage": [{**cover, "notice_days": None}]}, "rupees").count("not read")
+        coverage_table({"coverage": [{**cover, "notice_days": None}]}, RUPEES).count("not read")
         == 1
     )
 
@@ -291,20 +294,20 @@ def test_collected_data_that_was_not_shown_is_in_the_tables() -> None:
     line = {"sample_id": 1, "line_no": 2, "party": "CUST-0001", "invoice_no": "INV-9",
             "invoice_date": "2025-03-01", "amount_inr": 7, "check_name": "contract_covers",
             "evidence": "rate differs", "evidence_file": "c.pdf", "evidence_page": 3}  # fmt: skip
-    text = walkthroughs_table({"walkthroughs": [walk], "walkthrough_exceptions": [line]}, "rupees")
+    text = walkthroughs_table({"walkthroughs": [walk], "walkthrough_exceptions": [line]}, RUPEES)
     assert "Lines with an exception" in text and "#1.2" in text and "rate differs" in text
 
     tax = {"period": "FY25", "scope": "standalone", "pbt": 100, "current_tax": 20,
            "deferred_tax": 5, "total_tax": 25, "effective_tax_rate": Decimal("0.25"),
            "net_deferred_tax": 9,
            "deferred_tax_movement": 3, "mat_credit": 11}  # fmt: skip
-    text = tax_table({"tax": {"tax_charge": [tax]}, "scope": "standalone"}, "rupees")
+    text = tax_table({"tax": {"tax_charge": [tax]}, "scope": "standalone"}, RUPEES)
     assert "MAT credit" in text and "Movement in the year" in text
 
     ret = {"period": "FY25", "return_type": "gstr3b", "months": 12, "taxable_value": 1,
            "output_tax": 2, "itc": 3, "rcm_liability": 4, "paid_cash": 5, "paid_credit": 6,
            "file_name": "g.xlsx"}  # fmt: skip
-    assert "Input tax credit" in gst_returns_table({"tax": {"returns": [ret]}}, "rupees")
+    assert "Input tax credit" in gst_returns_table({"tax": {"returns": [ret]}}, RUPEES)
 
     found = {"schedules": {"related_party": []}, "related_kinds": ["related_party"],
              "transactions": [],
@@ -314,7 +317,7 @@ def test_collected_data_that_was_not_shown_is_in_the_tables() -> None:
              "loans": [{"party": "CUST-0001", "ledger": "Director Loan", "period": "FY25",
                         "opening": 1, "closing": 2, "interest": 1, "implied_rate_pct": 9.0,
                         "average_basis": "opening and closing"}]}  # fmt: skip
-    text = related_table({"disclosures": found}, "rupees")
+    text = related_table({"disclosures": found}, RUPEES)
     assert "Pricing against other" in text and "-16.67%" in text and "Implied rate" in text
     assert "₹10.50" in text  # a float rate from SQL is formatted, not a TypeError
     assert "&lt;b&gt;Widget&lt;/b&gt;" in text and "<b>" not in text  # imported text is escaped
