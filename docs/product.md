@@ -730,7 +730,8 @@ Service-period recast (D6, decisions in `docs/decisions/d6-recast.md`): `fin rec
 register line's Amount in Rs (before GST) over its service start and end dates by month (by service day, each month's share rounded once on the
 running total so the months add to the amount) and compares each annual period's recast with the register's amount by invoice date. It is a reconciliation
 named `service_recast` in `recon_runs`/`recon_items` (`fin/reconcile/recast.py`; levels `period` (left = recast, right = booked,
-difference = the revenue effect), `month`, `schedule` (per invoice whose recast and booked amounts differ) and `invoice` with kind
+difference = the revenue effect; with no register line dated in the period booked is missing, not 0), each period and schedule
+side naming its register rows (file sheet!row), `month`, `schedule` (per invoice whose recast and booked amounts differ) and `invoice` with kind
 `undated`: a sales invoice with no usable service dates, recognised on its invoice date, listed; at or above the threshold it is for
 `fin query raise --items`). The command proposes one `recast` adjustment per period for the difference (revenue effect = EBITDA
 effect, account `revenue`, evidence `service_recast FY25 (recon #n)`); running again replaces a stale proposal of its own (rejected,
@@ -1200,7 +1201,9 @@ Every difference the reconciliations found, in one place, from the headline down
   "recognition difference" (column `label`): books (the sales register by invoice date) against recast, difference =
   books - recast, the recast's stored sides swapped into that sign. The recast's schedule lines (each invoice whose
   recast and booked amounts in the period differ) are transaction rows under it, so they explain it in full. Month
-  roll-ups and undated invoices are not rows. These rows are not queried from here: the period's difference becomes a
+  roll-ups and undated invoices are not rows. A period with no register line dated in it shows the books missing and no
+  difference (missing is not zero, nor a full-amount difference). Each side names its register rows (file sheet!row).
+  These rows are not queried from here: the period's difference becomes a
   `recast` adjustment (`fin recast run`). The CLI, the sheet's Kind column and the screen show the label instead of
   the kind.
 - **`fin discrepancies <co> [--level headline|account|party|transaction] [--over-threshold] [--json]`**: the rows ranked

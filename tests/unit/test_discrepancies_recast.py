@@ -116,4 +116,5 @@ def test_it_is_labelled_in_the_text_and_the_sheet(root: Path) -> None:  # noqa: 
 
     assert f"headline FY25 revenue: {RECOGNITION}, books " in text
     assert kind["kind"] == RECOGNITION
-    assert kind["left_name"] == "books" and kind["right_name"] == "recast"
+    assert kind["left_name"] == "books"
+    assert kind["right_name"] == "recast"

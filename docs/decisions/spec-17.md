@@ -110,5 +110,10 @@ Readings by the builder (2026-11-28), not owner decisions.
   row: the two compare different things.
 - **No query from the list**: these rows are not marked "can be queried"; the difference is by design and becomes a
   `recast` adjustment with evidence (`fin recast run`, gate G3).
+- **A period the register does not cover** (reviewer, 2026-11-28): when no register line is dated in the period, the
+  recast stores booked as missing (not 0) and the row shows the books missing with no difference, not the whole recast
+  as a difference. The recast's adjustment amount is unchanged (it is recast - 0 as before; D6).
+- **Where the figures come from** (reviewer, 2026-11-28): the recast's period and schedule lines name the register rows
+  (file sheet!row) behind each side, so both amounts of every row trace to the register.
 - **How to change it**: `sources()` and the `lines` and `run_parent` steps of `VIEW_SQL` in
   `src/fin/discrepancies/view.py`.

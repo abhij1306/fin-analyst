@@ -14,7 +14,8 @@ The service-period recast (`service_recast`, SPEC-17 item 5) adds a headline row
 recognition difference, revenue in the books (the sales register by invoice date) - the recast
 revenue, with its invoices (the recast's schedule lines) as transaction rows under it. The recast
 stores recast - booked, so its sides are swapped here (`swapped`) and the row is labelled
-(`label`); its month roll-ups and undated invoices are not rows.
+(`label`); its month roll-ups and undated invoices are not rows. A period with no register line
+dated in it has no books side: the row shows it missing, with no difference (missing is not zero).
 
 A headline row also comes from each reference figure that differs from fin's
 (`reference_comparison`, SPEC-10, state differs: fin - the reference). It has no `item_id` and
@@ -120,9 +121,12 @@ lines AS (
             WHEN p.kind = 'right_only' THEN 'left_only' ELSE p.kind END AS kind,
         CASE WHEN p.swapped THEN p.right_amount ELSE p.left_amount END * p.sign AS left_amount,
         CASE WHEN p.swapped THEN p.left_amount ELSE p.right_amount END * p.sign AS right_amount,
-        -- the line's rupees as fin.reconcile.items.line_rupees reads them
-        coalesce(p.amount_inr, CASE WHEN coalesce(p.currency, 'INR') = 'INR' THEN p.difference END)
-            * p.sign * CASE WHEN p.swapped THEN -1 ELSE 1 END AS difference,
+        -- the line's rupees as fin.reconcile.items.line_rupees reads them; the recast against
+        -- books with a side missing (no register line dated in the period) has no difference
+        CASE WHEN NOT p.swapped THEN coalesce(p.amount_inr,
+                CASE WHEN coalesce(p.currency, 'INR') = 'INR' THEN p.difference END) * p.sign
+            WHEN p.left_amount IS NOT NULL AND p.right_amount IS NOT NULL
+                THEN -p.difference * p.sign END AS difference,
         CASE WHEN p.swapped THEN p.right_source ELSE p.left_source END AS left_source,
         CASE WHEN p.swapped THEN p.left_source ELSE p.right_source END AS right_source,
         p.note, p.threshold, p.needs_query, p.query_id
