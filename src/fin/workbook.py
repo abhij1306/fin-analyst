@@ -8,6 +8,12 @@ unit and definition. Money is in the unit the company's documents use (lakh, cro
 the header and the Unit column), two decimals; earnings per share as printed; a ratio is a fraction
 (0.18 = 18%). A blank cell has no value: the line is not in that period's documents, or a metric
 input is missing.
+
+When the company has a ledger-level trial balance (SPEC-14), "Rebuilt P&L", "Rebuilt balance
+sheet" and "Rebuilt cash flow" follow: each line's reported, rebuilt and difference columns per
+period (standalone; `fin.rebuilt.compare`), and a Notes column with what a rebuilt figure needs
+said (unmapped ledgers under it, a line that is not derivable). A company with none gets no
+rebuilt sheets.
 """
 
 from pathlib import Path
@@ -18,10 +24,11 @@ from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
-from fin.audit.errors import DataFolderNotWritable
+from fin.audit.errors import DataFolderNotWritable, RebuildNotPossible
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
 from fin.paths import company_db_path
+from fin.rebuilt.compare import flag, rebuilt_rows
 from fin.statements import (
     OTHER_LABEL,
     PER_SHARE,
@@ -115,6 +122,40 @@ def _metrics_sheet(book: Workbook, metrics: list[dict[str, Any]], unit: str) -> 
     sheet.column_dimensions["C"].width = 26
 
 
+def _rebuilt_sheet(book: Workbook, statement: str, rows: list[dict[str, Any]], unit: str) -> None:
+    """One statement: per line, each period's reported, rebuilt and difference, then the notes."""
+    periods = _periods(rows)
+    sheet = book.create_sheet(f"Rebuilt {SHEET_TITLES[statement]}")
+    columns = [f"{p} {what}" for p in periods for what in ("reported", "rebuilt", "difference")]
+    _header(sheet, [f"Line ({unit_title(unit)})"], [*columns, "Notes"])
+    order: dict[tuple[int, str], dict[str, Any]] = {}
+    for r in rows:
+        entry = order.setdefault((r["line_no"], r["label"]), {"depth": r["depth"], "notes": []})
+        line_unit = PER_SHARE if r["unit"] == PER_SHARE else unit
+        for what in ("reported", "rebuilt", "difference"):
+            value = r[what]
+            entry[f"{r['period']} {what}"] = None if value is None else in_unit(value, line_unit)
+        if note := flag(r):
+            entry["notes"].append(f"{r['period']}: {note}")
+    for (_, label), entry in sorted(order.items()):
+        sheet.append([label] + [entry.get(c) for c in columns] + ["; ".join(entry["notes"])])
+        sheet.cell(row=sheet.max_row, column=1).alignment = Alignment(indent=entry["depth"])
+        for cell in sheet[sheet.max_row][1 : len(columns) + 1]:
+            cell.number_format = MONEY_FORMAT
+    sheet.column_dimensions["A"].width = 60
+
+
+def _rebuilt_sheets(book: Workbook, root: Path, company: str) -> None:
+    try:
+        result = rebuilt_rows(root, company)
+    except RebuildNotPossible:
+        return  # no ledger-level trial balance: nothing rebuilt to show
+    for statement in STATEMENTS:
+        rows = [r for r in result["rows"] if r["statement"] == statement]
+        if rows:
+            _rebuilt_sheet(book, statement, rows, result["unit"])
+
+
 def export_workbook(root: Path, company: str) -> Path:
     """Write the workbook and return its path. Raises E601 (`statement_rows`) when the company
     has no figures."""
@@ -131,6 +172,7 @@ def export_workbook(root: Path, company: str) -> Path:
             if rows:
                 _statement_sheet(book, f"{SHEET_TITLES[statement]} {scope}", rows, unit)
     _metrics_sheet(book, metrics, unit)
+    _rebuilt_sheets(book, root, company)
 
     path = export_path(root, company)
     try:

@@ -1,0 +1,44 @@
+{% from "_ui.html" import head, badge, empty, no_company %}
+{% if data.empty %}
+{{ no_company() }}
+{% else %}
+{% call head("Statements", "The latest fiscal year, as reported or rebuilt from the trial balance (standalone).") %}
+<nav class="btn-group" aria-label="Statements view">
+  {% for v in data.views %}
+  <a class="btn" data-size="sm" data-variant="{{ 'primary' if v == data.view else 'outline' }}"{% if v == data.view %} aria-current="page"{% endif %}
+     href="/statements?company={{ company | urlencode }}&amp;view={{ v }}">{{ "Reported" if v == "reported" else "Reported vs rebuilt" }}</a>
+  {% endfor %}
+</nav>
+{% endcall %}
+{% if data.message %}
+<div class="card"><section>{{ empty("Nothing to show", data.message) }}</section></div>
+{% else %}
+{% for block in data.blocks %}
+<div class="card">
+  <header><h2>{{ block.title }}</h2><p class="muted">{{ data.unit }}</p></header>
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      {% if data.view == "rebuilt" %}
+      <thead><tr><th scope="col">Line</th><th scope="col" class="num">Reported</th><th scope="col" class="num">Rebuilt</th><th scope="col" class="num">Difference</th><th scope="col">Trial balance rows</th><th scope="col">Notes</th></tr></thead>
+      <tbody>
+        {% for line in block.lines %}
+        <tr><td data-depth="{{ line.depth }}">{{ line.label }}</td>
+          <td class="num">{{ line.reported }}</td><td class="num">{{ line.rebuilt }}</td><td class="num">{{ line.difference }}</td><td class="sub">{{ line.sources }}</td>
+          <td>{% if line.flag %}{{ badge("warn", line.flag, "warn") }}{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+      {% else %}
+      <thead><tr><th scope="col">Line</th><th scope="col" class="num">Value</th></tr></thead>
+      <tbody>
+        {% for line in block.lines %}
+        <tr><td data-depth="{{ line.depth }}">{{ line.label }}</td><td class="num">{{ line.value }}</td></tr>
+        {% endfor %}
+      </tbody>
+      {% endif %}
+    </table></div>
+  </section>
+</div>
+{% endfor %}
+{% for note in data.notes or [] %}<p class="muted">{{ note }}</p>{% endfor %}
+{% endif %}
+{% endif %}

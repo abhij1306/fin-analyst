@@ -32,7 +32,17 @@ DEFAULT_PORT = 8765
 REPORT_CSP = "sandbox allow-scripts allow-popups allow-downloads"
 SCREENS = [
     (name.lower(), name)
-    for name in ("Home", "Files", "Mappings", "Queries", "Gates", "Findings", "Reports", "Log")
+    for name in (
+        "Home",
+        "Files",
+        "Mappings",
+        "Statements",
+        "Queries",
+        "Gates",
+        "Findings",
+        "Reports",
+        "Log",
+    )
 ]  # (id, label): the tabs of the top bar, in order
 
 
@@ -85,12 +95,18 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
             request, "_error.html", {"error": f"{exc.code}: {exc.message}"}, status_code=400
         )
 
-    def screen_data(screen: str, company: str | None) -> dict[str, object]:
-        return {"empty": True} if company is None else screens.LOADERS[screen](root, company)
+    def screen_data(screen: str, company: str | None, view: str | None) -> dict[str, object]:
+        if company is None:
+            return {"empty": True}
+        if screen in screens.WITH_VIEW:
+            return screens.LOADERS[screen](root, company, view)  # type: ignore[call-arg]
+        return screens.LOADERS[screen](root, company)
 
     def add_routes(screen: str) -> None:
         @app.get("/" if screen == "home" else f"/{screen}", response_class=HTMLResponse)
-        def page(request: Request, company: str | None = None) -> HTMLResponse:
+        def page(
+            request: Request, company: str | None = None, view: str | None = None
+        ) -> HTMLResponse:
             chosen = known(root, company)
             context = {
                 "companies": companies(root),
@@ -98,14 +114,16 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
                 "tab_counts": screens.tab_counts(root, chosen),
                 "screen": screen,
                 "version": __version__,
-                "data": screen_data(screen, chosen),
+                "data": screen_data(screen, chosen, view),
             }  # the partial gets the same "company" and "data"
             return templates.TemplateResponse(request, "screen.html", context)
 
         @app.get(f"/partials/{screen}", response_class=HTMLResponse)
-        def partial(request: Request, company: str | None = None) -> HTMLResponse:
+        def partial(
+            request: Request, company: str | None = None, view: str | None = None
+        ) -> HTMLResponse:
             chosen = known(root, company)
-            context = {"company": chosen, "data": screen_data(screen, chosen)}
+            context = {"company": chosen, "data": screen_data(screen, chosen, view)}
             return templates.TemplateResponse(request, f"_{screen}.html", context)
 
     for screen_id, _ in SCREENS:

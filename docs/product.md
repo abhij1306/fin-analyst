@@ -147,6 +147,7 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `metrics`, `metric_definitions`, `metric_input_accounts` (views) and `metric_inputs` (metric → fact_ids lineage)
 - `saved_metrics`, `saved_metric_operands` (tables) and `saved_metrics_wide` (view rewritten by `fin metric`): saved metrics; the shared ones also in `shared/dictionary.duckdb` `saved_metrics`
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
+- `rebuilt_statements` (temporary view per connection, `fin.rebuilt`) over `rebuilt_ledgers` (`rebuilt.sql`): the statements rebuilt from the trial balance (SPEC-14)
 - Diligence: `engagement`, `accountant_queries`, `adjustments`, `passthrough_customers` (tables) and `engagement_periods`, `adjusted_ebitda`, `ebitda_bridge`, `ebitda_to_cash`, `revenue_split`, `passthrough_lines`, `customer_revenue`, `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`, `product_revenue`, `product_pvm`, `product_pvm_summary` (views on the latest engagement; `customers` is a table)
 - Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
 
@@ -317,7 +318,7 @@ claude
 | `fin fact state <co> --account --period --scope --value --reason`, `fin fact unstate <co> <id>`, `fin fact correct <co> <fact_id> --value --reason`, `fin fact list <co> [--json]` | `/ingest` | Either (state or correct only when the user says, in their words) |
 | `fin schema [co] [--table name] [--json]` | `/ask` | Either |
 | `fin metric add <name> --formula … --unit ratio\|rupees\|days --definition "…" [--company co]`, `fin metric list [co]`, `fin metric remove <name> [--company co]` | `/ask` (offers to save a hand-written ratio) | Either (add or remove when the user says) |
-| `fin statements <co> [--period] [--scope] [--json]`, `fin export <co>` | `/statements` | Either |
+| `fin statements <co> [--period] [--scope] [--json] [--rebuilt]`, `fin export <co>` | `/statements` | Either |
 | `fin report <co> [--scope] [--peers] [--render]` | `/report` | Either |
 | `fin dashboard [--build]` | `/dashboard` | Either |
 | `fin audit <co> [metric period \| --fact id]` | `/audit` | Either |
@@ -1056,6 +1057,48 @@ the command exits 1. A file already loaded (same content) is marked loaded and n
 load changes nothing. Gates reopen as on any ingest. A data folder made before this change has no `dataroom_files`
 table and no `[dataroom]` table in config.toml: re-create it with `uv run fin init` and re-ingest.
 
+### Rebuilt statements (SPEC-14, `fin statements --rebuilt`)
+
+The P&L and balance sheet rebuilt from each year's trial balance, and an indirect cash flow derived from them, beside
+what the company reported. Decisions: [decisions/spec-14-rebuilt.md](decisions/spec-14-rebuilt.md).
+
+- **What it reads**: `rebuilt_ledgers` (`db/schema/rebuilt.sql`): every ledger row of each loaded trial balance of the
+  latest engagement (a newer file of the same period replaces the old one), its closing balance as debit - credit, its
+  confirmed account and, while it waits for review, its proposed one. Group rows are not read.
+- **`rebuilt_statements`** (temporary view, `fin.rebuilt.view`; in `fin sql` too), scope standalone, the columns of
+  `standard_statements` that apply plus `ledgers`, `unmapped_ledgers`, `unmapped`, `incomplete`, `sources` and
+  `note`. P&L and balance sheet: each account with a confirmed ledger at or below it, valued as the ledgers' balances
+  times the account's side (subtotals are the sum of everything under them); the year's profit also counts in other
+  equity, as the balance sheet shows it. `sources` names the trial balance rows behind a line (file sheet!row, the
+  first five and a count), and `rebuilt_ledgers` has every one.
+- **Missing is not zero**: a ledger with no confirmed account is never rolled up. One waiting for review marks the
+  totals above its proposed account incomplete; one with no proposal marks every total of its year. Each such line
+  says how many unmapped ledgers are under it and their amount (debit - credit), and a memo line "Unmapped ledgers"
+  under the P&L and the balance sheet carries the year's whole unmapped amount (a balance, so not under the cash
+  flow, whose lines are all marked incomplete). A year with no confirmed ledger has no cash flow totals.
+- **Cash flow (indirect)**, for a year whose previous trial balance (ending the day before it starts) is loaded; the
+  first year has none, and says so. Operating: profit for the year, depreciation added back, and the change in each
+  working capital account; investing: the change in fixed assets less depreciation (purchases net of disposals),
+  investments and other bank balances; financing: borrowings, share capital, leases, and the change in other equity
+  less the year's profit ("Other changes in equity"). Opening cash plus the three activities equals closing cash;
+  any difference (an unbalanced trial balance, unmapped ledgers) is an "Unmapped / other" line. Income taxes paid,
+  finance costs paid, interest and dividends received, sale proceeds of fixed assets and investments, dividends
+  paid and the exchange rate effect are "not derivable" with the reason and where the amount sits instead, never
+  estimated (Q11; `fin.rebuilt.view.NOT_DERIVABLE`). Which balance sheet account goes
+  to which line: `fin.rebuilt.view.CASH_LINES`.
+- **`fin statements <co> --rebuilt [--period] [--json]`**: each line's reported (the standalone `standard_statements`
+  figure), rebuilt and difference (rebuilt - reported, in SQL; blank when either side has no figure), in the
+  documents' unit, with a note after a line that is incomplete or not derivable; the latest fiscal year by default.
+  A reported "Unmapped / other" line is shown with the rebuilt side blank, and an account reached only by ledgers
+  that are not confirmed has a blank rebuilt figure marked incomplete. Then what to ask the company for: a year with no trial balance, or one with group totals only. `--scope
+  consolidated` is refused (the rebuild is standalone). E822 when the company has no engagement, the period is not
+  one of its periods, or nothing (or not the period asked for) can be rebuilt.
+- **`fin export`** adds "Rebuilt P&L", "Rebuilt Balance sheet" and "Rebuilt Cash flow" sheets (reported, rebuilt and
+  difference per period, and a Notes column) when a year can be rebuilt.
+- **Statements screen** (web UI): the latest fiscal year as reported, or reported vs rebuilt (the same three columns,
+  each rebuilt line's trial balance rows, and the notes).
+- **Nothing reported changes**: a difference is for a query or an adjustment with evidence.
+
 ## Actor (SPEC-02)
 
 Who took an action is passed in by the interface, never read deeper down: the web UI passes `user`; the CLI passes
@@ -1151,6 +1194,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Home: what `fin status` returns: counts, periods and gaps, the next gate, and what waits for the user (each row links to its screen).
   - Files: loaded documents (version, status, whether Claude read pages), files in the inbox not loaded, and findings on filed data (open and accepted, as `fin findings list`).
   - Mappings: the mapping items waiting for review (label, proposed account, confidence, where it is).
+  - Statements: the latest fiscal year's statements as reported, or reported vs rebuilt from the trial balance (`?view=rebuilt`; SPEC-14); why there is nothing to show when there is not. Another view is refused with E001.
   - Queries: the open engagement's accountant queries and adjustments with status and evidence.
   - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`).
   - Findings: the engagement's FDD findings (not dropped) with status, severity, amount and flags.

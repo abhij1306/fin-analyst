@@ -604,3 +604,6 @@ from fin.audit.errors_fdd import (  # noqa: E402, F401
     VisibilityUnavailable,
     WalkthroughInvalid,
 )
+
+# E822: rebuilt statements, in fin.audit.errors_rebuilt (split for size), re-exported.
+from fin.audit.errors_rebuilt import RebuildNotPossible  # noqa: E402, F401
