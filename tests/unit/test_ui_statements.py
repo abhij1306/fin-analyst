@@ -1,5 +1,6 @@
-"""The Statements screen (SPEC-14 PR 3): the latest year as reported, and reported, rebuilt and
-difference side by side. Needs the `ui` extra (CI's ui job syncs it); skipped without it."""
+"""The Statements screen (SPEC-06, SPEC-14 PR 3): the databook layout with its pickers and source
+drawer, and reported, rebuilt and difference side by side; money in the display unit. Needs the
+`ui` extra (CI's ui job syncs it); skipped without it."""
 
 import re
 from pathlib import Path
@@ -33,8 +34,37 @@ def test_the_statements_tab_shows_the_reported_statements(client: TestClient) ->
     page = client.get("/statements?company=acme")
     assert page.status_code == 200
     assert 'id="tab-statements"' in page.text
-    assert "standalone FY25: profit and loss" in page.text
-    assert "2,500,000.00" in page.text  # reported revenue
+    assert "Profit and loss, standalone" in page.text
+    assert "INR Mn" in page.text
+    row = page.text.split("Revenue from operations", 1)[1].split("</tr>", 1)[0]
+    assert re.findall(r'hx-target="#source"[^>]*>([^<]+)</a>', row) == ["2.5"]
+    assert '<select name="unit" class="select">' in page.text
+
+
+def test_the_pickers_change_the_unit_the_statement_and_add_the_ratios(client: TestClient) -> None:
+    text = client.get(
+        "/partials/statements?company=acme&statement=profit_and_loss&unit=lakhs&of_revenue=1"
+    ).text
+    assert "Balance sheet, standalone" not in text
+    assert "INR lakh" in text
+    row = text.split("Revenue from operations", 1)[1].split("</tr>", 1)[0]
+    cells = re.findall(r'<td class="num">(?:<a[^>]*>)?([^<]*)', row)
+    assert cells == ["25.0", "100.0%"]
+
+
+def test_a_figure_opens_its_source(client: TestClient) -> None:
+    page = client.get("/statements?company=acme").text
+    link = re.search(r'hx-get="(/partials/statement-source[^"]+)"', page)
+    assert link is not None
+    text = client.get(link.group(1).replace("&amp;", "&")).text
+    assert "Revenue from operations" in text
+    assert "(stored: 2500000.00 rupees)" in text
+    assert "<code>" in text  # the file and sheet!cell
+    missing = client.get(
+        "/partials/statement-source?company=acme&scope=standalone&period=FY25&line=999"
+    )
+    assert missing.status_code == 400
+    assert "E001: no figure of acme at standalone FY25 line" in missing.text
 
 
 def test_the_rebuilt_view_shows_reported_rebuilt_and_difference(client: TestClient) -> None:
@@ -48,7 +78,7 @@ def test_the_rebuilt_view_shows_reported_rebuilt_and_difference(client: TestClie
     ]
     row = text.split("Revenue from operations", 1)[1].split("</tr>", 1)[0]
     cells = [c.split("<", 1)[0] for c in row.split('<td class="num">')[1:4]]
-    assert cells == ["2,500,000.00", "2,400,000.00", "-100,000.00"]
+    assert cells == ["2.5", "2.4", "(0.1)"]
     assert '<td class="sub">tb_FY25.xlsx Trial Balance!23</td>' in text
     assert "FY25: cash flow" in text
     assert "not derivable: the balances give the tax charged" in text
@@ -68,3 +98,12 @@ def test_an_unknown_view_is_refused(client: TestClient) -> None:
     page = client.get("/partials/statements?company=acme&view=bogus")
     assert page.status_code == 400
     assert "E001: no statements view &#39;bogus&#39;" in page.text
+
+
+def test_an_unknown_unit_or_picker_is_refused(client: TestClient) -> None:
+    unit = client.get("/partials/statements?company=acme&unit=billions")
+    assert unit.status_code == 400
+    assert "E001: no display unit &#39;billions&#39;" in unit.text
+    statement = client.get("/partials/statements?company=acme&statement=notes")
+    assert statement.status_code == 400
+    assert "E001: no statements statement &#39;notes&#39;" in statement.text

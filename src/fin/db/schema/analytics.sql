@@ -30,8 +30,9 @@ CREATE TABLE metric_definitions (
     formula VARCHAR NOT NULL
 );
 
--- Standard statements (fin.statements): every line of every period and scope, in the unit the company's documents
--- use (unit, e.g. '₹ in lakh'; per-share lines as printed, unit '₹ per share'). line_type 'other' is the
+-- Standard statements (fin.statements): every line of every period and scope, in the company's display unit
+-- (config.toml [display], converted in SQL; unit is its caption, e.g. 'INR Mn'; per-share lines as printed, unit
+-- '₹ per share'). line_type 'other' is the
 -- "Unmapped / other" line under a subtotal its mapped lines do not fully explain.
 CREATE TABLE statements (
     company VARCHAR NOT NULL,
@@ -44,7 +45,7 @@ CREATE TABLE statements (
     depth INTEGER NOT NULL,
     line_type VARCHAR NOT NULL,     -- line or other
     label VARCHAR NOT NULL,
-    value DECIMAL(38, 2),
+    value DECIMAL(38, 6),
     unit VARCHAR NOT NULL
 );
 

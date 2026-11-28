@@ -10,7 +10,8 @@ import html
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from fin.extract.units import RUPEES_PER_UNIT
+from fin.config import Display
+from fin.display import money as display_money
 from fin.report.data import (
     CATEGORY_FACTS,
     KEY_ROWS,
@@ -19,36 +20,27 @@ from fin.report.data import (
     YEARS_SHOWN,
     value_of,
 )
-from fin.statements import STATEMENTS, amount
+from fin.statements import STATEMENTS
 from fin.statements import TITLES as STATEMENT_TITLES
 
-# Display unit (config.toml [display] unit) -> (rupees per unit, suffix).
-MONEY_UNITS = {
-    display: (RUPEES_PER_UNIT[unit], suffix)
-    for display, unit, suffix in (
-        ("rupees", "rupees", ""),
-        ("thousands", "thousand", " thousand"),
-        ("lakhs", "lakh", " lakh"),
-        ("crores", "crore", " Cr"),
-    )
-}
 FACT_LABELS = {"revenue": "Revenue", "pat": "Profit after tax"}
 
 
-def money(value: Decimal | None, display_unit: str) -> str:
-    if value is None:
-        return "n/a"
-    per_unit, suffix = MONEY_UNITS[display_unit]
-    return amount((value / per_unit).quantize(Decimal("0.01"), ROUND_HALF_UP), "₹") + suffix
+def money(value: Decimal | None, display: Display) -> str:
+    """Rupees in the display unit, converted by the display_value SQL macro: "1,340.9 INR Mn"."""
+    return display_money(value, display)
 
 
-def metric_text(unit: str, value: Decimal | None, display_unit: str, times: bool = False) -> str:
-    """A metric value for display: money in `display_unit`, days, a ratio as times ("2.35x") when
-    `times`, else as a percentage."""
+def metric_text(
+    unit: str, value: Decimal | None, display: Display | None, times: bool = False
+) -> str:
+    """A metric value for display: money in `display` (needed for money only), days, a ratio as
+    times ("2.35x") when `times`, else as a percentage."""
     if value is None:
         return "n/a"
     if unit == "rupees":
-        return money(value, display_unit)
+        assert display is not None, "money needs the display settings"
+        return money(value, display)
     if unit == "rupees_per_share":
         return f"₹{value.quantize(Decimal('0.01'), ROUND_HALF_UP)}"
     if unit == "days":
@@ -58,10 +50,10 @@ def metric_text(unit: str, value: Decimal | None, display_unit: str, times: bool
     return f"{(value * 100).quantize(Decimal('0.1'), ROUND_HALF_UP)}%"
 
 
-def fact_text(row: dict[str, Any] | None, display_unit: str) -> str:
-    """A fact (a `data["facts"]` row) for display in its account's unit: money in `display_unit`,
+def fact_text(row: dict[str, Any] | None, display: Display) -> str:
+    """A fact (a `data["facts"]` row) for display in its account's unit: money in `display`,
     earnings per share in rupees as printed."""
-    return "n/a" if row is None else metric_text(row["unit"], row["value"], display_unit)
+    return "n/a" if row is None else metric_text(row["unit"], row["value"], display)
 
 
 def _definition(data: dict[str, Any], metric: str) -> dict[str, Any]:
@@ -77,22 +69,22 @@ def is_times(data: dict[str, Any], metric: str) -> bool:
 
 
 def metric_value_text(
-    data: dict[str, Any], metric: str, value: Decimal | None, display_unit: str
+    data: dict[str, Any], metric: str, value: Decimal | None, display: Display
 ) -> str:
     """A value of `metric` for display, in the metric's unit."""
     unit = _definition(data, metric)["unit"]
-    return metric_text(unit, value, display_unit, is_times(data, metric))
+    return metric_text(unit, value, display, is_times(data, metric))
 
 
 def _row_label(data: dict[str, Any], kind: str, name: str) -> str:
     return FACT_LABELS[name] if kind == "fact" else label(data, name)
 
 
-def _cell(data: dict[str, Any], kind: str, name: str, period: str, display_unit: str) -> str:
+def _cell(data: dict[str, Any], kind: str, name: str, period: str, display: Display) -> str:
     value = value_of(data, kind, name, period)
     if kind == "fact":
-        return money(value, display_unit)
-    return metric_value_text(data, name, value, display_unit)
+        return money(value, display)
+    return metric_value_text(data, name, value, display)
 
 
 def table(header: list[str], rows: list[list[str]], empty: str) -> str:
@@ -107,10 +99,10 @@ def table(header: list[str], rows: list[list[str]], empty: str) -> str:
 
 
 def trend_table(
-    data: dict[str, Any], rows: list[tuple[str, str]], periods: list[str], display_unit: str
+    data: dict[str, Any], rows: list[tuple[str, str]], periods: list[str], display: Display
 ) -> str:
     body = [
-        [_row_label(data, kind, name)] + [_cell(data, kind, name, p, display_unit) for p in periods]
+        [_row_label(data, kind, name)] + [_cell(data, kind, name, p, display) for p in periods]
         for kind, name in rows
     ]
     return table(["", *periods], body, "")
@@ -129,32 +121,32 @@ def category_rows(data: dict[str, Any], category: str) -> list[tuple[str, str]]:
     return facts + [("metric", m) for m in metrics]
 
 
-def summary_tables(data: dict[str, Any], display_unit: str) -> str:
+def summary_tables(data: dict[str, Any], display: Display) -> str:
     """One key-metrics table per scope the company has (both scopes where present)."""
     parts = []
     for scope, s in data["summary"].items():
         body = []
         for kind, name, values in s["rows"]:
             if kind == "fact":
-                text = [money(values[y], display_unit) for y in s["years"]]
+                text = [money(values[y], display) for y in s["years"]]
             else:
-                text = [metric_value_text(data, name, values[y], display_unit) for y in s["years"]]
+                text = [metric_value_text(data, name, values[y], display) for y in s["years"]]
             body.append([_row_label(data, kind, name), *text])
         parts.append(f"**{scope.capitalize()}**\n\n" + table(["", *s["years"]], body, ""))
     return "\n\n".join(parts)
 
 
-def quarters_table(data: dict[str, Any], display_unit: str) -> str:
+def quarters_table(data: dict[str, Any], display: Display) -> str:
     quarters = data["quarters"][-QUARTERS_SHOWN:]
     rows = [
         ("metric", m)
         for m in QUARTER_ROWS
         if m in data["metrics"] and any(q in data["metrics"][m] for q in quarters)
     ]
-    return trend_table(data, rows, quarters, display_unit)
+    return trend_table(data, rows, quarters, display)
 
 
-def peers_table(data: dict[str, Any], display_unit: str) -> str:
+def peers_table(data: dict[str, Any], display: Display) -> str:
     peers = data["peers"]
     if peers["year"] is None:
         return (
@@ -174,14 +166,14 @@ def peers_table(data: dict[str, Any], display_unit: str) -> str:
         for company in peers["companies"]:
             value = values[(kind, name)].get(company)
             if kind == "fact":
-                cells.append(money(value, display_unit))
+                cells.append(money(value, display))
             else:
-                cells.append(metric_value_text(data, name, value, display_unit))
+                cells.append(metric_value_text(data, name, value, display))
         body.append([_row_label(data, kind, name), *cells])
     return f"Fiscal year {year}, {data['scope']}.\n\n" + table(["", *peers["companies"]], body, "")
 
 
-def statements_tables(data: dict[str, Any], display_unit: str) -> str:
+def statements_tables(data: dict[str, Any], display: Display) -> str:
     """The condensed statements: printed subtotals only, one table per statement. A subtotal its
     mapped lines do not add up to is marked †, with a note."""
     parts = []
@@ -190,7 +182,7 @@ def statements_tables(data: dict[str, Any], display_unit: str) -> str:
         lines: dict[tuple[int, str], dict[str, str]] = {}
         for r in data["statements"]:
             if r["statement"] == statement:
-                text = money(r["value"], display_unit) + ("" if r["complete"] else " †")
+                text = money(r["value"], display) + ("" if r["complete"] else " †")
                 lines.setdefault((r["line_no"], r["label"]), {})[r["period"]] = text
         if not lines:
             continue
@@ -224,10 +216,10 @@ def definitions_table(data: dict[str, Any]) -> str:
     )
 
 
-def findings_table(data: dict[str, Any], display_unit: str) -> str:
+def findings_table(data: dict[str, Any], display: Display) -> str:
     def with_source(value: Decimal | None, source: str | None, file: str | None = None) -> str:
         where = ", ".join(x for x in (file, source) if x)
-        return money(value, display_unit) + (f" ({where})" if where else "")
+        return money(value, display) + (f" ({where})" if where else "")
 
     return table(
         ["Finding", "Document", "Check", "Period", "Line", "This document", "Compared with"],
@@ -260,7 +252,7 @@ def coverage_tables(data: dict[str, Any]) -> dict[str, str]:
                 STATEMENT_TITLES[row["statement"]],
                 str(row["figures"]),
                 str(row["mapped"]),
-                metric_text("ratio", row["mapped_share"], "rupees"),
+                metric_text("ratio", row["mapped_share"], None),
             ]
             for row in data["coverage"]
         ],
@@ -351,7 +343,7 @@ def _page_or_sheet(row: dict[str, Any]) -> str:
     return f"sheet {row['sheet']}" if row.get("sheet") else str(row["page"])
 
 
-def facts_table(data: dict[str, Any], display_unit: str) -> str:
+def facts_table(data: dict[str, Any], display: Display) -> str:
     """The appendix facts (`data["appendix"]`), each in its account's unit, with its source."""
     return table(
         ["Scope", "Account", "Period", "Value", "File", "Source"],
@@ -360,7 +352,7 @@ def facts_table(data: dict[str, Any], display_unit: str) -> str:
                 row["scope"],
                 f"`{row['account']}`",
                 row["period"],
-                fact_text(row, display_unit),
+                fact_text(row, display),
                 row["file_name"],
                 row["source_ref"],
             ]

@@ -9,6 +9,8 @@ import html
 from decimal import Decimal
 from typing import Any
 
+from fin.config import Display
+from fin.display import number
 from fin.fdd import findings
 from fin.reconcile.visibility import orderbook_date_note
 from fin.report.dd_tables import _label, _m, _ratio
@@ -53,10 +55,13 @@ def _days(value: int | None) -> str:
     return NOT_READ if value is None else f"{value} days"
 
 
+RUPEES = Display("rupees", 2, "minus", "₹")  # a rate is shown in rupees, never scaled
+
+
 def _rate(value: Any) -> str:
-    """A rate per unit of quantity: in rupees whatever the report's display unit. SQL gives a
-    float when the quantity column is DOUBLE; money() needs a Decimal."""
-    return "n/a" if value is None else _m(Decimal(str(value)), "rupees")
+    """A rate per unit of quantity: in rupees whatever the report's display unit, two decimals.
+    SQL gives a float when the quantity column is DOUBLE."""
+    return "n/a" if value is None else "₹" + number(Decimal(str(value)), RUPEES)
 
 
 def _pct(value: Any) -> str:
@@ -72,7 +77,7 @@ def draft_note(data: dict[str, Any]) -> str:
     )
 
 
-def key_findings(data: dict[str, Any], unit: str) -> str:
+def key_findings(data: dict[str, Any], unit: Display) -> str:
     """Each finding, grouped by severity: observation, implication, impact and amount (from the
     linked evidence), deal consideration, management response and evidence."""
     rows = data["fdd_findings"]
@@ -87,7 +92,7 @@ def key_findings(data: dict[str, Any], unit: str) -> str:
     return "\n\n".join(out)
 
 
-def _finding(r: dict[str, Any], unit: str, drafts: bool) -> str:
+def _finding(r: dict[str, Any], unit: Display, drafts: bool) -> str:
     amount = (
         f"{_m(r['amount'], unit)} ({r['amount_source']})" if r["amount"] is not None else "none"
     )
@@ -117,7 +122,7 @@ def _finding(r: dict[str, Any], unit: str, drafts: bool) -> str:
     return "\n".join(lines)
 
 
-def net_debt_table(data: dict[str, Any], unit: str) -> str:
+def net_debt_table(data: dict[str, Any], unit: Display) -> str:
     stub = data["stub"]
     rows = [
         [
@@ -136,7 +141,7 @@ def net_debt_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def coverage_table(data: dict[str, Any], unit: str) -> str:
+def coverage_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["party_kind"], str(r["rank"]), r["counterparty"], _m(r["amount_inr"], unit),
@@ -156,7 +161,7 @@ def coverage_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def visibility_table(data: dict[str, Any], unit: str) -> str:
+def visibility_table(data: dict[str, Any], unit: Display) -> str:
     found = data["visibility"]
     if found is None:
         return (
@@ -184,7 +189,7 @@ def visibility_table(data: dict[str, Any], unit: str) -> str:
     ) + notes  # fmt: skip
 
 
-def walkthroughs_table(data: dict[str, Any], unit: str) -> str:
+def walkthroughs_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             f"#{r['sample_id']}", r["kind"], r["period"], str(r["lines"]), str(r["lines_walked"]),
@@ -231,7 +236,7 @@ def walkthroughs_table(data: dict[str, Any], unit: str) -> str:
     return text
 
 
-def receivables_table(data: dict[str, Any], unit: str) -> str:
+def receivables_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["period"], r["bucket"], _m(r["open_inr"], unit), str(r["invoices"]),
@@ -248,7 +253,7 @@ def receivables_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def gratuity_table(data: dict[str, Any], unit: str) -> str:
+def gratuity_table(data: dict[str, Any], unit: Display) -> str:
     found = data["provisions"]
     rows = [
         [
@@ -275,7 +280,7 @@ def gratuity_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def tax_table(data: dict[str, Any], unit: str) -> str:
+def tax_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["period"], _m(r["pbt"], unit), _m(r["current_tax"], unit),
@@ -295,7 +300,7 @@ def tax_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def gst_returns_table(data: dict[str, Any], unit: str) -> str:
+def gst_returns_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["period"], r["return_type"], str(r["months"]), _m(r["taxable_value"], unit),
@@ -312,7 +317,7 @@ def gst_returns_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def gst_table(data: dict[str, Any], unit: str) -> str:
+def gst_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["name"], r["period"], str(r["differences"]), str(r["at_or_above_threshold"]),
@@ -328,7 +333,7 @@ def gst_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def _schedule(rows: list[dict[str, Any]], unit: str, empty: str) -> str:
+def _schedule(rows: list[dict[str, Any]], unit: Display, empty: str) -> str:
     out = [
         [
             _word(r["kind"]), r["period"], r["counterparty"] or "", _t(r["nature"]),
@@ -349,14 +354,14 @@ def _schedule(rows: list[dict[str, Any]], unit: str, empty: str) -> str:
     )
 
 
-def contingencies_table(data: dict[str, Any], unit: str) -> str:
+def contingencies_table(data: dict[str, Any], unit: Display) -> str:
     found = data["disclosures"]
     rows = [r for kind, items in found["schedules"].items() if kind not in found["related_kinds"]
             for r in items]  # fmt: skip
     return _schedule(rows, unit, "Not loaded: no notes or notices read (`fin disclosures load`).")
 
 
-def related_table(data: dict[str, Any], unit: str) -> str:
+def related_table(data: dict[str, Any], unit: Display) -> str:
     found = data["disclosures"]
     rows = [r for kind in found["related_kinds"] for r in found["schedules"][kind]]
     text = _schedule(rows, unit, "Not loaded: no related party disclosure read.")

@@ -9,6 +9,7 @@ the rows behind the totals.
 
 from typing import Any
 
+from fin.config import Display
 from fin.diligence.stub import UNAUDITED
 from fin.report.customers import customers_section
 from fin.report.tables import metric_text, money, table
@@ -25,12 +26,12 @@ RECON_TITLES = {
 }
 
 
-def _m(value: Any, unit: str) -> str:
+def _m(value: Any, unit: Display) -> str:
     return money(value, unit)
 
 
 def _ratio(value: Any) -> str:
-    return metric_text("ratio", value, "rupees")
+    return metric_text("ratio", value, None)
 
 
 def _label(period: str, stub: str | None) -> str:
@@ -61,7 +62,7 @@ def gates_table(data: dict[str, Any]) -> str:
     )
 
 
-def ebitda_table(data: dict[str, Any], unit: str) -> str:
+def ebitda_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["period"],
@@ -84,7 +85,7 @@ def ebitda_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def bridge_table(data: dict[str, Any], unit: str) -> str:
+def bridge_table(data: dict[str, Any], unit: Display) -> str:
     rows = []
     for r in data["bridge"]:
         detail = r["description"]
@@ -94,7 +95,7 @@ def bridge_table(data: dict[str, Any], unit: str) -> str:
     return table(["Period", "Step", "Item", "Amount"], rows, "No bridge.")
 
 
-def adjustments_table(data: dict[str, Any], unit: str) -> str:
+def adjustments_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             f"#{a['adj_id']}",
@@ -125,7 +126,7 @@ def adjustments_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def other_income_table(data: dict[str, Any], unit: str) -> str:
+def other_income_table(data: dict[str, Any], unit: Display) -> str:
     return table(
         ["Period", "Other income (not in EBITDA)"],
         [
@@ -136,7 +137,7 @@ def other_income_table(data: dict[str, Any], unit: str) -> str:
     )
 
 
-def revenue_table(data: dict[str, Any], unit: str) -> str:
+def revenue_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             _label(r["period"], data["stub"]),
@@ -159,7 +160,7 @@ def revenue_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def walk_table(data: dict[str, Any], unit: str) -> str:
+def walk_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["period"],
@@ -187,7 +188,7 @@ def walk_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def _nwc_cells(r: dict[str, Any], unit: str) -> list[str]:
+def _nwc_cells(r: dict[str, Any], unit: Display) -> list[str]:
     return [
         _m(r["trade_receivables"], unit),
         _m(r["inventories"], unit),
@@ -202,7 +203,7 @@ NWC_HEADERS = ["Trade receivables", "Inventories", "Other current assets", "Trad
                "Other current liabilities", "Net working capital"]  # fmt: skip
 
 
-def nwc_year_end_table(data: dict[str, Any], unit: str) -> str:
+def nwc_year_end_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [_label(r["period"], data["stub"]), str(r["period_end"]), *_nwc_cells(r, unit),
          str(r["unmapped_ledgers"])]
@@ -215,7 +216,7 @@ def nwc_year_end_table(data: dict[str, Any], unit: str) -> str:
     )
 
 
-def nwc_monthly_table(data: dict[str, Any], unit: str) -> str:
+def nwc_monthly_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [r["period"], str(r["month_end"]), *_nwc_cells(r, unit), f"{r['ledgers_included']} in, "
          f"{r['ledgers_excluded']} out"]
@@ -266,7 +267,7 @@ def recon_table(data: dict[str, Any]) -> str:
     )  # fmt: skip
 
 
-def queries_table(data: dict[str, Any], unit: str) -> str:
+def queries_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [f"#{q['query_id']}", q["period"] or "", q["status"], _m(q["amount"], unit), q["question"]]
         for q in data["queries"]
@@ -276,7 +277,7 @@ def queries_table(data: dict[str, Any], unit: str) -> str:
     )
 
 
-def collections_table(data: dict[str, Any], unit: str) -> str:
+def collections_table(data: dict[str, Any], unit: Display) -> str:
     runs = {r["period"]: r for r in data["collection_runs"]}
     rows = [
         [
@@ -302,7 +303,7 @@ def collections_table(data: dict[str, Any], unit: str) -> str:
     )  # fmt: skip
 
 
-def collections_customers_table(data: dict[str, Any], unit: str) -> str:
+def collections_customers_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["period"],
@@ -322,7 +323,7 @@ def collections_customers_table(data: dict[str, Any], unit: str) -> str:
     )
 
 
-def stub_table(data: dict[str, Any], unit: str) -> str:
+def stub_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["statement"] or "",
@@ -366,7 +367,7 @@ def mappings_text(data: dict[str, Any]) -> str:
     return text
 
 
-def recast_section(data: dict[str, Any], unit: str) -> str:
+def recast_section(data: dict[str, Any], unit: Display) -> str:
     """The service-period recast (D6): per period the register's revenue spread over its service
     dates against what was booked by invoice date, by month, the invoices with no usable service
     dates, and the contracts Claude read (evidence only, never the schedule). Empty without a
@@ -426,7 +427,7 @@ def recast_section(data: dict[str, Any], unit: str) -> str:
     )
 
 
-def sources_appendix(data: dict[str, Any], unit: str) -> str:
+def sources_appendix(data: dict[str, Any], unit: Display) -> str:
     """The rows behind the totals: statement cells, register sheets, pass-through lines and the
     trial balance rows of the working capital."""
     facts = table(
@@ -524,5 +525,5 @@ def sources_appendix(data: dict[str, Any], unit: str) -> str:
     )
 
 
-def customers_block(data: dict[str, Any], unit: str) -> str:
+def customers_block(data: dict[str, Any], unit: Display) -> str:
     return customers_section(data, unit)

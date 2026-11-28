@@ -2,43 +2,72 @@
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
-{% call head("Statements", "The latest fiscal year, as reported or rebuilt from the trial balance (standalone).") %}
+{% set base = "/statements?company=" ~ (company | urlencode) %}
+{% call head("Statements", "In " ~ data.unit_label ~ ", converted from rupees by fin. Click a figure for its source.") %}
 <nav class="btn-group" aria-label="Statements view">
   {% for v in data.views %}
   <a class="btn" data-size="sm" data-variant="{{ 'primary' if v == data.view else 'outline' }}"{% if v == data.view %} aria-current="page"{% endif %}
-     href="/statements?company={{ company | urlencode }}&amp;view={{ v }}">{{ "Reported" if v == "reported" else "Reported vs rebuilt" }}</a>
+     href="{{ base }}&amp;view={{ v }}&amp;unit={{ data.unit }}">{{ "Reported" if v == "reported" else "Reported vs rebuilt" }}</a>
   {% endfor %}
 </nav>
+<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+  <input type="hidden" name="action" value="export"><input type="hidden" name="company" value="{{ company }}">
+  <button type="submit" class="btn" data-size="sm">Export to Excel</button>
+</form>
+{% if data.export %}<a class="btn" data-size="sm" data-variant="outline" href="/report-file?company={{ company | urlencode }}&amp;name={{ data.export | urlencode }}">Download Excel</a>{% endif %}
 {% endcall %}
+<form class="pickers" method="get" action="/statements" hx-get="/statements" hx-trigger="change" hx-target="body" hx-select="body" hx-swap="outerHTML" hx-push-url="true" aria-label="Statement pickers">
+  <input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="view" value="{{ data.view }}">
+  {% if data.view == "reported" and data.scopes %}
+  <label>Scope <select name="scope" class="select">{% for s in data.scopes %}<option value="{{ s }}"{% if s == data.scope %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+  <label>Statement <select name="statement" class="select">{% for k, t in data.statements.items() %}<option value="{{ k }}"{% if k == data.statement %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+  <label>Periods <select name="periods" class="select">{% for k, t in data.period_choices.items() %}<option value="{{ k }}"{% if k == data.periods %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+  {% for k, t in data.extra_choices.items() %}<label><input type="checkbox" class="input" name="{{ k }}" value="1"{% if k in data.extras %} checked{% endif %}> {{ t }}</label>{% endfor %}
+  {% endif %}
+  <label>Unit <select name="unit" class="select">{% for u in data.units %}<option value="{{ u }}"{% if u == data.unit %} selected{% endif %}>{{ u }}</option>{% endfor %}</select></label>
+  <noscript><button type="submit" class="btn" data-size="sm">Show</button></noscript>
+</form>
+{% if data.jobs %}{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}{% else %}<div id="jobs"></div>{% endif %}
+<aside id="source" class="source-drawer" aria-live="polite"></aside>
 {% if data.message %}
 <div class="card"><section>{{ empty("Nothing to show", data.message) }}</section></div>
-{% else %}
+{% elif data.view == "rebuilt" %}
 {% for block in data.blocks %}
 <div class="card">
-  <header><h2>{{ block.title }}</h2><p class="muted">{{ data.unit }}</p></header>
+  <header><h2>{{ block.title }}</h2><p class="muted">{{ data.unit_label }}</p></header>
   <section class="flush">
-    <div class="table-container"><table class="table">
-      {% if data.view == "rebuilt" %}
+    <div class="table-container"><table class="table databook">
       <thead><tr><th scope="col">Line</th><th scope="col" class="num">Reported</th><th scope="col" class="num">Rebuilt</th><th scope="col" class="num">Difference</th><th scope="col">Trial balance rows</th><th scope="col">Notes</th></tr></thead>
       <tbody>
         {% for line in block.lines %}
-        <tr><td data-depth="{{ line.depth }}">{{ line.label }}</td>
+        <tr{% if line.subtotal %} class="subtotal"{% endif %}><th scope="row" data-depth="{{ line.depth }}">{{ line.label }}</th>
           <td class="num">{{ line.reported }}</td><td class="num">{{ line.rebuilt }}</td><td class="num">{{ line.difference }}</td><td class="sub">{{ line.sources }}</td>
           <td>{% if line.flag %}{{ badge("warn", line.flag, "warn") }}{% endif %}</td></tr>
         {% endfor %}
       </tbody>
-      {% else %}
-      <thead><tr><th scope="col">Line</th><th scope="col" class="num">Value</th></tr></thead>
-      <tbody>
-        {% for line in block.lines %}
-        <tr><td data-depth="{{ line.depth }}">{{ line.label }}</td><td class="num">{{ line.value }}</td></tr>
-        {% endfor %}
-      </tbody>
-      {% endif %}
     </table></div>
   </section>
 </div>
 {% endfor %}
 {% for note in data.notes or [] %}<p class="muted">{{ note }}</p>{% endfor %}
+{% else %}
+{% for table in data.tables %}
+<div class="card">
+  <header><h2>{{ table.title }}</h2><p class="muted">{{ table.unit_label }}</p></header>
+  <section class="flush">
+    <div class="table-container"><table class="table databook">
+      <caption class="sr-only">{{ table.title }} ({{ table.unit_label }})</caption>
+      <thead><tr><th scope="col">Line</th>{% for c in table.columns %}<th scope="col" class="num">{{ c.title }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for line in table.lines %}
+        <tr{% if line.subtotal %} class="subtotal"{% endif %}><th scope="row" data-depth="{{ line.depth }}"{% if line.other %} class="other"{% endif %}>{{ line.label }}{% if line.rounding %} *{% endif %}</th>
+          {% for cell in line.cells %}<td class="num">{% if cell.kind == "value" and cell.text %}<a href="#source" hx-get="/partials/statement-source?company={{ company | urlencode }}&amp;scope={{ table.scope }}&amp;period={{ cell.period | urlencode }}&amp;line={{ cell.line_no }}&amp;unit={{ data.unit }}" hx-target="#source" title="{{ cell.source or 'Source' }}">{{ cell.text }}</a>{% for m in cell.marks %}<sup class="mark" title="{{ m }}">{{ "AI" if m == "read by AI" else "?" if m == "unconfirmed mapping" else "s" if m.startswith("stated") else "c" }}</sup>{% endfor %}{% else %}{{ cell.text }}{% endif %}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% if table.rounding %}<p class="muted pad">* Each figure is rounded on its own: a total marked so is the rounded total, and its rounded lines do not add up to it exactly.</p>{% endif %}
+  </section>
+</div>
+{% endfor %}
 {% endif %}
 {% endif %}

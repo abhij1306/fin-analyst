@@ -1,0 +1,9 @@
+<div class="card">
+  <header><h2>{{ data.label }}</h2><p class="muted">{{ data.title }}</p></header>
+  <section>
+    <p><strong>{{ data.value }}</strong> {{ data.unit_label }} <span class="muted">(stored: {{ data.rupees }} rupees)</span></p>
+    {% if data.sources %}<p>Source:</p><ul>{% for s in data.sources %}<li><code>{{ s }}</code></li>{% endfor %}</ul>
+    {% else %}<p class="muted">No document gives it.</p>{% endif %}
+    {% for m in data.marks %}<p><span class="badge" data-variant="secondary" data-tone="warn">{{ m }}</span></p>{% endfor %}
+  </section>
+</div>

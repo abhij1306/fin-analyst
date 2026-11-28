@@ -7,6 +7,7 @@ import pytest
 from openpyxl import Workbook
 
 from fin.audit.logger import Run
+from fin.config import DEFAULT_CONFIG_TOML
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.map.dictionary import load_seed
@@ -18,6 +19,7 @@ from fin.query.run import query
 def root(data_root: Path) -> Path:
     """acme with two FY25 revenue facts from pl.xlsx: fact 1 at PL!B2, fact 2 with no position."""
     ensure_database(dictionary_db_path(data_root), "dictionary")
+    (data_root / "config.toml").write_text(DEFAULT_CONFIG_TOML, encoding="utf-8")
     load_seed(data_root, Run("init", {}, data_root))
     archive = data_root / "archive" / "pl.xlsx"
     archive.parent.mkdir(parents=True)

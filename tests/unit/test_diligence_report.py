@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from fin.audit.errors import FigureReferenceUnknown, NarrativeHasTypedNumbers
-from fin.config import load_config
+from fin.config import Display, load_config
 from fin.reconcile.recast_run import run_recast
 from fin.report import dd_render
 from fin.report.dd_data import FIGURES, collect
@@ -35,6 +35,8 @@ Net working capital {{figure:net_working_capital:FY25}};
 stub {{figure:net_working_capital:FY26-YTD-SEP}}.
 """
 
+RUPEES = Display("rupees", 2, "minus", "INR")
+
 
 @pytest.fixture(scope="module")
 def root(tmp_path_factory: pytest.TempPathFactory) -> Path:
@@ -44,16 +46,16 @@ def root(tmp_path_factory: pytest.TempPathFactory) -> Path:
 def built(root: Path, narrative: str = NARRATIVE) -> dd_render.Built:
     data = collect(root, "acme", "standalone")
     lint(narrative, "n", FIGURE)
-    return dd_render.build("acme", "standalone", "rupees", narrative, data)
+    return dd_render.build("acme", "standalone", RUPEES, narrative, data)
 
 
 def test_the_report_is_filled_from_the_database_with_every_section(root: Path) -> None:
     out = built(root)
     qmd = out.qmd
-    assert "Reported ₹1,500,000.00, adjusted ₹1,600,000.00 in FY25." in qmd
-    assert "Proposed, not applied: ₹40,000.00." in qmd
-    assert "Project revenue was ₹860,000.00; core ₹250,000.00." in qmd
-    assert "Net working capital ₹564,000.00;\nstub ₹650,000.00." in qmd
+    assert "Reported 1,500,000.00 INR, adjusted 1,600,000.00 INR in FY25." in qmd
+    assert "Proposed, not applied: 40,000.00 INR." in qmd
+    assert "Project revenue was 860,000.00 INR; core 250,000.00 INR." in qmd
+    assert "Net working capital 564,000.00 INR;\nstub 650,000.00 INR." in qmd
     # no placeholder is left, the stub is labelled and the gates are listed
     assert "{{" not in qmd
     assert "FY26-YTD-SEP (unaudited management accounts)" in qmd
@@ -88,7 +90,7 @@ def test_the_first_run_writes_a_stub_that_names_the_sections(root: Path) -> None
     text = Path(result["narrative_path"]).read_text(encoding="utf-8")
     assert "{{figure:adjusted_ebitda:FY25}}" in text
     assert "## Working capital" in text
-    assert load_config(root).display_unit
+    assert load_config(root).display.unit
 
 
 @pytest.mark.quarto

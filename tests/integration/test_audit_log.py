@@ -94,7 +94,7 @@ def test_doctor_writes_runs_events_and_jsonl(
         (6, "check", "info", None, "poppler: 24.2.0"),
         (7, "check", "info", None, f"repo folder: {REPO}"),
         (8, "check", "info", None, f"data folder: {data_root}"),
-        (9, "check", "info", None, "config: display unit crores"),
+        (9, "check", "info", None, "config: display unit millions (INR Mn)"),
         (10, "check", "info", None, "audit schema: present"),
         (11, "check", "info", None, "dictionary schema: present"),
         (

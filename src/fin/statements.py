@@ -20,10 +20,13 @@ account tree (`shared/dictionary.duckdb` accounts), whatever labels the filing u
 - lineage: `fact_ids`, every fact behind the value (a document that prints an account on two lines
   has two, and the value is their sum); `fact_id` is the first of them.
 
-Amounts: the view and `--json` are in rupees. The text output and the Excel export show money in
-the unit the company's documents use (`document_unit`: lakh, crore, ...; the most recent document's
-when they differ), two decimals; earnings per share as printed. Each row from `statement_rows` has
-`unit`: that document unit for money lines, `rupees_per_share` for per-share lines.
+Amounts: the view is in rupees. `statement_rows` adds, in SQL, each value in the display unit
+(`shown`, `shown_explained`: config.toml [display], `fin.display`), the source of each figure
+(file and sheet!cell or page, from `fact_sources`) and its marks (an unconfirmed mapping, a figure
+read by the assistant), the share of revenue and the growth on the same period a year before (as
+percentages, one decimal), and `rounding`: a subtotal whose shown lines do not add up to it only
+because each figure is rounded on its own. Each row has `unit`: `rupees`, or `rupees_per_share`
+for per-share lines (shown as printed, two decimals).
 
 The account tree lives in the shared dictionary and the facts in the company database, so the view
 is made per connection (`add_view`): two temporary tables hold the tree, and the SQL below does the
@@ -31,16 +34,16 @@ rest.
 """
 
 import re
-from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
 import duckdb
 
 from fin.audit.errors import DependencyMissing, ReportRenderFailed
+from fin.config import Display
 from fin.db.conn import connect, no_company_message
 from fin.db.rows import fetch_dicts
-from fin.extract.units import RUPEES_PER_UNIT
+from fin.display import PER_SHARE, add_macro, display_settings, number, sql_params
 from fin.map.dictionary import read_seed
 from fin.paths import company_db_path, dictionary_db_path
 from fin.validate.gates import EITHER_SIGN
@@ -52,20 +55,10 @@ TITLES = {
     "cash_flow": "Cash flow",
 }
 OTHER_LABEL = "Unmapped / other"
-UNIT_NAMES = {int(per): name for name, per in RUPEES_PER_UNIT.items() if name != "lac"}
-PER_SHARE = "rupees_per_share"
-
-# The unit of the most recent loaded document (latest period end, then latest ingest): the one most
-# of its values were printed in.
-_DOCUMENT_UNIT_SQL = """
-SELECT r.rupees_per_unit
-FROM raw_values r
-JOIN documents d ON d.doc_id = r.doc_id
-WHERE d.status = 'loaded'
-GROUP BY d.doc_id, d.period_end, r.rupees_per_unit
-ORDER BY d.period_end DESC NULLS LAST, d.doc_id DESC, count(*) DESC, r.rupees_per_unit
-LIMIT 1
-"""
+ROUNDING_NOTE = (
+    "Each figure is rounded on its own: a total marked so is the rounded total, and its rounded "
+    "lines do not add up to it exactly."
+)
 
 VIEW_SQL = """
 -- about: The P&L, balance sheet and cash flow in standard order, with Unmapped / other lines.
@@ -206,29 +199,96 @@ def add_view(con: duckdb.DuckDBPyConnection, root: Path) -> None:
     )
     con.executemany("INSERT INTO statement_paths VALUES (?, ?, ?, ?, ?)", path_rows)
     con.execute(VIEW_SQL.format(other=OTHER_LABEL))
+    add_macro(con)
+
+
+# The rows of `statement_rows`: the view with the display values ($per_unit, $decimals; per-share
+# lines two decimals, unscaled), sources and marks, share of revenue and growth, and the rounding
+# flag. Growth and share use the unfiltered rows, so a period's year before need not be asked for.
+_ROWS_SQL = """
+WITH base AS (
+    SELECT
+        s.*, CASE WHEN a.unit = 'rupees_per_share' THEN a.unit ELSE 'rupees' END AS unit,
+        s.line_type = 'line' AND s.explained IS NOT NULL AS subtotal
+    FROM standard_statements s
+    LEFT JOIN statement_accounts a USING (account)
+    WHERE $scope IS NULL OR s.scope = $scope
+),
+shown AS (
+    SELECT
+        b.*,
+        display_value(b.value, CASE WHEN b.unit = 'rupees' THEN $per_unit ELSE 1 END,
+                      CASE WHEN b.unit = 'rupees' THEN $decimals ELSE 2 END) AS shown,
+        display_value(b.explained, $per_unit, $decimals) AS shown_explained
+    FROM base b
+),
+sources AS (
+    SELECT
+        u.scope, u.period, u.line_no,
+        string_agg(fs.source_file || ' ' || fs.source_ref, '; ' ORDER BY fs.fact_id) AS source,
+        bool_or(NOT fs.source_confirmed) AS unconfirmed,
+        bool_or(fs.source_read_by = 'claude') AS read_by_ai
+    FROM (SELECT scope, period, line_no, unnest(fact_ids) AS fact_id FROM base) u
+    JOIN fact_sources fs USING (fact_id)
+    GROUP BY ALL
+),
+rounding AS (
+    SELECT t.scope, t.period, t.line_no
+    FROM shown t
+    JOIN statement_paths p ON p.ancestor = t.account
+    JOIN shown c ON c.scope = t.scope AND c.period = t.period AND c.account = p.descendant
+    WHERE t.explained = t.value AND NOT EXISTS (
+        SELECT 1 FROM shown w
+        WHERE w.scope = c.scope AND w.period = c.period AND list_contains(p.between, w.account)
+    )
+    GROUP BY t.scope, t.period, t.line_no, t.shown
+    HAVING sum(p.sign * c.shown) <> t.shown
+        AND sum(CASE WHEN p.either_sign THEN -p.sign ELSE p.sign END * c.shown) <> t.shown
+),
+ratios AS (
+    SELECT
+        t.scope, t.period, t.line_no,
+        CASE WHEN t.statement = 'profit_and_loss' AND t.unit = 'rupees' THEN round(100 * div6(
+            CAST(t.value * 100 AS HUGEINT), CAST(r.value * 100 AS HUGEINT)), 1) END AS of_revenue,
+        CASE WHEN t.unit = 'rupees' THEN round(100 * growth6(t.value, y.value), 1) END AS yoy
+    FROM shown t
+    LEFT JOIN shown r ON r.scope = t.scope AND r.period = t.period AND r.account = 'revenue'
+    LEFT JOIN shown y ON y.scope = t.scope AND y.line_no = t.line_no
+        AND y.period = prior_period(t.period) AND y.period_months = t.period_months
+)
+SELECT
+    s.*, src.source, coalesce(src.unconfirmed, false) AS unconfirmed,
+    coalesce(src.read_by_ai, false) AS read_by_ai, rd.line_no IS NOT NULL AS rounding,
+    ra.of_revenue, ra.yoy
+FROM shown s
+LEFT JOIN sources src USING (scope, period, line_no)
+LEFT JOIN rounding rd USING (scope, period, line_no)
+LEFT JOIN ratios ra USING (scope, period, line_no)
+WHERE $period IS NULL OR s.period = $period
+ORDER BY s.scope, s.period_months <> 12, s.period_end, s.period_months DESC,
+    array_position($statements, s.statement), s.line_no
+"""
 
 
 def statement_rows(
-    root: Path, company: str, period: str | None = None, scope: str | None = None
+    root: Path,
+    company: str,
+    period: str | None = None,
+    scope: str | None = None,
+    display: Display | None = None,
 ) -> list[dict[str, Any]]:
     """The standard statements of a company (optionally one period and one scope) as rows of the
     view, in order: scope, fiscal years then other periods (oldest first), statement, line, each
-    with its `unit` (see the module docstring). Raises E601 when there is nothing to show."""
+    with the columns of _ROWS_SQL (see the module docstring), shown in `display` (default: the
+    company's display settings). Raises E601 when there is nothing to show."""
     db = company_db_path(root, company)
     if not db.is_file():
         raise DependencyMissing(no_company_message(company))
+    display = display or display_settings(root, company)
     with connect(db) as con:
         add_view(con, root)
-        unit = document_unit(con)
-        rows = fetch_dicts(
-            con,
-            "SELECT s.*, CASE WHEN a.unit = ? THEN a.unit ELSE ? END AS unit "
-            "FROM standard_statements s LEFT JOIN statement_accounts a USING (account) "
-            "WHERE (? IS NULL OR s.period = ?) AND (? IS NULL OR s.scope = ?) "
-            "ORDER BY s.scope, s.period_months <> 12, s.period_end, s.period_months DESC, "
-            "array_position(?, s.statement), s.line_no",
-            [PER_SHARE, unit, period, period, scope, scope, list(STATEMENTS)],
-        )
+        params = {"period": period, "scope": scope, "statements": list(STATEMENTS)}
+        rows = fetch_dicts(con, _ROWS_SQL, {**params, **sql_params(display)})
     if not rows:
         wanted = " ".join(x for x in (scope, period) if x)
         raise ReportRenderFailed(
@@ -238,23 +298,18 @@ def statement_rows(
     return rows
 
 
-def document_unit(con: duckdb.DuckDBPyConnection) -> str:
-    """The unit the company's documents print money in ("lakh", "crore", ...): the most recent
-    loaded document's. "rupees" when nothing is loaded."""
-    row = con.execute(_DOCUMENT_UNIT_SQL).fetchone()
-    return UNIT_NAMES[row[0]] if row else "rupees"
-
-
-def in_unit(value: Decimal, unit: str) -> Decimal:
-    """A rupee value in `unit` (a document unit), two decimals; a per-share value as it is."""
-    if unit == PER_SHARE:
-        return value
-    return (value / RUPEES_PER_UNIT[unit]).quantize(Decimal("0.01"), ROUND_HALF_UP)
-
-
-def unit_title(unit: str) -> str:
-    """How a header names the unit: "₹ in lakh", or "₹" for rupees."""
-    return "₹" if unit == "rupees" else f"₹ in {unit}"
+def marks(row: dict[str, Any]) -> list[str]:
+    """What a reader must know about a figure: stated, corrected, unconfirmed, read by AI."""
+    out = []
+    if row.get("stated_id") is not None:
+        out.append(f"stated by the user, #{row['stated_id']}")
+    if row.get("corrected_id") is not None:
+        out.append(f"corrected, correction #{row['corrected_id']}")
+    if row.get("unconfirmed"):
+        out.append("unconfirmed mapping")
+    if row.get("read_by_ai"):
+        out.append("read by AI")
+    return out
 
 
 def latest_annual_period(rows: list[dict[str, Any]]) -> str:
@@ -263,38 +318,35 @@ def latest_annual_period(rows: list[dict[str, Any]]) -> str:
     return max(annual, key=lambda r: (r["period_end"], r["period_months"]))["period"]
 
 
-def amount(value: Decimal, symbol: str = "") -> str:
-    """An amount with thousands separators and two decimals, the sign before `symbol`: "-₹1,234.50".
-    The statements and the report format money with it."""
-    sign = "-" if value < 0 else ""
-    return f"{sign}{symbol}{abs(value):,.2f}"
-
-
-def format_statements(company: str, rows: list[dict[str, Any]]) -> str:
-    """Plain text: one block per scope, period and statement; amounts in the document unit (named
-    in each header), per-share lines as printed. A subtotal its lines do not fully explain says
-    how much they explain. A figure the user stated says so, with its id, and so does a figure
-    corrected with `fin fact correct` (`fin fact list`)."""
+def format_statements(company: str, rows: list[dict[str, Any]], display: Display) -> str:
+    """Plain text: one block per scope, period and statement; amounts as SQL converted them to
+    `display` (its caption in each header), per-share lines as printed. A subtotal its lines do
+    not fully explain says how much they explain; a subtotal its rounded lines do not add up to is
+    marked *, with ROUNDING_NOTE under the block. A figure's marks follow it (`marks`)."""
     out: list[str] = []
     block = None
-    money_unit = next((r["unit"] for r in rows if r["unit"] != PER_SHARE), "rupees")
+    rounded = False
     for row in rows:
         if (row["scope"], row["period"], row["statement"]) != block:
-            block = (row["scope"], row["period"], row["statement"])
+            if rounded:
+                out.append(f"* {ROUNDING_NOTE}")
+            block, rounded = (row["scope"], row["period"], row["statement"]), False
             if out:
                 out.append("")
             out.append(
                 f"{company} {row['scope']} {row['period']}: "
-                f"{TITLES[row['statement']].lower()} ({unit_title(money_unit)})"
+                f"{TITLES[row['statement']].lower()} ({display.unit_label})"
             )
         label = "  " * row["depth"] + row["label"]
-        line = f"{label:<60} {amount(in_unit(row['value'], row['unit'])):>20}"
+        value = number(row["shown"], display, row["unit"] == PER_SHARE)
+        line = f"{label:<60} {value:>20}"
+        if row["rounding"]:
+            line, rounded = line + " *", True
         if row["coverage"] is not None and row["coverage"] != 1:
-            explained = amount(in_unit(row["explained"], row["unit"]))
+            explained = number(row["shown_explained"], display)
             line += f"  (lines explain {explained}, {row['coverage']:.2%})"
-        if row["stated_id"] is not None:
-            line += f"  (stated by the user, #{row['stated_id']})"
-        if row["corrected_id"] is not None:
-            line += f"  (corrected, correction #{row['corrected_id']})"
+        line += "".join(f"  ({mark})" for mark in marks(row) if "mapping" not in mark)
         out.append(line.rstrip())
+    if rounded:
+        out.append(f"* {ROUNDING_NOTE}")
     return "\n".join(out)

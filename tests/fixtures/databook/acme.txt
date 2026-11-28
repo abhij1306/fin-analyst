@@ -1,0 +1,17 @@
+acme profit and loss, standalone (INR Mn)
+                                                              FY24  FY24 % of revenue    FY24 YoY %          FY25  FY25 % of revenue    FY25 YoY %
+    Revenue from operations                                    2.0             100.0%                         2.5             100.0%         27.0%
+    Employee benefits expense                                  1.2              60.0%                         1.5              57.5%         21.7%
+    Depreciation and amortisation expense                      0.1               5.0%                         0.1               4.7%         20.0%
+    Other expenses                                             0.5              22.5%                         0.5              18.9%          6.7%
+* Profit for the year                                          0.3              12.5%                         0.5              18.9%         92.0%
+  Basic earnings per share                                    4.17                                           8.00
+* Each figure is rounded on its own: a total marked so is the rounded total, and its rounded lines do not add up to it exactly.
+
+acme balance sheet, standalone (INR Mn)
+                                                              FY24    FY24 YoY %          FY25    FY25 YoY %
+    Property, plant and equipment, net block                   0.5                         0.6         10.0%
+    Trade receivables                                          0.4                         0.6         37.5%
+    Cash and cash equivalents                                  0.3                         0.5         80.0%
+* Total assets                                                 1.2                         1.6         36.7%
+* Each figure is rounded on its own: a total marked so is the rounded total, and its rounded lines do not add up to it exactly.

@@ -11,6 +11,7 @@ from openpyxl import load_workbook
 
 from fin.audit.errors import SavedMetricInvalid, SavedMetricUnknown, SqlFailed
 from fin.audit.logger import Run
+from fin.config import DEFAULT_CONFIG_TOML
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
 from fin.metrics.export import refresh_analytics
@@ -28,7 +29,9 @@ def template(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture
 def root(data_root: Path, template: Path) -> Path:
-    return copy_root(template, data_root)
+    copied = copy_root(template, data_root)
+    (copied / "config.toml").write_text(DEFAULT_CONFIG_TOML, encoding="utf-8")
+    return copied
 
 
 def run(root: Path) -> Run:

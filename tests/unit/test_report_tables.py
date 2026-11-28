@@ -6,6 +6,7 @@ quarters."""
 from decimal import Decimal
 from typing import Any
 
+from fin.config import Display
 from fin.report.render import substitute
 from fin.report.tables import (
     coverage_tables,
@@ -26,6 +27,10 @@ METRIC_INFO = {
 }
 
 
+CRORES = Display("crores", 2, "minus", "Cr")
+LAKHS = Display("lakhs", 2, "minus", "lakh")
+
+
 def data() -> dict[str, Any]:
     # The main scope (consolidated) has no metrics, so `definitions` lists none.
     return {"scope": "consolidated", "metrics": {}, "definitions": [], "metric_info": METRIC_INFO}
@@ -38,7 +43,7 @@ def test_summary_shows_a_metric_only_the_other_scope_has() -> None:
     }
 
     assert (
-        summary_tables(report, "crores")
+        summary_tables(report, CRORES)
         == "**Standalone**\n\n|  | FY25 |\n|---|---|\n| ROCE | 20.0% |"
     )
 
@@ -62,10 +67,10 @@ PAYABLES = fact("trade_payables", "FY26-Q1", "15000000", "rupees", "sum of 2: pa
 def test_appendix_shows_eps_unscaled_and_every_line_of_a_sum() -> None:
     report = data() | {"appendix": [EPS, PAYABLES]}
 
-    assert facts_table(report, "crores") == (
+    assert facts_table(report, CRORES) == (
         "| Scope | Account | Period | Value | File | Source |\n|---|---|---|---|---|---|\n"
         "| standalone | `eps_basic` | FY25 | ₹12.34 | ar25.pdf | page 2 |\n"
-        "| standalone | `trade_payables` | FY26-Q1 | ₹1.50 Cr | ar25.pdf "
+        "| standalone | `trade_payables` | FY26-Q1 | 1.50 Cr | ar25.pdf "
         "| sum of 2: page 1; page 1 |"
     )
 
@@ -73,7 +78,7 @@ def test_appendix_shows_eps_unscaled_and_every_line_of_a_sum() -> None:
 def test_a_fact_reference_to_eps_is_in_rupees_per_share() -> None:
     report = data() | {"periods": ["FY25"], "facts": [EPS]}
 
-    text, _ = substitute("EPS was {{fact:eps_basic:FY25}}.", report, "crores")
+    text, _ = substitute("EPS was {{fact:eps_basic:FY25}}.", report, CRORES)
 
     assert text == "EPS was ₹12.34."
 
@@ -88,9 +93,9 @@ def test_a_printed_subtotal_its_lines_do_not_explain_is_kept_and_marked() -> Non
         ],
     }
 
-    assert statements_tables(report, "lakhs") == (
+    assert statements_tables(report, LAKHS) == (
         "### Balance sheet\n\n|  | FY24 | FY25 |\n|---|---|---|\n"
-        "| Total non-current assets | ₹50.00 lakh | ₹65.00 lakh † |\n\n"
+        "| Total non-current assets | 50.00 lakh | 65.00 lakh † |\n\n"
         "† As printed; the lines under it that are mapped do not add up to it (some are not "
         "mapped, or not printed). `fin statements` shows what the lines explain."
     )
@@ -130,7 +135,7 @@ def test_peers_show_a_metric_only_a_peer_has() -> None:
         },
     }
 
-    assert peers_table(report, "crores") == (
+    assert peers_table(report, CRORES) == (
         "Fiscal year FY25, consolidated.\n\n"
         "|  | acme | kestrel |\n|---|---|---|\n| Revenue growth | n/a | 10.0% |"
     )

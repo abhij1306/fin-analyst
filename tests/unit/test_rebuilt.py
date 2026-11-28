@@ -145,7 +145,7 @@ def test_removing_one_mapping_marks_the_totals_above_it_incomplete(root: Path) -
     assert memo["rebuilt"] == Decimal("500000.00")
     assert memo["unmapped_ledgers"] == 1
     text = format_rebuilt("acme", result)
-    assert "incomplete: 1 unmapped ledgers under it, 500,000.00 (debit - credit)" in text
+    assert "incomplete: 1 unmapped ledgers under it, 0.5 INR Mn (debit - credit)" in text
     cash_flow = [r for r in result["rows"] if r["statement"] == "cash_flow"]
     assert cash_flow
     assert all(r["incomplete"] for r in cash_flow)
@@ -245,10 +245,11 @@ def test_fin_statements_rebuilt_prints_the_three_columns(
     assert result.exit_code == 0, result.output
     lines = result.output.splitlines()
     assert lines[0] == (
-        "acme standalone FY25: profit and loss, reported and rebuilt from the trial balance (₹)"
+        "acme standalone FY25: profit and loss, reported and rebuilt from the trial balance "
+        "(INR Mn)"
     )
     [revenue] = [line for line in lines if line.startswith("  Revenue from operations")]
-    assert revenue.split()[-3:] == ["2,500,000.00", "2,400,000.00", "-100,000.00"]
+    assert revenue.split()[-3:] == ["2.5", "2.4", "(0.1)"]
     refused = CliRunner().invoke(
         app, ["statements", "acme", "--rebuilt", "--scope", "consolidated"]
     )
@@ -264,11 +265,13 @@ def test_the_export_adds_the_rebuilt_sheets(root: Path) -> None:
     book = load_workbook(export_workbook(root, "acme"))
     assert book.sheetnames[-3:] == ["Rebuilt P&L", "Rebuilt Balance sheet", "Rebuilt Cash flow"]
     sheet = book["Rebuilt P&L"]
-    header = [c.value for c in sheet[1]]
-    assert header[:4] == ["Line (₹)", "FY24 reported", "FY24 rebuilt", "FY24 difference"]
-    rows = {row[0].value: [c.value for c in row] for row in sheet.iter_rows(min_row=2)}
+    assert sheet["A1"].value == "acme: Rebuilt P&L, standalone (INR Mn)"
+    header = [c.value for c in sheet[2]]
+    assert header[:4] == ["Line", "FY24 reported", "FY24 rebuilt", "FY24 difference"]
+    rows = {row[0].value: [c.value for c in row] for row in sheet.iter_rows(min_row=3)}
     revenue = rows["Revenue from operations"]
-    assert revenue[4:7] == [2500000, 2400000, -100000]
-    assert revenue[1:4] == [None, 2000000, None]
-    cash = {row[0].value: row[-1].value for row in book["Rebuilt Cash flow"].iter_rows(min_row=2)}
+    assert revenue[4:7] == [2.5, 2.4, -0.1]
+    assert revenue[1:4] == [None, 2, None]
+    assert sheet.cell(3, 5).number_format == '#,##0.0;(#,##0.0);"–"'
+    cash = {row[0].value: row[-1].value for row in book["Rebuilt Cash flow"].iter_rows(min_row=3)}
     assert cash["Income taxes paid"].startswith("FY25: not derivable")

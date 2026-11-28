@@ -308,7 +308,8 @@ def check_config(root: Path) -> Check:
             exc.code,
             "correct config.toml (or rename it and run `uv run fin init` for a fresh default)",
         )
-    return Check("config", True, f"display unit {config.display_unit}")
+    display = config.display
+    return Check("config", True, f"display unit {display.unit} ({display.unit_label})")
 
 
 def check_audit_schema(root: Path) -> Check:

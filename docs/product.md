@@ -160,7 +160,8 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 
 **Rules**
 
-- All values stored in rupees as exact DECIMAL. Original unit kept in `raw_values`. Display unit set in config.
+- All values stored in rupees as exact DECIMAL. Original unit kept in `raw_values`. How money is shown is set in
+  config (`[display]`, "Display units and the databook" below) and converted in SQL.
   A unit line names its unit after "in", "₹", "Rs" or "INR" ("₹ in Lakhs", "INR crores"); "in INR" with no unit
   word after it ("All amounts in INR, unless otherwise stated") means rupees (`fin.extract.units`). A document that
   failed with E203 on such a line loads when it is ingested again. A document with no unit line on a statement
@@ -350,7 +351,7 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin fact state <co> --account --period --scope --value --reason`, `fin fact unstate <co> <id>`, `fin fact correct <co> <fact_id> --value --reason`, `fin fact list <co> [--json]` | `/ingest` | Either (state or correct only when the user says, in their words) |
 | `fin schema [co] [--table name] [--json]` | `/ask` | Either |
 | `fin metric add <name> --formula … --unit ratio\|rupees\|days --definition "…" [--company co]`, `fin metric list [co]`, `fin metric remove <name> [--company co]` | `/ask` (offers to save a hand-written ratio) | Either (add or remove when the user says) |
-| `fin statements <co> [--period] [--scope] [--json] [--rebuilt]`, `fin export <co>` | `/statements` | Either |
+| `fin statements <co> [--period] [--scope] [--json] [--rebuilt] [--layout blocks\|databook] [--unit u] [--of-revenue] [--yoy]`, `fin export <co>` | `/statements` | Either |
 | `fin report <co> [--scope] [--peers] [--render]` | `/report` | Either |
 | `fin dashboard [--build]` | `/dashboard` | Either |
 | `fin audit <co> [metric period \| --fact id]` | `/audit` | Either |
@@ -525,8 +526,8 @@ Analysis core (after 1.0.0, not a phase): standard statements and the full metri
   sql` has it): for each period and scope the P&L, balance sheet and cash flow in standard order with a depth for
   indentation, every account with a value, and for each subtotal what its mapped lines explain (`explained`,
   `coverage`) plus an "Unmapped / other" line for any difference. `fin statements <co> [--period] [--scope]
-  [--json]` prints it; `fin export <co>` writes `reports/<co>/<co>_financials.xlsx` (every period side by side, one
-  sheet per statement and scope, and a Metrics sheet).
+  [--json]` prints it; `fin export <co>` writes `reports/<co>/<co>_financials.xlsx` (the databook layout: every
+  period side by side, one sheet per statement and scope, and a Metrics sheet).
 - `metric_definitions` is one row per metric (category, unit, periods, when_missing, definition, formula);
   `metric_input_accounts` lists each metric's input accounts and periods for `metric_inputs`. Categories:
   profitability, returns (closing and `*_avg` on average balances), liquidity, solvency, efficiency, cash flow,
@@ -536,8 +537,8 @@ Analysis core (after 1.0.0, not a phase): standard statements and the full metri
 - EBITDA is computed from profit before exceptional items (PBT when the period prints none, else the printed profit
   before exceptional items plus any share of associates), so a one-off exceptional item does not move EBITDA, its
   margin, debt/EBITDA, interest cover or EBITDA growth.
-- `fin statements` and `fin export` show money in the unit the company's documents use (the most recent document's
-  when they differ); `--json` stays in rupees with a `unit` per row.
+- `fin statements` and `fin export` show money in the display unit (SPEC-06, below); `--json` stays in rupees with
+  a `unit` per row (`rupees` or `rupees_per_share`) and adds the converted `shown`.
 
 Reports and dashboards by category (after 1.0.0, not a phase):
 - Health report: a summary of key metrics over the latest five fiscal years (both scopes where present); one
@@ -553,7 +554,7 @@ Reports and dashboards by category (after 1.0.0, not a phase):
   references, each line of a summed value listed, per-share facts unscaled; peers' facts are in their own reports).
   Narrative references accept quarter and half-year periods (`{{metric:ttm_revenue:FY26-Q2}}`).
 - Dashboards: `analytics.duckdb` also holds metric categories and definitions, the standard statements (in the
-  documents' unit), findings, coverage and unread pages. Company page by category
+  company's display unit), findings, coverage and unread pages. Company page by category
   (trend charts, any metric, quarters, statements for a chosen period, findings, coverage); compare page (category,
   then metric, across companies); data quality page (findings, verify findings included; held documents, coverage, unread
   pages). An analytics file missing a table is made again at the next refresh (it is derived).
@@ -590,7 +591,7 @@ accepted revenue and cost effects, and margins: the adjusted margin is on adjust
 other, working capital change, taxes paid, other operating, CFO, capex, free cash flow, cash conversion on reported
 and adjusted EBITDA; the lines add up to CFO exactly; a missing input makes the lines using it NULL, and a taxes-paid
 line not mapped is 0 only when CFO equals cash generated from operations). `fin engagement bridge <co> [--period]
-[--scope] [--json]` shows them (money in the documents' unit as `fin statements`; JSON in rupees); E803 when the
+[--scope] [--json]` shows them (money in the display unit as `fin statements`; JSON in rupees); E803 when the
 company has no engagement. The views have a row per period in scope and scope (the scopes with metrics or
 adjustments in those periods, else the company's scopes, else standalone), so a period without data shows with
 NULLs. Gates (`fin/diligence/gates.py`, a registry in code, approved in order): G1 Ingestion
@@ -1129,16 +1130,50 @@ what the company reported. Decisions: [decisions/spec-14-rebuilt.md](decisions/s
   to which line: `fin.rebuilt.view.CASH_LINES`.
 - **`fin statements <co> --rebuilt [--period] [--json]`**: each line's reported (the standalone `standard_statements`
   figure), rebuilt and difference (rebuilt - reported, in SQL; blank when either side has no figure), in the
-  documents' unit, with a note after a line that is incomplete or not derivable; the latest fiscal year by default.
+  display unit (each column converted in SQL), with a note after a line that is incomplete or not derivable; the latest fiscal year by default.
   A reported "Unmapped / other" line is shown with the rebuilt side blank, and an account reached only by ledgers
   that are not confirmed has a blank rebuilt figure marked incomplete. Then what to ask the company for: a year with no trial balance, or one with group totals only. `--scope
   consolidated` is refused (the rebuild is standalone). E822 when the company has no engagement, the period is not
   one of its periods, or nothing (or not the period asked for) can be rebuilt.
-- **`fin export`** adds "Rebuilt P&L", "Rebuilt Balance sheet" and "Rebuilt Cash flow" sheets (reported, rebuilt and
-  difference per period, and a Notes column) when a year can be rebuilt.
-- **Statements screen** (web UI): the latest fiscal year as reported, or reported vs rebuilt (the same three columns,
-  each rebuilt line's trial balance rows, and the notes).
+- **`fin export`** adds "Rebuilt P&L", "Rebuilt Balance sheet" and "Rebuilt Cash flow" sheets in the databook
+  layout (caption with the unit, reported, rebuilt and difference per period, and a Notes column) when a year can be
+  rebuilt.
+- **Statements screen** (web UI): the statements as reported (the databook, SPEC-06), or reported vs rebuilt (the
+  same three columns, each rebuilt line's trial balance rows, and the notes).
 - **Nothing reported changes**: a difference is for a query or an adjustment with evidence.
+
+## Display units and the databook (SPEC-06)
+
+- **Display settings** (`config.toml [display]`): `unit` (rupees, thousands, lakhs, millions or crores),
+  `decimals` (0 to 4), `negatives` ("minus": -1,234.5; "brackets": (1,234.5), and a zero as a dash) and
+  `unit_label` (the caption every table names its unit with). The default is millions, one decimal, brackets,
+  "INR Mn" (the client, answer 14). `[display.companies.<name>]` shows one company differently, with any of the
+  same keys (a unit without a label gets that unit's label: INR, INR '000, INR lakh, INR Mn, INR Cr). E002 for an
+  unknown key or a value out of range.
+- **Converted in SQL only**: the DuckDB macro `display_value(v, rupees_per_unit, decimals)` (`fin.display`) divides
+  exactly (integer arithmetic) and rounds half away from zero; Python and templates only format what SQL returned (a
+  unit test searches the code for a division). Each figure is rounded on its own, so a total is the rounded total; a
+  subtotal whose rounded lines do not add up to it is marked * with a note under the table. Earnings per share are
+  rupees per share, two decimals, never scaled. % of revenue (P&L) and growth on the same period a year before are
+  computed in SQL too.
+- **`fin statements <co> --layout databook`**: per scope and statement one table, line items as rows and periods as
+  columns (fiscal years first, then quarters and half years, oldest first), subtotals marked =, rounded totals *;
+  `--of-revenue` and `--yoy` add those columns per period. `--unit` shows one run in another unit (E001 for an
+  unknown one). The default layout (`blocks`) is one block per period, as before; both name the unit in each
+  header, and a stated or corrected figure keeps its mark.
+- **`fin export`**: each statement sheet is the databook: row 1 a caption with the company, statement, scope and
+  unit, row 2 the headings, panes frozen below them and right of the labels, subtotals bold with a line above,
+  "Unmapped / other" in italics, the converted value in each cell with the display's number format (for example
+  `#,##0.0;(#,##0.0);"–"`), and each figure's source (file and sheet!cell or page) and marks in a cell comment.
+  Money metrics on the Metrics sheet are in the display unit too.
+- **Statements screen** (web UI): pickers for scope, statement, periods (fiscal years, quarters and half years, or
+  all), unit, % of revenue and YoY; the databook table with a sticky label column; each figure opens a drawer with
+  its source, its stored rupee value and its marks (stated, corrected, unconfirmed mapping, read by AI); **Export to
+  Excel** runs `fin export` as a job and the file can be downloaded. A picker value not offered is E001.
+- **Reports, evidence pages and dashboards** use the company's display settings: money in the report as "1,340.9 INR
+  Mn" (narrative references stay inline references), the evidence page's figure titles add the value in the display
+  unit after the stored rupees, `fin engagement bridge` and the diligence and FDD reports show the display unit, and
+  the dashboards' statements table is in it.
 
 ## Actor (SPEC-02)
 
@@ -1172,7 +1207,8 @@ states the figure; fin never invents one.
 - `fin fact unstate <co> <id>` withdraws one (E408 for an unknown or withdrawn id); `fin fact list <co> [--json]`
   lists them. Both commands back up the company database, log a run and an `audit.stated_figures` row, and refresh
   the analytics.
-- Marks: `fin statements` adds "(stated by the user, #id)" to the line and the Excel export a cell comment;
+- Marks: `fin statements` adds "(stated by the user, #id)" to the line and the Excel export puts it in the cell's
+  comment after the source;
   `fin sql` gives a row with a `stated_id` the source "stated by the user", the reference "stated #id: reason" and
   `source_read_by = 'user'`; the evidence page has a section per stated figure with its reason; `fin audit <co>
   <metric> <period>` names the stated input; the report's data coverage lists them under "Figures the user stated"
@@ -1238,7 +1274,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
     account, confidence, reason, where it is), then every other review kind `fin review list` has (Tally ledgers,
     customer sectors, tax ledger classes, related party links, net debt classes, bank matches), each with its rows
     as the CLI prints them, or the reason it has none (E803 without an open engagement).
-  - Statements: the latest fiscal year's statements as reported, or reported vs rebuilt from the trial balance (`?view=rebuilt`; SPEC-14); why there is nothing to show when there is not. Another view is refused with E001.
+  - Statements: the statements as reported in the databook layout with scope, statement, periods and unit pickers and a source drawer (SPEC-06), or reported vs rebuilt from the trial balance (`?view=rebuilt`; SPEC-14); why there is nothing to show when there is not. Another view, or a picker value not offered, is refused with E001.
   - Queries: the open engagement's accountant queries and adjustments with status and evidence.
   - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`).
   - Findings: the engagement's FDD findings (not dropped) with status, severity, amount and flags.

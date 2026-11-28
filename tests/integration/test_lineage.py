@@ -58,8 +58,8 @@ def test_a_summed_value_has_every_line_as_its_source(root: Path) -> None:
     page = (root / answer["evidence_path"]).read_text(encoding="utf-8")
     titles = re.findall(r"<h3>fact \d+: (.*?)</h3>", page)
     assert titles == [
-        "trade_payables FY25 standalone = 500000.00 rupees (confirmed)",
-        "trade_payables FY25 standalone = 1000000.00 rupees (confirmed)",
+        "trade_payables FY25 standalone = 500000.00 rupees = 0.5 INR Mn (confirmed)",
+        "trade_payables FY25 standalone = 1000000.00 rupees = 1.0 INR Mn (confirmed)",
     ]
     assert "1 row(s) are sums of several source lines; each line is below." in page
 

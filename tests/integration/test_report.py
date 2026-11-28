@@ -8,6 +8,7 @@ without it; the CI `outputs` job runs it.
 
 import json
 import os
+import re
 import shutil
 import sys
 from collections.abc import Callable
@@ -18,6 +19,7 @@ import pytest
 from typer.testing import CliRunner, Result
 
 from fin.cli import app
+from fin.config import DEFAULT_CONFIG_TOML
 from fin.db.conn import connect
 from fin.paths import audit_db_path, company_db_path
 from tests.integration.test_ingest_results import q1_results, q2_results, q4_results
@@ -27,6 +29,13 @@ TESTS = Path(__file__).resolve().parents[1]
 SAMPLES = TESTS / "fixtures" / "sample-financials"
 NARRATIVE = TESTS / "fixtures" / "report" / "kestrel_narrative.md"
 OUTPUTS = ("health.html", "health.docx", "health.pdf")
+# Money in crores to two decimals with a minus sign (config.toml [display]).
+CRORES = (
+    DEFAULT_CONFIG_TOML.replace('unit = "millions"', 'unit = "crores"')
+    .replace("decimals = 1", "decimals = 2")
+    .replace('negatives = "brackets"', 'negatives = "minus"')
+    .replace('unit_label = "INR Mn"', 'unit_label = "Cr"')
+)
 
 FAKE_QUARTO = """\
 import os
@@ -57,6 +66,7 @@ def ingested(clean_template: Callable[..., Path]) -> Path:
 def root(ingested: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     copy = tmp_path / "FinAnalysis"
     shutil.copytree(ingested, copy)
+    (copy / "config.toml").write_text(CRORES, encoding="utf-8")
     monkeypatch.setenv("FIN_DATA_DIR", str(copy))
     return copy
 
@@ -149,13 +159,13 @@ def test_render_substitutes_references_and_logs_the_report(root: Path, fake_quar
 
     html = (folder(root) / "health.html").read_text(encoding="utf-8")
     # Narrative references, in the config's display unit (crores).
-    assert "Revenue was ₹105.95 Cr in FY23, ₹119.73 Cr in FY24 and ₹134.09 Cr\nin FY25." in html
+    assert "Revenue was 105.95 Cr in FY23, 119.73 Cr in FY24 and 134.09 Cr\nin FY25." in html
     assert "EBITDA margin moved from 20.0% in FY23 to 18.0%\nin FY25." in html
     assert "Receivable days went from 62.0 days in FY23 to\n94.0 days in FY25." in html
     # Tables come from the metrics view; missing data is listed.
     assert "**Standalone**\n\n|  | FY23 | FY24 | FY25 |" in html  # the summary
     assert "| EBITDA margin | 20.0% | 19.0% | 18.0% |" in html
-    assert "| Free cash flow | ₹5.87 Cr | -₹0.34 Cr | ₹3.60 Cr |" in html
+    assert "| Free cash flow | 5.87 Cr | -0.34 Cr | 3.60 Cr |" in html
     assert "| ROE (average equity) | n/a | 19.5% | 16.9% |" in html
     assert "| Receivable days | 62.0 days | 78.0 days | 94.0 days |" in html
     assert "![Profitability, FY23 to FY25](chart-profitability.svg){width=100%}" in html
@@ -167,23 +177,23 @@ def test_render_substitutes_references_and_logs_the_report(root: Path, fake_quar
     assert "| Balance sheet | 54 | 54 | 100.0% |" in html
     assert "None: fin read every statement page of the loaded documents." in html
     assert "| standalone | FY23 | Revenue growth | revenue (FY22) |" in html
-    assert "| Total assets | ₹98.75 Cr | ₹116.44 Cr | ₹128.64 Cr |" in html
+    assert "| Total assets | 98.75 Cr | 116.44 Cr | 128.64 Cr |" in html
     # Every subtotal is explained by its lines or has no line under it: none is marked.
-    assert "| Revenue from operations | ₹105.95 Cr | ₹119.73 Cr | ₹134.09 Cr |" in html
+    assert "| Revenue from operations | 105.95 Cr | 119.73 Cr | 134.09 Cr |" in html
     assert "†" not in html
     # The appendix has the facts behind the condensed statements, not only the metrics'.
     assert "| standalone | `total_income` | FY25 |" in html
     assert "| Inventories |" not in html  # condensed: subtotals only
     assert "| profitability | EBITDA margin (`ebitda_margin`) | EBITDA as a fraction of" in html
     assert (
-        "| standalone | `revenue` | FY25 | ₹134.09 Cr | Kestrel_Forgings_Financials_FY23-FY25.xlsx"
+        "| standalone | `revenue` | FY25 | 134.09 Cr | Kestrel_Forgings_Financials_FY23-FY25.xlsx"
         in html
     )
     assert "{{" not in html
 
     data = json.loads((folder(root) / "report_data.json").read_text(encoding="utf-8"))
     assert data["references"]["{{metric:pat_margin:FY25}}"] == "9.6%"
-    assert data["references"]["{{fact:other_income:FY25}}"] == "₹0.54 Cr"
+    assert data["references"]["{{fact:other_income:FY25}}"] == "0.54 Cr"
     assert data["data"]["metrics"]["ebitda_margin"] == {
         "FY23": "0.199999",
         "FY24": "0.190000",
@@ -240,7 +250,7 @@ def test_a_narrative_reference_puts_its_fact_in_the_appendix(root: Path, fake_qu
     write_narrative(root, "## Summary\n\nEmployee costs were {{fact:employee_expense:FY25}}.\n")
     assert report().exit_code == 0
     html = (folder(root) / "health.html").read_text(encoding="utf-8")
-    assert "Employee costs were ₹" in html
+    assert re.search(r"Employee costs were [\d,.]+ Cr\.", html)
     assert "| standalone | `employee_expense` | FY25 |" in html
 
 
@@ -312,19 +322,18 @@ def test_latest_quarters_and_peer_comparison(root: Path, tmp_path: Path, fake_qu
 
     assert result.exit_code == 0, result.output
     html = (acme / "health.html").read_text(encoding="utf-8")
-    assert "Revenue was ₹12.10 Cr in FY26-Q2 and ₹43.90 Cr over the\nlast four quarters." in html
+    assert "Revenue was 12.10 Cr in FY26-Q2 and 43.90 Cr over the\nlast four quarters." in html
     assert "|  | FY25-Q2 | FY25-Q3 | FY25-Q4 | FY26-Q1 | FY26-Q2 |" in html
-    assert "| Revenue | ₹10.20 Cr | ₹10.30 Cr | ₹10.50 Cr | ₹11.00 Cr | ₹12.10 Cr |" in html
+    assert "| Revenue | 10.20 Cr | 10.30 Cr | 10.50 Cr | 11.00 Cr | 12.10 Cr |" in html
     assert "| Revenue growth on the previous quarter | 2.0% | 1.0% | 1.9% | 4.8% | 10.0% |" in html
-    assert (
-        "| Revenue, last four quarters | n/a | ₹40.00 Cr | ₹41.00 Cr | ₹42.00 Cr | ₹43.90 Cr |"
-        in (html)
+    assert "| Revenue, last four quarters | n/a | 40.00 Cr | 41.00 Cr | 42.00 Cr | 43.90 Cr |" in (
+        html
     )
     assert "Fiscal year FY25, standalone.\n\n|  | acme | kestrel |" in html
-    assert "| Revenue | ₹41.00 Cr | ₹134.09 Cr |" in html
-    assert "| Profit after tax | ₹29.00 Cr | ₹12.90 Cr |" in html
+    assert "| Revenue | 41.00 Cr | 134.09 Cr |" in html
+    assert "| Profit after tax | 29.00 Cr | 12.90 Cr |" in html
     # The appendix and the missing data cover the quarters the report shows, not only years.
-    assert "| standalone | `revenue` | FY26-Q2 | ₹12.10 Cr | q2.pdf |" in html
+    assert "| standalone | `revenue` | FY26-Q2 | 12.10 Cr | q2.pdf |" in html
     assert "| FY25-Q2 | Revenue growth | revenue (FY24-Q2) |" in html
 
     # Without --peers the narrative's peer section has nowhere to go.

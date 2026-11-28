@@ -6,9 +6,9 @@ import duckdb
 
 
 def fetch_dicts(
-    con: duckdb.DuckDBPyConnection, sql: str, params: list[Any] | None = None
+    con: duckdb.DuckDBPyConnection, sql: str, params: list[Any] | dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
-    """Run `sql` with `params` and return one dict per row."""
+    """Run `sql` with `params` (positional, or named for $name) and return one dict per row."""
     result = con.execute(sql, params or [])
     names = [column[0] for column in result.description or []]
     return [dict(zip(names, row, strict=True)) for row in result.fetchall()]

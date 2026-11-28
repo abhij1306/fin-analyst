@@ -3,7 +3,8 @@
 from datetime import datetime
 from decimal import Decimal
 
-from fin.diligence.bridge import format_bridge
+from fin.config import Display
+from fin.diligence.bridge import _bridge_block, format_bridge
 
 D = Decimal
 
@@ -28,7 +29,7 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
     }
     result = {
         "company": "acme",
-        "unit": "rupees",
+        "display": {"unit": "rupees", "decimals": 2, "negatives": "minus", "unit_label": "₹"},
         "engagement": {
             "engagement_id": 4,
             "status": "open",
@@ -68,12 +69,12 @@ def test_lines_without_a_value_name_their_missing_inputs() -> None:
         "acme consolidated FY26: EBITDA to cash (₹)",
         "EBITDA 1,500,000.00",
         "Non-cash and other items -20,000.00",
-        "Working capital change - (missing: cf_cash_generated)",
+        "Working capital change n/a (missing: cf_cash_generated)",
         "Taxes paid -300,000.00",
-        "Other operating items - (missing: cf_cash_generated)",
+        "Other operating items n/a (missing: cf_cash_generated)",
         "Cash from operations 900,000.00",
-        "Capex - (missing: cf_capex)",
-        "Free cash flow - (missing: cf_capex)",
+        "Capex n/a (missing: cf_capex)",
+        "Free cash flow n/a (missing: cf_capex)",
         "Cash conversion (CFO / EBITDA) 60.00%",
         "Adjusted cash conversion (CFO / adjusted EBITDA) 56.25%",
     ]
@@ -87,7 +88,7 @@ def test_a_bridge_without_reported_ebitda_names_the_missing_input() -> None:
     )
     result = {
         "company": "acme",
-        "unit": "rupees",
+        "display": {"unit": "rupees", "decimals": 2, "negatives": "minus", "unit_label": "₹"},
         "engagement": {"engagement_id": 1, "status": "open", "periods": "FY24",
                        "query_threshold": D("100000.00"), "opened_at": datetime(2026, 11, 9),
                        "closed_at": None, "invoice_due_days": 90},
@@ -108,6 +109,31 @@ def test_a_bridge_without_reported_ebitda_names_the_missing_input() -> None:
     lines = format_bridge(result).splitlines()
 
     assert lines[3:5] == [
-        "  Reported EBITDA" + " " * 41 + "-".rjust(17) + "  (missing: ebitda)",
+        "  Reported EBITDA" + " " * 41 + "n/a".rjust(17) + "  (missing: ebitda)",
         f"  {message}",
     ]
+
+
+def test_a_reclassification_names_the_amount_it_moves_in_the_display_unit() -> None:
+    summary = {
+        "period": "FY26",
+        "scope": "standalone",
+        "reported_ebitda": D("9000000"),
+        "accepted_revenue_effect": D("0"),
+        "proposed_count": 0,
+    }
+    step = {
+        "kind": "adjustment",
+        "adj_id": 4,
+        "category": "reclassification",
+        "description": "Freight",
+        "from_account": "other_expenses",
+        "account": "cost_of_materials",
+        "moved_amount": D("2500000"),
+        "amount": D("0"),
+    }
+    display = Display("millions", 1, "brackets", "INR Mn")
+
+    lines = _bridge_block("acme", display, summary, [step])
+
+    assert "(other_expenses to cost_of_materials, moves 2.5 INR Mn)" in lines[2]
