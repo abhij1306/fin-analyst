@@ -234,10 +234,32 @@ def test_a_confirmed_provision_ledger_missing_from_the_trial_balance_is_unknown_
             "VALUES ('Gratuity Fund (old)', 'gratuity', 'confirmed', 'name', 'r0', now())"
         )
         rows = con.execute(
-            "SELECT period, provision_inr, ledgers, confirmed FROM provision_balances "
+            "SELECT period, provision_inr, ledgers, confirmed_ledgers FROM provision_balances "
             "WHERE kind = 'gratuity' ORDER BY period"
         ).fetchall()
         absent = provisions.collect(con, load_config(root).fdd)["absent"]
 
-    assert rows and all(r[1:] == (None, 0, True) for r in rows)
+    assert rows and all(r[1:] == (None, 0, 1) for r in rows)
     assert sorted((a["period"], a["kind"]) for a in absent) == [(r[0], "gratuity") for r in rows]
+
+
+def test_a_period_with_only_some_confirmed_provision_ledgers_is_listed_with_its_count(
+    root: Path,
+) -> None:
+    path = company_db_path(root, "acme")
+    path.unlink()
+    ensure_database(path, "company")
+    with connect(path, write=True) as con:
+        seed(con)
+        for ledger in ("Gratuity Payable", "Gratuity Fund (old)"):
+            con.execute(
+                "INSERT INTO provision_ledgers (ledger, kind, status, reason, run_id, changed_at) "
+                "VALUES (?, 'gratuity', 'confirmed', 'name', 'r0', now())",
+                [ledger],
+            )
+        absent = provisions.collect(con, load_config(root).fdd)["absent"]
+
+    assert [(a["period"], a["ledgers"], a["confirmed_ledgers"]) for a in absent] == [
+        ("FY24", 1, 2),
+        ("FY25", 1, 2),
+    ]

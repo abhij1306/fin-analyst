@@ -182,7 +182,11 @@ class Chat:
                 raise ChatBusy("this conversation is still working: wait for it or press Stop")
             env = {**os.environ, "FIN_DATA_DIR": str(self.root)}
             try:
-                process = subprocess.Popen(
+                # Sonar S6350 reads the Allow once rule from the conversation file as tainted:
+                # turn_argv passes it only through chat_args.checked_rule (the exact shape
+                # once_rule makes, never a decision) and as one --allowedTools= argument, so it
+                # cannot add an option.
+                process = subprocess.Popen(  # NOSONAR
                     argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     text=True, encoding="utf-8", cwd=REPO, env=env,
                 )  # fmt: skip

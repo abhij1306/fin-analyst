@@ -11,11 +11,11 @@ Claude Code asks the user first, when it has the word `gate` followed later by `
 with or without --undo) or names `findings.set_status`, `fin.fdd.findings`, `from fin.fdd import
 findings` (an import of it, aliased or not) or `mark_fdd_findings`. It also asks when the raw
 command names fin with `gate` or `finding` and has a `$` or backtick expansion
-(`a=approve; fin gate $a`), since the words the shell runs are not in the text. When in doubt
-it asks: a commit message with "gate approve" in it asks too. For anything else, and for input it
-cannot read, it prints nothing and exits 0, so no other command is ever blocked. `fin sql
---write` refuses to write the gate approvals and FDD findings tables on its own (E806). See
-docs/product.md §8.
+(`a=approve; fin gate $a`), or fin's subcommand is an expansion (`fin $ARGS`), since the
+words the shell runs are not in the text. When in doubt it asks: a commit message with "gate
+approve" in it asks too. For anything else, and for input it cannot read, it prints nothing and
+exits 0, so no other command is ever blocked. `fin sql --write` refuses to write the gate
+approvals and FDD findings tables on its own (E806). See docs/product.md §8.
 """
 
 import json
@@ -41,6 +41,8 @@ FINAL_NAMES = (
 # fin with gate or finding and a shell expansion: the words the shell runs are not in the text
 # (`a=approve; fin gate $a`), so it asks.
 FIN = re.compile(r"\bfin\b")
+# fin whose subcommand (or the word after it) is an expansion: `fin $ARGS`, `fin fdd "$x"`
+FIN_EXPANDED = re.compile(r"\bfin\s+(?:[\w-]+\s+)?[\"']?[$`]")
 GATE_OR_FINDING = re.compile(r"\b(?:gate|finding)\b")
 EXPANSION = re.compile(r"[$`]")
 
@@ -69,8 +71,11 @@ def looks_like_final(command: str) -> bool:
 
 
 def hides_words(command: str) -> bool:
-    """fin with `gate` or `finding` and a `$` or backtick expansion, in the raw command."""
+    """fin with `gate` or `finding` and a `$` or backtick expansion, or fin whose subcommand is
+    an expansion (`fin $ARGS`), in the raw command."""
     text = command.lower()
+    if FIN_EXPANDED.search(text):
+        return True
     return bool(FIN.search(text) and GATE_OR_FINDING.search(text) and EXPANSION.search(text))
 
 

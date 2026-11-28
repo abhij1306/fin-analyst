@@ -32,7 +32,7 @@ FROM p;
 -- The confirmed provision ledgers' balances in each loaded trial balance of the latest engagement (an annual period
 -- or the stub): credit less debit, so a provision reads positive. One row per period and kind; provision_inr is NULL
 -- when no ledger of that kind is confirmed, and also when the confirmed ones are not in that trial balance (missing,
--- not zero: `confirmed` true with `ledgers` 0, which `fin provisions show` warns about).
+-- not zero). `ledgers` of `confirmed_ledgers` are in it: `fin provisions show` warns when fewer are.
 CREATE VIEW provision_balances AS
 WITH tb AS (
     SELECT file_id, file_name, period FROM source_files
@@ -46,7 +46,7 @@ SELECT tb.period, k.kind,
     (SELECT count(*) FROM trial_balance t
         JOIN provision_ledgers c ON c.ledger = t.ledger AND c.kind = k.kind AND c.status = 'confirmed'
         WHERE t.file_id = tb.file_id AND t.row_type = 'ledger') AS ledgers,
-    EXISTS (SELECT 1 FROM provision_ledgers c WHERE c.kind = k.kind AND c.status = 'confirmed') AS confirmed,
+    (SELECT count(*) FROM provision_ledgers c WHERE c.kind = k.kind AND c.status = 'confirmed') AS confirmed_ledgers,
     tb.file_name AS trial_balance_file
 FROM tb CROSS JOIN kinds k;
 

@@ -235,7 +235,8 @@ Every `fin` command:
   `approve`, or names `gate_approvals`, `approve_in`, `gates.approve`, `from fin.diligence.gates import` or
   `approve_gate` (and for a finding: `finding final`, `findings.set_status`, `fin.fdd.findings`, `from fin.fdd import
   findings` or `mark_fdd_findings`); it also asks when the raw command names fin with `gate` or `finding` and has a `$`
-  or backtick expansion (`a=approve; fin gate $a`: the words the shell runs are not in the text); when in
+  or backtick expansion (`a=approve; fin gate $a`: the words the shell runs are not in the text), or when fin's
+  subcommand is an expansion (`fin $ARGS`); when in
   doubt it asks. It is a guard for an agent that follows CLAUDE.md, not enforcement: other ways to approve are not
   matched, and the controls are E801 (a command that needs a gate refuses until it is approved) and E802 (a gate with a
   failing checklist cannot be approved). It prints nothing for any other command or for input it cannot read, so it never blocks anything
@@ -919,7 +920,8 @@ with kind `doubtful_debts` or `gratuity`; E920) and the user confirms or rejects
   provision over the bucket and every older one (over the total for `total`). Sales invoices dated by the year end
   that are in no run (no bank statement for their period) are shown as not aged. A confirmed provision ledger that a
   period's trial balance does not have leaves that provision unknown (NULL, shown '-'), not zero, and `fin provisions
-  show` prints a warning naming the period, kind and trial balance.
+  show` prints a warning naming the period, kind and trial balance; it also warns when only some of the kind's confirmed
+  ledgers are in it (the provision then sums those present).
 - indicative gratuity (table macros `gratuity_lines` and `gratuity_indicative(basic_share, min_years, cap)`, called
   with `config.toml [fdd]`): per payroll snapshot whose unit the user confirmed annual, each employee not resigned by
   the snapshot date with at least `gratuity_min_years` (5) completed years: 15/26 x monthly wages x years, capped at

@@ -60,6 +60,8 @@ def test_a_plain_fin_command_can_still_be_allowed_once() -> None:
     [
         "a=approve; uv run fin gate $a acme G2",
         "uv run fin fdd finding `echo final` acme 3",
+        "uv run fin $ARGS",
+        'uv run fin fdd "$verb" acme 3',
         "uv run python -c 'from fin.services.gates import approve_gate'",
         "uv run python -c 'from fin.services.fdd import mark_fdd_findings'",
     ],
