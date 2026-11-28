@@ -15,8 +15,7 @@ from fin.audit.errors import ChatUnavailable, UiActionInvalid
 # The commands that are the user's decisions (CLAUDE.md, "Diligence"; the screens' buttons).
 DECISION_COMMANDS = [
     ("gate", "approve"),
-    ("fdd", "finding", "final"),
-    ("fdd", "finding", "draft"),
+    ("fdd", "finding", "final"),  # also its --undo, the return to draft
     ("query", "approve"),
     ("query", "sent"),
     ("query", "close"),

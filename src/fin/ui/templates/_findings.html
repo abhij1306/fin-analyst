@@ -6,7 +6,7 @@
 {{ no_company() }}
 {% elif data.no_engagement %}
 {{ head("FDD findings", "Claude proposes findings; only you mark one final.") }}
-{{ no_engagement(data.no_engagement) }}
+{{ no_engagement(data.no_engagement, company, data.can_open) }}
 {% else %}
 {{ head("FDD findings", "Claude proposes findings; you can edit or drop a draft; only you mark one final.") }}
 <div class="card">

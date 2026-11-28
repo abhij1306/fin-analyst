@@ -15,8 +15,8 @@ from fin.audit.errors import DependencyMissing, UiActionInvalid
 from fin.dashboard import BASE_PATH, last_good_build_dir
 from fin.services import fdd
 from fin.services.questions import evidence_page
-from fin.services.result import ActionResult, Refused
-from fin.ui import screens
+from fin.services.result import ActionResult
+from fin.ui.action_routes import respond
 from fin.ui.actions import ITEM_ID
 
 REPORT_CSP = "sandbox allow-scripts allow-popups allow-downloads"
@@ -68,21 +68,12 @@ def add_system_routes(
     @app.post("/fdd-edit", response_class=HTMLResponse)
     async def fdd_edit(request: Request) -> HTMLResponse:
         form = {k: v for k, v in (await request.form()).items() if isinstance(v, str)}
-        chosen = known(root, form.get("company", "")) or ""
         item = form.get("item", "")
-        outcome: ActionResult
-        try:
+
+        def act(company: str) -> ActionResult:
             if not ITEM_ID.fullmatch(item):
                 raise UiActionInvalid(f"{item[:60]!r} is not a finding id")
             fields = finding_fields(form)
-            outcome = fdd.edit_finding(root, chosen, int(item), fields, via="ui", actor=USER)
-        except UiActionInvalid as error:
-            outcome = Refused.before_run(error)
-        context = {
-            "company": chosen,
-            "tab_counts": screens.tab_counts(root, chosen or None),
-            "data": screens.LOADERS["findings"](root, chosen),
-            "screen": "findings",
-            "outcome": outcome,
-        }
-        return templates.TemplateResponse(request, "_acted.html", context)
+            return fdd.edit_finding(root, company, int(item), fields, via="ui", actor=USER)
+
+        return respond(templates, root, request, "findings", form.get("company", ""), known, act)

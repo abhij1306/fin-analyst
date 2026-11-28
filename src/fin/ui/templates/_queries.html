@@ -5,7 +5,7 @@
 {{ no_company() }}
 {% elif data.no_engagement %}
 {{ head("Queries") }}
-{{ no_engagement(data.no_engagement) }}
+{{ no_engagement(data.no_engagement, company, data.can_open) }}
 {% else %}
 {% call head("Queries and adjustments", "Differences are queried, never fixed. fin sends nothing: export the approved queries and send them yourself.") %}
 <form class="inline" hx-post="/query/export" hx-target="#screen" hx-swap="innerHTML"><input type="hidden" name="company" value="{{ company }}"><button type="submit" class="btn" data-size="sm" data-variant="outline">Export workbook and email</button></form>

@@ -23,10 +23,9 @@ from fin.doctor import run_checks
 from fin.extract.addon import ADDON_LABELS
 from fin.extract.fallback import ABOUT
 from fin.paths import audit_db_path, reports_dir
-from fin.services.jobs import list_jobs
 from fin.services.questions import saved_questions
 from fin.ui.actions import ITEM_ID
-from fin.ui.job_routes import LABELS as JOB_LABELS
+from fin.ui.job_routes import jobs_card
 
 LOG_LIMIT = 100
 NOT_RECORDED = "not recorded"  # the actor of a run whose arguments do not name one
@@ -37,8 +36,7 @@ WITH_QUERY = ("log",)  # loaders that also take the page's query parameters
 def _jobs(root: Path, company: str | None) -> dict[str, Any]:
     """The jobs card: the company's jobs, or before any company the install's own (company "").
     `ready` once `fin init` made the audit database the jobs are kept in."""
-    return {"jobs": list_jobs(root, company or ""), "job_labels": JOB_LABELS,
-            "ready": audit_db_path(root).is_file()}  # fmt: skip
+    return {**jobs_card(root, company or ""), "ready": audit_db_path(root).is_file()}
 
 
 def settings(root: Path, company: str | None) -> dict[str, Any]:

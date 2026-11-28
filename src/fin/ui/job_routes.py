@@ -22,7 +22,7 @@ from fin.services import addon, dataroom, ingest, questions, reports, system
 from fin.services.jobs import Jobs, Work, list_jobs
 from fin.services.result import ActionResult, Progress
 from fin.ui.actions import ITEM_ID
-from fin.ui.uploads import MAX_REQUEST_BYTES, save_uploads
+from fin.ui.uploads import check_length, save_uploads
 
 # The job actions and how the page names them.
 LABELS = {
@@ -147,8 +147,10 @@ def job_arguments(
     return arguments | {"doc_id": int(item)}
 
 
-def jobs_context(root: Path, company: str) -> dict[str, Any]:
-    return {"company": company, "jobs": list_jobs(root, company), "job_labels": LABELS}
+def jobs_card(root: Path, company: str) -> dict[str, Any]:
+    """What the Jobs card shows: the company's latest jobs (company "" before any company exists:
+    the install's own) and how each action is named. Every screen with the card uses this."""
+    return {"jobs": list_jobs(root, company), "job_labels": LABELS}
 
 
 def add_job_routes(
@@ -159,7 +161,8 @@ def add_job_routes(
     jobs: Jobs,
 ) -> None:
     def shown(request: Request, company: str) -> HTMLResponse:
-        return templates.TemplateResponse(request, "_jobs.html", jobs_context(root, company))
+        context = {"company": company, **jobs_card(root, company)}
+        return templates.TemplateResponse(request, "_jobs.html", context)
 
     def chosen(company: str | None, install_wide: bool = False) -> str:
         name = known(root, company)
@@ -187,8 +190,7 @@ def add_job_routes(
     async def dataroom_upload(request: Request) -> HTMLResponse:
         """A data room as a .zip: saved in its own folder under dataroom/<company>/uploads/, then
         scanned as a job, as a chosen folder is."""
-        if int(request.headers.get("content-length", "-1")) not in range(MAX_REQUEST_BYTES + 1):
-            raise UiActionInvalid("the upload is empty, of unknown size or too large")
+        check_length(request.headers.get("content-length"))
         form = await request.form()
         name = chosen(str(form.get("company", "")))
         sent = [f for f in form.getlist("files") if isinstance(f, UploadFile) and f.filename]

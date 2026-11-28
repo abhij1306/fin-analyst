@@ -11,7 +11,7 @@
 </nav>
 {% endcall %}
 {% if data.no_engagement %}
-{{ no_engagement(data.no_engagement) }}
+{{ no_engagement(data.no_engagement, company, data.can_open) }}
 {% else %}
 <p class="muted">{{ data.engagement }} · {{ data.unit }}</p>
 {% if data.view == "bridge" %}

@@ -66,3 +66,13 @@ Builder's readings ([README](README.md)); the owner confirms or changes them.
   stays its own click with a confirmation, as before.
 - **Why:** the spec: drafts are edited and dropped in the UI; only the user marks one final.
 - **How to change it:** `src/fin/services/fdd.py`, `templates/_finding_edit.html`.
+
+### 9. Dead ends closed in the system review (reading, 2026-11-28)
+- **Decision:** a diligence screen with no open engagement (Queries, Gates, Findings, Differences) links to the
+  Engagement screen, where the form to open one is; Differences with no differences yet has a button that asks the
+  assistant to run the reconciliations; Reports has one **Write the ... narrative in chat** button per report kind (`/report <company>` for
+  health, a request naming `fin report --diligence` or `--fdd` for the others). Each only opens a screen or fills the chat box: nothing runs without the user.
+- **Why:** walking from first install to a report, each of these screens named a next step the screen could not
+  take, and the step was elsewhere or in chat.
+- **How to change it:** `templates/_ui.html` (`no_engagement`), `templates/_differences.html`,
+  `templates/_reports.html`.

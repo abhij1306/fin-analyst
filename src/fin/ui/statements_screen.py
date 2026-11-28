@@ -14,6 +14,7 @@ from fin.display import PER_SHARE, display_settings, number
 from fin.rebuilt.compare import blocks, notes, rebuilt_rows, select_period
 from fin.services.jobs import list_jobs
 from fin.statements import TITLES, latest_annual_period, marks, statement_rows
+from fin.ui.job_routes import LABELS as JOB_LABELS
 
 VIEWS = ("reported", "rebuilt")
 STATEMENT_CHOICES = {"all": "All statements", **TITLES}
@@ -94,7 +95,7 @@ def statements_screen(
         "unit_label": display.unit_label,
         "export": export if (root / "reports" / company / export).is_file() else None,
         "jobs": [j for j in list_jobs(root, company) if j["action"] == "export"][:1],
-        "job_labels": {"export": "Export to Excel"},
+        "job_labels": JOB_LABELS,
     }
 
 

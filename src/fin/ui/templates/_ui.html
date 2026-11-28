@@ -33,6 +33,8 @@
 <div class="card"><section>{{ empty("No companies yet", "Create one, then upload its files on the Files screen.") }}{{ new_company() }}</section></div>
 {% endmacro %}
 
-{% macro no_engagement(message) %}
-<div class="card"><section>{{ empty("No engagement", message | code) }}</section></div>
+{#- Why a diligence screen has nothing to show. When an engagement can be opened (`can_open`), it links to the
+    Engagement screen, where its form is. -#}
+{% macro no_engagement(message, company=none, can_open=false) %}
+<div class="card"><section>{{ empty("No engagement", message | code) }}{% if can_open and company %}<p class="pad"><a class="btn" data-size="sm" data-variant="outline" href="/engagement?company={{ company | urlencode }}">Open an engagement on the Engagement screen</a></p>{% endif %}</section></div>
 {% endmacro %}

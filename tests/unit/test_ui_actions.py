@@ -234,6 +234,18 @@ def test_a_file_over_the_limit_is_refused(
     assert not (root / "inbox" / "acme").exists()
 
 
+def test_an_upload_records_the_user_and_the_ui_like_every_other_write(
+    client: TestClient, root: Path
+) -> None:
+    upload(client, [("a.xlsx", b"x")])
+    with connect(audit_db_path(root)) as con:
+        [(args,)] = con.execute(
+            "SELECT args FROM runs WHERE command = 'ui upload' AND record = 'start'"
+        ).fetchall()
+    recorded = json.loads(args)
+    assert (recorded["via"], recorded["actor"], recorded["files"]) == ("ui", "user", ["a.xlsx"])
+
+
 def test_an_upload_to_an_unknown_company_is_e001(client: TestClient) -> None:
     assert "E001" in upload(client, [("a.xlsx", b"x")], company="ghost").text
 

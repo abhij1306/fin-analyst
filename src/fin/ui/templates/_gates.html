@@ -5,7 +5,7 @@
 {{ no_company() }}
 {% elif data.no_engagement %}
 {{ head("Gates") }}
-{{ no_engagement(data.no_engagement) }}
+{{ no_engagement(data.no_engagement, company, data.can_open) }}
 {% else %}
 {{ head("Gates", "Engagement #" ~ data.engagement_id ~ " · credit terms " ~ data.invoice_due_days ~ " days. Only you approve a gate.") }}
 {% for g in data.gates %}
