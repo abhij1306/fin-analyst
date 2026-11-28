@@ -118,6 +118,6 @@ def test_a_write_naming_a_missing_column_gets_the_hint(root: Path) -> None:
     run = Run("sql", {}, root)
 
     with pytest.raises(SqlFailed) as error:
-        write_sql(run, "acme", "UPDATE documents SET version = 2 WHERE document_id = 1")
+        write_sql(run, "acme", "UPDATE company_profile SET name = 'x' WHERE company_code = 1")
 
-    assert "Columns of the tables in the query: documents (doc_id," in str(error.value)
+    assert "Columns of the tables in the query: company_profile (code," in str(error.value)

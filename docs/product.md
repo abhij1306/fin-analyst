@@ -357,7 +357,7 @@ folder), the `quarto` fix on macOS (`./install.sh`, never brew), and `web ui` (i
 | `fin document delete <co> <ids>` (the Files screen's Delete) | — | Either (when the user asks) |
 | `fin status [co]` | `/status` | Either |
 | `fin sql <co> --sql "…" [--question] [--evidence]` | `/ask`, `/report` | Either (reads) |
-| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit; refuses the figure tables, E505) |
+| `fin sql <co> --write --sql "…"` | — | Either (on user request; backup + audit; refuses the figure tables, `documents` and the reference tables, E505) |
 | `fin fact state <co> --account --period --scope --value --reason`, `fin fact unstate <co> <id>`, `fin fact correct <co> <fact_id> --value --reason`, `fin fact list <co> [--json]` | `/ingest` | Either (state or correct only when the user says, in their words) |
 | `fin schema [co] [--table name] [--json]` | `/ask` | Either |
 | `fin metric add <name> --formula … --unit ratio\|rupees\|days --definition "…" [--company co]`, `fin metric list [co]`, `fin metric remove <name> [--company co]` | `/ask` (offers to save a hand-written ratio) | Either (add or remove when the user says) |
@@ -1129,6 +1129,8 @@ Decisions: [decisions/spec-10.md](decisions/spec-10.md).
   proposes a mapping with `fin reference propose <co> <file.json>` (a list of `{line, account or metric, confidence,
   reason}`, all or nothing): an account of the line's statement, or a metric, in rupees (E981 otherwise). Only the
   user confirms (`fin reference confirm <co> <ids>`, a proposed line) or rejects (`fin reference reject`) a line.
+  `fin sql --write` refuses `reference_files`, `reference_lines` and `reference_values` (E505; owner, 2026-11-28), so a
+  mapping is not confirmed by SQL.
 - **`fin reference compare <co> [--all] [--json]`** (view `reference_comparison`): for each figure of a mapped line,
   fin's figure for the same account or metric, period and scope, the difference (fin minus the reference) and both
   sources (fin's file and cell, a stated figure or the metric; the reference's file and cell), in the company's
@@ -1300,9 +1302,12 @@ states the figure; fin never invents one.
 - A metric without a value says why: "EBITDA not computed for FY24 standalone: no finance_cost for FY24. Load a
   document that has it, or state it (...)" (`fin/metrics/missing.py`), in `fin engagement bridge` and
   `fin audit <co> <metric> <period>`; "a denominator is zero" when no input is missing.
-- `fin sql --write` refuses any statement that names `facts`, `raw_values`, `stated_figures` or
-  `fact_corrections` (E505), before the backup: figures come from documents (`fin ingest`, `fin review`), from the
-  user (`fin fact state`), or from a correction of fin's own misread (`fin fact correct`).
+- `fin sql --write` refuses any statement other than a SELECT that names `facts`, `raw_values`, `stated_figures`,
+  `fact_corrections`, `documents` or a reference table (`reference_files`, `reference_lines`, `reference_values`) (E505), before the backup: figures come from documents (`fin ingest`, `fin review`), from the
+  user (`fin fact state`), or from a correction of fin's own misread (`fin fact correct`). It does not write a
+  document's status or paths (owner, 2026-11-28): a status written by hand would release a held document without its
+  findings accepted. fin's own commands change them (`fin ingest`, `fin findings accept`, `fin review confirm`,
+  `fin fact correct`, `fin document delete`).
 - **Correcting a figure fin read wrongly**: `fin fact correct <co> <fact_id> --value V --reason "..."`, only on the
   user's word. It backs up the company database, sets `facts.value` (rupees; rupees per share for EPS), keeps the
   cell or page and the printed text in `raw_values`, and records the value before, the reason, the actor (`fin.actor`:

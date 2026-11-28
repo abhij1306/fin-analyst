@@ -17,7 +17,7 @@ from typer.testing import CliRunner, Result
 
 from fin.cli import app
 from fin.db.conn import connect
-from fin.paths import analytics_db_path, audit_db_path, company_db_path
+from fin.paths import audit_db_path, company_db_path
 
 runner = CliRunner()
 SAMPLES = Path(__file__).resolve().parents[1] / "fixtures" / "sample-financials"
@@ -313,7 +313,7 @@ def kestrel(clean_root: Callable[..., Path]) -> Path:
 
 
 def test_sql_write_changes_data_with_backup_and_audit_row(kestrel: Path) -> None:
-    sql = "UPDATE documents SET status = 'superseded'"
+    sql = "INSERT INTO company_profile VALUES ('kestrel', 'Kestrel Ltd', now(), 'by-hand')"
 
     result = invoke("sql", "kestrel", "--write", "--sql", sql)
 
@@ -322,19 +322,14 @@ def test_sql_write_changes_data_with_backup_and_audit_row(kestrel: Path) -> None
     assert out["rows_affected"] == 1
     assert out["backup_path"] == f"backups/{out['query_id']}/companies/kestrel.duckdb"
     with connect(company_db_path(kestrel, "kestrel")) as con:
-        assert con.execute("SELECT status FROM documents").fetchall() == [("superseded",)]
+        assert con.execute("SELECT name FROM company_profile").fetchall() == [("Kestrel Ltd",)]
     with connect(kestrel / out["backup_path"]) as con:
-        assert con.execute("SELECT status FROM documents").fetchall() == [("loaded",)]
+        assert con.execute("SELECT name FROM company_profile").fetchall() == []
     assert audit_rows(
         kestrel,
         "SELECT sql, mode, row_count, backup_path FROM queries WHERE query_id = ?",
         [out["query_id"]],
     ) == [(sql, "write", 1, out["backup_path"])]
-    # Metrics are refreshed: with its only document superseded, kestrel has no metrics.
-    with connect(analytics_db_path(kestrel)) as con:
-        assert con.execute("SELECT count(*) FROM metrics WHERE company = 'kestrel'").fetchall() == [
-            (0,)
-        ]
 
 
 @pytest.mark.parametrize(
@@ -344,10 +339,14 @@ def test_sql_write_changes_data_with_backup_and_audit_row(kestrel: Path) -> None
         "INSERT INTO raw_values SELECT * FROM raw_values",
         "DELETE FROM stated_figures",
         "DELETE FROM fact_corrections",
+        "UPDATE documents SET status = 'superseded'",
+        "DELETE FROM documents",
+        "UPDATE reference_lines SET status = 'confirmed'",
     ],
 )
-def test_sql_write_refuses_the_figure_tables(kestrel: Path, sql: str) -> None:
+def test_sql_write_refuses_the_figure_tables_and_documents(kestrel: Path, sql: str) -> None:
     before = query_rows(kestrel, "SELECT count(*), sum(value) FROM facts")
+    documents = query_rows(kestrel, "SELECT doc_id, status, archive_path FROM documents")
     backups = sorted((kestrel / "backups").glob("*"))  # the fixture's own ingests back up
 
     result = invoke("sql", "kestrel", "--write", "--sql", sql)
@@ -355,6 +354,7 @@ def test_sql_write_refuses_the_figure_tables(kestrel: Path, sql: str) -> None:
     assert result.exit_code == 2
     assert result.stderr.startswith("E505: `fin sql --write` does not change the figures")
     assert query_rows(kestrel, "SELECT count(*), sum(value) FROM facts") == before
+    assert query_rows(kestrel, "SELECT doc_id, status, archive_path FROM documents") == documents
     assert sorted((kestrel / "backups").glob("*")) == backups
 
 
@@ -364,19 +364,18 @@ def query_rows(root: Path, sql: str) -> list[tuple[Any, ...]]:
 
 
 def test_sql_write_rolls_back_every_statement_when_one_fails(kestrel: Path) -> None:
-    sql = "UPDATE documents SET file_name = 'x.xlsx'; UPDATE documents SET nope = 1"
+    sql = "INSERT INTO company_profile VALUES ('kestrel', 'x', now(), 'r'); "
+    sql += "UPDATE company_profile SET nope = 1"
 
     result = invoke("sql", "kestrel", "--write", "--sql", sql)
 
     assert result.exit_code == 2
     assert result.stderr.startswith("E504: the change failed and was rolled back")
-    assert query_rows(kestrel, "SELECT count(*) FROM documents WHERE file_name = 'x.xlsx'") == [
-        (0,)
-    ]
+    assert query_rows(kestrel, "SELECT count(*) FROM company_profile") == [(0,)]
 
 
 def test_sql_write_records_the_question(kestrel: Path) -> None:
-    sql = "UPDATE documents SET status = 'loaded'"
+    sql = "UPDATE company_profile SET name = name"
     out = json.loads(invoke("sql", "kestrel", "--write", "--question", "fix", "--sql", sql).stdout)
     assert audit_rows(
         kestrel, "SELECT question FROM queries WHERE query_id = ?", [out["query_id"]]
@@ -384,8 +383,8 @@ def test_sql_write_records_the_question(kestrel: Path) -> None:
 
 
 def test_sql_write_counts_rows_changed_by_a_statement_with_returning(kestrel: Path) -> None:
-    changed = "UPDATE documents SET status = 'loaded' WHERE doc_id = 1 RETURNING doc_id, status"
-    none = "UPDATE documents SET status = 'loaded' WHERE doc_id = -1 RETURNING doc_id"
+    changed = "INSERT INTO company_profile VALUES ('kestrel', 'x', now(), 'r') RETURNING code, name"
+    none = "UPDATE company_profile SET name = 'y' WHERE code = 'none' RETURNING code"
 
     out = json.loads(invoke("sql", "kestrel", "--write", "--sql", changed).stdout)
     nothing = invoke("sql", "kestrel", "--write", "--sql", none)

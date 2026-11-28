@@ -70,3 +70,19 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
 - **Why**: one set of reported figures for every comparison; a stated figure is a figure in use (this file, above),
   and G1 lists it for the user before approving.
 - **How to change it**: `src/fin/diligence/recon.py: statement_figures`.
+
+## E505 covers documents and the reference tables too
+
+- **OWNER DECISION** (owner, 2026-11-28): asked whether `fin sql --write` should refuse to change the `documents` table,
+  the same as the figure tables, the owner answered: "ok and document it as decisions so client can know". The same
+  day the owner said "ok" to adding the reference tables (`reference_*`) to the same guard, so a reference mapping
+  cannot be confirmed by SQL past `fin reference confirm`.
+- **Decision**: `fin sql --write` refuses any statement other than a SELECT that names `documents` (E505), before the
+  backup. fin's own commands load, hold, release and remove documents (`fin ingest`, `fin findings accept`,
+  `fin review confirm`, `fin fact correct`, `fin document delete`). A write to `findings` can still release a held
+  document through the recheck after it; that is open (#139, Not fixed). It also refuses `reference_files`,
+  `reference_lines` and `reference_values` (E505): only the user confirms or rejects a reference line.
+- **Why**: `UPDATE documents SET status = 'loaded'` released a held document into `current_facts` without its
+  findings being accepted, and the stored file paths were writable too (#136). `UPDATE reference_lines SET status =
+  'confirmed'` stood in for the user's confirmation, and only confirmed lines are compared.
+- **How to change it**: `src/fin/query/write.py: FIGURE_TABLE`.
