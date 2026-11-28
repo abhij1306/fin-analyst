@@ -32,8 +32,9 @@ Builder's readings (2026-11-28), for the owner to confirm or change.
   mappings are not named.
 - **Why**: a line mapped to the wrong account has left the subtotal it belongs to, so looking only at the compared
   lines would miss the cause the client met. Unconfirmed lines never enter a subtotal: a statement with
-  unconfirmed lines does not run its subtotal check at all (it is listed under "checks that did not run" instead),
-  so there is no unconfirmed line to name.
+  unconfirmed lines that could be part of a subtotal does not run its subtotal check at all (it is listed under
+  "checks that did not run" instead), so there is no unconfirmed line to name. A nil line, a per-share line and the
+  P&L split between owners and non-controlling interests do not stop the check.
 - **How to change it**: `src/fin/validate/finding_rows.py: _mappings`.
 
 ## Changing a mapping from a finding is `fin map set`

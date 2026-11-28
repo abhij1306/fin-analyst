@@ -2,6 +2,7 @@
 proposals at confidence 0.8 or above, and a choice of account from the dictionary; Home lists the
 checks that did not run with what would make them run. Needs the `ui` extra; skipped without it."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,7 @@ pytest.importorskip("multipart")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from fin.db.conn import connect  # noqa: E402
-from fin.paths import company_db_path  # noqa: E402
+from fin.paths import company_db_path, review_dir  # noqa: E402
 from fin.services.reviews import KINDS  # noqa: E402
 from fin.ui.server import create_app  # noqa: E402
 from tests.engagement_root import mapping_decisions, with_proposal  # noqa: E402
@@ -54,6 +55,31 @@ def test_the_bulk_confirm_takes_only_proposals_at_0_8_or_above(client: TestClien
     assert 'list="accounts-balance_sheet"' in page  # choose another account
     assert '<datalist id="accounts-balance_sheet">' in page
     assert '<option value="trade_receivables">' in page
+
+
+def test_the_bulk_confirm_takes_at_most_500_ids_the_ui_accepts(
+    client: TestClient, root: Path
+) -> None:
+    items = [
+        {
+            "id": n,
+            "status": "proposed",
+            "statement": "balance_sheet",
+            "section": "",
+            "label": f"Debtors {n}",
+            "facts": 0,
+            "where": [],
+            "account": "trade_receivables",
+            "confidence": 0.9,
+            "reason": "by name",
+        }
+        for n in range(1, 503)
+    ]
+    pending = {"company": "acme", "next_id": 503, "items": items}
+    (review_dir(root, "acme") / "pending.json").write_text(json.dumps(pending), encoding="utf-8")
+    page = client.get("/partials/mappings?company=acme").text
+    assert "Confirm the 500 proposals at 0.8 or above" in page
+    assert 'value="' + ",".join(str(n) for n in range(1, 501)) + '"' in page
 
 
 def test_choosing_another_account_confirms_with_it(client: TestClient, root: Path) -> None:

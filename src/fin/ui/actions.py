@@ -82,6 +82,16 @@ def _ids(action: Action, item: str) -> list[int]:
     return [int(p) for p in parts]
 
 
+def _target(action: Action, item: str) -> str | list[int]:
+    """A gate name for a gate approval, else the item ids."""
+    if action.service is not decisions.approve_gate:
+        return _ids(action, item)
+    target = item.upper()
+    if target not in gates.NAMES:
+        raise UiActionInvalid(f"unknown gate {item!r}; use one of {', '.join(gates.NAMES)}")
+    return target
+
+
 def decide(
     root: Path, company: str, name: str, item: str, reason: str | None, chosen: str | None = None
 ) -> ActionResult:
@@ -96,13 +106,9 @@ def decide(
         raise UiActionInvalid("give the reason; nothing changed")
     if action.needs_choice and chosen is None:
         raise UiActionInvalid("choose the account; nothing changed")
-    target: str | list[int]
-    if action.service is decisions.approve_gate:
-        target = item.upper()
-        if target not in gates.NAMES:
-            raise UiActionInvalid(f"unknown gate {item!r}; use one of {', '.join(gates.NAMES)}")
-    else:
-        target = _ids(action, item)
+    if chosen is not None and action.choice is None:
+        raise UiActionInvalid(f"{name} takes no choice; nothing changed")
+    target = _target(action, item)
     given = action.given | ({"reason": reason} if action.reason else {})
     if action.choice and chosen is not None:
         given[action.choice] = chosen

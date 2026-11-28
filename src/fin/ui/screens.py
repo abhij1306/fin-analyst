@@ -32,6 +32,7 @@ from fin.statements import (
 )
 from fin.status import company_status
 from fin.ui import views
+from fin.ui.actions import MAX_IDS
 from fin.ui.file_rows import company_name, file_rows
 from fin.ui.job_routes import LABELS as JOB_LABELS
 
@@ -111,12 +112,12 @@ def _review_kind(root: Path, company: str, kind: str) -> dict[str, Any]:
 
 def mappings(root: Path, company: str) -> dict[str, Any]:
     """Mapping items with a low-confidence flag (confirmed one at a time), the ids a bulk confirm
-    takes (a proposal at confidence 0.8 or above), the dictionary's accounts per statement (to
-    choose another), and every other review kind."""
+    takes (a proposal at confidence 0.8 or above; at most MAX_IDS, the rest by the next one), the
+    dictionary's accounts per statement (to choose another), and every other review kind."""
     items = [{**i, "low": low_confidence(i)} for i in open_items(read_pending(root, company))]
     return {
         "pending": items,
-        "bulk": [i["id"] for i in items if i["account"] and not i["low"]],
+        "bulk": [i["id"] for i in items if i["account"] and not i["low"]][:MAX_IDS],
         "bulk_confidence": BULK_CONFIDENCE,
         "accounts": _accounts(root),
         "kinds": [_review_kind(root, company, kind) for kind in KINDS],

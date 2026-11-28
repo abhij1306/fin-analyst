@@ -15,6 +15,7 @@ from fin.findings import accept, recheck_held
 from fin.map import review, review_confirm
 from fin.map.dictionary import STATEMENTS, mapping_row
 from fin.metrics.export import refresh_analytics
+from fin.paths import company_db_path
 from fin.services.result import ActionResult, perform
 
 QUERY_COMMANDS = {
@@ -84,13 +85,13 @@ def _set_mapping(
     if statement not in STATEMENTS:
         raise InvalidMapping(f"statement must be one of {', '.join(STATEMENTS)}")
     outcome = review.set_mapping(run, company, statement, label, account, section, actor=actor)
+    where = f" under {section!r}" if section else ""
+    head = f"{company}: {statement} {label!r}{where} -> {account} ({outcome})"
+    if not company_db_path(run.root, company).is_file():  # nothing loaded yet: for later ingests
+        return [f"{head}; no documents loaded yet"]
     facts, changed = review_confirm.remap_facts(run, company, statement, section, label, account)
     review.write_pending(run, company)
-    where = f" under {section!r}" if section else ""
-    lines = [
-        f"{company}: {statement} {label!r}{where} -> {account} ({outcome}); {facts} loaded "
-        f"facts in {len(changed)} documents now use it"
-    ]
+    lines = [f"{head}; {facts} loaded facts in {len(changed)} documents now use it"]
     return lines + _rechecked(run, company, changed)
 
 

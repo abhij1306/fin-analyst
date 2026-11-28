@@ -104,12 +104,20 @@ def _write_mappings(
     return mapping_ids
 
 
-def _undo_mappings(run: Run) -> None:
-    """Remove the accounts and label mappings this run added (`_write_mappings`), when confirming
-    the facts failed after them, so a retry or a reject starts clean."""
+def _undo_mappings(run: Run, mapping_ids: list[int], accounts: list[str]) -> None:
+    """Remove the accounts and label mappings this batch added (`_write_mappings`), when confirming
+    the facts failed after them, so a retry or a reject starts clean. Only this batch's rows: with
+    `each`, the earlier batches of the same run stay confirmed."""
     with connect(dictionary_db_path(run.root), write=True) as con, transaction(con):
-        con.execute("DELETE FROM label_map WHERE run_id = ?", [run.run_id])
-        con.execute("DELETE FROM accounts WHERE source = 'review' AND run_id = ?", [run.run_id])
+        con.execute(
+            "DELETE FROM label_map WHERE run_id = ? AND list_contains(?, mapping_id)",
+            [run.run_id, mapping_ids],
+        )
+        con.execute(
+            "DELETE FROM accounts WHERE source = 'review' AND run_id = ? "
+            "AND list_contains(?, account)",
+            [run.run_id, accounts],
+        )
 
 
 def _confirm_facts(
@@ -191,7 +199,7 @@ def _confirm_batch(
             ],
         )
     except Exception:
-        _undo_mappings(run)
+        _undo_mappings(run, mapping_ids, [new["account"] for _, _, new in plan if new is not None])
         raise
     for item, resolved, new in plan:
         if new is not None:
@@ -268,7 +276,9 @@ def _per_share_change(old: str | None, new: str, accounts: dict[str, Account]) -
     (rupees to a per-share figure as printed), 'to_rupees' or 'none'."""
     was = old is not None and accounts[old].unit == PER_SHARE
     now = accounts[new].unit == PER_SHARE
-    return "none" if was == now else ("to_printed" if now else "to_rupees")
+    if was == now:
+        return "none"
+    return "to_printed" if now else "to_rupees"
 
 
 def _remapped(rows: list[tuple], key: tuple[str, str, str], own_sections: set[str]) -> list[tuple]:

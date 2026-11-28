@@ -129,6 +129,11 @@ def record(
         key = tuple(row.get(field) for field in SAME)
         if key in existing:
             found.add(existing[key])
+            if "mappings" in row:  # the same difference; the mappings behind it may have changed
+                con.execute(
+                    "UPDATE findings SET mappings = ? WHERE finding_id = ?",
+                    [row["mappings"], existing[key]],
+                )
             continue
         values = [row.get(field) for field in FIELDS]
         new = con.execute(

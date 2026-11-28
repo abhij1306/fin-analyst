@@ -165,6 +165,29 @@ def test_changing_a_mapping_in_the_ui_clears_the_finding_it_caused_without_an_in
     assert commands(root).count("map set") == 2
 
 
+def test_a_finding_that_still_holds_names_the_mapping_as_it_is_now(root: Path) -> None:
+    key = ("profit_and_loss", "", "Sundry receipts")
+    decisions.set_mapping(root, "acme", key, "finance_cost", via="cli", actor=USER)
+    still_wrong = decisions.change_mapping(
+        root, "acme", [mapping_id(root)], via="ui", actor=USER, account="other_expenses"
+    )
+    assert still_wrong.ok, still_wrong.lines
+    [finding] = list_findings(Run("findings list", {}, root), "acme")
+    [named] = json.loads(finding["mappings"])
+    assert (finding["status"], named["account"]) == ("open", "other_expenses")
+
+
+def test_map_set_before_anything_is_loaded_keeps_the_mapping_for_later_ingests(
+    root: Path,
+) -> None:
+    key = ("profit_and_loss", "", "Sundry receipts")
+    done = decisions.set_mapping(root, "newco", key, "other_income", via="cli", actor=USER)
+    assert done.ok, done.lines
+    assert done.lines == [
+        "newco: profit_and_loss 'Sundry receipts' -> other_income (added); no documents loaded yet"
+    ]
+
+
 def test_an_unknown_mapping_is_refused_with_e304(root: Path) -> None:
     refused = decisions.change_mapping(root, "acme", [99], via="ui", actor=USER, account="revenue")
     assert (refused.ok, refused.code) == (False, "E304")

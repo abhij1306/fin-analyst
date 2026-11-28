@@ -179,30 +179,25 @@ def _kind(flags: dict[str, bool]) -> str | None:
     return next((kind for kind in KIND_ORDER if flags[kind]), None)
 
 
+# The option a review kind takes instead of its proposal; the other kinds take none.
+CHOICE_OPTION = {"ledgers": "account", "customers": "sector", "tax": "tax_class"}
+
+
 def _confirm_choice(kind: str, flags: dict[str, bool], options: dict[str, Any]) -> str | None:
-    """The value chosen instead of the proposal for `kind`, refusing options it does not take."""
-    others = [k for k, on in flags.items() if on and k != kind]
-    if options["each"]:
-        raise typer.BadParameter("--each applies to mapping items")
-    picked = [k for k in ("account", "sector", "tax_class", "name", "parent") if options[k]]
-    picked += ["scope"] if options["scope"] != "company" else []
-    if kind == "netdebt" and (others or picked):
-        raise typer.BadParameter("--netdebt takes no other review option")
-    if kind == "tax":
-        if set(others) & {"ledgers", "matches", "customers"} or set(picked) - {"tax_class"}:
-            raise typer.BadParameter("with --tax use only --tax-class")
-        return options["tax_class"]
-    if kind == "customers":
-        _check_unused(tax_class=options["tax_class"])
-        if "ledgers" in others or set(picked) - {"sector"}:
-            raise typer.BadParameter("with --customers use only --sector")
-        return options["sector"]
-    if kind == "ledgers":
-        _check_unused(tax_class=options["tax_class"], sector=options["sector"])
-        if set(picked) - {"account"}:
-            raise typer.BadParameter("--scope, --name and --parent do not apply to --ledgers")
-        return options["account"]
-    return None
+    """The value chosen instead of the proposal for `kind`. Refuses another review kind's flag and
+    any option `kind` does not take (rule 15: no option is accepted and ignored)."""
+    others = [f"--{k}" for k, on in flags.items() if on and k != kind]
+    if others:
+        raise typer.BadParameter(f"--{kind} does not combine with {', '.join(others)}")
+    allowed = CHOICE_OPTION.get(kind)
+    named = ("account", "sector", "tax_class", "name", "parent", "each")
+    unused = [k for k in named if options[k] and k != allowed]
+    if options["scope"] != "company":
+        unused.append("scope")
+    if unused:
+        listed = ", ".join("--" + k.replace("_", "-") for k in unused)
+        raise typer.BadParameter(f"{listed}: not an option of --{kind}")
+    return options[allowed] if allowed else None
 
 
 @review_app.command("confirm")
