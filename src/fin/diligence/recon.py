@@ -79,14 +79,16 @@ def _ledgers(con: duckdb.DuckDBPyConnection, file_id: int) -> list[Ledger]:
 def statement_figures(
     con: duckdb.DuckDBPyConnection, period: str
 ) -> list[tuple[str, Decimal, str]]:
-    """(account, value, source) of the period's standalone statement figures."""
+    """(account, value, source) of the period's standalone statement figures: every figure of
+    `current_facts`, as `fin statements` shows them, a figure the user stated included (its
+    source "stated #<id>"); a document's figure names each fact's file and sheet!cell or page
+    (`fact_sources`)."""
     return con.execute(
-        "SELECT c.account, c.value, string_agg(d.file_name || ' ' || coalesce(r.sheet || '!' || "
-        "r.cell, 'page ' || CAST(r.page AS VARCHAR), ''), '; ' ORDER BY f.fact_id) "
-        "FROM current_facts c JOIN facts f ON list_contains(c.fact_ids, f.fact_id) "
-        "LEFT JOIN raw_values r ON r.raw_id = f.raw_id "
-        "JOIN documents d ON d.doc_id = c.doc_id WHERE c.period = ? AND c.scope = ? "
-        "GROUP BY c.account, c.value ORDER BY c.account",
+        "SELECT c.account, c.value, CASE WHEN c.stated_id IS NOT NULL "
+        "THEN 'stated #' || c.stated_id ELSE (SELECT string_agg(s.source_file || ' ' || "
+        "s.source_ref, '; ' ORDER BY s.fact_id) FROM fact_sources s "
+        "WHERE list_contains(c.fact_ids, s.fact_id)) END "
+        "FROM current_facts c WHERE c.period = ? AND c.scope = ? ORDER BY c.account",
         [period, SCOPE],
     ).fetchall()
 

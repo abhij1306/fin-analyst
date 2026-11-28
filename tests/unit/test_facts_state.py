@@ -16,10 +16,12 @@ from fin.audit.errors import FigureCannotBeCorrected, FigureCannotBeStated, Stat
 from fin.audit.logger import Run
 from fin.audit.trace import fact_trace, format_fact_trace, format_metric_trace, metric_trace
 from fin.config import write_default_config
+from fin.databook import databook, format_databook
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
 from fin.diligence.gates import Context, evaluate
+from fin.diligence.recon import statement_figures
 from fin.display import display_settings
 from fin.facts import (
     correct,
@@ -291,6 +293,31 @@ def test_a_stated_figure_is_marked_in_the_statements_the_workbook_and_status(roo
     comments = [c.comment.text for ws in book for r in ws.iter_rows() for c in r if c.comment]
     assert [c for c in comments if "stated by the user, #1" in c] != []
     assert company_status(Run("status", {}, root), "acme")["stated_figures"] == 1
+
+
+def test_the_databook_text_marks_a_stated_figure_with_its_period(root: Path) -> None:
+    nil_finance_cost(root)
+    display = display_settings(root, "acme")
+
+    text = format_databook("acme", databook(statement_rows(root, "acme"), display))
+
+    [line] = [t for t in text.splitlines() if "Finance" in t]
+    assert line.endswith("  (FY24: stated by the user, #1)")
+
+
+def test_the_trial_balance_reconciliation_compares_a_stated_figure(root: Path) -> None:
+    nil_finance_cost(root)
+
+    with connect(company_db_path(root, "acme")) as con:
+        figures = statement_figures(con, "FY24")
+
+    assert figures == [
+        ("depreciation", Decimal("50.00"), "ar1.xlsx P&L!C102"),
+        ("finance_cost", Decimal("0.00"), "stated #1"),
+        ("other_income", Decimal("30.00"), "ar1.xlsx P&L!C103"),
+        ("pbt", Decimal("200.00"), "ar1.xlsx P&L!C101"),
+        ("revenue", Decimal("1000.00"), "ar1.xlsx P&L!C100"),
+    ]
 
 
 def test_a_stated_figure_has_its_own_provenance_and_evidence_section(root: Path) -> None:

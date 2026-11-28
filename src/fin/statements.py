@@ -312,6 +312,12 @@ def marks(row: dict[str, Any]) -> list[str]:
     return out
 
 
+def text_marks(found: list[str]) -> list[str]:
+    """Of a figure's `marks`, those the text outputs print: all but "unconfirmed mapping", which
+    the screen and the export comment show (docs/decisions/spec-06.md)."""
+    return [mark for mark in found if "mapping" not in mark]
+
+
 def latest_annual_period(rows: list[dict[str, Any]]) -> str:
     """The latest fiscal year in `rows`, else the latest period."""
     annual = [r for r in rows if r["period_months"] == 12] or rows
@@ -322,7 +328,7 @@ def format_statements(company: str, rows: list[dict[str, Any]], display: Display
     """Plain text: one block per scope, period and statement; amounts as SQL converted them to
     `display` (its caption in each header), per-share lines as printed. A subtotal its lines do
     not fully explain says how much they explain; a subtotal its rounded lines do not add up to is
-    marked *, with ROUNDING_NOTE under the block. A figure's marks follow it (`marks`)."""
+    marked *, with ROUNDING_NOTE under the block. A figure's marks follow it (`text_marks`)."""
     out: list[str] = []
     block = None
     rounded = False
@@ -345,7 +351,7 @@ def format_statements(company: str, rows: list[dict[str, Any]], display: Display
         if row["coverage"] is not None and row["coverage"] != 1:
             explained = number(row["shown_explained"], display)
             line += f"  (lines explain {explained}, {row['coverage']:.2%})"
-        line += "".join(f"  ({mark})" for mark in marks(row) if "mapping" not in mark)
+        line += "".join(f"  ({mark})" for mark in text_marks(marks(row)))
         out.append(line.rstrip())
     if rounded:
         out.append(f"* {ROUNDING_NOTE}")
