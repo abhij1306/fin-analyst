@@ -11,16 +11,13 @@ from fin.audit.errors import FileUnreadable
 from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company, echo_refresh
 from fin.config import load_config
-from fin.db.conn import connect
-from fin.db.schema import ensure_database
 from fin.diligence.bank import ingest_bank
 from fin.diligence.sources import ingest_source
 from fin.extract.profiles import KINDS
-from fin.ingest import UNIT_ANSWERS, GivenUnit, files_in, ingest_file
-from fin.map.dictionary import load_label_map
-from fin.map.review import write_pending
+from fin.ingest import UNIT_ANSWERS, GivenUnit, files_in
 from fin.metrics.export import refresh_analytics
-from fin.paths import COMPANY_NAME, company_db_path, inbox_dir
+from fin.paths import COMPANY_NAME, inbox_dir
+from fin.services.ingest import discard_if_empty, ensure_company_db, ingest_files
 from fin.verify import format_result, verify
 
 ForceOption = Annotated[
@@ -29,56 +26,15 @@ ForceOption = Annotated[
 ]
 
 
-def _ensure_company_db(root: Path, company: str) -> bool:
-    """Create the company database if missing; True when this call created it."""
-    path = company_db_path(root, company)
-    existed = path.is_file()
-    ensure_database(path, "company")
-    return not existed
-
-
-def _discard_if_empty(root: Path, company: str) -> None:
-    """Remove a company database this run created when nothing was loaded into it (a first
-    ingest where every file failed must not leave an empty company behind)."""
-    path = company_db_path(root, company)
-    with connect(path) as con:
-        row = con.execute(
-            "SELECT (SELECT count(*) FROM documents) + (SELECT count(*) FROM source_files)"
-        ).fetchone()
-    if row and row[0] == 0:
-        path.unlink()
-        wal = path.with_name(path.name + ".wal")
-        if wal.is_file():
-            wal.unlink()
-
-
 def _ingest_files(
     run: Run,
-    jobs: list[tuple[str, list[Path]]],
+    batch: list[tuple[str, list[Path]]],
     force: bool,
     reading: Path | None = None,
     unit: GivenUnit | None = None,
 ) -> None:
     """Ingest each company's files, printing progress as `[i/N] company/file: outcome`."""
-    config = load_config(run.root)
-    total = sum(len(files) for _, files in jobs)
-    done = 0
-    for company, files in jobs:
-        created = _ensure_company_db(run.root, company)
-        try:
-            label_map = load_label_map(run.root, company)
-            for path in files:
-                done += 1
-                outcome = ingest_file(
-                    run, config, company, path, label_map, force=force, reading=reading, unit=unit
-                )
-                typer.echo(f"[{done}/{total}] {company}/{path.name}: {outcome}")
-            write_pending(run, company)
-        finally:
-            if created:
-                _discard_if_empty(run.root, company)
-    if total == 0:
-        typer.echo("no files to ingest")
+    ingest_files(run, batch, force, reading, unit, told=typer.echo)
     echo_refresh(run)
 
 
@@ -168,7 +124,7 @@ def ingest(
 
     def body(run: Run) -> None:
         if kind is not None and path is not None:
-            created = _ensure_company_db(run.root, company)
+            created = ensure_company_db(run.root, company)
             config = load_config(run.root)
             try:
                 if kind == "bank":
@@ -177,7 +133,7 @@ def ingest(
                     loaded = ingest_source(run, config, company, path, kind, profile)
             finally:
                 if created:
-                    _discard_if_empty(run.root, company)
+                    discard_if_empty(run.root, company)
             typer.echo(f"{company}/{path.name}: " + "\n  ".join(loaded.lines))
             return
         source = path if path is not None else inbox_dir(run.root, company)

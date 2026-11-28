@@ -24,12 +24,16 @@ from fin.audit.errors import (
 # DuckDB's message when another process holds the file: "Could not set lock on file ... Conflicting
 # lock is held" on macOS and Linux, "being used by another process" on Windows. Within this process,
 # a connection open in the other mode (read-only or write, e.g. a UI page while a background job
-# writes) gives "a different configuration than existing connections": it is retried the same way.
+# writes) gives "a different configuration than existing connections", and an open while another
+# thread of this process attaches or closes the same file gives "unique file handle conflict"
+# (ResourceInUseException): both are retried the same way.
+_LOCKED = (duckdb.IOException, duckdb.ConnectionException, duckdb.ResourceInUseException)
 _LOCK_MARKERS = (
     "could not set lock",
     "conflicting lock",
     "being used by another process",
     "different configuration than existing connections",
+    "unique file handle conflict",
 )
 
 
@@ -107,17 +111,17 @@ def utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-def _is_lock(exc: duckdb.IOException | duckdb.ConnectionException) -> bool:
+def _is_lock(exc: duckdb.Error) -> bool:
     message = str(exc).lower()
     return any(marker in message for marker in _LOCK_MARKERS)
 
 
 def _open(path: Path, write: bool, retry: LockRetry) -> duckdb.DuckDBPyConnection:
-    last: duckdb.IOException | duckdb.ConnectionException | None = None
+    last: duckdb.Error | None = None
     for attempt in range(1, retry.attempts + 1):
         try:
             return duckdb.connect(str(path), read_only=not write)
-        except (duckdb.IOException, duckdb.ConnectionException) as exc:
+        except _LOCKED as exc:
             if not _is_lock(exc):
                 cause = " ".join(str(exc).split())
                 raise DataFolderNotWritable(f"cannot open database {path}: {cause}") from exc

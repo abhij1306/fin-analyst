@@ -63,6 +63,7 @@ CASES: list[tuple[str, str, str, list[str], Callable[[Path], None]]] = [
     ("mapping-confirm", "99", "", ["review", "confirm", "acme", "99"], _nothing),
     ("mapping-reject", "99", "", ["review", "reject", "acme", "99"], _nothing),
     ("finding-accept", "99", "", ["findings", "accept", "acme", "99"], _nothing),
+    ("document-delete", "99", "", ["document", "delete", "acme", "99"], _nothing),
     ("query-approve", "1", "", ["query", "approve", "acme", "1"], _raise),
     ("query-sent", "1", "", ["query", "sent", "acme", "1"], _raise_and_approve),
     ("query-close", "1", "", ["query", "close", "acme", "1"], _raise),

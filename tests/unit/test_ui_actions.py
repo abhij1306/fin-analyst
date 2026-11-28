@@ -186,7 +186,7 @@ def upload(client: TestClient, files: list[tuple[str, bytes]], company: str = "a
 def test_an_upload_lands_in_the_inbox_and_is_not_ingested(client: TestClient, root: Path) -> None:
     page = upload(client, [("Q1 results.xlsx", b"x"), ("c:\\docs\\audit.pdf", b"%PDF")]).text
     assert "Q1 results.xlsx is waiting in inbox/acme/" in page
-    assert "ask Claude to ingest" in page
+    assert "Nothing is loaded yet: press Ingest." in page
     assert sorted(p.name for p in (root / "inbox" / "acme").iterdir()) == [
         "Q1 results.xlsx",
         "audit.pdf",

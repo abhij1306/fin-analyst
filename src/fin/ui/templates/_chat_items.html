@@ -43,6 +43,14 @@
 {% endif %}
 {% endmacro %}
 
+{#- A button that starts a chat turn with this text at once (Read with the assistant, a unit choice). -#}
+{% macro start(company, text, label, variant="outline") %}
+<form class="inline" hx-post="/chat/send" hx-target="#chat" hx-swap="outerHTML">
+  <input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="conv" value=""><input type="hidden" name="text" value="{{ text }}">
+  <button type="submit" class="btn" data-size="sm" data-variant="{{ variant }}">{{ label }}</button>
+</form>
+{% endmacro %}
+
 {#- A button that opens the chat with some text ready to send (Ask Claude, skill chips). -#}
 {% macro ask(company, text, label="Ask Claude", variant="ghost") %}
 <button type="button" class="btn" data-size="sm" data-variant="{{ variant }}" hx-get="/chat/panel" hx-target="#chat" hx-swap="outerHTML"

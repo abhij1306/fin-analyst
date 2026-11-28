@@ -1,0 +1,62 @@
+{#- One row per file (fin.ui.file_rows) and the findings on filed data. While a job runs this part asks for
+    itself again every second, so each file's outcome shows as soon as it is known; a queued job starts it. -#}
+{% from "_ui.html" import badge, clip, empty %}
+{% from "_actions.html" import act, confirm %}
+{% from "_chat_items.html" import ask, start %}
+{% set active = data.jobs | selectattr("state", "in", ["queued", "running"]) | list %}
+<div id="file-rows" hx-get="/partials/file-rows?company={{ company | urlencode }}" hx-trigger="job-queued from:body{% if active %}, every 1s{% endif %}" hx-swap="outerHTML">
+<div class="card">
+  <header><h2>Files</h2><p>Each file in {{ data.inbox_folder }} and what ingest did with it.</p></header>
+  <section class="flush">
+    {% if data.rows %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>File</th><th>Outcome</th><th>What fin found</th><th>Next step</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for r in data.rows %}
+        <tr><td class="fname">{{ r.file }}{% if r.version %}<span class="v">v{{ r.version }}</span>{% endif %}{% if r.ingested_at %}<div class="sub">Loaded {{ r.ingested_at | when }} · {{ r.fiscal_year }} · {{ r.scope }}</div>{% endif %}</td>
+          <td>{{ badge(r.state) }}{% if r.code %} <strong>{{ r.code }}</strong>{% endif %}</td>
+          <td>{% if r.doc_id %}<p>{{ r.facts }} figures · {{ r.unmapped }} unmapped labels{% if r.read_by_addon %} · {{ r.read_by_addon }} read by the PDF add-on{% endif %}</p>
+              {% if r.read_by_ai %}<p>{{ r.read_by_ai }} figures {{ badge("ai", "read by AI, not checked", "warn") }}</p>{% endif %}{% endif %}
+            {% if r.message %}{{ clip(r.message, 120) }}{% endif %}
+            {% if r.run_id and not r.doc_id %}<div class="sub run">run_id {{ r.run_id }}</div>{% endif %}</td>
+          <td>{% if r.next %}<p>{{ r.next.text }}</p>
+            <div class="actions">
+            {% for unit in r.units or [] %}<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+              <input type="hidden" name="action" value="unit"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ r.file }}"><input type="hidden" name="choice" value="{{ unit }}">
+              <button type="submit" class="btn" data-size="sm" data-variant="outline">{{ unit }}</button></form>{% endfor %}
+            {% if "reading" in r.next.offers %}{{ start(company, r.prompts.reading, "Read with the assistant", "primary") }}{% endif %}
+            {% if "addon" in r.next.offers %}{{ ask(company, "Help me choose a PDF add-on (/parser) for " ~ r.file, "Choose a PDF add-on", "outline") }}{% endif %}
+            </div>{% endif %}</td>
+          <td class="num act">{% if r.doc_id %}<div class="actions">
+            {{ confirm("/job", {"action": "reingest", "company": company, "item": r.doc_id}, "#jobs", "Re-ingest", "re-" ~ r.doc_id,
+                "Load " ~ r.file ~ " again from its archived copy as version " ~ (r.version + 1) ~ ". Version " ~ r.version ~ " and its findings are marked superseded; its figures stay in the database but leave current figures.") }}
+            {{ act("document-delete", r.doc_id, "Delete", company, ask="Delete " ~ r.file ~ " with all its versions: its " ~ r.facts ~ " figures, its findings, its archived copy, notes and inbox copy. Everything is backed up to backups/ first; current figures and metrics are rebuilt without it.") }}
+          </div>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No files yet.", "Upload Excel or PDF files above, then press Ingest.") }}</div>
+    {% endif %}
+  </section>
+</div>
+<div class="card">
+  <header><h2>Findings on filed data</h2></header>
+  <section class="flush">
+    {% if data.findings %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Status</th><th>Document and source</th><th>Check</th><th>What does not add up</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for f in data.findings %}
+        <tr><td>{{ badge(f.status) }}</td><td class="fname">{{ f.file_name }}<div class="sub">{{ clip((f.fin_source or "") ~ (" vs " ~ f.other_source if f.other_source else ""), 40) }}</div></td><td>{{ f.code or f.check_name }}</td>
+          <td>{{ clip(f.finding) }}</td>
+          <td class="num act">{% if f.status == "open" %}{{ act("finding-accept", f.finding_id, "Save as is", company, ask="Accept this finding: the figure stays as the company filed it, and the finding stays attached as accepted.") }}{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No findings.") }}</div>
+    {% endif %}
+  </section>
+</div>
+</div>

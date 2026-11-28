@@ -226,3 +226,12 @@ CREATE TABLE verify_lines (
     reading_source VARCHAR,
     PRIMARY KEY (run_id, line_no)
 );
+
+-- The company's name as the user typed it when creating the company on the Files screen (fin.services.files); its
+-- code is this database's file name. No row for a company that was made by ingesting into inbox/<company>/.
+CREATE TABLE company_profile (
+    code VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    run_id VARCHAR NOT NULL
+);

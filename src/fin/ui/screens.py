@@ -9,9 +9,6 @@ from typing import Any
 from fin.audit.errors import DependencyMissing, EngagementState, FinError
 from fin.audit.logger import Run
 from fin.audit.trace import company_history
-from fin.db.conn import connect
-from fin.db.rows import fetch_dicts
-from fin.db.schema import ensure_database
 from fin.diligence import adjustments, gates, queries
 from fin.diligence.engagement import rupees
 from fin.fdd import findings as fdd
@@ -31,6 +28,7 @@ from fin.statements import (
 )
 from fin.status import company_status
 from fin.ui import views
+from fin.ui.file_rows import company_name, file_rows
 from fin.ui.job_routes import LABELS as JOB_LABELS
 
 REPORT_SUFFIXES = (".html", ".docx", ".pdf", ".xlsx")
@@ -65,22 +63,14 @@ def tab_counts(root: Path, company: str | None) -> dict[str, int]:
 
 
 def files(root: Path, company: str) -> dict[str, Any]:
-    documents: list[dict[str, Any]] = []
-    path = company_db_path(root, company)
-    if path.is_file():
-        ensure_database(path, "company")
-        with connect(path) as con:
-            documents = fetch_dicts(
-                con,
-                "SELECT doc_id, file_name, version, fiscal_year, scope, status, ingested_at, "
-                "reading_path, unread_pages FROM documents ORDER BY doc_id",
-            )
     status = company_status(_run("files", root, company), company)
     return {
-        "documents": documents,
-        "inbox": status["inbox_not_ingested"],
+        "rows": file_rows(root, company, status["inbox_not_ingested"]),
+        "name": company_name(root, company),
         "inbox_folder": f"inbox/{company}/",
         "findings": list_findings(_run("files", root, company), company),
+        "jobs": list_jobs(root, company),
+        "job_labels": JOB_LABELS,
         "addon_offer": offer(root, company),
     }
 

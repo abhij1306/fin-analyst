@@ -1,6 +1,7 @@
-"""The routes that change data: `POST /act` (a decision) and `POST /upload` (files into the inbox).
-Both need the token cookie (middleware) and an Origin that is this server (`fin.ui.csrf`). The
-answer is the screen again, with the outcome on top (code and run_id when it failed)."""
+"""The routes that change data: `POST /act` (a decision or a document deletion), `POST /upload`
+(files into the inbox) and `POST /company` (a new company). All need the token cookie (middleware)
+and an Origin that is this server (`fin.ui.csrf`). The answer is the screen again, with the
+outcome on top (code and run_id when it failed)."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -10,7 +11,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from starlette.datastructures import UploadFile
 
+from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
+from fin.services.files import create_company
 from fin.services.result import ActionResult, Refused
 from fin.ui import actions, screens
 from fin.ui.uploads import MAX_REQUEST_BYTES
@@ -63,3 +66,15 @@ def add_action_routes(
         except UiActionInvalid as error:
             outcome = Refused.before_run(error)
         return shown(request, "files", chosen, outcome)
+
+    @app.post("/company", response_class=HTMLResponse)
+    def company(request: Request, code: str = Form(), name: str = Form()) -> HTMLResponse:
+        """A new company: its Files screen opens (the top bar lists it), or the refusal shows."""
+        try:
+            outcome = create_company(root, code, name, via="ui", actor=USER)
+        except UiActionInvalid as error:
+            outcome = Refused.before_run(error)
+        response = templates.TemplateResponse(request, "_outcome.html", {"outcome": outcome})
+        if outcome.ok:
+            response.headers["HX-Redirect"] = f"/files?company={code.strip()}"
+        return response

@@ -129,6 +129,13 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
     for screen_id, _ in SCREENS:
         add_routes(screen_id)
 
+    @app.get("/partials/file-rows", response_class=HTMLResponse)
+    def file_rows(request: Request, company: str | None = None) -> HTMLResponse:
+        """The Files screen's rows and findings: it asks again while a job runs."""
+        chosen = known(root, company)
+        context = {"company": chosen, "data": screen_data("files", chosen, None)}
+        return templates.TemplateResponse(request, "_file_rows.html", context)
+
     @app.get("/report-file")
     def report_file(company: str, name: str) -> FileResponse:
         """A report or export of the company: HTML opens in the browser, the others download."""
