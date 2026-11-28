@@ -17,15 +17,25 @@ SUFFIXES = (".xlsx", ".xlsm", ".xls", ".pdf")  # what `fin ingest` reads
 SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._()&-]{0,150}")
 
 
-def safe_name(raw: str) -> str:
+def safe_name(raw: str, suffixes: tuple[str, ...] = SUFFIXES) -> str:
     """The file name, or E008. A path is cut to its last part (browsers send the bare name; a
     client that sends a path gets no folder)."""
     name = raw.replace("\\", "/").rsplit("/", 1)[-1].strip()
     if not SAFE_NAME.fullmatch(name) or ".." in name:
         raise UiActionInvalid(f"{raw!r} is not a plain file name; rename it and upload again")
-    if not name.lower().endswith(SUFFIXES):
-        raise UiActionInvalid(f"{name}: fin reads {', '.join(SUFFIXES)} files only")
+    if not name.lower().endswith(suffixes):
+        raise UiActionInvalid(f"{name}: fin reads {', '.join(suffixes)} files only")
     return name
+
+
+def save_one(handle: BinaryIO, target: Path) -> None:
+    """Write one uploaded file to `target` (a new file). E008 over MAX_FILE_BYTES."""
+    handle.seek(0, 2)
+    if handle.tell() > MAX_FILE_BYTES:
+        raise UiActionInvalid(f"{target.name} is over {MAX_FILE_BYTES // 1024 // 1024} MB")
+    handle.seek(0)
+    with target.open("xb") as out:
+        shutil.copyfileobj(handle, out)
 
 
 def save_uploads(inbox: Path, files: list[tuple[str, BinaryIO]]) -> list[str]:

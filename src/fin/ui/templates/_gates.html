@@ -1,5 +1,6 @@
 {% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
 {% from "_actions.html" import act %}
+{% from "_chat_items.html" import ask %}
 {% if data.empty %}
 {{ no_company() }}
 {% elif data.no_engagement %}
@@ -8,7 +9,7 @@
 {% else %}
 {{ head("Gates", "Engagement #" ~ data.engagement_id ~ " · credit terms " ~ data.invoice_due_days ~ " days. Only you approve a gate.") }}
 {% for g in data.gates %}
-<div class="card">
+<div class="card" id="gate-{{ g.gate }}">
   <header>
     <h2>{{ g.gate }} · {{ g.title }}</h2>
     <div class="card-action">{{ badge(g.state) }}</div>
@@ -16,7 +17,7 @@
   </header>
   <section>
     <ul class="checks">{% for line in g.checklist %}
-      <li data-ok="{{ 'true' if line.ok else 'false' }}"><span class="mark" aria-hidden="true">{{ "✓" if line.ok else "✗" }}</span><span class="visually-hidden">{{ "pass" if line.ok else "FAIL" }}: </span>{{ line.text }}</li>
+      <li data-ok="{{ 'true' if line.ok else 'false' }}"><span class="mark" aria-hidden="true">{{ "✓" if line.ok else "✗" }}</span><span class="visually-hidden">{{ "pass" if line.ok else "FAIL" }}: </span>{{ line.text | code }}{% if not line.ok %}<div class="sub">{% if line.fix %}<a href="/{{ line.fix.screen }}?company={{ company | urlencode }}">{{ line.fix.label }}</a>{% else %}{{ ask(company, "About " ~ company ~ ", gate " ~ g.gate ~ ": how do I close this: " ~ line.text) }}{% endif %}</div>{% endif %}</li>
     {% endfor %}</ul>
     <p class="muted">Unlocks: {{ g.unlocks }}</p>
   </section>

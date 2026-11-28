@@ -1,7 +1,8 @@
-"""`fin adjust propose|list|accept|reject`: adjustments to EBITDA with evidence. The logic is in
-`adjustments.py`."""
+"""`fin adjust propose|import|list|accept|reject`: adjustments to EBITDA with evidence. The logic is
+in `adjustments.py` and `adjust_import.py`."""
 
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -21,6 +22,7 @@ from fin.diligence.cli_options import (
 )
 from fin.paths import data_dir
 from fin.services import decisions
+from fin.services import diligence as services
 from fin.services.result import show
 
 adjust_app = typer.Typer(
@@ -141,6 +143,26 @@ def adjust_propose(
         "source": source,
     }
     execute("adjust propose", args, body)
+
+
+@adjust_app.command("import")
+def adjust_import(
+    company: CompanyArg,
+    file: Annotated[Path, typer.Argument(help="The walk sheet: a .csv, .xlsx or .xlsm file.")],
+    sheet: Annotated[
+        str | None,
+        typer.Option("--sheet", callback=text_option, help="The Excel sheet. Default: the first."),
+    ] = None,
+) -> None:
+    """Propose one adjustment per row of a walk sheet: period, scope, category, account, revenue
+    effect, cost effect, description, source reference. Each keeps the file and cell as evidence.
+    A bad row refuses the whole file (E847) and names the row."""
+
+    show(
+        services.import_adjustments(
+            data_dir(), company, file, sheet, via="cli", actor=from_environment()
+        )
+    )
 
 
 @adjust_app.command("list")

@@ -200,7 +200,7 @@ def propose(
         )
 
 
-def propose_in(
+def check_in(
     run: Run,
     con: duckdb.DuckDBPyConnection,
     company: str,
@@ -208,18 +208,15 @@ def propose_in(
     effects: tuple[Decimal, Decimal, Decimal],
     *,
     period: str,
-    scope: str,
     category: str,
-    description: str,
     account: str | None = None,
     from_account: str | None = None,
     moved_amount: Decimal | None = None,
     evidence: Evidence = NO_EVIDENCE,
-) -> dict[str, Any]:
-    """`propose` in the caller's transaction: the checks and the insert (`effects` as
-    `resolve_effects` gives them)."""
-    query_id, finding_id, source_ref = evidence.query_id, evidence.finding_id, evidence.source_ref
-    if query_id is None and finding_id is None and not source_ref:
+) -> None:
+    """The checks of `propose_in`, writing nothing (`fin adjust import` checks every row before
+    it adds any). E804, E805 as `propose`."""
+    if evidence.query_id is None and evidence.finding_id is None and not evidence.source_ref:
         raise AdjustmentInvalid(
             "an adjustment needs evidence: --query, --finding or --source; nothing proposed"
         )
@@ -239,7 +236,41 @@ def propose_in(
             f"account {account!r} is not in the dictionary (`fin map accounts`); nothing proposed"
         )
     _check_reclassification(run, category, account, from_account, moved_amount, effects)
-    _check_links(con, engagement, company, query_id, finding_id)
+    _check_links(con, engagement, company, evidence.query_id, evidence.finding_id)
+
+
+def propose_in(
+    run: Run,
+    con: duckdb.DuckDBPyConnection,
+    company: str,
+    engagement: dict[str, Any],
+    effects: tuple[Decimal, Decimal, Decimal],
+    *,
+    period: str,
+    scope: str,
+    category: str,
+    description: str,
+    account: str | None = None,
+    from_account: str | None = None,
+    moved_amount: Decimal | None = None,
+    evidence: Evidence = NO_EVIDENCE,
+) -> dict[str, Any]:
+    """`propose` in the caller's transaction: `check_in`, then the insert (`effects` as
+    `resolve_effects` gives them)."""
+    check_in(
+        run,
+        con,
+        company,
+        engagement,
+        effects,
+        period=period,
+        category=category,
+        account=account,
+        from_account=from_account,
+        moved_amount=moved_amount,
+        evidence=evidence,
+    )
+    query_id, finding_id, source_ref = evidence.query_id, evidence.finding_id, evidence.source_ref
     now = utcnow()
     row = {
         "engagement_id": engagement["engagement_id"],
@@ -310,11 +341,9 @@ def list_adjustments(run: Run, company: str, status: str | None = None) -> list[
         )
 
 
-def format_adjustment(row: dict[str, Any]) -> str:
-    account = f" {row['account']}" if row["account"] else ""
-    if row["from_account"]:
-        account = f" {row['from_account']} -> {row['account']} {rupees(row['moved_amount'])} moved,"
-    evidence = "; ".join(
+def evidence_text(row: dict[str, Any]) -> str:
+    """An adjustment's evidence: 'query 3; finding 7; source walk.xlsx Adjustments!G5'."""
+    return "; ".join(
         f"{name} {value}"
         for name, value in (
             ("query", row["query_id"]),
@@ -323,6 +352,13 @@ def format_adjustment(row: dict[str, Any]) -> str:
         )
         if value is not None
     )
+
+
+def format_adjustment(row: dict[str, Any]) -> str:
+    account = f" {row['account']}" if row["account"] else ""
+    if row["from_account"]:
+        account = f" {row['from_account']} -> {row['account']} {rupees(row['moved_amount'])} moved,"
+    evidence = evidence_text(row)
     lines = [
         f"#{row['adj_id']} {row['status']} {row['period']} {row['scope']} {row['category']}"
         f"{account} {rupees(row['amount'])}: {row['description']}",

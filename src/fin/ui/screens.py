@@ -7,10 +7,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fin.audit.errors import DependencyMissing, EngagementState, FinError
-from fin.audit.logger import Run
+from fin.audit.errors import DependencyMissing, FinError
 from fin.audit.trace import company_history
-from fin.diligence import adjustments, gates, queries
+from fin.config import SCOPES
+from fin.diligence import adjustments, engagement, gates, queries
 from fin.diligence.engagement import rupees
 from fin.fdd import findings as fdd
 from fin.findings import list_findings
@@ -22,8 +22,9 @@ from fin.services.addon import offer
 from fin.services.jobs import list_jobs
 from fin.services.reviews import KINDS
 from fin.status import company_status
-from fin.ui import views
+from fin.ui import diligence_screens, views
 from fin.ui.actions import MAX_IDS
+from fin.ui.diligence_screens import screen_run, with_engagement
 from fin.ui.file_rows import company_name, file_rows
 from fin.ui.job_routes import LABELS as JOB_LABELS
 from fin.ui.statements_screen import statements_screen
@@ -33,41 +34,26 @@ LOG_LIMIT = 100
 Loader = Callable[[Path, str], dict[str, Any]]
 
 
-def _run(screen: str, root: Path, company: str) -> Run:
-    # Screens only read: the run is not started, so there is no run record.
-    return Run(f"ui {screen}", {"company": company}, root)
-
-
-def _engagement(root: Path, company: str, load: Callable[[], dict[str, Any]]) -> dict[str, Any]:
-    """The screen's data, or why there is none: nothing loaded yet, or no open engagement (E803)."""
-    if not company_db_path(root, company).is_file():
-        return {"no_engagement": f"Nothing is loaded for {company} yet, so there is no engagement."}
-    try:
-        return load()
-    except EngagementState as error:
-        return {"no_engagement": f"{error.code}: {error.message}"}
-
-
 def home(root: Path, company: str) -> dict[str, Any]:
-    return views.home(company_status(_run("home", root, company), company))
+    return views.home(company_status(screen_run("home", root, company), company))
 
 
 def tab_counts(root: Path, company: str | None) -> dict[str, int]:
     """The counts on the tabs of the top bar for the company."""
     if company is None:
         return {}
-    return views.tab_counts(company_status(_run("tabs", root, company), company))
+    return views.tab_counts(company_status(screen_run("tabs", root, company), company))
 
 
 def files(root: Path, company: str) -> dict[str, Any]:
-    status = company_status(_run("files", root, company), company)
+    status = company_status(screen_run("files", root, company), company)
     return {
         "rows": file_rows(root, company, status["inbox_not_ingested"]),
         "name": company_name(root, company),
         "inbox_folder": f"inbox/{company}/",
         "findings": [
             {**f, "mappings_list": json.loads(f["mappings"] or "[]")}
-            for f in list_findings(_run("files", root, company), company)
+            for f in list_findings(screen_run("files", root, company), company)
         ],
         "accounts": _accounts(root),
         "jobs": list_jobs(root, company),
@@ -95,7 +81,7 @@ def _review_kind(root: Path, company: str, kind: str) -> dict[str, Any]:
     if not company_db_path(root, company).is_file():
         return out
     try:
-        rows = spec.waiting(_run("mappings", root, company), company)
+        rows = spec.waiting(screen_run("mappings", root, company), company)
     except FinError as error:
         return out | {"note": f"{error.code}: {error.message}"}
     out["rows"] = [{"id": row[spec.id_key], "text": spec.text(row)} for row in rows]
@@ -117,8 +103,11 @@ def mappings(root: Path, company: str) -> dict[str, Any]:
 
 
 def _query_rows(root: Path, company: str) -> dict[str, Any]:
-    run = _run("queries", root, company)
+    run = screen_run("queries", root, company)
+    opened = engagement.engagement_status(run, company)["engagement"]
     return {
+        "periods": queries.periods_of(opened),
+        "scopes": SCOPES,
         "queries": [
             {**q, "amount": rupees(q["amount"])} for q in queries.list_queries(run, company)
         ],
@@ -129,22 +118,29 @@ def _query_rows(root: Path, company: str) -> dict[str, Any]:
 
 
 def queries_screen(root: Path, company: str) -> dict[str, Any]:
-    return _engagement(root, company, lambda: _query_rows(root, company))
+    return with_engagement(root, company, lambda: _query_rows(root, company))
+
+
+def _gates(root: Path, company: str) -> dict[str, Any]:
+    status = gates.gate_status(screen_run("gates", root, company), company)
+    for gate in status["gates"]:
+        for line in gate["checklist"]:
+            line["fix"] = None if line["ok"] else views.gate_fix(line["text"])
+    return status
 
 
 def gates_screen(root: Path, company: str) -> dict[str, Any]:
-    return _engagement(
-        root, company, lambda: gates.gate_status(_run("gates", root, company), company)
-    )
+    """Each gate's checklist; a failing line names the screen where it is closed (`fix`)."""
+    return with_engagement(root, company, lambda: _gates(root, company))
 
 
 def _fdd_rows(root: Path, company: str) -> dict[str, Any]:
-    rows = fdd.list_findings(_run("findings", root, company), company)
+    rows = fdd.list_findings(screen_run("findings", root, company), company)
     return {"findings": [{**r, "amount": rupees(r["amount"]), "flags": fdd.flags(r)} for r in rows]}
 
 
 def findings_screen(root: Path, company: str) -> dict[str, Any]:
-    return _engagement(root, company, lambda: _fdd_rows(root, company))
+    return with_engagement(root, company, lambda: _fdd_rows(root, company))
 
 
 def report_files(root: Path, company: str) -> list[str]:
@@ -190,8 +186,11 @@ LOADERS: dict[str, Loader] = {
     "gates": gates_screen,
     "findings": findings_screen,
     "statements": statements_screen,
+    "engagement": diligence_screens.engagement_screen,
+    "bridge": diligence_screens.bridge_screen,
     "reports": reports_screen,
     "log": log_screen,
 }
-# Screens whose loader also takes the query parameters (the Statements screen's pickers).
-WITH_QUERY = ("statements",)
+# Screens whose loader also takes the query parameters (the Statements screen's pickers, the
+# Bridge screen's view).
+WITH_QUERY = ("statements", "bridge")

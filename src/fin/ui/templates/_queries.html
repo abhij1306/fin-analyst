@@ -1,5 +1,5 @@
 {% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
-{% from "_actions.html" import act %}
+{% from "_actions.html" import act, dialog_form %}
 {% from "_chat_items.html" import ask %}
 {% if data.empty %}
 {{ no_company() }}
@@ -7,9 +7,20 @@
 {{ head("Queries") }}
 {{ no_engagement(data.no_engagement) }}
 {% else %}
-{{ head("Queries and adjustments") }}
+{% call head("Queries and adjustments", "Differences are queried, never fixed. fin sends nothing: export the approved queries and send them yourself.") %}
+<form class="inline" hx-post="/query/export" hx-target="#screen" hx-swap="innerHTML"><input type="hidden" name="company" value="{{ company }}"><button type="submit" class="btn" data-size="sm" data-variant="outline">Export workbook and email</button></form>
+<form class="inline" hx-post="/query/export" hx-target="#screen" hx-swap="innerHTML"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="brief" value="1"><button type="submit" class="btn" data-size="sm" data-variant="outline">Export Word briefs</button></form>
+{% endcall %}
 <div class="card">
-  <header><h2>Queries</h2></header>
+  <header><h2>Queries</h2>
+    <div class="card-action">{% call dialog_form("query-raise", "Raise a query", "/query/raise", company, variant="primary") %}
+      <div class="field"><label class="label" for="q-amount">Amount in rupees (the difference)</label><input class="input" id="q-amount" name="amount" inputmode="decimal" required></div>
+      <div class="field"><label class="label" for="q-period">Period</label><select class="select" id="q-period" name="period">{% for p in data.periods %}<option>{{ p }}</option>{% endfor %}</select></div>
+      <div class="field"><label class="label" for="q-scope">Scope</label><select class="select" id="q-scope" name="scope"><option value="">none</option>{% for s in data.scopes %}<option>{{ s }}</option>{% endfor %}</select></div>
+      <div class="field"><label class="label" for="q-source">Where the figures are (file + sheet!cell or page)</label><input class="input" id="q-source" name="source" required></div>
+      <div class="field"><label class="label" for="q-question">The question for the accountant</label><textarea class="textarea" id="q-question" name="question" required></textarea></div>
+    {% endcall %}</div>
+  </header>
   <section class="flush">
     {% if data.queries %}
     <div class="table-container"><table class="table">
@@ -19,7 +30,12 @@
         <tr><td class="num">{{ q.query_id }}</td><td>{{ badge(q.status) }}</td><td>{{ q.period or "" }}<div class="sub">{{ q.scope or "" }}</div></td>
           <td class="num">{{ q.amount }}</td><td>{{ clip(q.question, 40) }}{% if q.answer %}<div class="sub">Answer: {{ clip(q.answer, 40) }}</div>{% endif %}</td>
           <td class="act"><div class="actions">
-            {% if q.status == "draft" %}{{ act("query-approve", q.query_id, "Approve", company) }}{% endif %}
+            {% if q.status == "draft" %}{{ act("query-approve", q.query_id, "Approve", company) }}
+            {% call dialog_form("query-edit-" ~ q.query_id, "Edit", "/query/edit", company, q.query_id) %}<div class="field"><label class="label" for="qe-{{ q.query_id }}">The wording</label><textarea class="textarea" id="qe-{{ q.query_id }}" name="question" required>{{ q.question }}</textarea></div>{% endcall %}{% endif %}
+            {% if q.status == "sent" %}{% call dialog_form("query-answer-" ~ q.query_id, "Record answer", "/query/answer", company, q.query_id) %}
+              <div class="field"><label class="label" for="qa-{{ q.query_id }}">The accountant's answer</label><textarea class="textarea" id="qa-{{ q.query_id }}" name="text" required></textarea></div>
+              <div class="field"><label class="label" for="qs-{{ q.query_id }}">Where the answer is (a file, an email; optional)</label><input class="input" id="qs-{{ q.query_id }}" name="source"></div>
+            {% endcall %}{% endif %}
             {% if q.status == "approved" %}{{ act("query-sent", q.query_id, "Mark sent", company, ask="Only mark it sent if you sent it to the accountant. fin sends nothing.") }}{% endif %}
             {% if q.status == "answered" %}{{ act("query-close", q.query_id, "Close", company, ask="Close the query: the answer settles it.") }}{% endif %}
             {% if q.status in ("draft", "approved", "sent", "answered") %}{{ act("query-withdraw", q.query_id, "Withdraw", company, reason="Why is it dropped?", variant="ghost") }}{% endif %}
@@ -34,7 +50,17 @@
   </section>
 </div>
 <div class="card">
-  <header><h2>Adjustments</h2></header>
+  <header><h2>Adjustments</h2><p>Import the walk sheet: one proposed adjustment per row (period, scope, category, account, revenue effect, cost effect, description, source reference). A bad row imports nothing.</p></header>
+  <section>
+    <form class="upload" hx-post="/adjust/import" hx-encoding="multipart/form-data" hx-target="#screen" hx-swap="innerHTML">
+      <input type="hidden" name="company" value="{{ company }}">
+      <label class="label" for="walk">Walk sheet (.csv, .xlsx)</label>
+      <input class="input" type="file" id="walk" name="file" required accept=".csv,.xlsx,.xlsm">
+      <label class="label" for="walk-sheet">Sheet (optional)</label>
+      <input class="input" id="walk-sheet" name="sheet">
+      <button type="submit" class="btn">Import</button>
+    </form>
+  </section>
   <section class="flush">
     {% if data.adjustments %}
     <div class="table-container"><table class="table">

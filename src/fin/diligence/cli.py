@@ -6,7 +6,7 @@ sent it."""
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 
@@ -14,7 +14,6 @@ from fin.actor import from_environment
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
 from fin.diligence import (
-    answers,
     engagement,
     export_cli,
     gates,
@@ -36,6 +35,7 @@ from fin.diligence.cli_options import (
 from fin.paths import data_dir
 from fin.reconcile import items as recon_items
 from fin.services import decisions
+from fin.services import diligence as services
 from fin.services.result import show
 
 query_app = typer.Typer(
@@ -45,11 +45,6 @@ query_app = typer.Typer(
 
 
 # fin query
-
-
-def _echo_queries(rows: list[dict[str, Any]]) -> None:
-    for row in rows:
-        typer.echo(queries.format_query(row))
 
 
 @query_app.command("list")
@@ -192,10 +187,11 @@ def query_edit(
 ) -> None:
     """Change the wording of a draft query."""
 
-    def body(run: Run) -> None:
-        typer.echo(queries.format_query(queries.edit(run, company, query_id, question)))
-
-    execute("query edit", {"company": company, "id": query_id, "question": question}, body)
+    show(
+        services.edit_query(
+            data_dir(), company, query_id, question, via="cli", actor=from_environment()
+        )
+    )
 
 
 def _status_command(name: str, target: str, doc: str) -> None:
@@ -243,19 +239,12 @@ def query_answer(
     """Record the accountant's answer to a sent query, as text and/or a reply file."""
     if text is None and file is None:
         raise typer.BadParameter("give --text, or --file with the reply")
-
-    def body(run: Run) -> None:
-        answer, answer_source = text, source
-        if file is not None:
-            answer, from_file = answers.record_reply(run, company, file, text)
-            answer_source = f"{source}; {from_file}" if source else from_file
-        rows = queries.set_status(
-            run, company, [query_id], "answered", answer=answer, answer_source=answer_source
+    answer = services.Answer(text, source, file)
+    show(
+        services.answer_query(
+            data_dir(), company, query_id, answer, via="cli", actor=from_environment()
         )
-        _echo_queries(rows)
-
-    args = {"company": company, "id": query_id, "text": text, "source": source, "file": file}
-    execute("query answer", args, body)
+    )
 
 
 _status_command(

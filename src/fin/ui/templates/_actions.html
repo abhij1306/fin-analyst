@@ -1,8 +1,9 @@
 {#- One decision button. With `ask` or `reason` it opens a Basecoat dialog first (a confirmation, or
     the reason the CLI also needs); otherwise it posts at once. The answer replaces the screen.
+    `post` is the route (a diligence form's, `fin.ui.diligence_routes`, takes the same fields).
     `variant` is the Basecoat button variant: the one main action of an area is "primary", the rest
     are "outline" or "ghost". -#}
-{% macro act(action, item, label, company, ask=none, reason=none, variant="outline") %}
+{% macro act(action, item, label, company, ask=none, reason=none, variant="outline", post="/act") %}
 {% set uid = action ~ "-" ~ item %}
 {% set fields %}<input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ item }}">{% endset %}
 {% if ask or reason %}
@@ -13,7 +14,7 @@
       <h2 id="t-{{ uid }}">{{ label }}</h2>
       {% if ask %}<p>{{ ask }}</p>{% endif %}
     </header>
-    <form class="form" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
+    <form class="form" hx-post="{{ post }}" hx-target="#screen" hx-swap="innerHTML">
       {{ fields }}
       {% if reason %}
       <div class="field">
@@ -29,7 +30,7 @@
   </div>
 </dialog>
 {% else %}
-<form class="inline" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
+<form class="inline" hx-post="{{ post }}" hx-target="#screen" hx-swap="innerHTML">
   {{ fields }}
   <button type="submit" class="btn" data-size="sm" data-variant="{{ variant }}">{{ label }}</button>
 </form>
@@ -48,6 +49,25 @@
     </header>
     <form class="form" hx-post="{{ url }}" hx-target="{{ target }}" hx-swap="outerHTML" hx-on::after-request="this.closest('dialog').close()">
       {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+      <footer>
+        <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="btn">{{ label }}</button>
+      </footer>
+    </form>
+  </div>
+</dialog>
+{% endmacro %}
+
+{#- A button that opens a dialog with a form of its own fields (the caller's block), posted to `post`
+    with the company and `item`. -#}
+{% macro dialog_form(uid, label, post, company, item="", variant="outline") %}
+<button type="button" class="btn" data-size="sm" data-variant="{{ variant }}" onclick="document.getElementById('d-{{ uid }}').showModal()">{{ label }}</button>
+<dialog id="d-{{ uid }}" class="dialog" aria-labelledby="t-{{ uid }}">
+  <div>
+    <header><h2 id="t-{{ uid }}">{{ label }}</h2></header>
+    <form class="form" hx-post="{{ post }}" hx-target="#screen" hx-swap="innerHTML">
+      <input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ item }}">
+      {{ caller() }}
       <footer>
         <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
         <button type="submit" class="btn">{{ label }}</button>

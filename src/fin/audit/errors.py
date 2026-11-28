@@ -563,6 +563,7 @@ from fin.audit.errors_dataroom import (  # noqa: E402, F401
     DataroomRowInvalid,
 )
 from fin.audit.errors_dd import (  # noqa: E402, F401
+    AdjustmentImportInvalid,
     AnalyticsUnavailable,
     BundleNotAnonymous,
     ContractNotOnRegister,

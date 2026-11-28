@@ -1,11 +1,14 @@
-"""`fin query export <co> [--brief]`: the command; the logic is in `export.py`."""
+"""`fin query export <co> [--brief]`: the command; the logic is in `export.py`, run through the
+service the web UI calls too (`fin.services.diligence`)."""
 
 from typing import Annotated, Any
 
 import typer
 
-from fin.audit.logger import Run, execute
-from fin.diligence import export
+from fin.actor import from_environment
+from fin.paths import data_dir
+from fin.services import diligence as services
+from fin.services.result import show
 
 
 def register(query_app: typer.Typer, company_arg: Any) -> None:
@@ -22,8 +25,8 @@ def register(query_app: typer.Typer, company_arg: Any) -> None:
         tokens): a marked-up workbook and a draft email, or with --brief a Word brief per query.
         Prints only the file paths. Send them yourself, then `fin query sent`."""
 
-        def body(run: Run) -> None:
-            for path in export.export_queries(run, company, brief=brief):
-                typer.echo(str(path))
-
-        execute("query export", {"company": company, "brief": brief}, body)
+        show(
+            services.export_queries(
+                data_dir(), company, brief=brief, via="cli", actor=from_environment()
+            )
+        )
