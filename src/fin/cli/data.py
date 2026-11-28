@@ -5,6 +5,7 @@ from typing import Annotated
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.errors import EXIT_FAILURES, GuardBlocked
 from fin.audit.logger import Run, execute
 from fin.audit.trace import (
@@ -16,15 +17,13 @@ from fin.audit.trace import (
     metric_trace,
 )
 from fin.cli.core import app, check_company, check_scope
-from fin.dashboard import build as build_dashboard
 from fin.dashboard import serve as serve_dashboard
 from fin.delete import delete_company
+from fin.paths import data_dir
 from fin.query.run import query
 from fin.query.write import write_sql
-from fin.report.dd_render import make_diligence_report
-from fin.report.fdd_render import make_fdd_report
-from fin.report.render import make_report
-from fin.update import update as run_update
+from fin.services import reports, system
+from fin.services.result import show
 
 
 @app.command("sql")
@@ -72,13 +71,10 @@ def dashboard(
 ) -> None:
     """Refresh the dashboard data, then start the Evidence dev server (or --build a static site)."""
 
-    def body(run: Run) -> None:
-        if build:
-            typer.echo(f"dashboard built: {build_dashboard(run.root)}")
-        else:
-            serve_dashboard(run.root)
-
-    execute("dashboard", {"build": build}, body)
+    if build:
+        show(system.build_dashboard(data_dir(), via="cli", actor=from_environment()))
+        return
+    execute("dashboard", {"build": False}, lambda run: serve_dashboard(run.root))
 
 
 @app.command("audit")
@@ -155,17 +151,7 @@ def delete_command(
 def update_command() -> None:
     """Update fin: back up databases, git pull, uv sync, npm ci, refresh metrics, run fin doctor."""
 
-    def body(run: Run) -> None:
-        problems = run_update(run)
-        for line in problems:
-            typer.echo(line, err=True)
-        typer.echo(
-            "update finished"
-            if not run.failed
-            else f"update finished; fin doctor failed (update run_id {run.run_id})"
-        )
-
-    execute("update", {}, body)
+    show(system.update_fin(data_dir(), via="cli", actor=from_environment()))
 
 
 @app.command("report")
@@ -217,22 +203,10 @@ def report_command(
     if diligence and fdd:
         raise typer.BadParameter("use --diligence or --fdd, not both")
 
-    def body(run: Run) -> None:
-        if fdd:
-            result = make_fdd_report(run, company, scope, render, drafts)
-        elif diligence:
-            result = make_diligence_report(run, company, scope, render)
-        else:
-            result = make_report(run, company, scope, render, peer_list)
-        typer.echo(json.dumps(result, indent=2))
+    kind = "fdd" if fdd else "diligence" if diligence else "health"
+    given = {"scope": scope, "render": render, "peers": peer_list, "drafts": drafts}
 
-    args = {
-        "company": company,
-        "scope": scope,
-        "render": render,
-        "peers": peer_list,
-        "diligence": diligence,
-        "fdd": fdd,
-        "drafts": drafts,
-    }
-    execute("report", args, body)
+    def body(run: Run) -> None:
+        typer.echo(json.dumps(reports.make(run, company, kind, **given), indent=2))
+
+    execute("report", reports.report_args(company, kind, **given), body)

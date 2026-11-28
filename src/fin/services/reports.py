@@ -1,6 +1,5 @@
 """Reports and exports (the long actions the UI runs as jobs, `fin.services.jobs`)."""
 
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -11,14 +10,8 @@ from fin.report.render import make_report
 from fin.services.result import ActionResult, Progress, perform
 from fin.workbook import export_workbook
 
-# The reports `fin report` makes, by kind: health (no option), --diligence and --fdd (final findings
-# only; a draft copy stays a `--drafts` run from chat or the terminal).
-MAKERS: dict[str, Callable[[Run, str], dict[str, Any]]] = {
-    "health": lambda run, company: make_report(run, company, None, False),
-    "diligence": lambda run, company: make_diligence_report(run, company, None, False),
-    "fdd": lambda run, company: make_fdd_report(run, company, None, False, False),
-}
-REPORT_KINDS = tuple(MAKERS)
+# The reports `fin report` makes, by kind: health (no option), --diligence and --fdd.
+REPORT_KINDS = ("health", "diligence", "fdd")
 
 
 def export_statements(
@@ -53,19 +46,49 @@ def report_lines(root: Path, result: dict[str, Any]) -> list[str]:
     return lines
 
 
+def make(
+    run: Run,
+    company: str,
+    kind: str,
+    *,
+    scope: str | None = None,
+    render: bool = False,
+    peers: list[str] | None = None,
+    drafts: bool = False,
+) -> dict[str, Any]:
+    """Make one report of `kind` (REPORT_KINDS), as `fin report` and the Reports screen do."""
+    if kind == "fdd":
+        return make_fdd_report(run, company, scope, render, drafts)
+    if kind == "diligence":
+        return make_diligence_report(run, company, scope, render)
+    return make_report(run, company, scope, render, peers)
+
+
+def report_args(
+    company: str,
+    kind: str,
+    *,
+    scope: str | None = None,
+    render: bool = False,
+    peers: list[str] | None = None,
+    drafts: bool = False,
+) -> dict[str, Any]:
+    """The arguments a `report` run records, from the CLI or the UI."""
+    return {"company": company, "scope": scope, "render": render, "peers": peers,
+            "diligence": kind == "diligence", "fdd": kind == "fdd", "drafts": drafts}  # fmt: skip
+
+
 def generate_report(
     root: Path, company: str, kind: str, *, via: str, actor: str, progress: Progress | None = None
 ) -> ActionResult:
     """`fin report <company>` (kind health), `--diligence` or `--fdd`: the first run writes the
     narrative stub (Claude fills it in chat); the next one lints it and renders HTML, Word and PDF.
-    `kind` is one of REPORT_KINDS (the interface checks it)."""
+    `kind` is one of REPORT_KINDS (the interface checks it); the FDD report has final findings only
+    (a draft copy stays a `--drafts` run from chat or the terminal)."""
 
     def body(run: Run) -> list[str]:
         if progress is not None:
             progress(f"making the {kind} report of {company}")
-        return report_lines(run.root, MAKERS[kind](run, company))
+        return report_lines(run.root, make(run, company, kind))
 
-    args = {"company": company, "scope": None, "render": False, "peers": None,
-            "diligence": kind == "diligence", "fdd": kind == "fdd", "drafts": False,
-            "via": via, "actor": actor}  # fmt: skip
-    return perform(root, "report", args, body)
+    return perform(root, "report", report_args(company, kind) | {"via": via, "actor": actor}, body)
