@@ -156,8 +156,8 @@ def bank_period_end_credit(ctx: Context) -> Outcome:
     days, back = ctx.settings["period_end_days"], ctx.settings["reversal_days"]
     end, first = bank.bounds[ctx.period][1], bank.bounds[following][0]
     debits = _early_debits(bank, following, first, _wider(back))
-    covered = {s.account for s in bank.of(following)}
-    unchecked: set[str] = set()  # accounts with no statement in the next period: not checked
+    covered = {s.account for s in bank.of(following) if s.covers(first)}
+    unchecked: set[str] = set()  # no next-period statement from its first day: not checked
     flags, near, population = [], 0, 0
     for x in bank.lines(ctx.period):
         if not (x.credit and x.amount >= ctx.min_amount and end - timedelta(days=days) < x.day):
@@ -180,7 +180,8 @@ def bank_period_end_credit(ctx: Context) -> Outcome:
         elif found:
             near += 1
     needs = (
-        f"{', '.join(sorted(unchecked))}: no {following} statement to find a reversal in"
+        f"{', '.join(sorted(unchecked))}: no {following} statement from its first day to find a "
+        "reversal in"
         if unchecked
         else None
     )

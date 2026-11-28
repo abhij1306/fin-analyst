@@ -70,6 +70,8 @@ def bank_balance_chain(ctx: Context) -> Outcome:
     without = [s for s in found if all(x.balance is None for x in s.lines)]
     names = ", ".join(f"{s.account} {s.start:%d-%b-%Y} to {s.end:%d-%b-%Y}" for s in without)
     needs = f"the statement {names}: it prints no row balance" if without else None
+    if not found:
+        return Outcome.cannot("a loaded bank statement in rupees for the period")
     if len(without) == len(found):
         return Outcome.cannot(f"row balances on the period's bank statements ({names}: none)")
     flags, near, population = [], 0, 0

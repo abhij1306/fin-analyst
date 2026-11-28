@@ -214,7 +214,12 @@ The owner confirms or changes these.
   pair. The party is the register token both lines' remarks name (`Parties.find`, as bank_vs_invoices reads them).
 - **An own-account match is the same amount on the other account within 3 days, either side**, as the spec words it;
   a line naming an account whose statement does not cover its date is not compared and not counted.
-- **`bank_period_end_credit` cannot run** without the next period's statements, like `je_reversed`.
+- **`bank_period_end_credit` cannot run** without the next period's statements, like `je_reversed`. An account
+  whose next-period statement does not start by that period's first day is not checked, and the state names it
+  (reviewer reading: passing it would show missing as clean).
+- **Rupee statements only** (reviewer reading): the thresholds and a flag's stored amount are in rupees, so a
+  statement in another currency is left out of every bank test and the period's state names it, as `bank_vs_tb`
+  leaves a foreign-currency account uncompared.
 - **`bank_cash` matches a word** of `cash_words` as a whole word, any case (spaces in a word match any spaces). The
   default `SELF` also matches "CBDT-SELF ASSESSMENT TAX", a tax payment the mock company makes every July: it flags
   that month each year (mock/EXPECTED.md lists it). Kept as the spec's default and **marked for tuning on the second

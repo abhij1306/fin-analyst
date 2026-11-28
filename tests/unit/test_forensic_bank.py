@@ -1,15 +1,17 @@
 """SPEC-19 on synthetic statements: the cases the mock does not reach (a statement with no row
 balances, a chain that restarts at a row with none, an own-account line whose other account is not
-covered, the user's cash words) and the words of a bank test's state."""
+covered, the user's cash words, a period-end credit whose account the next period does not cover
+from its first day, a statement not in rupees) and the words of a bank test's state."""
 
 from datetime import date, timedelta
 from decimal import Decimal
 
-from fin.forensic import settings
+from fin.forensic import registry, settings
 from fin.forensic.bank import Bank, BankLine, Statement
 from fin.forensic.books import Books, Context
 from fin.forensic.families.bank_flows import bank_cash, bank_own_transfer, bank_period_end_credit
 from fin.forensic.families.bank_rows import bank_balance_chain
+from fin.forensic.run import _outcome
 from fin.forensic.status import state_text
 
 START, END = date(2024, 4, 1), date(2025, 3, 31)
@@ -123,7 +125,44 @@ def test_a_period_end_credit_on_an_account_with_no_next_statement_is_named_not_p
 
     assert [(f.account, f.row) for f in outcome.flags] == [("ACCT-0001", 8)]
     assert outcome.population == 1
-    assert outcome.needs == "ACCT-0002: no FY26 statement to find a reversal in"
+    assert outcome.needs == "ACCT-0002: no FY26 statement from its first day to find a reversal in"
+
+
+def test_a_next_statement_starting_after_the_window_does_not_count_as_checked() -> None:
+    late = (date(2025, 5, 1), date(2026, 3, 31))
+    credit = line(0, credit=500000, day=date(2025, 3, 30))
+    statements = [statement([credit])]
+    following = Statement(3, "s3.xlsx", "FY26", "ACCT-0001", *late, ZERO, ())
+    ctx = context([*statements, following])
+    ctx.books.bank = Bank(
+        [*statements, following], {"FY25": (START, END), "FY26": (date(2025, 4, 1), late[1])}
+    )
+
+    outcome = bank_period_end_credit(ctx)
+
+    assert outcome.flags == []
+    assert outcome.population == 0
+    assert outcome.needs == "ACCT-0001: no FY26 statement from its first day to find a reversal in"
+
+
+def test_a_statement_in_another_currency_is_left_out_and_named() -> None:
+    rupees = statement([line(1, debit=300000), line(0, debit=300000, day=START)])
+    dollars = Statement(
+        2, "s2.xlsx", "FY25", "ACCT-0003", START, END, ZERO,
+        (line(1, debit=300000, file_id=2, account="ACCT-0003"),
+         line(0, debit=300000, file_id=2, account="ACCT-0003", day=START)),
+        "USD",
+    )  # fmt: skip
+    ctx = context([rupees])
+    ctx.books.bank = Bank([rupees], {"FY25": (START, END)}, [dollars])
+
+    outcome = _outcome(registry.tests()["bank_date_order"], ctx, ctx.books)
+
+    assert [(f.account, f.row) for f in outcome.flags] == [("ACCT-0001", 8)]
+    assert outcome.needs == (
+        "the statement ACCT-0003 (USD) 01-Apr-2024 to 31-Mar-2025: not in rupees, like the "
+        "thresholds"
+    )
 
 
 def test_cash_words_are_the_users() -> None:

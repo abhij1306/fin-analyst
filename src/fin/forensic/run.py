@@ -67,7 +67,11 @@ def _outcome(test: ForensicTest, ctx: Context, books: Books) -> Outcome:
     unset = [key for key in test.settings if ctx.settings[key] is None]
     if unset:
         return Outcome.cannot(f"{', '.join(unset)} on Settings (`fin forensic set`)")
-    return test.run(ctx)
+    outcome = test.run(ctx)
+    left_out = books.bank.left_out(ctx.period) if books.bank and "bank" in test.kinds else None
+    if left_out and outcome.outcome == "ran":
+        outcome.needs = "; ".join(filter(None, [outcome.needs, left_out]))
+    return outcome
 
 
 def _store(

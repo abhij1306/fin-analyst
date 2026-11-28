@@ -8,7 +8,7 @@ register token of the first customer or vendor its remarks or reference name
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -86,6 +86,7 @@ class Statement:
     end: date
     opening: Decimal
     lines: tuple[BankLine, ...]
+    currency: str = "INR"
 
     def covers(self, day: date) -> bool:
         return self.start <= day <= self.end
@@ -98,8 +99,19 @@ def order(line: BankLine, statement: Statement) -> tuple[Any, ...]:
 
 @dataclass
 class Bank:
+    """The rupee statements the tests read. A statement in another currency is left out (the
+    thresholds are rupees, and a flag's amount is stored in rupees) and named by `left_out`."""
+
     statements: list[Statement]
     bounds: dict[str, tuple[date, date]]  # each engagement period's first and last day
+    foreign: list[Statement] = field(default_factory=list)
+
+    def left_out(self, period: str) -> str | None:
+        found = [s for s in self.foreign if s.period == period]
+        names = ", ".join(
+            f"{s.account} ({s.currency}) {s.start:%d-%b-%Y} to {s.end:%d-%b-%Y}" for s in found
+        )
+        return f"the statement {names}: not in rupees, like the thresholds" if found else None
 
     def of(self, period: str) -> list[Statement]:
         return [s for s in self.statements if s.period == period]
@@ -123,7 +135,7 @@ class Bank:
 
 STATEMENTS = """
 SELECT b.file_id, s.file_name, s.period, b.account, b.period_start, b.period_end,
-    b.opening_balance
+    b.opening_balance, b.currency
 FROM bank_statements b JOIN source_files s USING (file_id)
 WHERE s.status = 'loaded' AND s.engagement_id = ? ORDER BY b.file_id
 """
@@ -165,9 +177,9 @@ def bank_hash(con: duckdb.DuckDBPyConnection, engagement_id: int) -> str:
 
 def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Bank:
     parties = Parties(con)
-    statements = []
+    statements, foreign = [], []
     rows = con.execute(STATEMENTS, [engagement["engagement_id"]]).fetchall()
-    for file_id, name, period, account, start, end, opening in rows:
+    for file_id, name, period, account, start, end, opening, currency in rows:
         lines = []
         for sheet, page, row, acct, day, remarks, reference, debit, credit, balance in con.execute(
             LINES, [file_id]
@@ -178,7 +190,6 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Bank:
                 balance, party,
             )  # fmt: skip
             lines.append(line)
-        statements.append(
-            Statement(file_id, name, period, account, start, end, opening, tuple(lines))
-        )
-    return Bank(statements, period_bounds(engagement))
+        st = Statement(file_id, name, period, account, start, end, opening, tuple(lines), currency)
+        (statements if currency == "INR" else foreign).append(st)
+    return Bank(statements, period_bounds(engagement), foreign)

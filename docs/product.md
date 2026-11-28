@@ -1269,12 +1269,13 @@ ordered by amount). Defaults, minimum populations and readings: [decisions/foren
   `bank_own_transfer` (a line whose remarks name another of the company's `ACCT-` accounts with no line of the same
   amount on it within 3 days, where that account's statement covers the date), `bank_period_end_credit` (a credit
   in the last `period_end_days` of a period debited again on the account in the first `reversal_days` of the next;
-  cannot run without the next period's statements; an account with none there is not checked, and the state names
-  it) and `bank_cash` (one flag per account and month whose lines with a
+  cannot run without the next period's statements; an account with no statement there starting by the period's first day is not
+  checked, and the state names it) and `bank_cash` (one flag per account and month whose lines with a
   `cash_words` word add up to the threshold or more, with the deposits, withdrawals and total in the reason and the
   lines in its source: the cash series of `fin forensic flags --test bank_cash` and the Forensic screen). The
   single-row tests flag amounts at or above `min_amount` (a balance break: the difference). A bank flag's account is
-  the statement's `ACCT-` token (no mapping); remarks are not printed.
+  the statement's `ACCT-` token (no mapping); remarks are not printed. The tests read rupee statements only: a
+  statement in another currency is left out, and the period's state names it (the thresholds are in rupees).
 - **`fin forensic run <co> [--test T] [--period P]`** runs the tests (E991 for an unknown test or a period not in the
   engagement). The run log holds one line per test and period: the outcome, the flagged and at-or-above-threshold
   counts, the population and the count just outside a threshold, with no ledger or party name.
