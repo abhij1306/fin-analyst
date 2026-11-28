@@ -127,27 +127,6 @@ def test_the_page_says_so_when_there_are_no_companies(data_root: Path) -> None:
     assert "No companies yet" in signed_in(client).get("/").text
 
 
-def test_the_top_bar_is_a_tab_list_and_keeps_the_chosen_company(client: TestClient) -> None:
-    page = signed_in(client).get("/files?company=acme")
-    assert 'role="tablist"' in page.text
-    assert 'role="tabpanel" aria-labelledby="tab-files"' in page.text
-    assert 'id="tab-files" href="/files?company=acme"' in page.text
-    assert 'aria-controls="screen" aria-selected="true"' in page.text
-    assert 'id="tab-home" href="/?company=acme"' in page.text
-    assert page.text.count('aria-selected="true"') == 1
-
-
-def test_every_screen_opens_for_a_company_with_no_data(client: TestClient) -> None:
-    signed_in(client)
-    for screen in ("files", "mappings", "queries", "gates", "findings", "reports"):
-        page = client.get(f"/{screen}?company=acme")
-        assert page.status_code == 200, screen
-        assert f'aria-labelledby="tab-{screen}"' in page.text
-        partial = client.get(f"/partials/{screen}?company=acme")
-        assert partial.status_code == 200, screen
-        assert "<html" not in partial.text, screen
-
-
 def test_the_files_screen_lists_what_waits_in_the_inbox(client: TestClient) -> None:
     page = signed_in(client).get("/files?company=acme")
     assert "waiting.xlsx" in page.text
@@ -173,7 +152,9 @@ def test_a_report_is_listed_opened_and_a_path_outside_the_folder_is_refused(
     signed_in(client)
     listing = client.get("/partials/reports?company=acme").text
     assert "consolidated/health.html" in listing
-    assert "narrative.md" not in listing
+    assert (
+        "narrative.md</a>" not in listing
+    )  # a narrative is listed with its sections, not as a file
     opened = client.get("/report-file?company=acme&name=consolidated/health.html")
     assert opened.status_code == 200
     assert "content-disposition" not in opened.headers

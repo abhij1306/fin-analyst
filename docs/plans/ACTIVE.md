@@ -73,11 +73,11 @@ Updated: 2026-11-28.
 | 10 | 1 | Store third-party reference tables apart from company facts | high | done (#130) |
 | 10 | 2 | Map reference lines and compare them with fin's figures | | done (#130) |
 | 10 | 3 | Add the comparison screen and the query and adjustment hand-offs | | done (#130) |
-| 11 | 1 | Generate and download reports from the Reports screen | | todo |
-| 11 | 2 | Add Settings and Health screens | | todo |
-| 11 | 3 | Add the Questions screen and Log filters | | todo |
-| 11 | 4 | Add FDD finding drafts and the dashboard build | | todo |
-| 11 | 5 | Group the navigation and add the command coverage table with its test | | todo |
+| 11 | 1 | Generate and download reports from the Reports screen | | done (#131) |
+| 11 | 2 | Add Settings and Health screens | | done (#131) |
+| 11 | 3 | Add the Questions screen and Log filters | | done (#131) |
+| 11 | 4 | Add FDD finding drafts and the dashboard build | | done (#131) |
+| 11 | 5 | Group the navigation and add the command coverage table with its test | | done (#131) |
 | 12 | 1 | Install Quarto without sudo on macOS and stop retrying non-network failures | high | done (#125) |
 | 12 | 2 | Use uv's managed Python and warn about temporary folders | high | done (#125) |
 | 12 | 3 | Install the UI by default and end the install with its link | high | done (#125) |

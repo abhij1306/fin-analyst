@@ -18,7 +18,7 @@ from fin.audit.errors import FinError, UiActionInvalid
 from fin.extract.addon import ADDON_LABELS
 from fin.ingest import UNIT_ANSWERS
 from fin.paths import dataroom_dir
-from fin.services import addon, dataroom, ingest, reports
+from fin.services import addon, dataroom, ingest, questions, reports, system
 from fin.services.jobs import Jobs, Work, list_jobs
 from fin.services.result import ActionResult, Progress
 from fin.ui.actions import ITEM_ID
@@ -33,10 +33,21 @@ LABELS = {
     "unit": "Load with the unit",
     "dataroom-scan": "Scan a data room",
     "dataroom-load": "Load the approved files",
+    "report": "Make a report",
+    "dashboard": "Build the dashboard",
+    "update": "Update fin",
+    "rerun": "Run a question again",
 }
 # The actions that take a choice: its values and the argument it becomes.
-CHOICES = {"addon": (tuple(ADDON_LABELS), "name"), "unit": (tuple(UNIT_ANSWERS), "unit")}
-ON_ITEM = {"reingest", "unit"}  # the jobs that act on one file: a doc_id, or a held file's name
+CHOICES = {
+    "addon": (tuple(ADDON_LABELS), "name"),
+    "unit": (tuple(UNIT_ANSWERS), "unit"),
+    "report": (reports.REPORT_KINDS, "kind"),
+}
+# The jobs that act on one item: a doc_id, a held file's name, or a saved question's query id
+ON_ITEM = {"reingest", "unit", "rerun"}
+# The jobs for the whole install: they run before any company exists, listed under company "".
+INSTALL_WIDE = {"addon", "dashboard", "update"}
 
 
 def _export(root: Path, company: str, *, progress: Progress) -> ActionResult:
@@ -69,6 +80,24 @@ def _dataroom_load(root: Path, company: str, *, progress: Progress) -> ActionRes
     return dataroom.load_plan(root, company, via="ui", actor=USER, progress=progress)
 
 
+def _report(root: Path, company: str, *, kind: str, progress: Progress) -> ActionResult:
+    return reports.generate_report(root, company, kind, via="ui", actor=USER, progress=progress)
+
+
+def _dashboard(root: Path, company: str, *, progress: Progress) -> ActionResult:
+    return system.build_dashboard(root, via="ui", actor=USER, progress=progress)
+
+
+def _update(root: Path, company: str, *, progress: Progress) -> ActionResult:
+    return system.update_fin(root, via="ui", actor=USER, progress=progress)
+
+
+def _rerun(root: Path, company: str, *, query_id: str, progress: Progress) -> ActionResult:
+    return questions.rerun_question(
+        root, company, query_id, via="ui", actor=USER, progress=progress
+    )
+
+
 WORK: dict[str, Work] = {
     "export": _export,
     "addon": _addon,
@@ -77,6 +106,10 @@ WORK: dict[str, Work] = {
     "unit": _unit,
     "dataroom-scan": _dataroom_scan,
     "dataroom-load": _dataroom_load,
+    "report": _report,
+    "dashboard": _dashboard,
+    "update": _update,
+    "rerun": _rerun,
 }
 
 
@@ -105,6 +138,9 @@ def job_arguments(
     if action == "unit":
         ingest.held_for_unit(root, company, item)  # E008 now, not when the job runs
         return arguments | {"file": item}
+    if action == "rerun":
+        questions.saved_question(root, company, item)  # E001 now, not when the job runs
+        return arguments | {"query_id": item}
     if not ITEM_ID.fullmatch(item):
         raise UiActionInvalid(f"{item!r} is not a document id; nothing was started")
     ingest.document(root, company, int(item))
@@ -125,8 +161,10 @@ def add_job_routes(
     def shown(request: Request, company: str) -> HTMLResponse:
         return templates.TemplateResponse(request, "_jobs.html", jobs_context(root, company))
 
-    def chosen(company: str | None) -> str:
+    def chosen(company: str | None, install_wide: bool = False) -> str:
         name = known(root, company)
+        if name is None and install_wide:
+            return ""  # no company yet: the install's own jobs
         if name is None:
             raise UiActionInvalid("there is no company yet; nothing was started")
         return name
@@ -135,11 +173,11 @@ def add_job_routes(
     def job(
         request: Request,
         action: Annotated[str, Form()],
-        company: Annotated[str, Form()],
+        company: Annotated[str, Form()] = "",
         item: Annotated[str, Form()] = "",
         choice: Annotated[str | None, Form()] = None,
     ) -> HTMLResponse:
-        name = chosen(company)
+        name = chosen(company, action in INSTALL_WIDE)
         jobs.submit(name, action, job_arguments(root, name, action, item, choice))
         response = shown(request, name)
         response.headers["HX-Trigger"] = "job-queued"  # the Files screen's rows start to follow it
@@ -169,4 +207,4 @@ def add_job_routes(
 
     @app.get("/partials/jobs", response_class=HTMLResponse)
     def partial(request: Request, company: str | None = None) -> HTMLResponse:
-        return shown(request, chosen(company))
+        return shown(request, chosen(company, install_wide=True))

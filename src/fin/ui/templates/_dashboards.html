@@ -1,0 +1,23 @@
+{% from "_ui.html" import head, empty, no_company %}
+{% if data.empty %}
+{{ no_company() }}
+{% else %}
+{% call head("Dashboards", "Charts of every company's metrics, statements, findings and data quality, built from the latest data.") %}
+<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+  <input type="hidden" name="action" value="dashboard"><input type="hidden" name="company" value="{{ company }}">
+  <button type="submit" class="btn" data-size="sm">Build the dashboard</button>
+</form>
+{% if data.built_at %}<a class="btn" data-size="sm" data-variant="outline" href="/dashboard-site/" target="_blank" rel="noopener">Open in a new tab</a>{% endif %}
+{% endcall %}
+{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
+<div class="card">
+  <header><h2>Dashboard</h2>{% if data.built_at %}<p>Built {{ data.built_at | when }}. Build it again to show newer data.</p>{% endif %}</header>
+  <section class="flush">
+    {% if data.built_at %}
+    <iframe class="dashboard" src="/dashboard-site/" title="Dashboard"></iframe>
+    {% else %}
+    <div class="pad">{{ empty("Not built yet.", "Build the dashboard: it takes a minute or two.") }}</div>
+    {% endif %}
+  </section>
+</div>
+{% endif %}

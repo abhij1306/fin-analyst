@@ -2,7 +2,7 @@
     for itself again every second; a reload shows the same jobs, read from the jobs table. -#}
 {% from "_ui.html" import badge, empty %}
 {% set active = jobs | selectattr("state", "in", ["queued", "running"]) | list %}
-<div id="jobs" class="card"{% if active %} hx-get="/partials/jobs?company={{ company | urlencode }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+<div id="jobs" class="card"{% if active %} hx-get="/partials/jobs?company={{ (company or '') | urlencode }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
   <header><h2>Jobs</h2><p>Long actions run here one at a time. You can leave or reload the page.</p></header>
   <section class="flush">
     {% if jobs %}

@@ -20,7 +20,10 @@ from fin.metrics.export import TABLES
 from fin.paths import analytics_db_path
 
 PROJECT_DIR = Path(__file__).resolve().parents[2] / "dashboards"
-DEV_URL = "http://localhost:3000"
+# The path the site is served under (`deployment.basePath` in dashboards/evidence.config.yaml), so
+# the web UI can serve the build beside its own pages (`fin.ui.system_routes`).
+BASE_PATH = "/dashboard-site"
+DEV_URL = f"http://localhost:3000{BASE_PATH}"
 # npm run dev exits 0, or with SIGINT (-2, or 130 through a shell), when the user stops it.
 STOPPED_BY_CTRL_C = (0, -2, 130)
 
@@ -107,6 +110,8 @@ def build(root: Path) -> Path:
     snapshot = _refresh_sources(root)
     result = _npm(snapshot, "build")
     built = PROJECT_DIR / "build"
+    if (built / BASE_PATH.strip("/")).is_dir():  # Evidence may put the site under its base path
+        built = built / BASE_PATH.strip("/")
     if result.returncode != 0 or not built.is_dir():
         raise DashboardBuildFailed(
             f"`npm run build` failed (exit {result.returncode}); "

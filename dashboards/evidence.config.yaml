@@ -1,3 +1,7 @@
+deployment:
+  # fin's web UI serves the built site under this path (fin.dashboard.BASE_PATH).
+  basePath: /dashboard-site
+
 plugins:
   components:
     '@evidence-dev/core-components': {}

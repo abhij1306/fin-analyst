@@ -12,7 +12,7 @@ from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company
 from fin.fdd import findings
 from fin.paths import data_dir
-from fin.services import decisions
+from fin.services import decisions, fdd
 from fin.services.result import show
 
 fdd_app = typer.Typer(no_args_is_help=True, help="FDD: the findings of the FDD report.")
@@ -111,10 +111,10 @@ def update(
     given = dict(locals())
     del given["company"], given["finding_id"]
     fields = _fields(**given)
-    execute(
-        "fdd finding update",
-        {"company": company, "finding_id": finding_id, "fields": sorted(fields)},
-        lambda run: _echo([findings.update(run, company, finding_id, fields)]),
+    show(
+        fdd.edit_finding(
+            data_dir(), company, finding_id, fields, via="cli", actor=from_environment()
+        )
     )
 
 
@@ -139,11 +139,7 @@ def list_command(
 @finding_app.command("drop")
 def drop(company: Company, ids: Ids) -> None:
     """Drop draft findings (kept as dropped, out of the report)."""
-    execute(
-        "fdd finding drop",
-        {"company": company, "ids": ids},
-        lambda run: _echo(findings.set_status(run, company, ids, "dropped")),
-    )
+    show(fdd.drop_findings(data_dir(), company, ids, via="cli", actor=from_environment()))
 
 
 @finding_app.command("final")

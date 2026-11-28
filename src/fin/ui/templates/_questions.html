@@ -1,0 +1,37 @@
+{% from "_ui.html" import head, clip, empty, no_company %}
+{% from "_chat_items.html" import ask %}
+{% if data.empty %}
+{{ no_company() }}
+{% else %}
+{% call head("Questions", "The questions asked with fin sql, with their SQL and evidence page. Ask a new one in chat.") %}
+{{ ask(company, "/ask ", label="Ask a question", variant="outline") }}
+{% endcall %}
+{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
+<div class="card">
+  <header><h2>Saved questions</h2></header>
+  <section class="flush">
+    {% if data.questions %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Asked</th><th>Question</th><th>SQL</th><th class="num">Rows</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for q in data.questions %}
+        {% set href = "/evidence-file?company=" ~ (company | urlencode) ~ "&query_id=" ~ (q.query_id | urlencode) %}
+        <tr><td>{{ q.recorded_at | when }}<div class="sub run">{{ q.query_id }}</div></td><td>{{ clip(q.question or "(no question recorded)", 50) }}</td>
+          <td><details class="clip"><summary>{{ q.sql }}</summary><pre class="code-block" data-size="sm"><code>{{ q.sql }}</code></pre></details></td>
+          <td class="num">{{ q.row_count }}</td>
+          <td class="act"><div class="actions">
+            {% if q.has_evidence %}<a class="btn" data-size="sm" data-variant="outline" href="{{ href }}" target="_blank" rel="noopener">Open evidence</a>
+            <a class="btn" data-size="sm" data-variant="ghost" href="{{ href }}&download=true">Download</a>{% endif %}
+            <form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+              <input type="hidden" name="action" value="rerun"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ q.query_id }}">
+              <button type="submit" class="btn" data-size="sm" data-variant="outline">Run again</button></form>
+          </div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No questions yet.", "Ask one in chat: /ask writes the SQL and its evidence page.") }}</div>
+    {% endif %}
+  </section>
+</div>
+{% endif %}

@@ -102,7 +102,7 @@ Plain requests work; these are shortcuts. Each one runs `fin` (see `uv run fin -
 | `/statements <company> [period]` | Profit and loss, balance sheet and cash flow in standard order, or an Excel export with every period and all metrics. |
 | `/ask <company> <question>` | An answer with the calculation, the source cells or pages, the SQL and an evidence page. |
 | `/report <company> [--peers a,b]` | Health report: key metrics, one section per category, latest quarters, peers, findings, data coverage. |
-| `/dashboard` | Dashboards at http://localhost:3000: Company, Compare and Data quality. |
+| `/dashboard` | Dashboards at http://localhost:3000/dashboard-site (or the Dashboards screen of `fin ui`): Company, Compare and Data quality. |
 | `/audit <company> [metric year]` | Trace a figure back to its source, or show the company's history. |
 | `/verify <company> <file>` | Have Claude read a loaded or held document again and compare that reading with what is stored, whenever you want; each run is recorded. |
 | `/diligence <company>` | A diligence engagement: queries for the company's accountant and adjustments to EBITDA, with evidence, and the gates you approve. |

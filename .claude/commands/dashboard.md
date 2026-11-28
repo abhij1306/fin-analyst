@@ -5,7 +5,7 @@ argument-hint: [--build]
 
 Open the dashboards with `fin`: $ARGUMENTS
 
-1. Run `uv run fin dashboard $ARGUMENTS`. It snapshots `shared/analytics.duckdb` (so ingests can keep running), then starts the dev server at http://localhost:3000. With `--build` it writes a static site to `<data>/dashboard/build` instead.
+1. Run `uv run fin dashboard $ARGUMENTS`. It snapshots `shared/analytics.duckdb` (so ingests can keep running), then starts the dev server at http://localhost:3000/dashboard-site. With `--build` it writes a static site to `<data>/dashboard/build` instead.
    Run the dev server in the background so this session stays usable, and tell the user the URL.
 2. If a command fails, report its error code and run_id (E603: the build failed and the last good build was kept) and stop.
 3. Tell the user what the pages show:

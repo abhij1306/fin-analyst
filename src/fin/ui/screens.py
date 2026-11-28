@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from fin.audit.errors import DependencyMissing, FinError
-from fin.audit.trace import company_history
 from fin.config import SCOPES
 from fin.dataroom.load import waiting
 from fin.dataroom.scan import plan_groups
@@ -25,9 +24,10 @@ from fin.reference.lines import list_lines
 from fin.services.addon import offer
 from fin.services.dataroom import plan_rows
 from fin.services.jobs import list_jobs
+from fin.services.reports import REPORT_KINDS
 from fin.services.reviews import KINDS
 from fin.status import company_status
-from fin.ui import diligence_screens, views
+from fin.ui import diligence_screens, system_screens, views
 from fin.ui.actions import MAX_IDS
 from fin.ui.differences_screen import differences_screen
 from fin.ui.diligence_screens import screen_run, with_engagement
@@ -36,7 +36,6 @@ from fin.ui.job_routes import LABELS as JOB_LABELS
 from fin.ui.statements_screen import statements_screen
 
 REPORT_SUFFIXES = (".html", ".docx", ".pdf", ".xlsx")
-LOG_LIMIT = 100
 Loader = Callable[[Path, str], dict[str, Any]]
 
 
@@ -176,6 +175,8 @@ def reports_screen(root: Path, company: str) -> dict[str, Any]:
         "folder": f"reports/{company}/",
         "jobs": jobs,
         "job_labels": JOB_LABELS,
+        "kinds": REPORT_KINDS,
+        "narratives": system_screens.narratives(root, company),
     }
 
 
@@ -194,11 +195,6 @@ def references_screen(root: Path, company: str) -> dict[str, Any]:
     return {**comparison(root, company), "lines": list_lines(root, company)}
 
 
-def log_screen(root: Path, company: str) -> dict[str, Any]:
-    runs = company_history(root, company)["runs"]
-    return {"runs": list(reversed(runs))[:LOG_LIMIT]}
-
-
 LOADERS: dict[str, Loader] = {
     "home": home,
     "files": files,
@@ -212,8 +208,8 @@ LOADERS: dict[str, Loader] = {
     "references": references_screen,
     "differences": differences_screen,
     "reports": reports_screen,
-    "log": log_screen,
+    **system_screens.LOADERS,
 }
 # Screens whose loader also takes the query parameters (the Statements and Differences pickers,
-# the Bridge screen's view).
-WITH_QUERY = ("statements", "bridge", "differences")
+# the Bridge screen's view, the Log's filters and trail).
+WITH_QUERY = ("statements", "bridge", "differences", *system_screens.WITH_QUERY)

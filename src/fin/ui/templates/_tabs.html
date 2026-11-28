@@ -1,10 +1,23 @@
-{#- The tabs of the top bar. After a decision they are sent again out of band so the counts stay current.
-    Each tab is a link to its screen, so every tab stays in the Tab order (no arrow-key roving focus). -#}
-<div class="tabs" id="tabs"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <div role="tablist" aria-orientation="horizontal" aria-label="Screens">
-    {% for id, label in SCREENS %}
-    <a role="tab" id="tab-{{ id }}" href="{{ '/' if id == 'home' else '/' ~ id }}{% if company %}?company={{ company | urlencode }}{% endif %}"
-       aria-controls="screen" aria-selected="{{ 'true' if id == screen else 'false' }}">{{ label }}{% if (tab_counts or {}).get(id) %}<span class="badge" data-variant="primary">{{ tab_counts[id] }}</span>{% endif %}</a>
-    {% endfor %}
+{#- The top bar's navigation: Home, then one Basecoat dropdown menu per group of screens. After a decision it
+    is sent again out of band so the counts stay current. Every item is a link (its own address); the open
+    screen is aria-current="page". A group's button shows what waits in its screens. -#}
+{% set q = ("?company=" ~ (company | urlencode)) if company else "" %}
+{% set counts = tab_counts or {} %}
+<nav class="tabs" id="tabs" aria-label="Screens"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <a class="btn" data-size="sm" data-variant="{{ 'secondary' if screen == 'home' else 'ghost' }}" id="tab-home" href="/{{ q }}"{% if screen == 'home' %} aria-current="page"{% endif %}>Home</a>
+  {% for group, items in NAV %}
+  {% set g = "nav-" ~ (group | lower) %}
+  {% set ns = namespace(n=0, open=false) %}
+  {% for id, _ in items %}{% set ns.n = ns.n + counts.get(id, 0) %}{% if id == screen %}{% set ns.open = true %}{% endif %}{% endfor %}
+  <div class="dropdown-menu" id="{{ g }}">
+    <button type="button" class="btn" data-size="sm" data-variant="{{ 'secondary' if ns.open else 'ghost' }}" id="{{ g }}-trigger" aria-haspopup="menu" aria-controls="{{ g }}-menu" aria-expanded="false">{{ group }}{% if ns.n %}<span class="badge" data-variant="primary">{{ ns.n }}</span>{% endif %}</button>
+    <div id="{{ g }}-popover" data-popover aria-hidden="true">
+      <div role="menu" id="{{ g }}-menu" aria-labelledby="{{ g }}-trigger">
+        {% for id, label in items %}
+        <a role="menuitem" id="tab-{{ id }}" href="/{{ id }}{{ q }}"{% if id == screen %} aria-current="page"{% endif %}>{{ label }}{% if counts.get(id) %}<span class="badge" data-variant="primary">{{ counts[id] }}</span>{% endif %}</a>
+        {% endfor %}
+      </div>
+    </div>
   </div>
-</div>
+  {% endfor %}
+</nav>

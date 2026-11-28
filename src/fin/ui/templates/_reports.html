@@ -2,13 +2,34 @@
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
-{% call head("Reports") %}
+{% call head("Reports", "A report's first run writes its narrative stub; Claude fills it in chat, then the next run checks it and renders HTML, Word and PDF.") %}
+{% for kind in data.kinds %}
+<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+  <input type="hidden" name="action" value="report"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="choice" value="{{ kind }}">
+  <button type="submit" class="btn" data-size="sm" data-variant="outline">{{ {"health": "Health report", "diligence": "Diligence report", "fdd": "FDD report"}[kind] }}</button>
+</form>
+{% endfor %}
 <form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
   <input type="hidden" name="action" value="export"><input type="hidden" name="company" value="{{ company }}">
   <button type="submit" class="btn" data-size="sm">Export to Excel</button>
 </form>
 {% endcall %}
 {% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
+{% if data.narratives %}
+<div class="card">
+  <header><h2>Narratives</h2><p>The sections Claude drafted; the rendered report adds the findings and data coverage.</p></header>
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Narrative</th><th>Sections</th></tr></thead>
+      <tbody>
+        {% for n in data.narratives %}
+        <tr><td class="fname">{{ n.name }}</td><td>{{ n.sections | join(", ") if n.sections else "no sections yet" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+{% endif %}
 <div class="card">
   <header><h2>Files</h2></header>
   <section class="flush">

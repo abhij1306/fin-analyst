@@ -87,6 +87,7 @@ CASES: list[tuple[str, str, str, list[str], Callable[[Path], None]]] = [
     ("gate-approve", "g2", "", ["gate", "approve", "acme", "G2"], _nothing),
     ("fdd-final", "99", "", ["fdd", "finding", "final", "acme", "99"], _nothing),
     ("fdd-draft", "99", "", ["fdd", "finding", "final", "acme", "99", "--undo"], _nothing),
+    ("fdd-drop", "99", "", ["fdd", "finding", "drop", "acme", "99"], _nothing),
     ("mapping-confirm-all", "99,98", "", ["review", "confirm", "acme", "99", "98"], _nothing),
     ("reference-confirm", "99", "", ["reference", "confirm", "acme", "99"], _nothing),
     ("reference-reject", "99", "", ["reference", "reject", "acme", "99"], _nothing),
