@@ -23,7 +23,7 @@ from fin.extract.ledger import has_header, read_table
 from fin.extract.pdf import extract_pdf
 from fin.extract.profiles import KINDS, Profile, norm, profiles_for
 from fin.extract.registers import fits
-from fin.ingest import EXCEL_SUFFIXES
+from fin.ingest_read import EXCEL_SUFFIXES
 
 ARCHIVE_SUFFIXES = (".zip",)
 OTHER_ARCHIVES = (".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz")

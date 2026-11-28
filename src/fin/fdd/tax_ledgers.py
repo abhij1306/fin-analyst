@@ -14,12 +14,13 @@ from typing import Any
 
 import duckdb
 
+from fin.actor import CLAUDE, recorded
 from fin.audit.errors import TaxLedgerInvalid
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database
-from fin.map.review import LOW_CONFIDENCE, _current_actor
+from fin.map.review import LOW_CONFIDENCE
 
 CLASSES = ("gst_output", "gst_input", "rcm", "tds", "income_tax", "mat_credit")
 FIELDS = ("ledger", "class", "confidence", "reason")
@@ -56,8 +57,8 @@ def unclassified(run: Run, company: str) -> list[dict[str, Any]]:
         )
 
 
-def _decide(run: Run, company: str, row: dict[str, Any], decision: str) -> None:
-    actor, on_request = ("claude", False) if decision == "proposed" else _current_actor()
+def _decide(run: Run, company: str, row: dict[str, Any], decision: str, actor: str) -> None:
+    actor, on_request = recorded(actor, decision)
     run.record(
         "mapping_decisions",
         {
@@ -122,7 +123,7 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
             )
             row = {"ledger": p["ledger"], "tax_class": p["class"]}
             row |= {"confidence": float(p["confidence"]), "reason": p["reason"]}
-            _decide(run, company, row, "proposed")
+            _decide(run, company, row, "proposed", CLAUDE)
             if row["confidence"] < LOW_CONFIDENCE:
                 run.event(
                     "map",
@@ -151,7 +152,7 @@ def _by_ids(con: duckdb.DuckDBPyConnection, ids: list[int]) -> list[dict[str, An
 
 
 def confirm(
-    run: Run, company: str, ids: list[int], tax_class: str | None = None
+    run: Run, company: str, ids: list[int], tax_class: str | None = None, *, actor: str
 ) -> list[dict[str, Any]]:
     """Confirm the proposed classes (or `tax_class` instead), all or nothing. E951 for an unknown
     id or class, or a rejected row with no `tax_class`."""
@@ -174,11 +175,11 @@ def confirm(
                 "changed_at = ? WHERE tax_ledger_id = ?",
                 [row["chosen"], run.run_id, utcnow(), row["tax_ledger_id"]],
             )
-            _decide(run, company, row, "edited" if edited else "confirmed")
+            _decide(run, company, row, "edited" if edited else "confirmed", actor)
         return _by_ids(con, ids)
 
 
-def reject(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
+def reject(run: Run, company: str, ids: list[int], *, actor: str) -> list[dict[str, Any]]:
     """Reject the proposals, all or nothing (E951 for an unknown id): the ledger has no class."""
     ids = list(dict.fromkeys(ids))
     with company_database(run, company, write=True) as con, transaction(con):
@@ -188,7 +189,7 @@ def reject(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
                 "changed_at = ? WHERE tax_ledger_id = ?",
                 [run.run_id, utcnow(), row["tax_ledger_id"]],
             )
-            _decide(run, company, row, "rejected")
+            _decide(run, company, row, "rejected", actor)
         return _by_ids(con, ids)
 
 

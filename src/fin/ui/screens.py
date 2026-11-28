@@ -18,8 +18,10 @@ from fin.fdd import findings as fdd
 from fin.findings import list_findings
 from fin.map.review import open_items, read_pending
 from fin.paths import company_db_path, reports_dir
+from fin.services.jobs import list_jobs
 from fin.status import company_status
 from fin.ui import views
+from fin.ui.job_routes import LABELS as JOB_LABELS
 
 REPORT_SUFFIXES = (".html", ".docx", ".pdf", ".xlsx")
 LOG_LIMIT = 100
@@ -121,7 +123,13 @@ def report_files(root: Path, company: str) -> list[str]:
 
 
 def reports_screen(root: Path, company: str) -> dict[str, Any]:
-    return {"files": report_files(root, company), "folder": f"reports/{company}/"}
+    jobs = list_jobs(root, company)
+    return {
+        "files": report_files(root, company),
+        "folder": f"reports/{company}/",
+        "jobs": jobs,
+        "job_labels": JOB_LABELS,
+    }
 
 
 def report_file(root: Path, company: str, name: str) -> Path:

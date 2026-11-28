@@ -1,0 +1,25 @@
+{#- The company's background jobs (fin.services.jobs). While one is queued or running the card asks
+    for itself again every second; a reload shows the same jobs, read from the jobs table. -#}
+{% from "_ui.html" import badge, empty %}
+{% set active = jobs | selectattr("state", "in", ["queued", "running"]) | list %}
+<div id="jobs" class="card"{% if active %} hx-get="/partials/jobs?company={{ company | urlencode }}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+  <header><h2>Jobs</h2><p>Long actions run here one at a time. You can leave or reload the page.</p></header>
+  <section class="flush">
+    {% if jobs %}
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Job</th><th>State</th><th>Progress or result</th><th>Started</th><th>Run</th></tr></thead>
+      <tbody>
+        {% for j in jobs %}
+        <tr><td>{{ job_labels.get(j.action, j.action) }}</td><td>{{ badge(j.state) }}</td>
+          <td>{% if j.state in ("queued", "running") %}<span class="muted">{{ j.progress or "waiting for the job before it" }}</span>
+            {% elif j.state == "interrupted" %}<span class="muted">The server stopped before it ended. Start it again.</span>
+            {% else %}{% if j.code %}<strong>{{ j.code }}</strong> {% endif %}{% for line in j.lines %}<p>{{ line }}</p>{% endfor %}{% endif %}</td>
+          <td>{{ (j.started_at or j.queued_at) | when }}</td><td>{% if j.run_id %}<span class="run">{{ j.run_id }}</span>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}
+    <div class="pad">{{ empty("No jobs yet.") }}</div>
+    {% endif %}
+  </section>
+</div>

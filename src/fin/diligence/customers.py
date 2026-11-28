@@ -14,12 +14,13 @@ from typing import Any
 
 import duckdb
 
+from fin.actor import CLAUDE, recorded
 from fin.audit.errors import CustomerMappingInvalid
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database
-from fin.map.review import LOW_CONFIDENCE, _current_actor
+from fin.map.review import LOW_CONFIDENCE
 
 UNMAPPED = "unmapped"  # the label sector_mix gives a customer without a confirmed sector
 
@@ -57,8 +58,8 @@ def list_customers(run: Run, company: str, open_only: bool = False) -> list[dict
         return read(con, open_only)
 
 
-def _decide(run: Run, company: str, row: dict[str, Any], decision: str) -> None:
-    actor, on_request = ("claude", False) if decision == "proposed" else _current_actor()
+def _decide(run: Run, company: str, row: dict[str, Any], decision: str, actor: str) -> None:
+    actor, on_request = recorded(actor, decision)
     run.record(
         "mapping_decisions",
         {
@@ -143,7 +144,7 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
                 [row["sector"], row["confidence"], row["reason"], run.run_id, utcnow()]
                 + [row["customer_id"]],
             )
-            _decide(run, company, row, "proposed")
+            _decide(run, company, row, "proposed", CLAUDE)
             if row["confidence"] < LOW_CONFIDENCE:
                 run.event(
                     "map",
@@ -173,7 +174,7 @@ def _rows(con: duckdb.DuckDBPyConnection, ids: list[int]) -> list[dict[str, Any]
 
 
 def confirm(
-    run: Run, company: str, ids: list[int], sector: str | None = None
+    run: Run, company: str, ids: list[int], sector: str | None = None, *, actor: str
 ) -> list[dict[str, Any]]:
     """Confirm the customers' proposed sectors (or `sector` instead), all or nothing. E868 for an
     unknown id, or a customer with no proposal and no `sector`."""
@@ -198,11 +199,11 @@ def confirm(
                 "WHERE customer_id = ?",
                 [chosen, run.run_id, utcnow(), row["customer_id"]],
             )
-            _decide(run, company, row, "edited" if edited else "confirmed")
+            _decide(run, company, row, "edited" if edited else "confirmed", actor)
         return _rows(con, ids)
 
 
-def reject(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
+def reject(run: Run, company: str, ids: list[int], *, actor: str) -> list[dict[str, Any]]:
     """Reject the customers' proposals, all or nothing (E868 for an unknown id). A rejected customer
     is unmapped until a new proposal is confirmed."""
     ids = list(dict.fromkeys(ids))
@@ -214,7 +215,7 @@ def reject(run: Run, company: str, ids: list[int]) -> list[dict[str, Any]]:
                 "changed_at = ? WHERE customer_id = ?",
                 [run.run_id, utcnow(), row["customer_id"]],
             )
-            _decide(run, company, row, "rejected")
+            _decide(run, company, row, "rejected", actor)
         return _rows(con, ids)
 
 

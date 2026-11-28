@@ -10,6 +10,7 @@ from typing import Annotated, Any
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.errors import DependencyMissing, InvalidMapping
 from fin.audit.logger import Run, execute
 from fin.db.conn import no_company_message
@@ -18,11 +19,11 @@ from fin.diligence.customers import list_customers
 from fin.diligence.ledgers import list_ledgers
 from fin.disclosures import related
 from fin.fdd import tax_ledgers
-from fin.findings import recheck_held
 from fin.map import review, review_netdebt
 from fin.map.dictionary import STATEMENTS, added_rows
-from fin.metrics.export import refresh_analytics
-from fin.paths import COMPANY_NAME, companies_dir, company_db_path
+from fin.paths import COMPANY_NAME, companies_dir, company_db_path, data_dir
+from fin.services import decisions
+from fin.services.result import show
 
 map_app = typer.Typer(
     no_args_is_help=True, help="Mapping proposals, company mappings and the account list."
@@ -122,7 +123,9 @@ def map_set(
     def body(run: Run) -> None:
         if statement not in STATEMENTS:
             raise InvalidMapping(f"statement must be one of {', '.join(STATEMENTS)}")
-        outcome = review.set_mapping(run, company, statement, label, account, section)
+        outcome = review.set_mapping(
+            run, company, statement, label, account, section, actor=from_environment()
+        )
         where = f" under {section!r}" if section else ""
         typer.echo(f"{company}: {statement} {label!r}{where} -> {account} ({outcome})")
 
@@ -315,7 +318,7 @@ def _confirm_matches(run: Run, company: str, ids: list[int]) -> None:
 
 
 def _decide_related(run: Run, company: str, ids: list[int], status: str) -> None:
-    for row in related.decide(run, company, ids, status):
+    for row in related.decide(run, company, ids, status, actor=from_environment()):
         typer.echo(
             f"link #{row['link_id']} {row['party']} -> {row['link_kind']} {row['target']} {status}"
         )
@@ -326,7 +329,7 @@ def _confirm_customers(
 ) -> None:
     if other_options:
         raise typer.BadParameter("with --customers use only --sector")
-    for crow in customers.confirm(run, company, ids, sector):
+    for crow in customers.confirm(run, company, ids, sector, actor=from_environment()):
         typer.echo(
             f"customer #{crow['customer_id']} {crow['customer']} confirmed as {crow['sector']}"
         )
@@ -337,7 +340,7 @@ def _confirm_tax(
 ) -> None:
     if other_options:
         raise typer.BadParameter("with --tax use only --tax-class")
-    for row in tax_ledgers.confirm(run, company, ids, tax_class):
+    for row in tax_ledgers.confirm(run, company, ids, tax_class, actor=from_environment()):
         typer.echo(
             f"tax ledger #{row['tax_ledger_id']} {row['ledger']!r} confirmed as {row['tax_class']}"
         )
@@ -348,30 +351,8 @@ def _confirm_ledgers(
 ) -> None:
     if other_options:
         raise typer.BadParameter("--scope, --name and --parent do not apply to --ledgers")
-    for row in ledgers.confirm(run, company, ids, account):
+    for row in ledgers.confirm(run, company, ids, account, actor=from_environment()):
         typer.echo(f"ledger #{row['ledger_id']} {row['ledger']!r} confirmed as {row['account']}")
-
-
-def _confirm_items(
-    run: Run,
-    company: str,
-    ids: list[int],
-    account: str | None,
-    scope: str,
-    name: str | None,
-    parent: str | None,
-) -> None:
-    confirmed, changed = review.confirm(run, company, ids, account, scope, name, parent)
-    for item_id, facts in confirmed:
-        typer.echo(f"#{item_id} confirmed ({scope} scope); {facts} facts updated")
-    rechecked = recheck_held(run, company, changed)
-    for doc in rechecked:
-        typer.echo(
-            f"doc_id {doc['doc_id']} {doc['file']} checked again: {doc['open']} open "
-            f"findings, {doc['status']}"
-        )
-    if changed or any(doc["status"] == "loaded" for doc in rechecked):
-        refresh_analytics(run)
 
 
 def _check_unused(tax_class: str | None = None, sector: str | None = None) -> None:
@@ -420,9 +401,17 @@ def review_confirm(
     ids are tax ledger ids: their proposed classes (or --tax-class) are confirmed. With --related
     the ids are related party link ids; only the user does this. With --netdebt, net debt class
     ids; only the user confirms them."""
+    kinds = (ledger_items, match_items, customer_items, tax_items, related_items)
+    if not any(kinds) and not netdebt_items:  # mapping items: the decision service
+        _check_unused(tax_class=tax_class, sector=sector)
+        options = {"account": account, "scope": scope, "name": name, "parent": parent}
+        actor = from_environment()
+        show(
+            decisions.confirm_mappings(data_dir(), company, ids, via="cli", actor=actor, **options)
+        )
+        return
 
     def body(run: Run) -> None:
-        kinds = (ledger_items, match_items, customer_items, tax_items, related_items)
         picked = (account, sector, tax_class, name, parent, scope != "company")
         if netdebt_items:
             review_netdebt.decide(run, company, ids, "confirmed", any(kinds + picked))
@@ -437,12 +426,9 @@ def review_confirm(
             _check_unused(tax_class=tax_class)
             others = bool(ledger_items or account or scope != "company" or name or parent)
             _confirm_customers(run, company, ids, sector, others)
-        elif ledger_items:
-            _check_unused(tax_class=tax_class, sector=sector)
-            _confirm_ledgers(run, company, ids, account, bool(scope != "company" or name or parent))
         else:
             _check_unused(tax_class=tax_class, sector=sector)
-            _confirm_items(run, company, ids, account, scope, name, parent)
+            _confirm_ledgers(run, company, ids, account, bool(scope != "company" or name or parent))
 
     execute(
         "review confirm",
@@ -472,26 +458,20 @@ def _reject_matches(run: Run, company: str, ids: list[int]) -> None:
 
 
 def _reject_customers(run: Run, company: str, ids: list[int]) -> None:
-    for crow in customers.reject(run, company, ids):
+    for crow in customers.reject(run, company, ids, actor=from_environment()):
         typer.echo(f"customer #{crow['customer_id']} {crow['customer']} rejected")
 
 
 def _reject_tax(run: Run, company: str, ids: list[int], other_options: bool) -> None:
     if other_options:
         raise typer.BadParameter("--tax does not combine with --ledgers, --matches or --customers")
-    for row in tax_ledgers.reject(run, company, ids):
+    for row in tax_ledgers.reject(run, company, ids, actor=from_environment()):
         typer.echo(f"tax ledger #{row['tax_ledger_id']} {row['ledger']!r} rejected")
 
 
 def _reject_ledgers(run: Run, company: str, ids: list[int]) -> None:
-    for row in ledgers.reject(run, company, ids):
+    for row in ledgers.reject(run, company, ids, actor=from_environment()):
         typer.echo(f"ledger #{row['ledger_id']} {row['ledger']!r} rejected")
-
-
-def _reject_items(run: Run, company: str, ids: list[int]) -> None:
-    review.reject(run, company, ids)
-    for item_id in dict.fromkeys(ids):
-        typer.echo(f"#{item_id} rejected")
 
 
 @review_app.command("reject")
@@ -510,10 +490,14 @@ def review_reject(
     customers stay unmapped. With --matches they are match proposal ids. With --tax they are tax
     ledger ids: the ledgers have no tax class. With --related, related party link ids. With
     --netdebt, net debt class ids: the ledger keeps its default class."""
+    flags = (ledger_items, match_items, customer_items, tax_items, related_items)
+    if not any(flags) and not netdebt_items:  # mapping items: the decision service
+        actor = from_environment()
+        show(decisions.reject_mappings(data_dir(), company, ids, via="cli", actor=actor))
+        return
 
     def body(run: Run) -> None:
         if netdebt_items:
-            flags = (ledger_items, match_items, customer_items, tax_items, related_items)
             review_netdebt.decide(run, company, ids, "rejected", any(flags))
         elif related_items:
             _decide_related(run, company, ids, "rejected")
@@ -523,10 +507,8 @@ def review_reject(
             _reject_matches(run, company, ids)
         elif customer_items:
             _reject_customers(run, company, ids)
-        elif ledger_items:
-            _reject_ledgers(run, company, ids)
         else:
-            _reject_items(run, company, ids)
+            _reject_ledgers(run, company, ids)
 
     args = {
         "ids": ids,

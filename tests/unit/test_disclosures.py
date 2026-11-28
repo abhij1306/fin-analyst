@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from fin.actor import USER
 from fin.audit.errors import DiligenceTableWrite, DisclosureReadingInvalid, RelatedPartyLinkInvalid
 from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
@@ -59,7 +60,10 @@ def template(tmp_path_factory: pytest.TempPathFactory) -> Path:
     ]
     ledgers.propose(run(root), "acme", proposals)
     ledgers.confirm(
-        run(root), "acme", [r["ledger_id"] for r in ledgers.list_ledgers(run(root), "acme")]
+        run(root),
+        "acme",
+        [r["ledger_id"] for r in ledgers.list_ledgers(run(root), "acme")],
+        actor=USER,
     )
     return root
 
@@ -170,7 +174,7 @@ def test_links_count_only_once_the_user_confirms(root: Path, tmp_path: Path) -> 
     assert lines(root)[f"{RAVI} sales"]["kind"] == "not_reconciled"
 
     ids = [row["link_id"] for row in related.list_links(run(root), "acme")]
-    related.decide(run(root), "acme", ids, "confirmed")
+    related.decide(run(root), "acme", ids, "confirmed", actor=USER)
     sales = lines(root)[f"{RAVI} sales"]
     loans = {row["period"]: row for row in sql(root, "SELECT * FROM related_party_loans")}
     loan = loans["FY25"]
@@ -213,7 +217,7 @@ def test_a_bad_link_proposal_stores_nothing(
     with pytest.raises(RelatedPartyLinkInvalid, match=message):
         related.propose(run(root), "acme", [proposal])
     with pytest.raises(RelatedPartyLinkInvalid, match="no related party link with id 7"):
-        related.decide(run(root), "acme", [7], "confirmed")
+        related.decide(run(root), "acme", [7], "confirmed", actor=USER)
     assert sql(root, "SELECT * FROM related_party_links") == []
 
 
@@ -268,4 +272,4 @@ def test_review_decides_only_the_open_engagements_links(root: Path, tmp_path: Pa
         con.execute("UPDATE related_party_links SET engagement_id = 99")
 
     with pytest.raises(RelatedPartyLinkInvalid, match="in the open engagement"):
-        related.decide(run(root), "acme", [link["link_id"]], "confirmed")
+        related.decide(run(root), "acme", [link["link_id"]], "confirmed", actor=USER)

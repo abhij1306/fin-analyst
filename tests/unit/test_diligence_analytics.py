@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from fin.actor import USER
 from fin.audit.errors import AnalyticsUnavailable, CustomerMappingInvalid
 from fin.audit.logger import Run
 from fin.cli import app
@@ -125,7 +126,7 @@ def sectors(root: Path) -> None:
     ]
     customers.propose(run(root), "acme", proposals)
     ids = {r["customer"]: r["customer_id"] for r in query(root, "SELECT * FROM customers")}
-    customers.confirm(run(root), "acme", [ids[t[c]] for c in ("C0", "C1", "C2")])
+    customers.confirm(run(root), "acme", [ids[t[c]] for c in ("C0", "C1", "C2")], actor=USER)
 
 
 def test_concentration_matches_the_key(root: Path) -> None:
@@ -287,24 +288,24 @@ def test_registers_load_adds_pending_customers_and_review_decides(root: Path) ->
     with pytest.raises(CustomerMappingInvalid, match="not a customer"):
         customers.propose(r, "acme", [unknown])
     with pytest.raises(CustomerMappingInvalid, match="no proposed sector"):
-        customers.confirm(r, "acme", [rows[0]["customer_id"]])
+        customers.confirm(r, "acme", [rows[0]["customer_id"]], actor=USER)
     with pytest.raises(CustomerMappingInvalid, match="unmapped"):
         customers.propose(r, "acme", [blank])
     with pytest.raises(CustomerMappingInvalid, match="no customer with id 99"):
-        customers.reject(r, "acme", [99])
+        customers.reject(r, "acme", [99], actor=USER)
     assert {row["status"] for row in query(root, "SELECT * FROM customers")} == {"pending"}
 
     customers.propose(r, "acme", [proposal(t["C0"], " Banking ", 0.9, "r")])
     first = rows[0]["customer_id"]
     not_yet = query(root, "SELECT sector FROM sector_mix WHERE sector = 'Banking'")
     assert not_yet == []  # proposed, not confirmed
-    [edited] = customers.confirm(r, "acme", [first], "Financial services")
+    [edited] = customers.confirm(r, "acme", [first], "Financial services", actor=USER)
     assert (edited["status"], edited["sector"]) == ("confirmed", "Financial services")
     with pytest.raises(CustomerMappingInvalid, match="only the user changes it"):
         customers.propose(r, "acme", [reuse])
     second = rows[1]["customer_id"]
     customers.propose(r, "acme", [proposal(rows[1]["customer"], "Retail", 0.5, "r")])
-    [rejected] = customers.reject(r, "acme", [second])
+    [rejected] = customers.reject(r, "acme", [second], actor=USER)
     assert rejected["sector"] is None
     waiting = customers.list_customers(r, "acme", open_only=True)
     assert [row["status"] for row in waiting] == ["pending", "pending"]

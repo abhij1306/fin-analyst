@@ -22,6 +22,7 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
+from fin.actor import USER
 from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
@@ -170,7 +171,7 @@ def build_root(tmp_path: Path, template: Path | None = None) -> Path:
     ]
     ledgers.propose(run(root), "acme", proposals)
     ids = [row["ledger_id"] for row in ledgers.list_ledgers(run(root), "acme")]
-    ledgers.confirm(run(root), "acme", ids)
+    ledgers.confirm(run(root), "acme", ids, actor=USER)
     passthrough.set_customers(run(root), "acme", ["CUST-0001"], "the user's list")
     _add_adjustments_and_query(root)
     run_new(run(root), "acme", "gl_vs_tb", "FY25")

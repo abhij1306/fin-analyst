@@ -90,7 +90,7 @@ def test_propose_then_confirm_grows_the_dictionary_and_confirms_the_facts(
     assert [(f[1], f[2]) for f in facts(root)] == [(None, False), (None, False)]  # not applied
     assert audit_query(
         "SELECT actor, decision, on_request, account, confidence FROM mapping_decisions"
-    ) == [("claude", "proposed", False, "trade_receivables", 0.9)]
+    ) == [("ai:claude", "proposed", False, "trade_receivables", 0.9)]
 
     section = pending(root)[0]["section"]
     monkeypatch.setenv("CLAUDECODE", "1")
@@ -105,7 +105,7 @@ def test_propose_then_confirm_grows_the_dictionary_and_confirms_the_facts(
     assert audit_query(
         "SELECT company, raw_label, account, scope, decision, actor, on_request "
         "FROM mapping_decisions WHERE decision = 'confirmed'"
-    ) == [("bluepeak", LABEL, "trade_receivables", "global", "confirmed", "claude", True)]
+    ) == [("bluepeak", LABEL, "trade_receivables", "global", "confirmed", "ai:claude", True)]
 
 
 def test_confirm_by_a_person_with_another_account_is_an_edit(
@@ -118,7 +118,7 @@ def test_confirm_by_a_person_with_another_account_is_an_edit(
 
     assert result.exit_code == 0, result.output
     assert audit_query("SELECT decision, scope, actor, on_request FROM mapping_decisions")[1:] == [
-        ("edited", "company", "human", False)
+        ("edited", "company", "user", False)
     ]
     assert {f[1] for f in facts(root)} == {"trade_receivables"}
     own = find(load_label_map(root, "bluepeak"), "balance_sheet", section, LABEL)

@@ -15,12 +15,12 @@ from typing import Any
 
 import duckdb
 
+from fin.actor import CLAUDE, recorded
 from fin.audit.errors import RelatedPartyLinkInvalid
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open
-from fin.map.review import _current_actor
 
 LINK_KINDS = ("customer", "vendor", "ledger")
 TARGETS = {
@@ -96,8 +96,8 @@ def _check(
         raise RelatedPartyLinkInvalid(f"{what}: fin already matched {proposal['party']}")
 
 
-def _record(run: Run, company: str, row: dict[str, Any], decision: str) -> None:
-    actor, on_request = ("claude", False) if decision == "proposed" else _current_actor()
+def _record(run: Run, company: str, row: dict[str, Any], decision: str, actor: str) -> None:
+    actor, on_request = recorded(actor, decision)
     run.record(
         "mapping_decisions",
         {
@@ -144,7 +144,7 @@ def propose(run: Run, company: str, proposals: list[Any]) -> int:
                 "WHERE related_party_links.status <> 'confirmed'",
                 [engagement_id, *row.values(), run.run_id, utcnow()],
             )
-            _record(run, company, row, "proposed")
+            _record(run, company, row, "proposed", CLAUDE)
     return len(proposals)
 
 
@@ -168,7 +168,9 @@ def _rows(con: duckdb.DuckDBPyConnection, engagement_id: int, ids: list[int]) ->
     return [found[i] for i in ids]
 
 
-def decide(run: Run, company: str, ids: list[int], status: str) -> list[dict[str, Any]]:
+def decide(
+    run: Run, company: str, ids: list[int], status: str, *, actor: str
+) -> list[dict[str, Any]]:
     """Confirm or reject links of the open engagement (status), all or nothing. E803 without an
     open engagement; E941 for an id not in it. Only the user."""
     ids = list(dict.fromkeys(ids))
@@ -180,7 +182,7 @@ def decide(run: Run, company: str, ids: list[int], status: str) -> list[dict[str
                 "WHERE link_id = ?",
                 [status, run.run_id, utcnow(), row["link_id"]],
             )
-            _record(run, company, row, status)
+            _record(run, company, row, status, actor)
         return _rows(con, engagement_id, ids)
 
 

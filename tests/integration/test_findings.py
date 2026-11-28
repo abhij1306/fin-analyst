@@ -177,7 +177,7 @@ def test_status_shows_periods_held_findings_pending_read_by_claude_and_inbox(
         "bluepeak",
         "--write",
         "--sql",
-        "UPDATE facts SET read_by = 'claude' WHERE fact_id <= 2",
+        "UPDATE facts SET read_by = 'ai:claude' WHERE fact_id <= 2",
     )
     pending = root / "review" / "kestrel" / "pending.json"
     pending.parent.mkdir(parents=True, exist_ok=True)

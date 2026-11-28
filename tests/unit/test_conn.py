@@ -88,7 +88,7 @@ def test_locked_file_retries_then_raises_e501(
         pass
     elapsed = time.monotonic() - started
     assert str(caught.value) == (
-        f"E501: {db} is locked by another process; gave up after 5 attempts"
+        f"E501: {db} is locked by another process or connection; gave up after 5 attempts"
     )
     assert caught.value.exit_code == 2
     # Four backoff sleeps between five attempts: 0.01 + 0.02 + 0.04 + 0.08 seconds.
@@ -101,3 +101,20 @@ def test_lock_released_during_backoff_connects(db: Path, holder: subprocess.Pope
     # Backoff sleeps 0.4 + 0.8 + 1.6 + 3.2 seconds: the holder exits long before the last attempt.
     with connect(db, retry=LockRetry(attempts=5, base_delay=0.4)) as con:
         assert con.execute("SELECT v FROM t").fetchall()[0][0] == 10.25
+
+
+def test_a_connection_of_this_process_in_the_other_mode_is_waited_for(db: Path) -> None:
+    """A UI page reads while a background job writes: the write waits for the read to close."""
+    reading = connect(db)
+    reader = reading.__enter__()
+    closer = threading.Timer(0.05, lambda: reading.__exit__(None, None, None))
+    closer.start()
+    with connect(db, write=True, retry=LockRetry(attempts=5, base_delay=0.05)) as con:
+        con.execute("INSERT INTO t VALUES (1)")
+    closer.join()
+    assert reader is not None
+
+
+def test_a_connection_of_this_process_that_stays_open_is_e501(db: Path) -> None:
+    with connect(db), pytest.raises(DatabaseLocked), connect(db, write=True, retry=FAST):
+        pass

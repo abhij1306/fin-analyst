@@ -62,12 +62,12 @@ SELECT d.status, coalesce((
     WHERE v.fact_id = f.fact_id ORDER BY r.verified_at DESC LIMIT 1
 ), 'not verified'), count(*)
 FROM facts f JOIN documents d USING (doc_id)
-WHERE f.read_by = 'claude' AND d.status IN {LIVE}
+WHERE f.read_by LIKE 'ai:%' AND d.status IN {LIVE}
 GROUP BY ALL ORDER BY ALL
 """
 _ADDON = f"""
 SELECT count(*) FROM facts f JOIN documents d USING (doc_id)
-WHERE f.read_by NOT IN ('fin', 'claude') AND d.status IN {LIVE}
+WHERE f.read_by <> 'fin' AND f.read_by NOT LIKE 'ai:%' AND d.status IN {LIVE}
 """
 _UNMAPPED = f"""
 SELECT count(DISTINCT (r.statement, r.section, r.raw_label)) FROM facts f

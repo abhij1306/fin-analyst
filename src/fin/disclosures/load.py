@@ -7,7 +7,7 @@ ledger's name (ignoring case and spaces) becomes that ledger, anything else stay
 `related_party_matches` then matches it to the customers, vendors and ledgers (a ledger through the
 token of its name). Nature and relationship are stored as read. A `ledger` must be a ledger of the
 engagement's loaded trial balance or Ledger Vouchers (E940). Whether a Claude-read figure is trusted
-is the user's decision: rows are stored with read_by 'claude' and printed as not verified.
+is the user's decision: rows are stored with read_by 'ai:claude' and printed as not verified.
 """
 
 import hashlib
@@ -16,6 +16,7 @@ from typing import Any
 
 import duckdb
 
+from fin.actor import label
 from fin.audit.errors import DisclosureReadingInvalid
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
@@ -94,7 +95,7 @@ def load(run: Run, company: str, path: Path, reading: Path) -> list[dict[str, An
         for row in rows:
             con.execute(
                 f"INSERT INTO disclosures (engagement_id, file_id, {', '.join(COLUMNS)}, read_by, "
-                f"run_id, created_at) VALUES (?, ?, {marks}, 'claude', ?, ?)",
+                f"run_id, created_at) VALUES (?, ?, {marks}, 'ai:claude', ?, ?)",
                 [engagement_id, new[0], *(row[c] for c in COLUMNS), run.run_id, now],
             )
         run.event(
@@ -150,6 +151,7 @@ def format_schedules(rows: list[dict[str, Any]]) -> str:
             fields = "".join(f", {field}" for field in _fields(row))
             out.append(
                 f"  #{row['disclosure_id']} {row['period']}{party}: {row['nature']}{fields} "
-                f"({row['file_name']} p.{row['page']}, read by {row['read_by']}, not verified)"
+                f"({row['file_name']} p.{row['page']}, read by {label(row['read_by'])}, "
+                "not verified)"
             )
     return "\n".join(out) or "no disclosures"

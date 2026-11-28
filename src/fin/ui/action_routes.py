@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.datastructures import UploadFile
 
 from fin.audit.errors import UiActionInvalid
+from fin.services.result import ActionResult, Refused
 from fin.ui import actions, screens
 from fin.ui.uploads import MAX_REQUEST_BYTES
 
@@ -21,9 +22,7 @@ def add_action_routes(
     templates: Jinja2Templates,
     known: Callable[[Path, str | None], str | None],
 ) -> None:
-    def shown(
-        request: Request, screen: str, company: str, outcome: actions.Outcome
-    ) -> HTMLResponse:
+    def shown(request: Request, screen: str, company: str, outcome: ActionResult) -> HTMLResponse:
         context = {
             "company": company,
             "tab_counts": screens.tab_counts(root, company or None),
@@ -46,7 +45,7 @@ def add_action_routes(
         try:
             outcome = actions.decide(root, chosen, action, item, reason)
         except UiActionInvalid as error:
-            outcome = actions.Outcome(False, [error.message], None, error.code)
+            outcome = Refused.before_run(error)
         return shown(request, spec.screen if spec else "home", chosen, outcome)
 
     @app.post("/upload", response_class=HTMLResponse)
@@ -58,7 +57,9 @@ def add_action_routes(
         chosen = known(root, str(form.get("company", ""))) or ""
         sent = [f for f in form.getlist("files") if isinstance(f, UploadFile) and f.filename]
         try:
+            if not chosen:
+                raise UiActionInvalid("there is no company yet; nothing was saved")
             outcome = actions.upload(root, chosen, [(f.filename or "", f.file) for f in sent])
         except UiActionInvalid as error:
-            outcome = actions.Outcome(False, [error.message], None, error.code)
+            outcome = Refused.before_run(error)
         return shown(request, "files", chosen, outcome)

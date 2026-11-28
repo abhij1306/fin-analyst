@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 
 from fin import __version__
 from fin.audit.errors import DependencyMissing, FinError, UiUnavailable
+from fin.services.jobs import Jobs
 from fin.status import companies
 from fin.ui import format as ui_format
 from fin.ui import screens
@@ -23,6 +24,7 @@ from fin.ui.action_routes import add_action_routes
 from fin.ui.chat_routes import add_chat_routes
 from fin.ui.chat_run import Chat
 from fin.ui.csrf import origin_guard
+from fin.ui.job_routes import WORK, add_job_routes
 from fin.ui.security import new_token, protect
 from fin.ui.setup import STATIC_DIR, TEMPLATE_DIR
 
@@ -58,6 +60,8 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
     """The app for one data folder. `claude` is the command that starts Claude Code (tests give a
     fake one); by default the `claude` on the path."""
     chat = Chat(root, claude)
+    jobs = Jobs(root, WORK)
+    jobs.recover()  # jobs the last server left unfinished are interrupted
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -114,6 +118,7 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
 
     add_action_routes(app, root, templates, known)
     add_chat_routes(app, root, templates, chat)
+    add_job_routes(app, root, templates, known, jobs)
     return app
 
 

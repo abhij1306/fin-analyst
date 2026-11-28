@@ -64,7 +64,7 @@ CREATE TABLE raw_values (
 -- fiscal year the period falls in ('FY26' for 'FY26-Q1'). Ingest always sets period and period_months.
 --
 -- read_by: 'fin' (fin's own extraction, pdfplumber or openpyxl), 'docling', 'liteparse' or 'llamaparse' (the
--- optional PDF add-on's engine, on a page pdfplumber could not read) or 'claude' (from a reading file). Either way the fact points at the original
+-- optional PDF add-on's engine, on a page pdfplumber could not read) or 'ai:claude' (from a reading file). Either way the fact points at the original
 -- document's page or sheet!cell through raw_values. read_by is information about the source; whether a figure read
 -- by Claude or the PDF add-on is trusted is the user's decision. The checks `fin verify` ran on a document are in
 -- verify_runs and verify_lines.

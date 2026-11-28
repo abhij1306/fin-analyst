@@ -35,7 +35,7 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id, invalid new account) | Nothing was applied. Check `/review` and the account name, then retry |
 | E401-E405 | Findings, not errors: balance sheet (E401), subtotal (E402), cash (E403), documents disagree (E404), unit factor (E405) | The document is held, not rejected. See [Findings](#findings) |
 | E406 | A finding to accept does not exist or is not open | Nothing was accepted. Check the ids with `uv run fin findings list <company>` |
-| E501 | A database is in use by another `fin` command | Wait for it to finish and run again |
+| E501 | A database is in use by another `fin` command, or by a background job of `fin ui` | Wait for it to finish and run again |
 | E502 | `fin sql` without `--write` was given something other than one SELECT | Use `--write` only for a change you asked for |
 | E503 | A database could not be created from its schema file | Report the error |
 | E504 | A SQL statement failed (syntax, unknown column, constraint), or `fin sql --write` was given a statement that changes the schema or the session (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM), or one that would read a file (`fin sql` runs with file access closed) | Nothing changed. Fix the statement. If a company database was changed some other way, restore it from `backups/<run_id>/` |

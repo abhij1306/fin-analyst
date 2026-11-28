@@ -11,6 +11,7 @@ from typing import Annotated, Any
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
 from fin.diligence import (
@@ -39,7 +40,10 @@ from fin.diligence.cli_options import (
     threshold_option,
     tokens_option,
 )
+from fin.paths import data_dir
 from fin.reconcile import items as recon_items
+from fin.services import decisions
+from fin.services.result import show
 
 engagement_app = typer.Typer(
     no_args_is_help=True, help="Diligence engagement: open one, show where it stands, close it."
@@ -355,10 +359,11 @@ def _status_command(name: str, target: str, doc: str) -> None:
     """`fin query <name> <co> <ids...>`: move queries to `target`."""
 
     def command(company: CompanyArg, ids: QueryIds) -> None:
-        def body(run: Run) -> None:
-            _echo_queries(queries.set_status(run, company, ids, target))
-
-        execute(f"query {name}", {"company": company, "ids": ids}, body)
+        show(
+            decisions.set_query_status(
+                data_dir(), company, ids, target, via="cli", actor=from_environment()
+            )
+        )
 
     command.__doc__ = doc
     query_app.command(name)(command)
@@ -425,10 +430,17 @@ def query_withdraw(
 ) -> None:
     """Withdraw queries that are not closed or withdrawn already."""
 
-    def body(run: Run) -> None:
-        _echo_queries(queries.set_status(run, company, ids, "withdrawn", note=reason))
-
-    execute("query withdraw", {"company": company, "ids": ids, "reason": reason}, body)
+    show(
+        decisions.set_query_status(
+            data_dir(),
+            company,
+            ids,
+            "withdrawn",
+            via="cli",
+            actor=from_environment(),
+            reason=reason,
+        )
+    )
 
 
 # fin query export (export_cli.py)
@@ -471,7 +483,4 @@ def gate_approve(
     """Approve a gate (only when the user says so). Refused (E802) while its checklist fails or an
     earlier gate is not approved."""
 
-    def body(run: Run) -> None:
-        typer.echo(f"{company}: {gates.format_gate(gates.approve(run, company, gate))}")
-
-    execute("gate approve", {"company": company, "gate": gate}, body)
+    show(decisions.approve_gate(data_dir(), company, gate, via="cli", actor=from_environment()))

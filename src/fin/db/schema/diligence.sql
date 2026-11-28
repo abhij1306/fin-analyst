@@ -150,7 +150,7 @@ CREATE TABLE gate_approvals (
 -- escalation_terms and renewal_terms: as read, names replaced by tokens. The terms are NULL when the reading did not
 -- say (not read), which is not the same as no clause: lock_in_months and notice_days (whole numbers), escalation_pct
 -- (a year), and the yes/no clauses auto_renew, termination_convenience (termination for convenience),
--- change_of_control and exclusivity. file_name, sha256 and page say where it was read; read_by is 'claude'.
+-- change_of_control and exclusivity. file_name, sha256 and page say where it was read; read_by is 'ai:claude'.
 CREATE SEQUENCE contracts_seq START 1;
 CREATE TABLE contracts (
     contract_id INTEGER PRIMARY KEY DEFAULT nextval('contracts_seq'),

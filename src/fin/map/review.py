@@ -16,15 +16,16 @@ to the shared `accounts` table (source 'review'), in the same transaction as the
 item: the way to fix a wrong mapping behind a held document's findings, before ingesting it again
 with --force. Unmapped labels of held documents are pending items like those of loaded ones.
 
-Every step appends a row to the audit table `mapping_decisions`. The actor is `claude` (with
-on_request = true) when the `CLAUDECODE` environment variable is set, else `human`.
+Every step appends a row to the audit table `mapping_decisions`. The caller passes the actor
+(`fin.actor`): 'user', or 'ai:claude' with on_request = true when Claude decided because the user
+asked. Proposals are always 'ai:claude'.
 """
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
+from fin.actor import CLAUDE, recorded
 from fin.audit.errors import ConflictingMapping, DataFolderNotWritable, InvalidMapping
 from fin.audit.logger import Run
 from fin.db.conn import connect, transaction
@@ -45,13 +46,6 @@ OPEN = ("pending", "proposed")  # statuses still waiting for a decision
 
 Pending = dict[str, Any]  # {"company", "next_id", "items": [...]}
 Item = dict[str, Any]
-
-
-def _current_actor() -> tuple[str, bool]:
-    """(actor, on_request) for a mapping decision made by a command run now."""
-    if os.environ.get("CLAUDECODE"):
-        return "claude", True
-    return "human", False
 
 
 def _pending_path(root: Path, company: str) -> Path | None:
@@ -144,7 +138,14 @@ def list_accounts(root: Path, statement: str | None = None) -> list[tuple[str, .
 
 
 def set_mapping(
-    run: Run, company: str, statement: str, label: str, account: str, section: str = ""
+    run: Run,
+    company: str,
+    statement: str,
+    label: str,
+    account: str,
+    section: str = "",
+    *,
+    actor: str,
 ) -> str:
     """Map a label (as written) to an account for this company only: add a company-scope row to
     `label_map`, or change the account of the one already there. It wins over global mappings
@@ -165,15 +166,21 @@ def set_mapping(
         _, outcome = upsert_label(con, key, account, company, "map set", run.run_id, "replace")
     if outcome != "unchanged":
         decision = "edited" if outcome == "changed" else "confirmed"
-        _decide(run, company, item, decision, account, "company")
+        _decide(run, company, item, decision, account, "company", actor)
     return outcome
 
 
 def _decide(
-    run: Run, company: str, item: Item, decision: str, account: str | None, scope: str | None
+    run: Run,
+    company: str,
+    item: Item,
+    decision: str,
+    account: str | None,
+    scope: str | None,
+    actor: str,
 ) -> None:
-    """Append a mapping_decisions row. Proposals are always Claude's."""
-    actor, on_request = ("claude", False) if decision == "proposed" else _current_actor()
+    """Append a mapping_decisions row. Proposals are always the AI's (`fin.actor.recorded`)."""
+    actor, on_request = recorded(actor, decision)
     run.record(
         "mapping_decisions",
         {
@@ -293,7 +300,7 @@ def propose(run: Run, company: str, proposals: list[dict[str, Any]]) -> int:
             reason=proposal["reason"],
             new_account=_stored_new_account(new),
         )
-        _decide(run, company, item, "proposed", item["account"], None)
+        _decide(run, company, item, "proposed", item["account"], None, CLAUDE)
         if item["confidence"] < LOW_CONFIDENCE:
             run.event(
                 "map",
@@ -429,6 +436,8 @@ def confirm(
     scope: str = "company",
     name: str | None = None,
     parent: str | None = None,
+    *,
+    actor: str,
 ) -> tuple[list[tuple[int, int]], set[int]]:
     """Add the items' labels to the dictionary and confirm the company's matching facts. `account`
     overrides the proposed one with an existing account. For a new-account proposal, the account
@@ -464,20 +473,20 @@ def confirm(
                 context={"company": company, "id": item["id"], "account": resolved},
             )
         decision = "confirmed" if resolved == item["account"] and parent is None else "edited"
-        _decide(run, company, item, decision, resolved, scope)
+        _decide(run, company, item, decision, resolved, scope, actor)
         pending["items"].remove(item)
     _save(run.root, company, pending)
     return [(item["id"], count) for (item, _, _), count in zip(plan, counts, strict=True)], doc_ids
 
 
-def reject(run: Run, company: str, item_ids: list[int]) -> None:
+def reject(run: Run, company: str, item_ids: list[int], *, actor: str) -> None:
     """Mark the items rejected; all or nothing (E304 for an unknown id rejects none). Their facts
     stay unconfirmed and they leave the open list."""
     pending = read_pending(run.root, company)
     items = [_find_item(pending, item_id) for item_id in dict.fromkeys(item_ids)]
     for item in items:
         item["status"] = "rejected"
-        _decide(run, company, item, "rejected", item["account"], None)
+        _decide(run, company, item, "rejected", item["account"], None, actor)
     _save(run.root, company, pending)
 
 

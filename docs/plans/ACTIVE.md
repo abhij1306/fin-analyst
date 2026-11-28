@@ -40,9 +40,9 @@ Updated: 2026-11-28.
 | 00 | 6 | Add the CLI and docs consistency tests | | todo |
 | 00 | 7 | Clear the open Sonar findings in src and add the categories tally | | todo |
 | 01 | 1 | Fix the unit line, evidence crash, negative amounts and empty lists from the client run | | done (#116) |
-| 02 | 1 | Move the decision actions into shared service functions | | todo |
-| 02 | 2 | Pass the actor explicitly and store it as user or ai:provider | high | todo |
-| 02 | 3 | Add background jobs with progress to the UI | | todo |
+| 02 | 1 | Move the decision actions into shared service functions | | done (#118) |
+| 02 | 2 | Pass the actor explicitly and store it as user or ai:provider | high | done (#118) |
+| 02 | 3 | Add background jobs with progress to the UI | | done (#118) |
 | 03 | 1 | Run ingest from the Files screen with one outcome row per file | | todo |
 | 03 | 2 | Show a next step for every ingest failure | | todo |
 | 03 | 3 | Add company creation, re-ingest and delete to the Files screen | | todo |

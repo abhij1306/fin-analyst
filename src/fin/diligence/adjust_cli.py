@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
 from fin.diligence import adjustments, engagement
@@ -18,6 +19,9 @@ from fin.diligence.cli_options import (
     rupees_option,
     text_option,
 )
+from fin.paths import data_dir
+from fin.services import decisions
+from fin.services.result import show
 
 adjust_app = typer.Typer(
     no_args_is_help=True,
@@ -164,11 +168,11 @@ def adjust_list(
 def adjust_accept(company: CompanyArg, ids: AdjustmentIds) -> None:
     """Accept proposed adjustments (when the user accepts them)."""
 
-    def body(run: Run) -> None:
-        for row in adjustments.decide(run, company, ids, "accepted"):
-            typer.echo(adjustments.format_adjustment(row))
-
-    execute("adjust accept", {"company": company, "ids": ids}, body)
+    show(
+        decisions.decide_adjustments(
+            data_dir(), company, ids, "accepted", via="cli", actor=from_environment()
+        )
+    )
 
 
 @adjust_app.command("reject")
@@ -181,11 +185,11 @@ def adjust_reject(
 ) -> None:
     """Reject proposed adjustments (when the user rejects them), with the reason."""
 
-    def body(run: Run) -> None:
-        for row in adjustments.decide(run, company, ids, "rejected", reason):
-            typer.echo(adjustments.format_adjustment(row))
-
-    execute("adjust reject", {"company": company, "ids": ids, "reason": reason}, body)
+    show(
+        decisions.decide_adjustments(
+            data_dir(), company, ids, "rejected", via="cli", actor=from_environment(), reason=reason
+        )
+    )
 
 
 # fin gate (logic in gates.py)

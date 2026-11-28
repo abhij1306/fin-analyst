@@ -94,10 +94,10 @@ def test_reading_loads_a_scanned_pdf_when_the_gates_pass(
         "SELECT f.account, f.period, f.value, f.read_by, r.page, r.raw_value_text "
         "FROM facts f JOIN raw_values r USING (raw_id) ORDER BY f.fact_id",
     ) == [
-        ("cash", "FY25", Decimal("2850000.00"), "claude", 1, "28.50"),
-        (None, "FY25", Decimal("7150000.00"), "claude", 1, "71.50"),
-        ("total_assets", "FY25", Decimal("10000000.00"), "claude", 1, "100.00"),
-        ("total_equity_and_liabilities", "FY25", Decimal("10000000.00"), "claude", 1, "100.00"),
+        ("cash", "FY25", Decimal("2850000.00"), "ai:claude", 1, "28.50"),
+        (None, "FY25", Decimal("7150000.00"), "ai:claude", 1, "71.50"),
+        ("total_assets", "FY25", Decimal("10000000.00"), "ai:claude", 1, "100.00"),
+        ("total_equity_and_liabilities", "FY25", Decimal("10000000.00"), "ai:claude", 1, "100.00"),
     ]
     [(file_name, reading_path)] = query(root, "SELECT file_name, reading_path FROM documents")
     assert file_name == "scan.pdf"
@@ -136,7 +136,7 @@ def test_reading_fills_only_the_statement_fin_skipped(root: Path, tmp_path: Path
         root,
         "SELECT r.statement, f.read_by, count(*) FROM facts f JOIN raw_values r USING (raw_id) "
         "GROUP BY ALL ORDER BY ALL",
-    ) == [("balance_sheet", "fin", 8), ("profit_and_loss", "claude", 3)]
+    ) == [("balance_sheet", "fin", 8), ("profit_and_loss", "ai:claude", 3)]
 
 
 def test_reading_with_nothing_fin_did_not_read_is_e205(root: Path, tmp_path: Path) -> None:
@@ -187,7 +187,7 @@ def test_verify_records_each_run_and_reports_every_outcome(
         root,
         "SELECT l.read_by, l.outcome, count(*) FROM verify_lines l JOIN verify_runs v USING "
         "(run_id) WHERE v.reading_file = 'r2.csv' GROUP BY ALL ORDER BY ALL",
-    ) == [("claude", "agree", 3), ("fin", "agree", 4)]  # FY24: not in the reading
+    ) == [("ai:claude", "agree", 3), ("fin", "agree", 4)]  # FY24: not in the reading
 
     # A third reading: cash differs, security deposits left out, a line fin does not have.
     third = write_reading(

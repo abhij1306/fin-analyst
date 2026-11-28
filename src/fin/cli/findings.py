@@ -5,9 +5,13 @@ from typing import Annotated
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.logger import Run, execute
-from fin.cli.core import app, check_company, check_optional_company, echo_refresh
-from fin.findings import accept, format_finding, list_findings
+from fin.cli.core import app, check_company, check_optional_company
+from fin.findings import format_finding, list_findings
+from fin.paths import data_dir
+from fin.services import decisions
+from fin.services.result import show
 from fin.status import companies, format_status, status
 
 findings_app = typer.Typer(
@@ -49,18 +53,7 @@ def findings_accept(
     """Save as is: accept open findings. A held document with no open findings left is loaded
     exactly as filed; its findings stay attached, marked accepted."""
 
-    def body(run: Run) -> None:
-        for doc in accept(run, company, ids):
-            where = (
-                f"doc_id {doc['doc_id']}" if "doc_id" in doc else f"source file_id {doc['file_id']}"
-            )
-            typer.echo(
-                f"{company}/{doc['file']} ({where}): {doc['status']}, "
-                f"{doc['open']} open findings left"
-            )
-        echo_refresh(run)
-
-    execute("findings accept", {"company": company, "ids": ids}, body)
+    show(decisions.accept_findings(data_dir(), company, ids, via="cli", actor=from_environment()))
 
 
 @app.command("status")

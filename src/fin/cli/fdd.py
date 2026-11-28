@@ -7,9 +7,13 @@ from typing import Annotated, Any
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company
 from fin.fdd import findings
+from fin.paths import data_dir
+from fin.services import decisions
+from fin.services.result import show
 
 fdd_app = typer.Typer(no_args_is_help=True, help="FDD: the findings of the FDD report.")
 finding_app = typer.Typer(
@@ -150,8 +154,8 @@ def final(
 ) -> None:
     """Mark draft findings final (they appear in the report), or with --undo return final ones to
     draft. Only when the user says so."""
-    execute(
-        "fdd finding final",
-        {"company": company, "ids": ids, "undo": undo},
-        lambda run: _echo(findings.set_status(run, company, ids, "draft" if undo else "final")),
+    show(
+        decisions.mark_fdd_findings(
+            data_dir(), company, ids, via="cli", actor=from_environment(), undo=undo
+        )
     )

@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from fin.actor import USER
 from fin.audit.errors import ReconCannotRun, ReconItemNotQueryable, ReconItemUnknown
 from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
@@ -61,7 +62,10 @@ def map_all(root: Path) -> None:
     ]
     ledgers.propose(run(root), "acme", proposals)
     ledgers.confirm(
-        run(root), "acme", [r["ledger_id"] for r in ledgers.list_ledgers(run(root), "acme")]
+        run(root),
+        "acme",
+        [r["ledger_id"] for r in ledgers.list_ledgers(run(root), "acme")],
+        actor=USER,
     )
 
 
