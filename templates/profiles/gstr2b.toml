@@ -1,0 +1,35 @@
+# GSTR-2B as downloaded from the GST portal (SPEC-20; docs/decisions/forensic.md "The GSTR-2B layout"): the B2B sheet
+# (invoices) and the B2B-CDNR sheet (credit and debit notes), one row per supplier document. A preamble names the
+# statement and the period it covers ("... 01-04-2024 to 31-03-2025"), then a two-row header (a group cell such as
+# "Invoice details" merged over its columns), data from row 7. The headings were taken from the portal's user manual
+# and B2B table help, not from a real download: human task H8 checks them; a different heading is an edit here.
+# GSTIN of supplier, Place of supply, Supply Attract Reverse Charge, Reason and Applicable % of Tax Rate are not read.
+# How profiles work: src/fin/extract/profiles.py and docs/development.md.
+kind = "gst"
+gst_return = "gstr2b"
+header_rows = 2
+date_format = "%d-%m-%Y"
+period = '(?P<start>\d{2}-\d{2}-\d{4})\s+to\s+(?P<end>\d{2}-\d{2}-\d{4})'
+unit = 1
+
+[columns]
+"Trade/Legal name" = "vendor"
+"Invoice details Invoice number" = "invoice_no"
+"Invoice details Invoice type" = "document_type"
+"Invoice details Invoice Date" = "invoice_date"
+"Invoice details Invoice Value(₹)" = "invoice_value"
+"Credit note/Debit note details Note number" = "invoice_no"
+"Credit note/Debit note details Note type" = "document_type"
+"Credit note/Debit note details Note date" = "invoice_date"
+"Credit note/Debit note details Note Value (₹)" = "invoice_value"
+"Taxable Value (₹)" = "taxable_value"
+"Tax Amount Integrated Tax(₹)" = "igst"
+"Tax Amount Central Tax(₹)" = "cgst"
+"Tax Amount State/UT Tax(₹)" = "sgst"
+"Tax Amount Cess(₹)" = "cess"
+"GSTR-1/IFF/GSTR-5 Period" = "return_period"
+"GSTR-1/IFF/GSTR-5 Filing Date" = "filing_date"
+"ITC Availability" = "itc_available"
+
+[rows]
+skip = ["Total"]

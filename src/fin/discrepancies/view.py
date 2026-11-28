@@ -7,8 +7,8 @@ reconciliation of the latest engagement, at one of four levels, each pointing to
   line;
 - party: the register reconciliations' customer and vendor lines (register against Ledger
   Vouchers);
-- transaction: the register reconciliations' invoice lines and bank_vs_invoices' match, receipt
-  and invoice lines.
+- transaction: the register reconciliations' invoice lines, bank_vs_invoices' match, receipt
+  and invoice lines, and purchase_register_vs_gstr2b's invoice lines (SPEC-20).
 
 The service-period recast (`service_recast`, SPEC-17 item 5) adds a headline row per period: the
 recognition difference, revenue in the books (the sales register by invoice date) - the recast
@@ -59,7 +59,7 @@ def sources() -> list[tuple[Any, ...]]:
     sides are swapped to show them, the label of its rows or None for their kind)."""
     # Imported here: fin.reconcile imports fin.diligence, which imports `fin sql` (this module).
     from fin.diligence.recon import NAME as TB_VS_STATEMENTS
-    from fin.reconcile import bank, gl_vs_tb, payroll_vs_gl, recast
+    from fin.reconcile import bank, gl_vs_tb, gstr2b, payroll_vs_gl, recast
     from fin.reconcile.registers import PURCHASE, SALES
 
     return [
@@ -81,6 +81,7 @@ def sources() -> list[tuple[Any, ...]]:
             (recast.NAME, level, tier, [], "books", "recast", False, True, RECOGNITION)
             for level, tier in (("period", HEADLINE), ("schedule", TRANSACTION))
         ),
+        (gstr2b.NAME, "invoice", TRANSACTION, [], "GSTR-2B", "register", False, False, None),
     ]  # fmt: skip
 
 

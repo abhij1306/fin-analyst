@@ -47,7 +47,8 @@ def test_the_screen_shows_each_state_and_the_flags_by_test(setup: tuple[Path, Te
     assert 'id="tab-forensic"' in page.text
     assert "ran: 2 flagged, 2 at or above the threshold" in page.text
     assert "cannot run: needs the previous period" in page.text
-    assert "31 flags" in page.text
+    assert f"{len(services.read_flags(fm.run(root), root, CO))} flags" in page.text
+    assert "Period-end revenue" in page.text and "No sales register" in page.text
     assert "corvane_ledger_vouchers_fy25.xlsx" in page.text
     assert f'name="item" value="{flag_ids(root, "je_gap")[0]}"' in page.text
     assert 'value="forensic-run"' in page.text

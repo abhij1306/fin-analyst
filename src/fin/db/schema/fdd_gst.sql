@@ -27,6 +27,34 @@ CREATE TABLE gst_returns (
     UNIQUE (file_id, month)
 );
 
+-- GSTR-2B as downloaded (SPEC-20, `fin ingest <co> <file> --kind gst --profile gstr2b`, fin.fdd.gstr2b): one row per
+-- supplier document of the B2B and B2B-CDNR sheets, with its file + sheet!row. source_files.kind is 'gstr2b'. vendor: the
+-- supplier's trade or legal name as its token (VEND-0001, masked as kind vendor, so it shares the purchase register's
+-- token when the names are the same); the GSTIN is not stored. document_type as filed (Regular, Credit Note, Debit
+-- Note); a credit note's values are stored negative. Amounts in rupees as filed. return_period, filing_date: the
+-- supplier's GSTR-1/IFF/GSTR-5 that reported it; itc_available as filed (Yes, No).
+CREATE TABLE gstr2b_lines (
+    file_id INTEGER NOT NULL,
+    sheet VARCHAR NOT NULL,
+    "row" INTEGER NOT NULL,
+    period VARCHAR NOT NULL,
+    vendor VARCHAR NOT NULL,
+    invoice_no VARCHAR NOT NULL,
+    document_type VARCHAR NOT NULL,
+    invoice_date DATE NOT NULL,
+    invoice_value DECIMAL(20, 2),
+    taxable_value DECIMAL(20, 2) NOT NULL,
+    igst DECIMAL(20, 2) NOT NULL,
+    cgst DECIMAL(20, 2) NOT NULL,
+    sgst DECIMAL(20, 2) NOT NULL,
+    cess DECIMAL(20, 2) NOT NULL,
+    return_period VARCHAR,
+    filing_date DATE,
+    itc_available VARCHAR,
+    run_id VARCHAR NOT NULL,
+    PRIMARY KEY (file_id, sheet, "row")
+);
+
 -- The tax class of a trial balance ledger (fin.fdd.tax_ledgers): Claude proposes (`fin map tax <co> <file>`), the user
 -- confirms or rejects (`fin review confirm|reject <co> <ids> --tax`). Only confirmed classes are read.
 --   gst_output  output GST (credits: tax booked on sales);   gst_input   input GST (debits: credit taken);

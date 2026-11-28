@@ -14,6 +14,7 @@ from pathlib import Path
 from mock.generator import bank_extra, write
 from mock.generator import books as b
 from mock.generator import data as d
+from mock.generator import gstr2b as g2
 from mock.generator import reports as r
 from mock.generator import sources as s
 
@@ -164,6 +165,14 @@ DOCUMENTS = [
         "xlsx",
         lambda x: s.gst_return(x, "gstr3b"),
         "the plan names profile gstr1 (the first that matches): load it with --profile gstr3b",
+    ),
+    Document(
+        f"{C}/gst/corvane_gstr2b_fy25.xlsx",
+        COMPANY,
+        "gst (gstr2b)",
+        "xlsx",
+        g2.gstr2b,
+        "SPEC-20: load it with --profile gstr2b; see EXPECTED.md for its differences",
     ),
     Document(
         f"{C}/contracts/bellwether_renewal_2025-26.pdf",

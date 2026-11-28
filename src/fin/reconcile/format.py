@@ -23,6 +23,7 @@ LEFT = {
     "orderbook_vs_register": ("orderbook", "register"),
     **gst.LEFT,
     "rpt_vs_books": ("disclosed", "books"),
+    "purchase_register_vs_gstr2b": ("GSTR-2B", "register"),
 }
 
 

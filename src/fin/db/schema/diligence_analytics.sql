@@ -317,3 +317,47 @@ SELECT
 FROM customer_revenue
 GROUP BY engagement_id, period, basis, segment, coalesce(sector, 'unmapped')
 ORDER BY period, segment, revenue DESC, sector;
+
+-- Period-end revenue (SPEC-20, forensic): per period of the latest engagement, the sales register revenue, the revenue
+-- invoiced in the period's last calendar month and in its last `days` days (the forensic setting period_end_days,
+-- passed by fin.forensic.measures), and each as a share of the period's revenue. period_end: an annual period ends
+-- the day before the fiscal start month of its year (FY25 with April: 2025-03-31); the stub ends on stub_end. A
+-- period with no sales register line has no row.
+-- example: SELECT * FROM period_end_revenue(5)
+CREATE MACRO period_end_revenue(days) AS TABLE
+WITH latest AS (
+    SELECT engagement_id, periods, stub, stub_end, fiscal_start_month FROM engagement
+    ORDER BY engagement_id DESC LIMIT 1
+),
+lines AS (
+    SELECT
+        l.engagement_id, r.period, r.invoice_date, r.amount_inr,
+        list_position(string_split(l.periods, ','), r.period) AS period_no,
+        CASE WHEN r.period = l.stub THEN 'unaudited' ELSE 'audited' END AS basis,
+        CASE WHEN r.period = l.stub THEN l.stub_end
+            ELSE CAST(make_date(2000 + CAST(substr(r.period, 3, 2) AS INTEGER)
+                + CASE WHEN l.fiscal_start_month = 1 THEN 1 ELSE 0 END, l.fiscal_start_month, 1)
+                - INTERVAL 1 DAY AS DATE) END AS period_end
+    FROM register_lines r
+    JOIN source_files f ON f.file_id = r.file_id AND f.status = 'loaded'
+    JOIN latest l ON l.engagement_id = f.engagement_id
+    WHERE r.kind = 'sales' AND r.period IS NOT NULL
+),
+per AS (
+    SELECT
+        engagement_id, period, basis, period_end, any_value(period_no) AS period_no,
+        CAST(sum(amount_inr) AS DECIMAL(38, 2)) AS revenue,
+        CAST(coalesce(sum(amount_inr) FILTER (WHERE invoice_date >= date_trunc('month', period_end)), 0)
+            AS DECIMAL(38, 2)) AS last_month_revenue,
+        CAST(coalesce(sum(amount_inr) FILTER (WHERE invoice_date > period_end - CAST(days AS INTEGER)), 0)
+            AS DECIMAL(38, 2)) AS last_days_revenue
+    FROM lines
+    GROUP BY engagement_id, period, basis, period_end
+)
+SELECT
+    engagement_id, period, basis, period_end, revenue, last_month_revenue,
+    div6(to_paise(last_month_revenue), to_paise(revenue)) AS last_month_share,
+    CAST(days AS INTEGER) AS last_days, last_days_revenue,
+    div6(to_paise(last_days_revenue), to_paise(revenue)) AS last_days_share
+FROM per
+ORDER BY coalesce(period_no, 999);

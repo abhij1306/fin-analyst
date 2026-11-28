@@ -1,6 +1,7 @@
 """`fin ingest <co> <file> --kind <kind>`: load a diligence source file (trial_balance,
 ledger_vouchers, registers, payroll or orderbook).
-A GST return summary (`--kind gst`) is stored as its return, 'gstr1' or 'gstr3b' (`fin.fdd.gst`).
+A GST return summary (`--kind gst`) is stored as its return, 'gstr1' or 'gstr3b' (`fin.fdd.gst`),
+and a GSTR-2B statement as 'gstr2b' (`fin.fdd.gstr2b`, SPEC-20).
 
 For one file, `ingest_source`:
 
@@ -51,7 +52,7 @@ from fin.diligence.stub import UNAUDITED
 from fin.extract.ledger import Table, read_table
 from fin.extract.periods import fiscal_year_of
 from fin.extract.registers import read_registers
-from fin.fdd import gst
+from fin.fdd import gst, gstr2b
 from fin.findings import record, set_status
 from fin.ingest import sha256_of
 from fin.paths import company_db_path
@@ -312,6 +313,8 @@ def _load_source(
             orderbook.rows(content, file, run.run_id, masker),
         )
         return orderbook.summary(con, file, masker)
+    if kind == "gstr2b":
+        return gstr2b.load(run, con, content, file, masker)
     if kind in gst.RETURNS:
         return gst.load(run, con, content, file)
     if kind == "registers":

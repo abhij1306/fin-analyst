@@ -55,6 +55,8 @@ inputs(metric, input_periods, accounts) AS (
         ('free_cash_flow', ['same'], ['cfo', 'cf_capex']),
         ('cfo_to_ebitda', ['same'], list_concat((FROM ebitda), ['cfo'])),
         ('cfo_to_pat', ['same'], ['cfo', 'pat']),
+        ('accruals', ['same'], ['pat', 'cfo']),
+        ('accruals_to_assets', ['same'], ['pat', 'cfo', 'total_assets']),
         ('capex_to_revenue', ['same'], ['cf_capex', 'revenue']),
         ('capex_to_depreciation', ['same'], ['cf_capex', 'depreciation']),
         ('revenue_growth', ['same', 'year-1'], ['revenue']),

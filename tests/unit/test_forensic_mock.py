@@ -66,7 +66,11 @@ def states(root: Path) -> dict[tuple[str, str], dict]:  # type: ignore[type-arg]
 
 
 def test_every_planted_journal_is_flagged_and_no_near_miss(ran: tuple[Path, Done]) -> None:
-    found = {(f["test"], f["period"], f["voucher_no"], f["ledger"]) for f in flags(ran[0])}
+    found = {
+        (f["test"], f["period"], f["voucher_no"], f["ledger"])
+        for f in flags(ran[0])
+        if f["test"].startswith("je_")  # the counterparty tests: test_forensic_counterparty.py
+    }
 
     assert found == expected()
     near = {p.number for p in data.FORENSIC if p.why.startswith("near miss")}

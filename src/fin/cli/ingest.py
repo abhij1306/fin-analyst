@@ -65,7 +65,7 @@ def _check_kind(kind: str, profile: str | None, one_file: bool, other_mode: bool
     if other_mode:
         raise typer.BadParameter("--kind does not take --force, --reading or --unit")
     if kind == "gst" and profile is None:
-        raise typer.BadParameter("--kind gst needs --profile gstr1 or gstr3b (or your own)")
+        raise typer.BadParameter("--kind gst needs --profile gstr1, gstr3b or gstr2b (or your own)")
 
 
 def _unit_answer(value: str | None) -> str | None:
@@ -121,7 +121,7 @@ def ingest(
 ) -> None:
     """Load Excel and PDF documents for one company. Files already loaded are skipped (E105).
     With --kind, load one diligence source file (trial balance, Ledger Vouchers, registers, bank
-    statement, payroll, orderbook, GST return summary: --kind gst --profile gstr1|gstr3b)
+    statement, payroll, orderbook, GST return: --kind gst --profile gstr1|gstr3b|gstr2b)
     instead."""
 
     _check_usage(path, force, reading, kind, profile, unit)

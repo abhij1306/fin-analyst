@@ -36,7 +36,7 @@ def ingested(clean_template: Callable[..., Path]) -> Path:
 def test_the_last_ingest_exported_every_company(ingested: Path) -> None:
     with connect(analytics_db_path(ingested)) as con:
         assert con.execute("SELECT count(DISTINCT company), count(*) FROM metrics").fetchall() == [
-            (3, 584)
+            (3, 612)
         ]
 
 
@@ -189,10 +189,10 @@ def test_a_data_change_rebuilds_analytics(root: Path) -> None:
         analytics,
         "SELECT company, scope, count(*), count(value) FROM metrics GROUP BY ALL ORDER BY ALL",
     ) == [
-        ("bluepeak", "consolidated", 169, 161),
-        ("bluepeak", "standalone", 169, 161),
-        ("kestrel", "standalone", 123, 104),
-        ("tarang", "standalone", 123, 115),
+        ("bluepeak", "consolidated", 177, 169),
+        ("bluepeak", "standalone", 177, 169),
+        ("kestrel", "standalone", 129, 110),
+        ("tarang", "standalone", 129, 121),
     ]
     # Unconfirmed revenue makes every FY25 metric that needs it NULL; the rest are unchanged.
     assert query(

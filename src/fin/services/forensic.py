@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from fin.audit.logger import Run
+from fin.diligence.engagement import company_database
+from fin.forensic import measures, settings, status
 from fin.forensic import run as forensic_run
-from fin.forensic import settings, status
 from fin.services.result import ActionResult, Progress, perform
 
 
@@ -42,6 +43,12 @@ def read_status(run: Run, root: Path, company: str) -> list[dict[str, Any]]:
 def read_flags(run: Run, root: Path, company: str, **filters: Any) -> list[dict[str, Any]]:
     """`fin forensic flags` and the Forensic screen."""
     return status.flags(run, root, company, **filters)
+
+
+def read_period_end(run: Run, root: Path, company: str) -> list[str]:
+    """`fin analytics` and the Forensic screen: the period-end revenue of each period, in words."""
+    with company_database(run, company) as con:
+        return measures.lines(measures.rows(con, root, company))
 
 
 def read_settings(root: Path, company: str) -> list[dict[str, Any]]:

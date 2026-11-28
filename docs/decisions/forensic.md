@@ -230,6 +230,33 @@ The owner confirms or changes these.
   the books and the data room would change the trial balances, bank_vs_tb and the end-to-end plan. Its definition is
   `mock/generator/data_bank.py`, beside `data.py` (which is near the file size limit).
 
+### Builder readings for SPEC-20 PR 1 (2026-11-28)
+
+The owner confirms or changes these.
+
+- **One GSTR-2B file per engagement period.** The portal downloads 2B per month; the profile reads one file whose
+  preamble covers an engagement period (a year or the stub), as the GSTR-1 and 3B summaries are loaded. Twelve monthly
+  files are joined into one before loading. The return period of each line is kept (`return_period`).
+- **A register flag is an invoice.** `cp_new_vendor`, `cp_vendor_spike`, `cp_under_limit` and `cp_credit_note` flag a
+  register line: its voucher is the invoice number, its source the register row, its party the token; it has no
+  ledger. `cp_new_vendor` flags the vendor's first invoice with the vendor's period total; `cp_vendor_spike` the
+  month's largest invoice with the month's total.
+- **History.** `cp_vendor_spike` counts a vendor's earlier months with purchases (months with none are not zeros); a
+  period with no vendor month that has `spike_history` of them reports too few entries. `cp_new_vendor` cannot run
+  without an earlier loaded period with purchases.
+- **Credit notes.** A credit note is a voucher of a `credit_note_types` type crediting a ledger whose name is a register
+  party's. It counts when dated in the first 60 days of the next period; one from day 60 to day 72, or on an invoice
+  one day outside `period_end_days`, is a near miss. The 60 days are the spec's, not a setting.
+- **Party ledgers.** `cp_setoff` and `cp_capitalised` treat a ledger as a party's when its name is a register party's
+  or it is mapped to trade receivables or payables. `cp_loan_no_trade` finds the party in the loan ledger's name (the
+  tokens of `mask_values`); a loan ledger naming no register party is flagged as "a party with no sales or purchase".
+- **Period-end revenue is a table macro**, `period_end_revenue(days)`, not a view: `period_end_days` is a forensic
+  setting in config.toml, not in the database, so `fin.forensic.measures` passes it in.
+- **Gate G2.** The four GST reconciliations are G2 inputs in the code (`fin.reconcile.checks` requires every
+  reconciliation whose inputs are loaded; [fdd.md](../fdd.md) F6); the spec says they are not. This PR keeps them as
+  they are and leaves `purchase_register_vs_gstr2b` out of G2 (`fin.reconcile.NOT_GATED`), as the spec says for it.
+  Whether the four should leave G2 too is the owner's call.
+
 ### Who sets the inputs
 
 - **Decision:** approval limits, holidays, keyword lists and thresholds are the user's: Claude sets one only when the user gives it,

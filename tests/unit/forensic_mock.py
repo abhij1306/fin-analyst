@@ -37,8 +37,15 @@ def run(root: Path) -> Run:
     return Run("test", {}, root)
 
 
-def build(root: Path, periods: tuple[str, ...] = tuple(data.PERIODS)) -> Path:
-    """A data folder with the mock company loaded for `periods`."""
+REGISTERS = ROOM / "billing" / "corvane_registers_fy23_to_fy26_h1.xlsx"
+GSTR2B = ROOM / "gst" / "corvane_gstr2b_fy25.xlsx"
+
+
+def build(
+    root: Path, periods: tuple[str, ...] = tuple(data.PERIODS), *, registers: bool = False
+) -> Path:
+    """A data folder with the mock company loaded for `periods`; with `registers`, the sales and
+    purchase registers and the FY25 GSTR-2B too (SPEC-20)."""
     root.mkdir(parents=True)
     write_default_config(root)
     ensure_database(audit_db_path(root), "audit")
@@ -64,6 +71,9 @@ def build(root: Path, periods: tuple[str, ...] = tuple(data.PERIODS)) -> Path:
         ingest_source(run(root), config, COMPANY, trial, "trial_balance", None)
         vouchers = ROOM / "ledgers" / VOUCHERS[period]
         ingest_source(run(root), config, COMPANY, vouchers, "ledger_vouchers", None)
+    if registers:
+        ingest_source(run(root), config, COMPANY, REGISTERS, "registers", None)
+        ingest_source(run(root), config, COMPANY, GSTR2B, "gst", "gstr2b")
     found = ledgers.list_ledgers(run(root), COMPANY)
     loaded = {r["ledger"] for r in found}
     proposals = [

@@ -163,6 +163,8 @@ venv = ".venv"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 timeout = 60
+# the 60s bound a test's own body; a session fixture (clean_template) is bounded by the CI job's limit
+timeout_func_only = true
 addopts = "-ra"
 markers = [
     "quarto: needs the real Quarto; run by the CI outputs job",

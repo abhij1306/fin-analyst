@@ -85,6 +85,8 @@ LAYOUTS = {
 }
 ASSETS = ("ppe_net", "trade_receivables", "cash", "other_current_assets")
 INCOME = ("revenue", "other_income")
+# a ledger mapped to an account the layouts do not print, printed in the line that holds it
+PRINTED_AS = {"loans_current": "other_current_assets"}  # SPEC-20's loan, stub only
 
 
 def accounts(tb: dict[str, int]) -> dict[str, int]:
@@ -92,7 +94,8 @@ def accounts(tb: dict[str, int]) -> dict[str, int]:
     credit - debit)."""
     out: dict[str, int] = {}
     for ledger, value in tb.items():
-        group, account = d.LEDGERS[ledger]
+        group, mapped = d.LEDGERS[ledger]
+        account = PRINTED_AS.get(mapped, mapped)
         if group in d.PL_GROUPS:
             out[account] = out.get(account, 0) + (-value if account in INCOME else value)
         else:

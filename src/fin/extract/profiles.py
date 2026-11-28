@@ -27,7 +27,10 @@ special cases:
   `gstr1` or `gstr3b` (what the file is stored as); `month_format` is the `strptime` format of a
   month written as text ("Apr-2024": "%b-%Y"); `period` gives the period covered as for a trial
   balance. A GSTR-3B profile also maps `GST3B_FIELDS`. `[rows] skip`: month cells that are not
-  months (totals).
+  months (totals). A GSTR-2B profile (`gst_return = "gstr2b"`, SPEC-20) reads supplier documents
+  instead of months: it maps `GSTR2B_FIELDS` (and may map `GSTR2B_OPTIONAL`), has no
+  `month_format`, and its `[columns]` may give two headings for one field (the B2B sheet's
+  "Invoice number" and the B2B-CDNR sheet's "Note number").
 - Bank statements (`kind = "bank"`, Excel and PDF alike): `bank` (the bank's name), `currency` (the
   account's currency when the header does not say) and `[header]`: regular expressions with a group
   `value` that find `account`, `currency`, `opening` and `closing` in the lines around the table
@@ -57,8 +60,14 @@ FIELDS = {
     "orderbook": {"customer", "order_no", "value", "billed"},
     "gst": {"month", "taxable_value", "igst", "cgst", "sgst", "cess"},
 }
-GST_RETURNS = ("gstr1", "gstr3b")
+GST_RETURNS = ("gstr1", "gstr3b", "gstr2b")
 GST3B_FIELDS = {"itc", "rcm_liability", "paid_cash", "paid_credit"}  # and GSTR-3B
+# GSTR-2B (SPEC-20): one row per supplier document, not per month; the rest are optional
+GSTR2B_FIELDS = {
+    "vendor", "invoice_no", "document_type", "invoice_date", "taxable_value", "igst", "cgst",
+    "sgst", "cess",
+}  # fmt: skip
+GSTR2B_OPTIONAL = {"invoice_value", "return_period", "filing_date", "itc_available"}
 REGISTER_PARTS = ("sales", "purchase")
 REGISTER_FIELDS = {
     "bill_id", "purchase_id", "customer_id", "customer", "vendor_id", "vendor", "location",
@@ -141,7 +150,8 @@ def _parse(name: str, data: dict[str, Any]) -> Profile:
     if kind == "registers":
         return _parse_registers(name, data)
     columns = {norm(k): v for k, v in (data.get("columns") or {}).items()}
-    missing = FIELDS[kind] - set(columns.values())
+    is_2b = kind == "gst" and data.get("gst_return") == "gstr2b"
+    missing = (GSTR2B_FIELDS if is_2b else FIELDS[kind]) - set(columns.values())
     if missing:
         raise _invalid(name, f"[columns] has no header for {', '.join(sorted(missing))}")
     rows = data.get("rows") or {}
@@ -188,9 +198,14 @@ def _check_kind(name: str, profile: Profile) -> None:
 
 
 def _check_gst(name: str, profile: Profile) -> None:
+    if profile.gst_return == "gstr2b":
+        unknown = set(profile.columns.values()) - GSTR2B_FIELDS - GSTR2B_OPTIONAL
+        if unknown:
+            raise _invalid(name, f"[columns] fields {', '.join(sorted(unknown))} are not known")
+        return
     if profile.gst_return not in GST_RETURNS or not profile.month_format:
         raise _invalid(
-            name, 'a gst profile needs gst_return = "gstr1" or "gstr3b" and month_format'
+            name, 'a gst profile needs gst_return = "gstr1", "gstr3b" or "gstr2b" and month_format'
         )
     missing = GST3B_FIELDS - set(profile.columns.values()) if profile.gst_return == "gstr3b" else ()
     if missing:

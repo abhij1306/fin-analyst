@@ -5,7 +5,8 @@ payroll_vs_gl (`payroll_vs_gl.py`), F3's sales_cutoff and purchase_cutoff (`cuto
 reconciliations (`gst.py`) and F7's orderbook_vs_register (`orderbook_vs_register.py`, docs/fdd.md)
 compute lines from the loaded source rows; `store.py` records a run; `items.py`
 raises one accountant query from many lines (`fin query raise --items`); `checks.py` is gate
-G2's reconciliation checks. tb_vs_statements stays in `fin.diligence.recon`.
+G2's reconciliation checks. SPEC-20's purchase_register_vs_gstr2b (`gstr2b.py`) runs too but is not
+required by G2 (`NOT_GATED`). tb_vs_statements stays in `fin.diligence.recon`.
 Each is deterministic SQL and grouping; none changes company data to make a line tie.
 """
 
@@ -20,7 +21,16 @@ from fin.db.conn import transaction
 from fin.diligence import recon
 from fin.diligence.engagement import company_database, require_open
 from fin.disclosures import rpt
-from fin.reconcile import bank, cutoff, gst, orderbook_vs_register, recast, registers, store
+from fin.reconcile import (
+    bank,
+    cutoff,
+    gst,
+    gstr2b,
+    orderbook_vs_register,
+    recast,
+    registers,
+    store,
+)
 from fin.reconcile import gl_vs_tb as gl_module
 from fin.reconcile import payroll_vs_gl as payroll_module
 from fin.reconcile import walkthrough as walkthrough_module
@@ -56,8 +66,11 @@ RECONCILIATIONS: dict[str, tuple[Compute, Applies]] = {
     gst.GSTR3B_VS_BOOKS: (gst.gstr3b_vs_books, gst.applies_books),
     gst.RCM: (gst.rcm, gst.applies_rcm),
     rpt.NAME: (rpt.rpt_vs_books, rpt.applies),
+    gstr2b.NAME: (gstr2b.compute, gstr2b.applies),
 }
 NAMES = (recon.NAME, *RECONCILIATIONS)
+# run by `fin reconcile`, never required by gate G2 (SPEC-20: not a gate input)
+NOT_GATED = (gstr2b.NAME,)
 
 
 def current_hash(

@@ -11,7 +11,7 @@ CREATE SEQUENCE source_files_seq START 1;
 
 -- One row per source file loaded with `fin ingest <co> <file> --kind <kind>`.
 -- kind: 'trial_balance', 'ledger_vouchers', 'registers', 'payroll', 'bank', 'orderbook' (F7, fdd_orderbook.sql), or a
--- GST return summary 'gstr1' or 'gstr3b' (F6, fdd_gst.sql). period: the period of the engagement
+-- GST return summary 'gstr1' or 'gstr3b' (F6, fdd_gst.sql), or a GSTR-2B statement 'gstr2b' (SPEC-20, fdd_gst.sql). period: the period of the engagement
 -- the export covers, read from its header lines (period_start, period_end): an annual period, or the stub (a bank
 -- statement covers part of one: the period that holds all its dates). A registers
 -- file has no period header: period_start and period_end are its first and last invoice date, period names the fiscal
@@ -24,7 +24,7 @@ CREATE TABLE source_files (
     file_id INTEGER PRIMARY KEY DEFAULT nextval('source_files_seq'),
     engagement_id INTEGER NOT NULL,
     kind VARCHAR NOT NULL CHECK (kind IN ('trial_balance', 'ledger_vouchers', 'registers', 'payroll', 'bank', 'orderbook',
-        'gstr1', 'gstr3b')),
+        'gstr1', 'gstr3b', 'gstr2b')),
     file_name VARCHAR NOT NULL,
     sha256 VARCHAR NOT NULL,
     archive_path VARCHAR NOT NULL,  -- archive/<company>/<sha256>.<ext>, relative to the data folder

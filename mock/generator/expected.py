@@ -7,6 +7,7 @@ from datetime import date
 from mock.generator import bank_extra
 from mock.generator import books as b
 from mock.generator import data as d
+from mock.generator import data_counterparty as cp
 from mock.generator import generate as g
 from mock.generator import sources as s
 from mock.generator import statements as st
@@ -58,6 +59,8 @@ def _loads(doc: g.Document, books: b.Books) -> str:
         return f"{sum(1 for x in rows if isinstance(x[0], int))} transactions, account masked"
     if doc.kind == "registers":
         return ", ".join(f"{x.title}: {len(x.rows) - 2} invoices" for x in sheets)
+    if doc.kind == "gst (gstr2b)":  # a 4-line preamble and a two-row header
+        return ", ".join(f"{x.title}: {len(x.rows) - 6} supplier documents" for x in sheets)
     if doc.kind == "reference_databook":
         return f"reference figures: {len(st.PROFIT_AND_LOSS) - 1} P&L lines x {len(d.ANNUAL)} years"
     if doc.fmt == "pdf":
@@ -335,6 +338,7 @@ def render(books: b.Books) -> str:
         _setup(),
         _forensic(),
         bank_extra.section(books),
+        _counterparty(books),
     ]
     return "\n".join(line for part in parts for line in part).rstrip() + "\n"
 
@@ -381,6 +385,49 @@ def _forensic() -> list[str]:
             out += ["", "Near misses (not flagged):", ""]
             out += _table(["Period", "Voucher", "Why"], sorted(near))
         out.append("")
+    return out
+
+
+def _counterparty(books: b.Books) -> list[str]:
+    """The counterparty tests' flags and near misses, and the FY25 GSTR-2B against the purchase
+    register (SPEC-20)."""
+    out = [
+        "## Counterparty tests and GSTR-2B (SPEC-20)",
+        "",
+        "With the registers (`--kind registers`) and the FY25 GSTR-2B (`--kind gst --profile "
+        "gstr2b`) loaded as well, `fin forensic run corvane` flags exactly these rows of the "
+        "counterparty tests (a register line has no ledger: its party is the customer's or "
+        "vendor's token) and logs these near misses. cp_credit_note cannot run for the stub (no "
+        "next period).",
+        "",
+    ]
+    out += _table(
+        ["Test", "Period", "Voucher or invoice", "Ledger", "Why"],
+        sorted([t, p, n, ledger or "-", why] for t, p, n, ledger, why in cp.FLAGS),
+    )
+    out += ["", "Near misses (not flagged):", ""]
+    out += _table(["Test", "Period", "Voucher or invoice", "Why"], sorted(map(list, cp.NEAR)))
+    start, end = d.PERIODS[cp.TWO_B_PERIOD]
+    register = {
+        i.number: i.amount_inr
+        for i in books.invoices
+        if i.kind == "purchase" and start <= i.when <= end
+    }
+    rows = []
+    for number, kind, why in cp.TWO_B_LINES:
+        two_b = 0 if number in cp.TWO_B_MISSING else cp.TWO_B_TAXABLE.get(number, register[number])
+        rows.append(
+            [number, kind, rs(two_b), rs(register[number]), rs(two_b - register[number]), why]
+        )
+    out += [
+        "",
+        f"`fin reconcile corvane purchase_register_vs_gstr2b --period {cp.TWO_B_PERIOD}`: "
+        f"{len(register)} register invoices; every other invoice matches. Taxable values "
+        "(difference = GSTR-2B - register):",
+        "",
+    ]
+    out += _table(["Invoice", "Kind", "GSTR-2B", "Register", "Difference", "Why"], rows)
+    out.append("")
     return out
 
 

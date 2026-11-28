@@ -15,6 +15,7 @@ MASKED: dict[str, tuple[str, ...]] = {
     "bank_statements": ("account",),
     "customers": ("customer",),
     "forensic_flags": ("party",),
+    "gstr2b_lines": ("vendor",),
     "orderbook_lines": ("customer",),
     "passthrough_customers": ("customer",),
     "payroll_lines": ("employee_name", "employee_code"),
@@ -186,6 +187,15 @@ AS_FILED: dict[str, tuple[str, ...]] = {
     ),
     "gate_approvals": ("gate", "input_hash", "input_hashes", "checklist", "approved_run_id"),
     "gst_returns": ("sheet", "return_type", "period", "run_id"),
+    "gstr2b_lines": (
+        "sheet",
+        "period",
+        "invoice_no",
+        "document_type",
+        "return_period",
+        "itc_available",
+        "run_id",
+    ),
     "inquiries": ("topic",),
     "ledger_accounts": (
         "ledger",
