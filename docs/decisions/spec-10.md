@@ -29,13 +29,14 @@ Readings, not owner decisions, until the owner confirms them.
   query's amount reads as fin's side.
 - **How to change it**: `src/fin/reference/lines.py` (`_target`), the view in `src/fin/db/schema/reference.sql`.
 
-## Figures shown in the reference's own unit
+## Figures shown in the display unit
 
-- **Decision**: the comparison shows the reference figure, fin's figure and the difference in the unit the
-  reference states (`rupees_per_unit`), computed in SQL. Stored values are rupees.
-- **Why**: the display unit setting (SPEC-06 PR 1) does not exist yet; the reference's unit is the one the user
-  reads beside the databook. When SPEC-06 lands, the comparison should use the display unit.
-- **How to change it**: the `*_shown` columns of `reference_comparison`.
+- **Decision**: the comparison shows the reference figure, fin's figure and the difference in the company's display
+  unit (config.toml `[display]`, SPEC-06), each converted by the `display_value` macro in SQL; stored values are
+  rupees and `--json` keeps them. A missing figure is `n/a`, so it never reads as the bracketed zero dash.
+- **Why**: SPEC-10 asks for "the display unit"; #127 added it and its macro while this PR was open (the reviewer
+  switched from the reference's own unit after the rebase).
+- **How to change it**: `src/fin/reference/compare.py` (`_ROWS_SQL`).
 
 ## Threshold
 

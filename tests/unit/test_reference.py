@@ -120,12 +120,47 @@ def test_the_comparison_lists_exactly_the_three_planted_differences(
     assert [r["above"] for r in differs] == [True, False, False]
     assert data["counts"] == {"differs": 3, "no_fin_figure": 0, "unmapped": 1, "agrees": 3}
     assert data["threshold"] == Decimal("100000.00")
+    # money is shown in the display unit (default INR Mn, one decimal, brackets), converted in SQL
+    assert data["unit_label"] == "INR Mn" and data["threshold_text"] == "0.1 INR Mn"
+    assert differs[0]["difference_shown"] == Decimal("-0.3")  # -2,50,000 rupees, half away from 0
+    assert differs[0]["difference_text"] == "(0.3)"
     first = differs[0]
     assert first["reference_ref"] == "Profit and Loss!B7"
     assert first["fin_source"].startswith(f"{KESTREL} ")
     text = fin("reference", "compare", "kestrel")
     assert "kestrel: 3 differences" in text
     assert text.count("[differs") == 3
+
+
+def test_a_figure_fin_does_not_hold_is_shown_as_missing_never_zero(
+    root: Path, tmp_path: Path
+) -> None:
+    scope, lines = fin_lines(root)
+    label, account, value = lines[0]
+    book = Workbook()
+    sheet = book.active
+    assert sheet is not None
+    sheet.title = "Profit and Loss"
+    for row in [
+        [f"{scope.title()} Statement of Profit and Loss"],
+        ["(Amount in rupees)"],
+        ["Particulars", "Year ended 31-Mar-2025", "Year ended 31-Mar-2019"],
+        [label, str(value), "12345"],
+    ]:
+        sheet.append(row)
+    book.save(tmp_path / "two_years.xlsx")
+    fin("reference", "add", "kestrel", str(tmp_path / "two_years.xlsx"), "--source", SOURCE)
+
+    data = comparison(root, "kestrel")
+
+    [missing] = [r for r in data["rows"] if r["state"] == "no_fin_figure"]
+    assert (missing["target"], missing["period"]) == (account, "FY19")
+    assert missing["fin_value"] is None and missing["difference"] is None
+    assert (missing["fin_text"], missing["difference_text"]) == ("n/a", "n/a")
+    assert data["counts"]["no_fin_figure"] == 1 and data["counts"]["agrees"] == 1
+    text = fin("reference", "compare", "kestrel", "--all")
+    [line] = [t for t in text.splitlines() if "[no_fin_figure] FY19" in t]
+    assert "fin n/a, reference " in line and "difference" not in line
 
 
 def test_no_reference_value_reaches_current_facts_metrics_or_statements(
@@ -161,6 +196,7 @@ def test_a_waiting_line_is_compared_only_once_the_user_confirms_the_proposal(
         '[{"line": %d, "metric": "net_profit_margin", "confidence": 0.9, "reason": "r"}]',
         '[{"line": %d, "account": "other_expenses", "confidence": 2, "reason": "r"}]',
         '[{"line": 999, "account": "other_expenses", "confidence": 0.5, "reason": "r"}]',
+        '[{"line": true, "account": "other_expenses", "confidence": 0.5, "reason": "r"}]',
     ):
         proposals.write_text(bad.replace("%d", str(line["line_id"])), encoding="utf-8")
         assert "E981" in fin("reference", "propose", "kestrel", str(proposals), code=2)

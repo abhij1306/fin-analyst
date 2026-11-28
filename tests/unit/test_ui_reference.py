@@ -99,6 +99,10 @@ def test_the_references_screen_lists_the_differences_and_takes_the_users_confirm
     page = client.get("/references?company=kestrel").text
 
     assert "3 differ · 3 agree · 0 with no fin figure · 1 not mapped" in page
+    # a query or an adjustment needs an open engagement: no hand-off is offered before one
+    assert ">Draft a query<" not in page and "needs an open engagement" in page
+    fin("engagement", "open", "kestrel", "--periods", "FY25")
+    page = client.get("/references?company=kestrel").text
     assert page.count(">Draft a query<") == 3 and page.count(">Propose an adjustment<") == 3
     assert page.count("at or above the threshold") == 1
     assert "Profit and Loss!B7" in page

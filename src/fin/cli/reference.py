@@ -135,13 +135,14 @@ def compare_command(
     ] = False,
     json_output: JsonOption = False,
 ) -> None:
-    """Each mapped reference figure beside fin's, in the reference's unit, with both sources:
+    """Each mapped reference figure beside fin's, in the display unit, with both sources:
     differences at or above the threshold first."""
 
     def body(run: Run) -> None:
         data = compare.comparison(run.root, company)
         if json_output:
-            typer.echo(json.dumps(data, indent=2, default=str))
+            rows = data["rows"] if all_rows else compare.differences(data)
+            typer.echo(json.dumps(data | {"rows": rows}, indent=2, default=str))
         else:
             typer.echo(compare.format_comparison(company, data, all_rows))
 
@@ -159,7 +160,9 @@ def query_command(
     def body(run: Run) -> None:
         typer.echo(queries.format_query(handoff.raise_query(run, company, value_id, question)))
 
-    execute("reference query", {"company": company, "value_id": value_id}, body)
+    execute(
+        "reference query", {"company": company, "value_id": value_id, "question": question}, body
+    )
 
 
 @reference_app.command("adjust")

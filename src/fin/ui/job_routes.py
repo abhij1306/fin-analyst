@@ -2,6 +2,7 @@
 `GET /partials/jobs` shows the company's jobs. The jobs card polls while one is queued or running;
 it reads the jobs table, so it shows the same after a reload. A job's actor is always the user."""
 
+import shutil
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -13,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.datastructures import UploadFile
 
 from fin.actor import USER
-from fin.audit.errors import UiActionInvalid
+from fin.audit.errors import FinError, UiActionInvalid
 from fin.extract.addon import ADDON_LABELS
 from fin.ingest import UNIT_ANSWERS
 from fin.paths import dataroom_dir
@@ -158,8 +159,8 @@ def add_job_routes(
         folder = Path(tempfile.mkdtemp(dir=base))
         try:
             save_uploads(folder, [(f.filename or "", f.file) for f in sent], (".zip",))
-        except UiActionInvalid:
-            folder.rmdir()
+        except (FinError, OSError):
+            shutil.rmtree(folder, ignore_errors=True)
             raise
         jobs.submit(name, "dataroom-scan", {"folder": str(folder)})
         response = shown(request, name)

@@ -85,7 +85,10 @@ def _checked(number: int, proposal: Any, lines: dict[int, dict[str, Any]]) -> tu
         raise ReferenceLineInvalid(f"{what}: confidence must be from 0 to 1")
     if not isinstance(reason, str) or not reason.strip():
         raise ReferenceLineInvalid(f"{what}: give the reason as text")
-    line = lines.get(proposal["line"]) if isinstance(proposal["line"], int) else None
+    line_id = proposal["line"]
+    line = (
+        lines.get(line_id) if isinstance(line_id, int) and not isinstance(line_id, bool) else None
+    )
     if line is None or line["status"] not in OPEN + ("rejected",):
         state = "no such line" if line is None else line["status"]
         raise ReferenceLineInvalid(f"{what}: line {proposal['line']!r} is not waiting ({state})")

@@ -1,10 +1,9 @@
 {#- The References screen (SPEC-10): a third party's figures beside fin's, never company data. The figures are the
-    view reference_comparison's, in the reference's own unit; a missing figure is shown as a dash, never zero. The UI
+    view reference_comparison's, in the display unit (converted in SQL); a missing figure is "n/a", never zero. The UI
     never drafts: a query or an adjustment from a difference is started in the chat, where the assistant drafts it. -#}
 {% from "_ui.html" import head, badge, clip, empty, no_company %}
 {% from "_actions.html" import act %}
 {% from "_chat_items.html" import ask %}
-{% macro n(value) %}{{ "-" if value is none else "{:,}".format(value) }}{% endmacro %}
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
@@ -18,17 +17,17 @@
 {% else %}
 <div class="card">
   <header><h2>Comparison</h2>
-    <p>{{ data.counts.differs }} differ · {{ data.counts.agrees }} agree · {{ data.counts.no_fin_figure }} with no fin figure · {{ data.counts.unmapped }} not mapped. Differences of {{ n(data.threshold) }} rupees or more come first. Difference = fin minus the reference.</p></header>
+    <p>{{ data.counts.differs }} differ · {{ data.counts.agrees }} agree · {{ data.counts.no_fin_figure }} with no fin figure · {{ data.counts.unmapped }} not mapped. Differences of {{ data.threshold_text }} or more come first. Difference = fin minus the reference, in {{ data.unit_label }}.{% if data.counts.differs and not data.engagement_open %} A query or an adjustment needs an open engagement (fin engagement open).{% endif %}</p></header>
   <section class="flush">
     <div class="table-container"><table class="table">
-      <thead><tr><th class="num">#</th><th>Line</th><th>Period</th><th>Mapped to</th><th class="num">Reference</th><th class="num">fin</th><th class="num">Difference</th><th>Unit</th><th>Sources</th><th>State</th><th class="act"></th></tr></thead>
+      <thead><tr><th class="num">#</th><th>Line</th><th>Period</th><th>Mapped to</th><th class="num">Reference ({{ data.unit_label }})</th><th class="num">fin</th><th class="num">Difference</th><th>Sources</th><th>State</th><th class="act"></th></tr></thead>
       <tbody>
         {% for r in data.rows %}
         <tr><td class="num">{{ r.value_id }}</td><td>{{ clip(r.label, 40) }}</td><td>{{ r.period }}<div class="sub">{{ r.scope }}</div></td>
-          <td>{{ r.target or "" }}</td><td class="num">{{ n(r.reference_shown) }}</td><td class="num">{{ n(r.fin_shown) }}</td><td class="num">{{ n(r.difference_shown) }}</td><td>{{ r.raw_unit }}</td>
+          <td>{{ r.target or "" }}</td><td class="num">{{ r.reference_text }}</td><td class="num">{{ r.fin_text }}</td><td class="num">{{ r.difference_text }}</td>
           <td><div class="sub">fin: {{ clip(r.fin_source or "no figure", 50) }}</div><div class="sub">{{ r.source }}: {{ clip(r.file_name ~ " " ~ r.reference_ref, 50) }}</div></td>
           <td>{{ badge(r.state, r.state | replace("_", " ")) }}{% if r.above %} {{ badge("above", "at or above the threshold", "warn") }}{% endif %}</td>
-          <td class="act">{% if r.state == "differs" %}<div class="actions">
+          <td class="act">{% if r.state == "differs" and data.engagement_open %}<div class="actions">
             {{ ask(company, "Draft a query for reference difference #" ~ r.value_id ~ " of " ~ company ~ " (" ~ r.label ~ ", " ~ r.period ~ ") with fin reference query: ", "Draft a query", "outline") }}
             {{ ask(company, "Propose an adjustment from reference difference #" ~ r.value_id ~ " of " ~ company ~ " (" ~ r.label ~ ", " ~ r.period ~ ") with fin reference adjust: ", "Propose an adjustment") }}
           </div>{% endif %}</td></tr>

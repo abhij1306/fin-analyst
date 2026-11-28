@@ -10,6 +10,7 @@ from typing import Any
 from fin.audit.errors import DependencyMissing, FinError
 from fin.audit.trace import company_history
 from fin.config import SCOPES
+from fin.dataroom.load import waiting
 from fin.dataroom.scan import plan_groups
 from fin.diligence import adjustments, engagement, gates, queries
 from fin.diligence.engagement import rupees
@@ -97,8 +98,7 @@ def _plan(root: Path, company: str) -> dict[str, Any]:
     """The data-room plan (SPEC-13): the files fin can use, with how many are approved and wait
     to load, and what will be skipped."""
     usable, _, skipped = plan_groups(plan_rows(root, company))
-    waiting = sum(1 for r in usable if r.approved and r.status == "planned")
-    return {"usable": usable, "skipped": skipped, "waiting": waiting}
+    return {"usable": usable, "skipped": skipped, "waiting": len(waiting(usable))}
 
 
 def mappings(root: Path, company: str) -> dict[str, Any]:

@@ -148,7 +148,9 @@ def _load_one(
         return "loaded", ("already loaded: " + outcome) if run.skipped > skipped else outcome
     try:
         if kind == "reference_databook":
-            return "loaded", add_reference(run, config, company, path, row.path).line
+            added = add_reference(run, config, company, path, row.path)
+            run.loaded += 1
+            return "loaded", added.line
         if kind == "bank":
             loaded = ingest_bank(run, config, company, path, profile)
         else:

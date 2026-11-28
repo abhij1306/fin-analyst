@@ -45,7 +45,7 @@ CREATE TABLE reference_lines (
 );
 
 -- reference_values: one row per figure, as fin's reader (or the reading) found it. value in rupees; raw_unit and
--- rupees_per_unit as printed, so the comparison shows the databook's own unit.
+-- rupees_per_unit as printed.
 CREATE SEQUENCE reference_values_seq START 1;
 CREATE TABLE reference_values (
     value_id BIGINT PRIMARY KEY DEFAULT nextval('reference_values_seq'),
@@ -68,8 +68,8 @@ CREATE TABLE reference_values (
 
 -- Each reference figure beside fin's (`fin reference compare`, the References screen). fin_value: current_facts for an
 -- account, metrics for a metric, same period and scope; NULL when fin has none (never 0). difference = fin_value -
--- reference_value, in rupees; the *_shown columns are in the reference's own unit (raw_unit). fin_source: file and
--- sheet!cell or page of the fact, "stated #id" for a figure the user stated, or "metric <name>". state: unmapped (the
+-- reference_value, in rupees (fin.reference.compare shows them in the display unit, display_value). fin_source: file and
+-- sheet!cell or page of each fact behind the figure (several for a summed figure, "; " between), "stated #id" for a figure the user stated, or "metric <name>". state: unmapped (the
 -- line is not dictionary or confirmed), no_fin_figure, agrees or differs.
 CREATE VIEW reference_comparison AS
 WITH ref AS (
@@ -88,13 +88,15 @@ WITH ref AS (
         CASE
             WHEN m.value IS NOT NULL THEN 'metric ' || r.target
             WHEN c.stated_id IS NOT NULL THEN 'stated #' || c.stated_id
-            WHEN s.fact_id IS NOT NULL THEN s.source_file || ' ' || s.source_ref
+            WHEN c.fact_id IS NOT NULL THEN (
+                SELECT string_agg(s.source_file || ' ' || s.source_ref, '; ' ORDER BY s.fact_id)
+                FROM fact_sources s WHERE list_contains(c.fact_ids, s.fact_id)
+            )
         END AS fin_source
     FROM ref r
     LEFT JOIN current_facts c
         ON r.mapped AND r.target_kind = 'account' AND c.account = r.target AND c.period = r.period
         AND c.scope = r.scope
-    LEFT JOIN fact_sources s ON s.fact_id = c.fact_id
     LEFT JOIN metrics m
         ON r.mapped AND r.target_kind = 'metric' AND m.metric = r.target AND m.period = r.period
         AND m.scope = r.scope
@@ -104,9 +106,6 @@ SELECT
     x.fin_value,
     x.fin_source,
     x.fin_value - r.reference_value AS difference,
-    CAST(r.reference_value / r.rupees_per_unit AS DECIMAL(20, 2)) AS reference_shown,
-    CAST(x.fin_value / r.rupees_per_unit AS DECIMAL(20, 2)) AS fin_shown,
-    CAST((x.fin_value - r.reference_value) / r.rupees_per_unit AS DECIMAL(20, 2)) AS difference_shown,
     CASE
         WHEN NOT r.mapped THEN 'unmapped'
         WHEN x.fin_value IS NULL THEN 'no_fin_figure'

@@ -1121,8 +1121,9 @@ Decisions: [decisions/spec-10.md](decisions/spec-10.md).
   user confirms (`fin reference confirm <co> <ids>`, a proposed line) or rejects (`fin reference reject`) a line.
 - **`fin reference compare <co> [--all] [--json]`** (view `reference_comparison`): for each figure of a mapped line,
   fin's figure for the same account or metric, period and scope, the difference (fin minus the reference) and both
-  sources (fin's file and cell, a stated figure or the metric; the reference's file and cell), in the reference's
-  own unit. A state per figure: `differs`, `agrees`, `no_fin_figure` or `unmapped` (counted, never shown as zero).
+  sources (fin's file and cell, a stated figure or the metric; the reference's file and cell), in the company's
+  display unit (SPEC-06, converted by `display_value`; `--json` has rupees and the `*_shown` values). A missing
+  figure is `n/a`. A state per figure: `differs`, `agrees`, `no_fin_figure` or `unmapped` (counted, never shown as zero).
   Differences come first, those at or above the threshold (the open engagement's query threshold, else
   `[diligence] query_threshold`) before the rest, largest first. Without `--all` it lists the differences only.
 - **From a difference**: `fin reference query <co> <#id> --question "..."` drafts a query (as `fin query raise`, the
@@ -1329,7 +1330,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
     customer sectors, tax ledger classes, related party links, net debt classes, bank matches), each with its rows
     as the CLI prints them, or the reason it has none (E803 without an open engagement).
   - Statements: the statements as reported in the databook layout with scope, statement, periods and unit pickers and a source drawer (SPEC-06), or reported vs rebuilt from the trial balance (`?view=rebuilt`; SPEC-14); why there is nothing to show when there is not. Another view, or a picker value not offered, is refused with E001.
-  - References (SPEC-10): the comparison of `fin reference compare --all` (counts, each figure with both sources, the state and whether it is at or above the threshold), the lines waiting for a mapping with **Confirm** (a proposed line) and **Reject**, and the reference files. A difference offers **Draft a query** and **Propose an adjustment**, and a waiting line **Ask for a proposal**: each opens the chat with the request, because the UI never drafts.
+  - References (SPEC-10): the comparison of `fin reference compare --all` (counts, each figure with both sources, the state and whether it is at or above the threshold), the lines waiting for a mapping with **Confirm** (a proposed line) and **Reject**, and the reference files. A difference offers **Draft a query** and **Propose an adjustment** while an engagement is open (both need one), and a waiting line **Ask for a proposal**: each opens the chat with the request, because the UI never drafts.
   - Engagement: open an engagement (periods, threshold, stub, credit terms; as `fin engagement open`) when there is none; else its terms, query and adjustment counts, the gates (each links to the Gates screen) and **Close** (as `fin engagement close`).
   - Queries: the open engagement's accountant queries and adjustments with status and evidence; **Raise a query** (amount, period, scope, where the figures are, the question; as `fin query raise`), **Edit** a draft's wording, **Record answer** on a sent query (as `fin query answer`), **Export workbook and email** and **Export Word briefs** (as `fin query export [--brief]`; the files are written to `exports/<co>/<run_id>/`, fin sends nothing), and the walk-sheet import (as `fin adjust import`).
   - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`). A failing line links to the screen that closes it (a `fin query`, `fin adjust`, `fin review`, `fin findings` or `fin fdd finding` command in the line), or offers **Ask Claude** when no screen does. An E801 refusal anywhere links to the gate it names.
