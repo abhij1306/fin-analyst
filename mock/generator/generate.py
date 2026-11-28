@@ -230,8 +230,8 @@ def build(target: Path, books: b.Books | None = None) -> None:
         write.xlsx(target / "extra" / name, sheets())
     for name, text in expected.extra_texts().items():
         (target / "extra" / name).parent.mkdir(parents=True, exist_ok=True)
-        (target / "extra" / name).write_text(text, encoding="utf-8")
-    (target / "EXPECTED.md").write_text(expected.render(books), encoding="utf-8")
+        (target / "extra" / name).write_text(text, encoding="utf-8", newline="\n")
+    (target / "EXPECTED.md").write_text(expected.render(books), encoding="utf-8", newline="\n")
 
 
 def main() -> None:

@@ -26,7 +26,7 @@ Paths are under `mock/dataroom/` (the same tree is in `mock/zipped/corvane_datar
 | `01_company/hr/corvane_employee_master_2025-03-31.xlsx` | the company (management) | payroll | 9 rows | amounts are annual: `fin payroll confirm-unit ... --annual` |
 | `01_company/gst/corvane_gstr1_fy25.xlsx` | the company (management) | gst (gstr1) | 12 rows |  |
 | `01_company/gst/corvane_gstr3b_fy25.xlsx` | the company (management) | gst (gstr3b) | 12 rows | the plan names profile gstr1 (the first that matches): load it with --profile gstr3b |
-| `01_company/contracts/bellwether_renewal_2025-26.pdf` | the company (management) | skipped (no statement page) | nothing: Claude reads it when asked (`fin ingest --reading`, contract terms) | a contract: Claude reads it (fin recast contracts) |
+| `01_company/contracts/bellwether_renewal_2025-26.pdf` | the company (management) | skipped (no statement page) | nothing: Claude reads it when asked (`fin recast contracts`) | a contract: Claude reads it (fin recast contracts) |
 | `03_bank/icici_004105012345_fy24.xlsx` | the bank | bank | 94 transactions, account masked |  |
 | `03_bank/icici_004105012345_fy25.xlsx` | the bank | bank | 95 transactions, account masked |  |
 | `03_bank/icici_004105012345_fy26_h1.xlsx` | the bank | bank | 51 transactions, account masked |  |

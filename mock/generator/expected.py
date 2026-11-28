@@ -60,7 +60,7 @@ def _loads(doc: g.Document, books: b.Books) -> str:
     if doc.kind == "reference_databook":
         return f"reference figures: {len(st.PROFIT_AND_LOSS) - 1} P&L lines x {len(d.ANNUAL)} years"
     if doc.fmt == "pdf":
-        return "nothing: Claude reads it when asked (`fin ingest --reading`, contract terms)"
+        return "nothing: Claude reads it when asked (`fin recast contracts`)"
     return f"{len(sheets[0].rows) - (4 if 'gst' in doc.kind else 3) - (doc.kind != 'gst')} rows"
 
 
