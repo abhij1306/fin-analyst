@@ -30,6 +30,7 @@ from fin.audit.errors import MaskedTableRead, ReadOnlyViolation, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect, lock_files
 from fin.db.rows import fetch_dicts
+from fin.discrepancies.view import add_view as add_discrepancies
 from fin.paths import company_db_path
 from fin.query.evidence import write_evidence
 from fin.query.guide import column_hint
@@ -98,10 +99,12 @@ def check_select(con: duckdb.DuckDBPyConnection, sql: str) -> None:
 def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
     """Run one SELECT on a read-only connection and return the rows, with provenance columns added
     when the result has `fact_ids`, `fact_id` or `raw_id`. The `standard_statements` view
-    (fin.statements) and the `rebuilt_statements` view (fin.rebuilt) are available to it."""
+    (fin.statements), the `rebuilt_statements` view (fin.rebuilt) and the `discrepancies` view
+    (fin.discrepancies) are available to it."""
     with connect(company_db_path(root, company)) as con:
         check_select(con, sql)
         add_views(con, root)  # standard_statements, rebuilt_statements
+        add_discrepancies(con)  # discrepancies
         lock_files(con)
         try:
             rows = fetch_dicts(con, sql)

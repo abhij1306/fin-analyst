@@ -42,6 +42,7 @@ SCHEMA_FILES = {
         "diligence.sql",
         "diligence_views.sql",
         "sources.sql",
+        "reconciliations.sql",
         "sources_views.sql",
         "diligence_split_views.sql",
         "diligence_analytics.sql",

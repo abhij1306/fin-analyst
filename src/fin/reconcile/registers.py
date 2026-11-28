@@ -195,7 +195,7 @@ def _invoice_line(spec: Spec, pair: tuple[Doc | None, Doc | None, str | None]) -
         kind, note = "fx", fx
     doc = register or books
     assert doc is not None
-    return make_line(
+    line = make_line(
         "invoice",
         doc.key,
         left,
@@ -205,6 +205,8 @@ def _invoice_line(spec: Spec, pair: tuple[Doc | None, Doc | None, str | None]) -
         kind=kind,
         note=note,
     )
+    line["party"] = doc.party  # the party line it rolls up to (`fin discrepancies`)
+    return line
 
 
 def _rollup(

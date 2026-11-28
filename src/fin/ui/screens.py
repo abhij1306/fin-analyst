@@ -29,6 +29,7 @@ from fin.services.reviews import KINDS
 from fin.status import company_status
 from fin.ui import diligence_screens, views
 from fin.ui.actions import MAX_IDS
+from fin.ui.differences_screen import differences_screen
 from fin.ui.diligence_screens import screen_run, with_engagement
 from fin.ui.file_rows import company_name, file_rows
 from fin.ui.job_routes import LABELS as JOB_LABELS
@@ -209,9 +210,10 @@ LOADERS: dict[str, Loader] = {
     "engagement": diligence_screens.engagement_screen,
     "bridge": diligence_screens.bridge_screen,
     "references": references_screen,
+    "differences": differences_screen,
     "reports": reports_screen,
     "log": log_screen,
 }
-# Screens whose loader also takes the query parameters (the Statements screen's pickers, the
-# Bridge screen's view).
-WITH_QUERY = ("statements", "bridge")
+# Screens whose loader also takes the query parameters (the Statements and Differences pickers,
+# the Bridge screen's view).
+WITH_QUERY = ("statements", "bridge", "differences")

@@ -20,7 +20,7 @@ COLUMNS = (
     "kind", "level", "key", "note", "account", "ledger", "left_amount", "right_amount",
     "difference", "left_source", "right_source",
 )  # fmt: skip
-EXTRA = ("match_pass", "currency", "amount_inr")  # bank_vs_invoices lines only; NULL for the rest
+EXTRA = ("match_pass", "currency", "amount_inr", "party")  # NULL where a reconciliation has none
 
 
 def latest_run(

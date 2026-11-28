@@ -148,8 +148,9 @@ Outside the repo. Default `~/FinAnalysis`; override with `FIN_DATA_DIR`.
 - `saved_metrics`, `saved_metric_operands` (tables) and `saved_metrics_wide` (view rewritten by `fin metric`): saved metrics; the shared ones also in `shared/dictionary.duckdb` `saved_metrics`
 - `standard_statements` (temporary view per connection, `fin.statements`): the standard P&L, balance sheet and cash flow with coverage
 - `rebuilt_statements` (temporary view per connection, `fin.rebuilt`) over `rebuilt_ledgers` (`rebuilt.sql`): the statements rebuilt from the trial balance (SPEC-14)
+- `discrepancies` (temporary view per connection, `fin.discrepancies`; in `fin sql` too): every difference of the latest reconciliations, with its level and parent (SPEC-15)
 - Diligence: `engagement`, `accountant_queries`, `adjustments`, `passthrough_customers` (tables) and `engagement_periods`, `adjusted_ebitda`, `adjusted_pl`, `ebitda_bridge`, `ebitda_to_cash`, `revenue_split`, `passthrough_lines`, `customer_revenue`, `customer_concentration`, `customer_retention`, `customer_cohorts`, `sector_mix`, `product_revenue`, `product_pvm`, `product_pvm_summary` (views on the latest engagement; `customers` is a table)
-- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `recon_runs`, `recon_items`, `payroll_lines`, `payroll_units`, the view `stub_figures`
+- Diligence source files (`sources.sql`): `source_files`, `trial_balance`, `ledger_entries`, `ledger_blocks`, `register_lines`, `bank_statements`, `bank_lines`, `mask_values` (never printed: `fin sql` refuses it, E810), `ledger_accounts`, `payroll_lines`, `payroll_units`, the view `stub_figures`; reconciliations (`reconciliations.sql`): `recon_runs`, `recon_items` (`party`: an invoice line's customer or vendor token), `query_items`, `recon_match_lines`, `match_proposals`
 
 **Shared**
 
@@ -1174,6 +1175,31 @@ what the company reported. Decisions: [decisions/spec-14-rebuilt.md](decisions/s
 - **Statements screen** (web UI): the statements as reported (the databook, SPEC-06), or reported vs rebuilt (the
   same three columns, each rebuilt line's trial balance rows, and the notes).
 - **Nothing reported changes**: a difference is for a query or an adjustment with evidence.
+
+### Discrepancies (SPEC-15, `fin discrepancies`)
+
+Every difference the reconciliations found, in one place, from the headline down to the invoice. Decisions:
+[decisions/spec-15.md](decisions/spec-15.md).
+
+- **`discrepancies`** (temporary view, `fin.discrepancies.view`; in `fin sql` too): one row per line that differs
+  (kinds `difference`, `left_only`, `right_only`, `fx`) in the latest run of each reconciliation of the latest
+  engagement, at four levels: headline (`tb_vs_statements`: trial balance against the statements), account
+  (`gl_vs_tb` per ledger, `payroll_vs_gl`), party (the sales and purchase registers' customer and vendor lines) and
+  transaction (their invoice lines, and `bank_vs_invoices`' match, receipt and invoice lines). Every amount is in the
+  statements' sign, lower rung minus the rung above it. An account or party row is under the headline row of the same
+  period for its account (or the nearest account above it); an invoice row is under its party row. A row with no parent
+  row is a root (bank lines). `explained` is the sum of the rows under it and `unexplained` the difference less that;
+  a foreign-currency line without a rupee value has a blank difference (missing is not zero), and so has its parent's
+  explained amount. Each row carries its two sources, note, threshold, whether it is over the threshold, its query and
+  status, and whether a query can be raised on it.
+- **`fin discrepancies <co> [--level headline|account|party|transaction] [--over-threshold] [--json]`**: the rows ranked
+  by the size of the difference, in the display unit (converted in SQL). E803 without an open engagement.
+- **`fin export`** adds a "Differences" sheet when there are differences (one row per difference, with the line it is under and its query).
+- **Differences screen** (web UI): the tree, headline first, each row with its two sides, difference, explained and
+  unexplained amounts, sources and query status; a unit picker and "over the threshold only". Ticked rows that can be
+  queried (one period) open the chat with a request to draft one query from them (`fin query raise --items`); the user
+  approves it on the Queries screen. E008 for a row that cannot be queried or rows of two periods.
+- **Nothing is fixed**: a difference is the company's, for a query or an adjustment with evidence.
 
 ## Display units and the databook (SPEC-06)
 
