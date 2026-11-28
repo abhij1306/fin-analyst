@@ -10,6 +10,12 @@ reconciliation of the latest engagement, at one of four levels, each pointing to
 - transaction: the register reconciliations' invoice lines and bank_vs_invoices' match, receipt
   and invoice lines.
 
+The service-period recast (`service_recast`, SPEC-17 item 5) adds a headline row per period: the
+recognition difference, revenue in the books (the sales register by invoice date) - the recast
+revenue, with its invoices (the recast's schedule lines) as transaction rows under it. The recast
+stores recast - booked, so its sides are swapped here (`swapped`) and the row is labelled
+(`label`); its month roll-ups and undated invoices are not rows.
+
 A headline row also comes from each reference figure that differs from fin's
 (`reference_comparison`, SPEC-10, state differs: fin - the reference). It has no `item_id` and
 no parent or children; its `value_id` goes to `fin reference query`. A figure fin does not hold
@@ -27,7 +33,8 @@ currency INR is in rupees and has no `currency`, so it is shown in the display u
 Parents: an account or party row is under the headline row of the same period whose account is
 its own or the nearest above it in the dictionary tree (a party row's account is the register
 reconciliation's books account: revenue, or the one purchase account the ledgers are confirmed
-to). An invoice row is under its party row, else under that headline. A row with no parent row is
+to). An invoice row is under its party row, else under the headline row of its own run (a recast
+invoice), else under that headline. A row with no parent row is
 a root. `explained` is the children's differences added up (0 with no children; NULL when a child
 has no rupee value) and `unexplained` = difference - explained: nothing is spread or hidden.
 """
@@ -39,29 +46,36 @@ import duckdb
 HEADLINE, ACCOUNT, PARTY, TRANSACTION = "headline", "account", "party", "transaction"
 LEVELS = (HEADLINE, ACCOUNT, PARTY, TRANSACTION)
 KINDS = ("difference", "left_only", "right_only", "fx")
+RECOGNITION = "recognition difference"
 
 
 def sources() -> list[tuple[Any, ...]]:
     """The rows of `discrepancy_sources`: (reconciliation, line level or "" for none, level, books
-    accounts, left side, right side, whether the amounts are debit - credit)."""
+    accounts, left side, right side, whether the amounts are debit - credit, whether the stored
+    sides are swapped to show them, the label of its rows or None for their kind)."""
     # Imported here: fin.reconcile imports fin.diligence, which imports `fin sql` (this module).
     from fin.diligence.recon import NAME as TB_VS_STATEMENTS
-    from fin.reconcile import bank, gl_vs_tb, payroll_vs_gl
+    from fin.reconcile import bank, gl_vs_tb, payroll_vs_gl, recast
     from fin.reconcile.registers import PURCHASE, SALES
 
     return [
-        (TB_VS_STATEMENTS, "", HEADLINE, [], "trial balance", "statements", False),
-        (gl_vs_tb.NAME, "ledger", ACCOUNT, [], "Ledger Vouchers", "trial balance", True),
+        (TB_VS_STATEMENTS, "", HEADLINE, [], "trial balance", "statements", False, False, None),
+        (gl_vs_tb.NAME, "ledger", ACCOUNT, [], "Ledger Vouchers", "trial balance", True, False,
+         None),
         (payroll_vs_gl.NAME, "payroll", ACCOUNT, list(payroll_vs_gl.ACCOUNTS), "payroll", "books",
-         False),
+         False, False, None),
         *(
-            (spec.name, level, tier, list(spec.accounts), "register", "books", False)
+            (spec.name, level, tier, list(spec.accounts), "register", "books", False, False, None)
             for spec in (SALES, PURCHASE)
             for level, tier in (("party", PARTY), ("invoice", TRANSACTION))
         ),
         *(
-            (bank.INVOICES, level, TRANSACTION, [], "bank", "invoices", False)
+            (bank.INVOICES, level, TRANSACTION, [], "bank", "invoices", False, False, None)
             for level in ("match", "receipt", "invoice")
+        ),
+        *(
+            (recast.NAME, level, tier, [], "books", "recast", False, True, RECOGNITION)
+            for level, tier in (("period", HEADLINE), ("schedule", TRANSACTION))
         ),
     ]  # fmt: skip
 
@@ -78,7 +92,7 @@ WITH runs AS (
 ),
 picked AS (
     SELECT i.*, r.name AS reconciliation, r.period, r.threshold, s.tier, s.accounts,
-        s.left_name, s.right_name,
+        s.left_name, s.right_name, s.swapped, s.label,
         CASE WHEN s.debit_credit THEN (
             SELECT CASE WHEN count(DISTINCT m.side) = 1 THEN min(m.side) END
             FROM ledger_accounts m WHERE m.status = 'confirmed' AND m.account = i.account
@@ -96,14 +110,22 @@ picked AS (
 lines AS (
     SELECT
         p.item_id, p.recon_id, p.reconciliation, p.period, p.tier AS level,
-        coalesce(p.key, p.account) AS key, p.kind, p.books_account AS account, p.party,
+        -- the recast's period line is keyed by its period; its row is about revenue
+        CASE WHEN p.label IS NOT NULL AND p.tier = 'headline' THEN 'revenue'
+            ELSE coalesce(p.key, p.account) END AS key,
+        p.label, p.books_account AS account, p.party,
         p.left_name, p.right_name, nullif(p.currency, 'INR') AS currency,
-        p.left_amount * p.sign AS left_amount,
-        p.right_amount * p.sign AS right_amount,
+        -- a swapped source (the recast: stored recast - booked) is shown books - recast
+        CASE WHEN NOT p.swapped THEN p.kind WHEN p.kind = 'left_only' THEN 'right_only'
+            WHEN p.kind = 'right_only' THEN 'left_only' ELSE p.kind END AS kind,
+        CASE WHEN p.swapped THEN p.right_amount ELSE p.left_amount END * p.sign AS left_amount,
+        CASE WHEN p.swapped THEN p.left_amount ELSE p.right_amount END * p.sign AS right_amount,
         -- the line's rupees as fin.reconcile.items.line_rupees reads them
         coalesce(p.amount_inr, CASE WHEN coalesce(p.currency, 'INR') = 'INR' THEN p.difference END)
-            * p.sign AS difference,
-        p.left_source, p.right_source, p.note, p.threshold, p.needs_query, p.query_id
+            * p.sign * CASE WHEN p.swapped THEN -1 ELSE 1 END AS difference,
+        CASE WHEN p.swapped THEN p.right_source ELSE p.left_source END AS left_source,
+        CASE WHEN p.swapped THEN p.left_source ELSE p.right_source END AS right_source,
+        p.note, p.threshold, p.needs_query, p.query_id
     FROM picked p
 ),
 headline_parent AS (
@@ -115,20 +137,23 @@ headline_parent AS (
     WHERE l.level <> 'headline' AND (h.account = l.account OR a.ancestor IS NOT NULL)
     GROUP BY l.item_id
 ),
-party_parent AS (
+run_parent AS (
+    -- in the same run: the party row of an invoice's party, or the run's headline row (a recast
+    -- invoice under its period); no run has both
     SELECT l.item_id, min(p.item_id) AS parent_id
     FROM lines l
-    JOIN lines p ON p.recon_id = l.recon_id AND p.level = 'party' AND p.key = l.party
+    JOIN lines p ON p.recon_id = l.recon_id
+        AND (p.level = 'party' AND p.key = l.party OR p.level = 'headline')
     WHERE l.level = 'transaction'
     GROUP BY l.item_id
 ),
 linked AS (
     SELECT l.*, CASE WHEN l.level = 'headline' THEN NULL
-        WHEN l.level = 'transaction' THEN coalesce(pp.parent_id, hp.parent_id)
+        WHEN l.level = 'transaction' THEN coalesce(rp.parent_id, hp.parent_id)
         ELSE hp.parent_id END AS parent_id
     FROM lines l
     LEFT JOIN headline_parent hp USING (item_id)
-    LEFT JOIN party_parent pp USING (item_id)
+    LEFT JOIN run_parent rp USING (item_id)
 ),
 children AS (
     SELECT parent_id, count(*) AS children, count(difference) AS known,
@@ -143,7 +168,7 @@ joined AS (
 )
 SELECT
     j.item_id, NULL::BIGINT AS value_id, CAST(j.item_id AS VARCHAR) AS row_id, j.parent_id,
-    j.level, j.reconciliation, j.period, j.key, j.kind, j.account,
+    j.level, j.reconciliation, j.period, j.key, j.kind, j.label, j.account,
     j.party, j.left_name, j.right_name, j.currency, j.left_amount, j.right_amount,
     j.difference, j.children, j.explained, j.difference - j.explained AS unexplained,
     j.left_source, j.right_source, j.note, j.threshold,
@@ -175,7 +200,7 @@ def add_view(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(
         "CREATE OR REPLACE TEMP TABLE discrepancy_sources (name VARCHAR, level VARCHAR, "
         "tier VARCHAR, accounts VARCHAR[], left_name VARCHAR, right_name VARCHAR, "
-        "debit_credit BOOLEAN)"
+        "debit_credit BOOLEAN, swapped BOOLEAN, label VARCHAR)"
     )
-    con.executemany("INSERT INTO discrepancy_sources VALUES (?, ?, ?, ?, ?, ?, ?)", sources())
+    con.executemany("INSERT INTO discrepancy_sources VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", sources())
     con.execute(VIEW_SQL)

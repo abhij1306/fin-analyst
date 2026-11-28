@@ -75,8 +75,9 @@ def query_text(row: dict[str, Any]) -> str:
 def describe(row: dict[str, Any], display: Display) -> str:
     """One row as a line of text."""
     under = f" (under #{row['parent_id']})" if row["parent_id"] is not None else ""
+    what = row["label"] or row["kind"]
     text = (
-        f"#{row['row_id']} {row['level']} {row['period']} {row['key']}{under}: {row['kind']}, "
+        f"#{row['row_id']} {row['level']} {row['period']} {row['key']}{under}: {what}, "
         f"{row['left_name']} {amount(row, 'left_amount', display)}, {row['right_name']} "
         f"{amount(row, 'right_amount', display)}, difference {amount(row, 'difference', display)}"
     )

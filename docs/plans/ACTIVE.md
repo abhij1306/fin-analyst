@@ -100,4 +100,4 @@ Updated: 2026-11-28.
 | 17 | 2 | Value USD orders at a rate the user states | high | done (#119) |
 | 17 | 3 | Read the inquiry list from the data folder when present | | done (#119) |
 | 17 | 4 | Make credit terms 90 days by default and settable per engagement | high | done (#119) |
-| 17 | 5 | Show the recast against the books in the differences list | | todo |
+| 17 | 5 | Show the recast against the books in the differences list | | done (#PRNUM) |

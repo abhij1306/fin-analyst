@@ -41,6 +41,8 @@ MONEY = {"left_amount_shown", "right_amount_shown", "difference_shown", "explain
 
 
 def _value(row: dict[str, Any], key: str) -> Any:
+    if key == "kind":
+        return row["label"] or row["kind"]  # the recast's rows: recognition difference
     if key == "row_id":
         return row["item_id"] if row["item_id"] is not None else row["row_id"]  # ref-<n>
     if key in ("left_amount_shown", "right_amount_shown") and row["currency"]:
