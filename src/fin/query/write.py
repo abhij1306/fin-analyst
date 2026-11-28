@@ -17,11 +17,12 @@ query_items) is refused with E806 before the backup: those tables change only th
 `fin engagement|query|adjust|gate`, `fin ingest --kind`, `fin map ledgers` with `fin review
 --ledgers`, `fin reconcile`, `fin recast`, `fin sample`, `fin walkthrough` and the FDD commands,
 which check the gates and log every change. A statement other than a SELECT that names facts,
-raw_values, stated_figures, fact_corrections or documents is refused with E505, also before the
-backup: figures come from documents (`fin ingest`, `fin review`) or from the user (`fin fact
-state`), a figure fin misread is corrected with `fin fact correct`, and a document's status and
-paths are not written by hand (owner, 2026-11-28: a status written so released a held document;
-fin's own commands change them). SQL naming
+raw_values, stated_figures, fact_corrections, documents or the reference tables
+(reference_files, reference_lines, reference_values) is refused with E505, also before the backup:
+figures come from documents (`fin ingest`, `fin review`) or from the user (`fin fact state`), a
+figure fin misread is corrected with `fin fact correct`, a document's status and paths are not
+written by hand (owner, 2026-11-28: a status written so released a held document; fin's own
+commands change them), and a reference line is confirmed only by `fin reference confirm`. SQL naming
 mask_values is refused with E810 (fin.query.run.refuse_masked). A statement that would end the
 transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH, DETACH, COPY FROM
 DATABASE, LOAD/INSTALL) or change the schema (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) is
@@ -69,7 +70,12 @@ DILIGENCE_TABLE = re.compile(
 # And the documents behind them (owner, 2026-11-28): a status written by hand would release a
 # held document into current_facts without its findings accepted, and its stored paths are read
 # and deleted.
-FIGURE_TABLE = re.compile(r"\b(facts|raw_values|stated_figures|fact_corrections|documents)\b")
+# The reference tables too (owner, 2026-11-28): a reference line is confirmed only by
+# `fin reference confirm`, the user's step.
+FIGURE_TABLE = re.compile(
+    r"\b(facts|raw_values|stated_figures|fact_corrections|documents"
+    r"|reference_files|reference_lines|reference_values)\b"
+)
 # Saved metrics change only through `fin metric add|remove`, which rewrites the view computing them.
 SAVED_METRIC_TABLE = re.compile(r"\bsaved_metric(?:s|_operands)\b")
 
@@ -149,12 +155,14 @@ def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
         named = sorted(set(FIGURE_TABLE.findall((statement.query or sql).lower())))
         if named:
             raise FigureTableWrite(
-                f"`fin sql --write` does not change the figures or the documents (found: "
+                f"`fin sql --write` does not change the figures, the documents or the reference "
+                f"figures (found: "
                 f"{', '.join(named)}). Load a document (`fin ingest`, `--reading` for pages fin "
                 "could not read), map its lines (`fin review`), state a figure the documents do "
                 "not give (`fin fact state`), correct one fin misread (`fin fact correct`), "
-                "accept a held document's findings (`fin findings accept`) or delete a document "
-                "(`fin document delete`). Nothing was run"
+                "accept a held document's findings (`fin findings accept`), delete a document "
+                "(`fin document delete`) or load, confirm or reject reference lines "
+                "(`fin reference add|confirm|reject`). Nothing was run"
             ).with_context(tables=named)
 
 

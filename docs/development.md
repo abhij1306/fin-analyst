@@ -111,7 +111,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   formats; nothing else converts or divides a stored value (`tests/unit/test_databook.py` searches for it).
   `databook.py`: the databook layout (lines as rows, periods as columns). `workbook.py`: `fin export` (the Excel
   workbook).
-- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806, and the figure tables and `documents`, E505), `evidence.py` (`fin sql --evidence` pages), `guide.py` (`fin schema`: `QUESTION_VIEWS`, read from the database and the `-- about:` / `-- example:` comment lines above each view; the column hint of E504).
+- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806, and the figure tables, `documents` and the reference tables, E505), `evidence.py` (`fin sql --evidence` pages), `guide.py` (`fin schema`: `QUESTION_VIEWS`, read from the database and the `-- about:` / `-- example:` comment lines above each view; the column hint of E504).
 - `facts.py`: figures the user states (`fin fact state|unstate|list`, CLI `cli/facts.py`; table `stated_figures`,
   merged into `current_facts`) and corrections of a figure fin misread (`fin fact correct`; table
   `fact_corrections`, view `corrected_now`). `metrics/missing.py`: why a metric is not computed (the inputs it lacks).

@@ -1,6 +1,6 @@
 """`fin sql --write` refuses, before any statement runs, statements that write to a diligence table
-(E806), a figure table or documents (E505), or that would end its transaction or reach past the
-company database (E504)."""
+(E806), a figure table, documents or a reference table (E505), or that would end its transaction
+or reach past the company database (E504)."""
 
 from pathlib import Path
 
@@ -79,6 +79,9 @@ def test_other_writes_pass(tmp_path: Path, sql: str) -> None:
         ("DELETE FROM Documents", "documents"),
         ("INSERT INTO main.documents SELECT * FROM documents", "documents"),
         ("UPDATE documents SET archive_path = '../x'; DELETE FROM facts", "documents"),
+        ("UPDATE reference_lines SET status = 'confirmed'", "reference_lines"),
+        ("DELETE FROM main.Reference_Values", "reference_values"),
+        ("INSERT INTO reference_files SELECT * FROM reference_files", "reference_files"),
         ("INSERT INTO raw_values SELECT * FROM raw_values "
          "WHERE raw_id IN (SELECT raw_id FROM facts)", "facts, raw_values"),
     ],
@@ -88,11 +91,12 @@ def test_writes_naming_a_figure_table_are_e505(tmp_path: Path, sql: str, found: 
         check_write_sql(con, sql)
 
     assert str(e.value) == (
-        f"E505: `fin sql --write` does not change the figures or the documents (found: {found}). "
-        "Load a document (`fin ingest`, `--reading` for pages fin could not read), map its lines "
-        "(`fin review`), state a figure the documents do not give (`fin fact state`), correct one "
-        "fin misread (`fin fact correct`), accept a held document's findings (`fin findings "
-        "accept`) or delete a document (`fin document delete`). Nothing was run"
+        "E505: `fin sql --write` does not change the figures, the documents or the reference "
+        f"figures (found: {found}). Load a document (`fin ingest`, `--reading` for pages fin could "
+        "not read), map its lines (`fin review`), state a figure the documents do not give (`fin "
+        "fact state`), correct one fin misread (`fin fact correct`), accept a held document's "
+        "findings (`fin findings accept`), delete a document (`fin document delete`) or load, "
+        "confirm or reject reference lines (`fin reference add|confirm|reject`). Nothing was run"
     )
 
 
@@ -224,6 +228,35 @@ def test_a_write_to_documents_is_refused_and_changes_nothing(tmp_path: Path, sql
     assert [(table, row["mode"], row["row_count"]) for table, row in run._records] == [
         ("queries", "write", None)
     ]
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "UPDATE reference_lines SET status = 'confirmed', target = 'revenue' WHERE line_id = 1",
+        "DELETE FROM reference_lines",
+        "INSERT INTO reference_lines SELECT * FROM reference_lines",
+    ],
+)
+def test_a_write_to_reference_lines_is_refused(tmp_path: Path, sql: str) -> None:
+    path = company_db_path(tmp_path, "acme")
+    ensure_database(path, "company")
+    with connect(path, write=True) as con:
+        con.execute(
+            "INSERT INTO reference_lines (statement, section_key, label_key, section, label, "
+            "status, run_id, changed_at) VALUES ('pl', 'income', 'sales', 'Income', 'Sales', "
+            "'pending', 'r', now())"
+        )
+        before = con.execute("SELECT * FROM reference_lines").fetchall()
+    run = Run("sql", {}, tmp_path)
+
+    with pytest.raises(FigureTableWrite) as e:
+        write_sql(run, "acme", sql)
+
+    assert e.value.code == "E505"
+    with connect(path) as con:
+        assert con.execute("SELECT * FROM reference_lines").fetchall() == before
+    assert not (tmp_path / "backups").exists()
 
 
 def test_the_written_sql_cannot_read_files(tmp_path: Path) -> None:

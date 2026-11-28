@@ -341,6 +341,7 @@ def test_sql_write_changes_data_with_backup_and_audit_row(kestrel: Path) -> None
         "DELETE FROM fact_corrections",
         "UPDATE documents SET status = 'superseded'",
         "DELETE FROM documents",
+        "UPDATE reference_lines SET status = 'confirmed'",
     ],
 )
 def test_sql_write_refuses_the_figure_tables_and_documents(kestrel: Path, sql: str) -> None:
