@@ -18,7 +18,7 @@ purchase register against GSTR-2B reconciliation (owner, 2026-11-28: GSTR-2B is 
    | `cp_new_vendor` | a vendor first seen in the period (no invoice in any earlier loaded period) whose purchases are at least `new_vendor_share` of the period's |
    | `cp_vendor_spike` | a vendor's month at `spike_factor` times its median month, with `spike_history` months of history |
    | `cp_under_limit` | purchase register invoices within `limit_band` below an approval limit the user states |
-   | `cp_credit_note` | a sales invoice in the last `period_end_days` of a year followed by a credit note voucher (`credit_note_types`) on the party's ledger in the first 60 days of the next |
+   | `cp_credit_note` | a sales invoice in the last `period_end_days` of a year followed by a credit note voucher (`credit_note_types`) on the party's ledger in the first 60 days of the next; a year whose next period's Ledger Vouchers are not loaded cannot run, and says so |
    | `cp_setoff` | a rebuilt journal voucher debiting one party ledger and crediting another (receivables and payables) |
    | `cp_loan_no_trade` | a ledger mapped to loans (`loans_current`, `loans_non_current`, `loans`) whose party has no sales or purchase in any loaded period |
    | `cp_capitalised` | a rebuilt voucher debiting a fixed-asset account (under `fixed_assets` in the dictionary) whose counter-ledger is neither cash and bank nor a party |
@@ -33,7 +33,9 @@ purchase register against GSTR-2B reconciliation (owner, 2026-11-28: GSTR-2B is 
    Excel download, from the published layout ([forensic.md](../decisions/forensic.md), "The GSTR-2B layout", sources
    cited there). Loaded with `fin ingest <co> <file> --kind gst` like GSTR-1 and 3B; the supplier's trade name is
    masked as kind `vendor` on load. A synthetic GSTR-2B file in the mock set, built to that layout.
-4. **Reconciliation `purchase_register_vs_gstr2b`.** By vendor and invoice number, per month of the period: an invoice
+4. **Reconciliation `purchase_register_vs_gstr2b`.** By vendor and invoice number, per month of the period; then, for
+   lines still unmatched, by invoice number and taxable value alone, shown as matched with "vendor names differ" and
+   both tokens, so a supplier whose 2B name is not the register's name is not reported missing on both sides. An invoice
    in the register and not in 2B (credit the vendor has not reported), in 2B and not in the register, or with a
    different taxable value; at or above the threshold it needs a query (`fin query raise --items`). It runs with
    `fin reconcile`, is listed in the discrepancies view at the transaction level, and like the four GST

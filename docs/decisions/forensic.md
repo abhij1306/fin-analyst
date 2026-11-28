@@ -166,7 +166,8 @@ Given to the orchestrator on the plan, 2026-11-28.
   not code.
 - **Matching:** the purchase register has no GSTIN column, so a 2B line meets the register by vendor (the trade name,
   masked as kind `vendor` on load, so it shares the register's token) and invoice number; amounts compared are taxable
-  value. Like the four GST reconciliations, it is not a gate input.
+  value. A second pass matches the lines left by invoice number and taxable value in the month, marked "vendor names
+  differ" (a 2B legal name and a register trade name of one supplier); fin does not guess an alias otherwise. Like the four GST reconciliations, it is not a gate input.
 
 ### Who sets the inputs
 

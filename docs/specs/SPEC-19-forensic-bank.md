@@ -28,7 +28,7 @@ rows its parse gave, like an Excel one.
    | `bank_round_trip` | money out and the same amount back (or in, then out) on one account within `flow_days`; the party is named when the remarks of both lines name the same loaded party |
    | `bank_own_transfer` | a line whose remarks name another of the company's accounts (its `ACCT-` token, SPEC-17) with no line of the same amount on that account within 3 days, where that account's statement covers the date |
    | `bank_period_end_credit` | a credit in the last `period_end_days` of a period with a debit of the same amount on the account in the first `reversal_days` of the next |
-   | `bank_cash` | cash deposits and withdrawals by month (lines whose remarks hold a word of the user's `cash_words` list), and the lines of a month whose cash total is at or above the threshold |
+   | `bank_cash` | cash deposits and withdrawals by month (lines whose remarks hold a word of the user's `cash_words` list); one flag per account and month whose cash total is at or above the threshold, with that total as its amount and its lines in the drill-down, so the month (not each line) can go to a query |
 
    `cash_words` is a keyword list the user keeps on Settings (default `CASH DEP`, `CASH WDL`, `ATM`, `SELF`); the
    cash series is shown on the Forensic screen and in `fin forensic flags --test bank_cash`.
