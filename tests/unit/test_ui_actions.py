@@ -2,6 +2,7 @@
 audited run, refuses what the CLI refuses, shows the code and run_id, and is protected against
 requests from other sites. Needs the `ui` extra; skipped without it."""
 
+import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -18,10 +19,10 @@ from fin.audit.logger import Run  # noqa: E402
 from fin.db.conn import connect  # noqa: E402
 from fin.diligence import queries  # noqa: E402
 from fin.paths import audit_db_path  # noqa: E402
+from fin.services.result import perform  # noqa: E402
 from fin.ui import uploads  # noqa: E402
-from fin.ui.actions import perform  # noqa: E402
 from fin.ui.server import create_app  # noqa: E402
-from tests.engagement_root import engagement_root  # noqa: E402
+from tests.engagement_root import engagement_root, mapping_decisions, with_proposal  # noqa: E402
 
 TOKEN = "t0ken"
 PORT = 8765
@@ -225,3 +226,32 @@ def test_a_file_over_the_limit_is_refused(
 
 def test_an_upload_to_an_unknown_company_is_e001(client: TestClient) -> None:
     assert "E001" in upload(client, [("a.xlsx", b"x")], company="ghost").text
+
+
+def test_an_upload_before_any_company_exists_saves_nothing(tmp_path: Path) -> None:
+    bare = TestClient(
+        create_app(tmp_path, TOKEN, PORT), base_url=f"http://{HOST}", follow_redirects=False
+    )
+    bare.get(f"/?token={TOKEN}")
+    page = upload(bare, [("a.xlsx", b"x")], company="").text
+    assert "E008" in page
+    assert "there is no company yet" in page
+    assert not (tmp_path / "inbox").exists()
+
+
+def test_a_press_is_the_users_even_when_fin_ui_runs_inside_claude_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CLAUDECODE", "1")
+    root = with_proposal(tmp_path)
+    client = TestClient(
+        create_app(root, TOKEN, PORT), base_url=f"http://{HOST}", follow_redirects=False
+    )
+    client.get(f"/?token={TOKEN}")
+    assert "#1 rejected" in act(client, "mapping-reject", "1").text
+    assert mapping_decisions(root) == [("rejected", "user", False)]
+    with connect(audit_db_path(root)) as con:
+        [(args,)] = con.execute(
+            "SELECT args FROM runs WHERE command = 'review reject' AND record = 'end'"
+        ).fetchall()
+    assert json.loads(args)["actor"] == "user"

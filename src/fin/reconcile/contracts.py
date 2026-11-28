@@ -17,7 +17,7 @@ header row; columns in any order):
   yes/no clauses), each optional;
 - `page` (required): the page of the document it was read from, from 1.
 
-Every row is stored in `contracts` with the file name, its sha256 and the page, read_by 'claude'.
+Every row is stored in `contracts` with the file name, its sha256 and the page, read_by 'ai:claude'.
 Whether a Claude-read contract is trusted is the user's decision. Loading the same file again
 replaces its rows. E864 for a reading that cannot be used, naming each CSV line at fault.
 """
@@ -31,6 +31,7 @@ from typing import Any
 
 import duckdb
 
+from fin.actor import label
 from fin.audit.errors import ContractNotOnRegister, ContractReadingInvalid
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
@@ -171,7 +172,7 @@ def load(run: Run, company: str, path: Path, reading: Path) -> list[dict[str, An
             con.execute(
                 f"INSERT INTO contracts (engagement_id, {', '.join(names)}, file_name, sha256, "
                 f"read_by, run_id, created_at) VALUES (?, {', '.join('?' for _ in names)}, ?, ?, "
-                "'claude', ?, ?)",
+                "'ai:claude', ?, ?)",
                 [
                     engagement_id, *(row[name] for name in names), path.name, sha256, run.run_id,
                     now,
@@ -198,5 +199,5 @@ def format_contract(row: dict[str, Any]) -> str:
     return (
         f"#{row['contract_id']} {row['party_kind']} {row['counterparty']}{invoice}: "
         f"{row['start_date']} to {row['end_date']}{value}{terms}{terms_text(row)} "
-        f"({row['file_name']} p.{row['page']}, read by {row['read_by']}, not verified)"
+        f"({row['file_name']} p.{row['page']}, read by {label(row['read_by'])}, not verified)"
     )

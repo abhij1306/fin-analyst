@@ -12,8 +12,8 @@ from markupsafe import Markup, escape
 OK = {"loaded", "approved", "final", "accepted", "confirmed", "closed", "ok", "done", "success",
       "passed", "complete"}  # fmt: skip
 WARN = {"open", "blocked", "held", "answered", "partial", "pending", "medium", "running",
-        "warning"}  # fmt: skip
-BAD = {"failed", "failures", "error", "rejected", "high"}
+        "warning", "queued"}  # fmt: skip
+BAD = {"failed", "failures", "error", "rejected", "high", "refused", "interrupted"}
 
 
 def when(value: Any) -> str:

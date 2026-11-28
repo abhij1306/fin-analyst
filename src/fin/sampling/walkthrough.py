@@ -13,7 +13,7 @@ result:
 - `result`: pass, exception or not_available; `evidence` (required): what was seen, as
   written; `file` and `page`: where, when it is a document.
 
-Results are stored in `walkthroughs` (read_by claude); a result for a line and check already
+Results are stored in `walkthroughs` (read_by 'ai:claude'); a result for a line and check already
 recorded replaces it. fin does not check the reading: trusting it is the user's decision. E902 for a
 file that cannot be used (nothing recorded). After recording, the period's `walkthrough`
 reconciliation runs again: an exception at or above the engagement threshold is a line for a query.
@@ -109,7 +109,7 @@ def record(run: Run, company: str, sample_id: int, path: Path) -> dict[str, Any]
             con.execute(
                 "INSERT INTO walkthroughs (sample_id, line_no, check_name, result, evidence, "
                 "evidence_file, evidence_page, read_by, run_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, 'claude', ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 'ai:claude', ?, ?)",
                 [
                     sample_id, result["line_no"], result["check"], result["result"],
                     result["evidence"], result["file"], result["page"],

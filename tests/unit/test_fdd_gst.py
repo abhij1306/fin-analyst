@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from fin.actor import USER
 from fin.audit.errors import GstReturnInvalid, LayoutUnknown, ReconCannotRun, TaxLedgerInvalid
 from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
@@ -77,7 +78,7 @@ def root(loaded: Path) -> Path:
     ]
     tax_ledgers.propose(run(loaded), "acme", proposals)
     ids = [r["tax_ledger_id"] for r in tax_ledgers.list_rows(run(loaded), "acme")]
-    tax_ledgers.confirm(run(loaded), "acme", ids)
+    tax_ledgers.confirm(run(loaded), "acme", ids, actor=USER)
     return loaded
 
 
@@ -192,16 +193,16 @@ def test_tax_ledger_proposals_need_review(loaded: Path) -> None:
     assert row["group_name"] == "Duties & Taxes"
     assert query(loaded, "SELECT count(*) FROM tax_ledger_balances") == [(0,)]
 
-    [done] = tax_ledgers.confirm(r, "acme", [row["tax_ledger_id"]], "gst_input")
+    [done] = tax_ledgers.confirm(r, "acme", [row["tax_ledger_id"]], "gst_input", actor=USER)
     assert (done["status"], done["tax_class"]) == ("confirmed", "gst_input")
     with pytest.raises(TaxLedgerInvalid, match="is confirmed as gst_input"):
         tax_ledgers.propose(
             r, "acme", [{"ledger": "Output CGST", "class": "rcm", "confidence": 1, "reason": ""}]
         )
-    [rejected] = tax_ledgers.reject(r, "acme", [row["tax_ledger_id"]])
+    [rejected] = tax_ledgers.reject(r, "acme", [row["tax_ledger_id"]], actor=USER)
     assert rejected["status"] == "rejected"
     with pytest.raises(TaxLedgerInvalid, match="has no proposed class"):
-        tax_ledgers.confirm(r, "acme", [row["tax_ledger_id"]])
+        tax_ledgers.confirm(r, "acme", [row["tax_ledger_id"]], actor=USER)
     assert any(x["ledger"] == "Output CGST" for x in tax_ledgers.unclassified(r, "acme"))
 
 
@@ -229,7 +230,7 @@ def test_a_bad_tax_proposal_stores_nothing(
 
     assert tax_ledgers.list_rows(r, "acme") == []
     with pytest.raises(TaxLedgerInvalid, match="no tax ledger with id 7"):
-        tax_ledgers.reject(r, "acme", [7])
+        tax_ledgers.reject(r, "acme", [7], actor=USER)
 
 
 def test_gstr1_vs_sales_register(root: Path) -> None:

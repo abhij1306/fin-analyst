@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from fin.actor import USER
 from fin.audit.errors import BundleNotAnonymous, GoldenSetInvalid, GoldenSetMissing
 from fin.audit.logger import Run
 from fin.cli import app
@@ -91,7 +92,7 @@ def template(tmp_path_factory: pytest.TempPathFactory) -> Path:
     ]
     ledgers.propose(Run("t", {}, root), "acme", proposals)
     ids = [row["ledger_id"] for row in ledgers.list_ledgers(Run("t", {}, root), "acme")]
-    ledgers.confirm(Run("t", {}, root), "acme", ids)
+    ledgers.confirm(Run("t", {}, root), "acme", ids, actor=USER)
     recon.tb_vs_statements(Run("t", {}, root), "acme")
     return root
 

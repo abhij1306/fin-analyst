@@ -19,6 +19,7 @@ from openpyxl.utils.cell import coordinate_from_string, get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.workbook import Workbook
 
+from fin.actor import CLAUDE
 from fin.audit.errors import DataFolderNotWritable, EvidenceSourceMissing
 from fin.audit.logger import Run
 from fin.db.conn import connect
@@ -105,7 +106,7 @@ def _fact_section(
     if ref is None:
         return _unsourced_section(run, fact)
     status = "confirmed" if fact["confirmed"] else "UNCONFIRMED mapping"
-    readers = {"claude": "Claude", **ADDON_LABELS}
+    readers = {CLAUDE: "Claude", **ADDON_LABELS}
     status += f", read by {readers[fact['read_by']]}" if fact["read_by"] in readers else ""
     unit = units.get(fact["account"], "rupees").replace("_", " ")
     title = (

@@ -14,6 +14,7 @@ from docx import Document
 from openpyxl import load_workbook
 from typer.testing import CliRunner
 
+from fin.actor import USER
 from fin.audit.errors import NothingToExport, QueryPeriodInvalid, ReplyFileError, UnknownToken
 from fin.audit.logger import Run
 from fin.cli import app
@@ -80,7 +81,7 @@ def root(template: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     ]
     ledgers.propose(run(data), "acme", proposals)
     ids = [r["ledger_id"] for r in ledgers.list_ledgers(run(data), "acme")]
-    ledgers.confirm(run(data), "acme", ids)
+    ledgers.confirm(run(data), "acme", ids, actor=USER)
     payroll.confirm_unit(run(data), "acme", "payroll.xlsx", "annual")
     return data
 

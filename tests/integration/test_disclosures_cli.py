@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner, Result
 
+from fin.actor import USER
 from fin.audit.logger import Run
 from fin.cli import app
 from fin.config import load_config
@@ -46,7 +47,9 @@ def root(data_root: Path, tmp_path: Path) -> dict[str, Path]:
         for k, v in ACCOUNTS.items()
     ]
     ledgers.propose(run, "acme", proposals)
-    ledgers.confirm(run, "acme", [r["ledger_id"] for r in ledgers.list_ledgers(run, "acme")])
+    ledgers.confirm(
+        run, "acme", [r["ledger_id"] for r in ledgers.list_ledgers(run, "acme")], actor=USER
+    )
     return files
 
 

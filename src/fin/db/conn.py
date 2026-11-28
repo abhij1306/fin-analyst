@@ -22,8 +22,15 @@ from fin.audit.errors import (
 )
 
 # DuckDB's message when another process holds the file: "Could not set lock on file ... Conflicting
-# lock is held" on macOS and Linux, "being used by another process" on Windows.
-_LOCK_MARKERS = ("could not set lock", "conflicting lock", "being used by another process")
+# lock is held" on macOS and Linux, "being used by another process" on Windows. Within this process,
+# a connection open in the other mode (read-only or write, e.g. a UI page while a background job
+# writes) gives "a different configuration than existing connections": it is retried the same way.
+_LOCK_MARKERS = (
+    "could not set lock",
+    "conflicting lock",
+    "being used by another process",
+    "different configuration than existing connections",
+)
 
 
 @dataclass(frozen=True)
@@ -100,17 +107,17 @@ def utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-def _is_lock(exc: duckdb.IOException) -> bool:
+def _is_lock(exc: duckdb.IOException | duckdb.ConnectionException) -> bool:
     message = str(exc).lower()
     return any(marker in message for marker in _LOCK_MARKERS)
 
 
 def _open(path: Path, write: bool, retry: LockRetry) -> duckdb.DuckDBPyConnection:
-    last: duckdb.IOException | None = None
+    last: duckdb.IOException | duckdb.ConnectionException | None = None
     for attempt in range(1, retry.attempts + 1):
         try:
             return duckdb.connect(str(path), read_only=not write)
-        except duckdb.IOException as exc:
+        except (duckdb.IOException, duckdb.ConnectionException) as exc:
             if not _is_lock(exc):
                 cause = " ".join(str(exc).split())
                 raise DataFolderNotWritable(f"cannot open database {path}: {cause}") from exc
@@ -118,5 +125,6 @@ def _open(path: Path, write: bool, retry: LockRetry) -> duckdb.DuckDBPyConnectio
         if attempt < retry.attempts:
             time.sleep(retry.base_delay * 2 ** (attempt - 1))
     raise DatabaseLocked(
-        f"{path} is locked by another process; gave up after {retry.attempts} attempts"
+        f"{path} is locked by another process or connection; gave up after {retry.attempts} "
+        "attempts"
     ) from last

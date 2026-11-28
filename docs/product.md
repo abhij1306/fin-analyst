@@ -196,7 +196,7 @@ Every `fin` command:
 |---|---|
 | `runs` | run_id, command, args, start, end, status, exit code, git commit, fin/DuckDB/Python versions |
 | `events` | run_id, stage, file, level, error code, message, context JSON |
-| `mapping_decisions` | raw label → account, actor (dictionary/claude/human), confidence, reason, timestamp |
+| `mapping_decisions` | raw label → account, actor (`user` or `ai:<provider>`, see "Actor" below), on_request, confidence, reason, timestamp |
 | `validation_results` | doc_id, check, expected, actual, tolerance, pass/fail |
 | `findings` | every finding and every status change (open, accepted, resolved, superseded): check, code, both values and sources |
 | `queries` | query_id, question, SQL, row count, result hash, evidence path |
@@ -695,7 +695,7 @@ takes every register line at or above the engagement threshold (largest first, u
 it; the seed is stored on the sample (`samples`, `sample_lines`), so the draw repeats; `fin sample show <co> [id]` lists samples and lines.
 `fin walkthrough record <co> <sample-id> <file.json>` (`fin/sampling/walkthrough.py`) stores Claude's results, one per line and check
 (`in_register`, `contract_covers`, `service_in_contract`, `bank_matched`, `ledger_posting`; pass, exception or not_available; evidence required,
-file and page optional; table `walkthroughs`, read_by claude, not verified). View `walkthrough_summary` per sample: lines, lines walked, checks
+file and page optional; table `walkthroughs`, read_by `ai:claude`, not verified). View `walkthrough_summary` per sample: lines, lines walked, checks
 passed, exceptions, not available, exception lines and amount (`fin walkthrough summary <co>`; data function
 `fin.sampling.walkthrough.summaries`). Recording runs the reconciliation `walkthrough` (`fin/reconcile/walkthrough.py`, in `RECONCILIATIONS`, so
 `fin reconcile` and gate G2 see it): one invoice-level line per sample line with an exception (left = its Amount in Rs, no right side, note =
@@ -909,7 +909,7 @@ Contingencies, commitments, notices and related parties (FDD F5, `docs/fdd.md` F
 reading of notes to accounts and legal and tax notices for the open engagement in `disclosures` (with
 `disclosure_files`: file name, sha256, reading; the same document again replaces its rows), one row per item with
 kind, period (a period of the engagement or its stub), counterparty, nature, amount in rupees (the reading's `unit`
-applied), forum, stage, assessment year, demand, paid under protest, relationship and page, read_by `claude`. A
+applied), forum, stage, assessment year, demand, paid under protest, relationship and page, read_by `ai:claude`. A
 counterparty that is a register customer or vendor gets its token on load; one that is a loaded ledger's name (case and
 spaces ignored) becomes that ledger; any other is stored as read, as are nature and relationship. E940 for a reading
 that cannot be used. `fin disclosures list <co> [--kind]` prints the schedules. Related parties are matched to the
@@ -1023,6 +1023,17 @@ the command exits 1. A file already loaded (same content) is marked loaded and n
 load changes nothing. Gates reopen as on any ingest. A data folder made before this change has no `dataroom_files`
 table and no `[dataroom]` table in config.toml: re-create it with `uv run fin init` and re-ingest.
 
+## Actor (SPEC-02)
+
+Who took an action is passed in by the interface, never read deeper down: the web UI passes `user`; the CLI passes
+`ai:claude` when Claude Code runs it (`CLAUDECODE` is set) and `user` otherwise (`fin.actor`). It is stored as `user`
+or `ai:<provider>`: `mapping_decisions.actor` (proposals are always `ai:claude`; `on_request` is true when an AI
+confirmed, edited or rejected because the user asked), the `actor` argument of every decision's run, and `read_by` of
+what an AI read (`ai:claude`: facts from a reading, contracts, walkthroughs, disclosures). Status, eval counts, evidence
+and the listings test the `ai:` prefix, and output names `ai:claude` "Claude". Data loaded by an earlier fin stored
+`claude` and `human`: re-create the data folder (`fin init`) and re-ingest; an audit database without the `jobs`
+table is refused as older (E002).
+
 ## Web UI (optional, `fin ui`)
 
 Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: [decisions/web-ui.md](decisions/web-ui.md). The UI is built in four steps; all four steps (foundation, read-only screens, decision buttons and uploads, chat) are here. The CLI does not change, and without the add-on nothing else does either.
@@ -1038,10 +1049,10 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Queries: the open engagement's accountant queries and adjustments with status and evidence.
   - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`).
   - Findings: the engagement's FDD findings (not dropped) with status, severity, amount and flags.
-  - Reports: the HTML, Word, PDF and Excel files under `reports/<company>/`; HTML opens in the browser as a sandboxed page (it cannot use the UI's token), the others download. A name that is not one of the listed files is refused with E001.
+  - Reports: **Export to Excel** (a background job, see "Jobs" below; as `fin export`) and the HTML, Word, PDF and Excel files under `reports/<company>/`; HTML opens in the browser as a sandboxed page (it cannot use the UI's token), the others download. A name that is not one of the listed files is refused with E001.
   - Log: the company's latest 100 runs (newest first) with their problems.
   - Queries, Gates and Findings say so (E803, or nothing loaded) when the company has no open engagement. 
-- **Decisions (step 3)**: the buttons are the user's decisions, each through the function the matching CLI command calls, in a run with that command's name (run record, audit log, backup, gate checks, masking, refusals). The UI never drafts or proposes; Claude does that in chat (step 4). After a button the screen is shown again with an alert: "Done", or "Not done: <code>" with the CLI's message and the run_id.
+- **Decisions (step 3)**: the buttons are the user's decisions, each through the service the matching CLI command calls (`fin.services.decisions`), in a run with that command's name (run record, audit log, backup, gate checks, masking, refusals). The run's arguments record `via` (`ui` or `cli`) and `actor`; apart from `via` the run record is the CLI's. A button press is always the user's (`actor` `user`), even when `fin ui` was started from inside Claude Code. The alert shows the lines the CLI prints. The UI never drafts or proposes; Claude does that in chat (step 4). After a button the screen is shown again with an alert: "Done", or "Not done: <code>" with the CLI's message and the run_id.
   - Mappings: Confirm (the proposed account, company scope; held documents are checked again and the metrics refreshed, as `fin review confirm`) and Reject (`fin review reject`).
   - Files: Save as is on an open finding (`fin findings accept`).
   - Queries: Approve a draft, Mark sent (a dialog: only if you sent it; fin sends nothing), Close an answered query (dialog), Withdraw (dialog with the reason, as `--reason`); adjustments: Accept, Reject (dialog with the reason). They refuse as the CLI does (E805, and E801 while a gate is not approved).
@@ -1053,4 +1064,5 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - One `claude` process per conversation at a time (E011 while one runs); each turn is a process (`--session-id` first, `--resume` after), so a conversation resumes after `fin ui` restarts. Conversations are JSON files in `<data folder>/chat/`; the list and **New chat** are in the panel header. **Stop** ends the process. Text streams in over server-sent events (htmx SSE extension); tool calls show collapsed; errors show with their code.
   - The user's decisions are denied to Claude with `--disallowedTools` (`fin gate approve`, `fin fdd finding final|draft`, `fin query approve|sent|close|withdraw`, `fin adjust accept|reject`, `fin review confirm|reject`, `fin findings accept`, provisions confirm/reject, net debt item accept/reject, each also as `uv run fin ...`); Claude points to the button. Any other request that is not already allowed is shown in the chat with **Allow once** (the next turn gets `--allowedTools` for exactly that command or file) or **Deny**.
   - **Ask Claude** buttons (every screen, and rows of Mappings, Queries and Findings) and the skill chips `/ask`, `/ingest`, `/diligence`, `/report`, `/status` put text in the message box; the user sends it. Claude missing or not startable is E009, not logged in is E010.
-- **Uploads**: the Files screen saves .xlsx, .xlsm and .pdf files into `inbox/<company>/` of the chosen company (a run "ui upload", one event per file). The name must be plain (letters, digits, space, `. _ - ( ) &`; a path is cut to its last part; no leading dot, no `..`), at most 50 MB per file and 100 MB per request, and it never overwrites a file already in the inbox; all files are checked first, so a refusal (E008) saves none. The button does not ingest: the screen says the files are waiting and Claude ingests them in chat (step 4).
+- **Jobs**: a long action runs as a background job, so the page answers at once. One worker thread runs the jobs one at a time in order; a later one is shown as queued. Each job is a row of `jobs` in audit.duckdb (action, arguments, state, the last progress line, result lines, code, run_id, times); the Jobs card on the Reports screen asks for itself every second while a job is queued or running, and a reload shows the same jobs. States: queued, running, done, refused (the action's error code and message), failed (E012, the run has the traceback), interrupted (the server stopped before it ended: marked at the next `fin ui`; start it again). `POST /job` needs the token cookie and the Origin (E007); an action that is not a job is E008. Today's job: Export to Excel. While a job writes, a page that reads the same database waits for it (as for another command; E501 after the retries).
+- **Uploads**: the Files screen saves .xlsx, .xlsm and .pdf files into `inbox/<company>/` of the chosen company (a run "ui upload", one event per file). The name must be plain (letters, digits, space, `. _ - ( ) &`; a path is cut to its last part; no leading dot, no `..`), at most 50 MB per file and 100 MB per request, and it never overwrites a file already in the inbox; all files are checked first, so a refusal (E008) saves none; before any company exists the upload is refused (E008). The button does not ingest: the screen says the files are waiting and Claude ingests them in chat (step 4).

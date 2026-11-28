@@ -15,7 +15,7 @@ choices in `docs/decisions/fdd-<id>.md`. Scope readings that are the orchestrato
   proposal Claude makes is reviewed by the user through `fin review` or an accept/reject command, as for ledger
   mappings and adjustments.
 - Claude's readings of documents (contracts, notes to accounts, notices) load from a reading CSV with file + page per
-  row, `read_by = claude`, as `fin recast contracts` does. fin does not check them; trusting one is the user's call.
+  row, `read_by = ai:claude`, as `fin recast contracts` does. fin does not check them; trusting one is the user's call.
 - A difference at or above the engagement threshold is a recon item Claude can group into a query
   (`fin query raise --items`); below it is listed. New checks reuse `recon_runs`/`recon_items` where they compare
   two sources.

@@ -40,7 +40,7 @@ CREATE TABLE sample_lines (
 -- in_register (the line is in the register), contract_covers (a contract covers it and its rate, dates and value agree),
 -- service_in_contract (the service period sits inside the contract), bank_matched (a bank receipt or payment is matched,
 -- D5), ledger_posting (the ledger posting is found, D2). result: pass, exception or not_available. evidence says what
--- was seen; evidence_file and evidence_page where. read_by is 'claude': whether it is trusted is the user's decision.
+-- was seen; evidence_file and evidence_page where. read_by is 'ai:claude': whether it is trusted is the user's decision.
 -- One row per sample line and check (recording it again replaces the row).
 CREATE SEQUENCE walkthroughs_seq START 1;
 CREATE TABLE walkthroughs (

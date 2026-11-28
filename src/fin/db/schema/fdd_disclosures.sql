@@ -1,6 +1,6 @@
 -- Company database: FDD F5, contingencies, commitments, notices and related parties (docs/fdd.md F5,
 -- fin.disclosures). Run after sources.sql. Money is DECIMAL(20,2) rupees. Claude's readings of notes to accounts and
--- legal and tax notices load from a reading CSV (`fin disclosures load`), file + page per row, read_by 'claude':
+-- legal and tax notices load from a reading CSV (`fin disclosures load`), file + page per row, read_by 'ai:claude':
 -- fin does not check them; trusting one is the user's call.
 
 -- One row per document a reading was loaded from. file_id comes from source_files_seq, so it never equals a

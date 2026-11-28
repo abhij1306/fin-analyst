@@ -5,10 +5,13 @@ from typing import Annotated
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company, check_scope
+from fin.paths import data_dir
+from fin.services import reports
+from fin.services.result import show
 from fin.statements import format_statements, latest_annual_period, statement_rows
-from fin.workbook import export_workbook
 
 
 @app.command("statements")
@@ -53,8 +56,4 @@ def export_command(
     """Write reports/<company>/<company>_financials.xlsx: the standard statements, every period
     side by side (one sheet per statement and scope), and a Metrics sheet."""
 
-    def body(run: Run) -> None:
-        path = export_workbook(run.root, company)
-        typer.echo(f"exported {path.relative_to(run.root).as_posix()}")
-
-    execute("export", {"company": company}, body)
+    show(reports.export_statements(data_dir(), company, via="cli", actor=from_environment()))

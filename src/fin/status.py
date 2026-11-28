@@ -36,9 +36,9 @@ SELECT
     (SELECT count(*) FROM findings WHERE status = 'open'),
     (SELECT count(*) FROM findings WHERE status = 'accepted'),
     (SELECT count(*) FROM facts f JOIN documents d USING (doc_id)
-     WHERE f.read_by = 'claude' AND d.status IN ('loaded', 'held')),
+     WHERE f.read_by LIKE 'ai:%' AND d.status IN ('loaded', 'held')),
     (SELECT count(*) FROM facts f JOIN documents d USING (doc_id)
-     WHERE f.read_by NOT IN ('fin', 'claude') AND d.status IN ('loaded', 'held'))
+     WHERE f.read_by <> 'fin' AND f.read_by NOT LIKE 'ai:%' AND d.status IN ('loaded', 'held'))
 """
 _HELD = """
 SELECT d.doc_id, d.file_name,

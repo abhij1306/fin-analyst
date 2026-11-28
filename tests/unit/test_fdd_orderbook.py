@@ -148,7 +148,7 @@ def test_a_customer_contract_counts_the_value_left_after_the_period_end(full: Pa
                 "INSERT INTO contracts (engagement_id, party_kind, counterparty, start_date, "
                 "end_date, value, file_name, sha256, page, read_by, run_id, created_at) "
                 "VALUES (1, 'customer', ?, '2024-04-01', '2026-03-31', ?, 'c.pdf', 'x', 2, "
-                "'claude', 'r', ?)",
+                "'ai:claude', 'r', ?)",
                 [customer[0], value, utcnow()],
             )
 

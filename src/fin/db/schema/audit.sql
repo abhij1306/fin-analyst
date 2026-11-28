@@ -37,8 +37,8 @@ CREATE TABLE events (
     PRIMARY KEY (run_id, seq)
 );
 
--- Every mapping decision. actor is 'dictionary', 'claude' or 'human'; on_request is true when Claude acted because
--- the user asked (for example `fin review confirm` run by Claude).
+-- Every mapping decision. actor is 'user' or 'ai:<provider>' (fin.actor; proposals are 'ai:claude'); on_request is
+-- true when an AI decided because the user asked (for example `fin review confirm` run by Claude).
 CREATE TABLE mapping_decisions (
     run_id VARCHAR NOT NULL,
     recorded_at TIMESTAMP NOT NULL,
@@ -163,4 +163,24 @@ CREATE TABLE diligence_events (
     item_id VARCHAR NOT NULL,
     status VARCHAR NOT NULL,
     detail VARCHAR NOT NULL
+);
+
+-- Background jobs of the web UI (fin.services.jobs): a long action (an export, later ingest and reports) runs in one
+-- worker thread while the page shows its progress line. Jobs run one at a time; a later one waits as 'queued'. A job
+-- still queued or running when the server stopped is marked 'interrupted' when it starts again. lines is the result's
+-- lines as JSON; code its error code when refused (or E012 when it failed); run_id the run the action recorded.
+CREATE SEQUENCE jobs_seq START 1;
+CREATE TABLE jobs (
+    job_id BIGINT PRIMARY KEY DEFAULT nextval('jobs_seq'),
+    company VARCHAR NOT NULL,
+    action VARCHAR NOT NULL,
+    arguments VARCHAR NOT NULL,
+    state VARCHAR NOT NULL CHECK (state IN ('queued', 'running', 'done', 'refused', 'failed', 'interrupted')),
+    progress VARCHAR,
+    lines VARCHAR,
+    code VARCHAR,
+    run_id VARCHAR,
+    queued_at TIMESTAMP NOT NULL,
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP
 );

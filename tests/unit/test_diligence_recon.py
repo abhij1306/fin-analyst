@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from fin.actor import USER
 from fin.audit.errors import InvalidMapping, ReconNotPossible, SourcePeriodInvalid
 from fin.audit.logger import Run
 from fin.config import load_config, write_default_config
@@ -123,7 +124,7 @@ def map_all(root: Path) -> None:
     ]
     assert ledgers.propose(run(root), "acme", proposals) == len(ACCOUNTS)
     ids = [row["ledger_id"] for row in ledgers.list_ledgers(run(root), "acme")]
-    ledgers.confirm(run(root), "acme", ids)
+    ledgers.confirm(run(root), "acme", ids, actor=USER)
 
 
 def g1_lines(root: Path) -> list[tuple[bool, str]]:
@@ -197,8 +198,8 @@ def test_ledgers_are_proposed_then_confirmed_only_by_review(root: Path, tmp_path
     )
     run_root = run(root)
     with pytest.raises(InvalidMapping, match="has no proposed account"):
-        ledgers.confirm(run_root, "acme", [rent["ledger_id"], rent["ledger_id"] - 1])
-    [confirmed] = ledgers.confirm(run(root), "acme", [rent["ledger_id"]])
+        ledgers.confirm(run_root, "acme", [rent["ledger_id"], rent["ledger_id"] - 1], actor=USER)
+    [confirmed] = ledgers.confirm(run(root), "acme", [rent["ledger_id"]], actor=USER)
     assert (confirmed["status"], confirmed["account"], confirmed["side"]) == (
         "confirmed",
         "other_expenses",
@@ -363,7 +364,7 @@ def test_g1_checks_the_trial_balance_and_reopens_when_it_changes(
     ]  # fmt: skip
 
     ids = [r["ledger_id"] for r in ledgers.list_ledgers(run(root), "acme") if r["ledger"] == "Rent"]
-    ledgers.confirm(run(root), "acme", ids, "power_and_fuel")
+    ledgers.confirm(run(root), "acme", ids, "power_and_fuel", actor=USER)
 
     assert g1_lines(root)[3] == (
         False,
