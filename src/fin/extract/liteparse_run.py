@@ -33,7 +33,7 @@ MODEL_PACKAGE = "ocria-nano@1.0.0"
 MODEL_NAME = "ocria-nano"
 TABLE_MODEL = "tablenet.onnx"  # in the model package's folder
 MODEL_DOWNLOAD = f"uv run lit models pull {MODEL_PACKAGE}"
-OCR = False  # scanned PDFs are not sent to LiteParse (see above)
+OCR: bool = False  # scanned PDFs are not sent to LiteParse (see above)
 _TABLES = ("table", "merged_table")  # block kinds holding a table (merged_table: the table model)
 
 

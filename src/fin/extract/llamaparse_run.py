@@ -33,7 +33,7 @@ from fin.extract.pdf_tables import Box, Cell, Table
 NAME: str = "llamaparse"
 LABEL: str = "LlamaParse"
 MODULE: str = "llama_cloud"
-OCR = True  # short scanned PDFs are uploaded and read too
+OCR: bool = True  # short scanned PDFs are uploaded and read too
 API_KEY_ENV = "LLAMA_CLOUD_API_KEY"
 TIER = "agentic"  # LlamaParse's tier for complex tables
 VERSION = "latest"
