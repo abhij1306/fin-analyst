@@ -19,6 +19,7 @@ import duckdb
 
 from fin.audit.errors import DependencyMissing
 from fin.config import DISPLAY_UNITS, Display, load_config
+from fin.db.rows import fetch_one
 
 PER_SHARE = "rupees_per_share"
 PER_SHARE_DECIMALS = 2
@@ -83,16 +84,11 @@ def convert(
         (1, PER_SHARE_DECIMALS) if per_share else (display.rupees_per_unit, display.decimals)
     )
     texts = [None if v is None else str(v) for v in values]
-    row = (
-        _scratch()
-        .execute(
-            "SELECT list_transform(?::VARCHAR[], "
-            "lambda x: display_value(CAST(x AS DECIMAL(38, 6)), ?, ?))",
-            [texts, per_unit, decimals],
-        )
-        .fetchone()
+    sql = (
+        "SELECT list_transform(?::VARCHAR[], "
+        "lambda x: display_value(CAST(x AS DECIMAL(38, 6)), ?, ?))"
     )
-    assert row is not None
+    row = fetch_one(_scratch(), sql, [texts, per_unit, decimals])
     return list(row[0])
 
 

@@ -9,6 +9,7 @@ included), `data["definitions"]` the ones this scope has, in report order.
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from fin.audit.errors import UnexpectedError
 from fin.config import Display
 from fin.display import money as display_money
 from fin.output import escape
@@ -39,7 +40,8 @@ def metric_text(
     if value is None:
         return "n/a"
     if unit == "rupees":
-        assert display is not None, "money needs the display settings"
+        if display is None:
+            raise UnexpectedError("money needs the display settings")
         return money(value, display)
     if unit == "rupees_per_share":
         return f"₹{value.quantize(Decimal('0.01'), ROUND_HALF_UP)}"

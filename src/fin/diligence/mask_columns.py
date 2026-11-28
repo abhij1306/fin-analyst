@@ -63,6 +63,7 @@ AS_FILED: dict[str, tuple[str, ...]] = {
         "parse_path",
         "run_id",
     ),
+    "checks_not_run": ("check_name", "period", "scope", "reason", "needs", "run_id"),
     "company_profile": ("code", "name", "run_id"),
     "contracts": (
         "party_kind",
@@ -156,6 +157,7 @@ AS_FILED: dict[str, tuple[str, ...]] = {
         "scope",
         "period",
         "label",
+        "mappings",
         "fin_printed",
         "other_printed",
         "fin_source",
