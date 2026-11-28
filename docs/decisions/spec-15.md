@@ -9,8 +9,8 @@ Readings, not owner decisions, until the owner confirms them.
   reference figure that differs from fin's (`reference_comparison`, SPEC-10, fin - the reference).
 - **Why**: a stored line has an item id, a threshold and a query link, which the drill-down and the query hand-off
   need. A reference row has none of them: it is a root with id `ref-<value_id>`, compared with the latest engagement's
-  query threshold, and goes to `fin reference query` (one query per figure). A reference query is not linked to its
-  figure in the database, so the row shows no query status; the Queries screen lists it. A figure fin does not hold
+  query threshold, and goes to `fin reference query` (one query per figure), which links the query to its figure
+  (`reference_values.query_id`), so the row shows its query and status as a line does. A figure fin does not hold
   (no_fin_figure) is missing, not a difference, and is not a row.
 - **How to change it**: `sources()` in `src/fin/discrepancies/view.py`.
 
@@ -48,3 +48,15 @@ Readings, not owner decisions, until the owner confirms them.
   (`fin query raise --items`); the screen does not raise it.
 - **Why**: the assistant drafts queries and the user approves them on the Queries screen; the UI never writes the
   question itself.
+
+## A reference difference is queried as a line is (orchestrator's reading, 2026-11-28)
+
+- **Decision**: a reference row can be queried only when its difference is at or above the latest engagement's query
+  threshold and the figure is in no query of that engagement but a withdrawn one, the rule every reconciliation line
+  follows (`needs_query`, `fin query raise --items`). `fin reference query` refuses otherwise (E983) and stores the
+  link (`reference_values.query_id`); the view, the CLI, the export sheet and the screen read the same column.
+- **Why**: before, every reference row was "can be queried", so one figure could be queried twice and the screen's
+  refusal text ("at or above the threshold, in no query yet") did not describe these rows. The owner did not decide
+  the threshold part: it is the orchestrator's reading, approved for build on 2026-11-28, not an owner decision.
+- **How to change it**: `_check_queryable` in `src/fin/reference/handoff.py` and the reference part of
+  `src/fin/discrepancies/view.py`.

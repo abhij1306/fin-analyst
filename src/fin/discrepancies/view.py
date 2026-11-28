@@ -19,7 +19,10 @@ dated in it has no books side: the row shows it missing, with no difference (mis
 
 A headline row also comes from each reference figure that differs from fin's
 (`reference_comparison`, SPEC-10, state differs: fin - the reference). It has no `item_id` and
-no parent or children; its `value_id` goes to `fin reference query`. A figure fin does not hold
+no parent or children; its `value_id` goes to `fin reference query`. Its query is the one that
+command linked (`reference_values.query_id`) when it is of the latest engagement; it can be queried
+as a line can: at or above the latest engagement's query threshold and in no query but a withdrawn
+one (as `fin reference query` checks, E983). A figure fin does not hold
 (no_fin_figure) is not a difference and is not a row. `row_id` names every row: the line's item
 id, or ref-<value_id>.
 
@@ -191,9 +194,12 @@ SELECT
     c.difference AS unexplained, c.fin_source AS left_source,
     c.file_name || ' ' || c.reference_ref AS right_source, c.scope || ': ' || c.label AS note,
     e.query_threshold AS threshold, abs(c.difference) >= e.query_threshold AS over_threshold,
-    true AS queryable
+    q.query_id, q.status AS query_status,
+    coalesce(abs(c.difference) >= e.query_threshold, false)
+        AND (q.query_id IS NULL OR q.status = 'withdrawn') AS queryable
 FROM reference_comparison c
 LEFT JOIN engagement e ON e.engagement_id = (SELECT max(engagement_id) FROM engagement)
+LEFT JOIN accountant_queries q ON q.query_id = c.query_id AND q.engagement_id = e.engagement_id
 WHERE c.state = 'differs'
 """
 

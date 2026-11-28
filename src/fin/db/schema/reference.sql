@@ -45,7 +45,8 @@ CREATE TABLE reference_lines (
 );
 
 -- reference_values: one row per figure, as fin's reader (or the reading) found it. value in rupees; raw_unit and
--- rupees_per_unit as printed.
+-- rupees_per_unit as printed. query_id: the query `fin reference query` last raised on the figure
+-- (accountant_queries.query_id), NULL when none; a withdrawn one leaves it free to be queried again.
 CREATE SEQUENCE reference_values_seq START 1;
 CREATE TABLE reference_values (
     value_id BIGINT PRIMARY KEY DEFAULT nextval('reference_values_seq'),
@@ -63,7 +64,8 @@ CREATE TABLE reference_values (
     period_end DATE NOT NULL,
     scope VARCHAR NOT NULL CHECK (scope IN ('standalone', 'consolidated')),
     value DECIMAL(20, 2) NOT NULL,
-    read_by VARCHAR NOT NULL
+    read_by VARCHAR NOT NULL,
+    query_id INTEGER
 );
 
 -- Each reference figure beside fin's (`fin reference compare`, the References screen). fin_value: current_facts for an
@@ -76,7 +78,7 @@ WITH ref AS (
     SELECT
         v.value_id, f.ref_file_id, f.source, f.file_name, source_ref(v.sheet, v.cell, v.page) AS reference_ref,
         l.line_id, l.statement, l.label, l.status AS line_status, l.target_kind, l.target, v.period, v.scope,
-        v.value AS reference_value, v.raw_unit, v.rupees_per_unit, v.read_by,
+        v.value AS reference_value, v.raw_unit, v.rupees_per_unit, v.read_by, v.query_id,
         l.status IN ('dictionary', 'confirmed') AS mapped
     FROM reference_values v
     JOIN reference_files f ON f.ref_file_id = v.ref_file_id

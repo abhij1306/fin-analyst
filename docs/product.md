@@ -1141,8 +1141,10 @@ Decisions: [decisions/spec-10.md](decisions/spec-10.md).
 - **From a difference**: `fin reference query <co> <#id> --question "..."` drafts a query (as `fin query raise`, the
   difference as its amount, both sources in its sources) and `fin reference adjust <co> <#id> --category C
   --description D --amount A` proposes an adjustment with both sources as its evidence (the account when the line is
-  mapped to one). A figure that does not differ is refused (E982). Nothing is changed to make the figures tie; the
-  user approves the query or accepts the adjustment as for any other.
+  mapped to one). A figure that does not differ is refused (E982). The query is linked to its figure
+  (`reference_values.query_id`): a difference below the open engagement's query threshold, or a figure already in a
+  query that is not withdrawn, is refused (E983), so a figure is not queried twice. Nothing is changed to make the
+  figures tie; the user approves the query or accepts the adjustment as for any other.
 
 ### Rebuilt statements (SPEC-14, `fin statements --rebuilt`)
 
@@ -1205,7 +1207,9 @@ Every difference the reconciliations found, in one place, from the headline down
   row is a root (bank lines). `explained` is the sum of the rows under it and `unexplained` the difference less that;
   a foreign-currency line without a rupee value has a blank difference (missing is not zero), and so has its parent's
   explained amount. Each row carries its two sources, note, threshold, whether it is over the threshold, its query and
-  status, and whether a query can be raised on it.
+  status, and whether a query can be raised on it: at or above the threshold and in no query but a withdrawn one. A
+  reference row's query is the one `fin reference query` linked to its figure, and it is compared with the latest
+  engagement's query threshold; the CLI, the sheet's Query column and the screen show the same.
 - **Recast against the books** (SPEC-17 item 5, decisions in [decisions/spec-17.md](decisions/spec-17.md)): per annual
   period that `fin recast run` ran for, the period's recast line is a headline row keyed `revenue` and labelled
   "recognition difference" (column `label`): books (the sales register by invoice date) against recast, difference =
@@ -1259,6 +1263,10 @@ Every difference the reconciliations found, in one place, from the headline down
   Mn" (narrative references stay inline references), the evidence page's figure titles add the value in the display
   unit after the stored rupees, `fin engagement bridge` and the diligence and FDD reports show the display unit, and
   the dashboards' statements table is in it.
+- **A missing amount is `n/a`**, never a dash (with brackets a zero is a dash): the diligence outputs in rupees
+  (`fin query list`, `fin adjust list`, `fin netdebt show`, `fin engagement status` and the others that format with
+  `fin.diligence.engagement.rupees`) and the Engagement, Queries and Findings screens, as `fin engagement bridge` and
+  the Bridge screen.
 
 ## Actor (SPEC-02)
 

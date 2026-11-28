@@ -83,10 +83,15 @@ def parse_rupees(text: str) -> Decimal:
     return amount
 
 
+# An amount fin does not have, as `fin engagement bridge` and the screens show it: with the
+# brackets display a zero is a dash, so a dash would read as a zero.
+MISSING = "n/a"
+
+
 def rupees(value: Any) -> str:
-    """An amount for display: ₹1,250.50 or -₹1,250.50, or '-' when there is none."""
+    """An amount for display: ₹1,250.50 or -₹1,250.50, or MISSING when there is none."""
     if value is None:
-        return "-"
+        return MISSING
     amount = Decimal(str(value))
     return f"{'-' if amount < 0 else ''}₹{abs(amount):,}"
 

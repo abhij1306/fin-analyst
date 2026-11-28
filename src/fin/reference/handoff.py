@@ -6,11 +6,14 @@ for the user to accept (`fin.diligence`)."""
 from decimal import Decimal
 from typing import Any
 
-from fin.audit.errors import ReferenceDifferenceUnknown
+import duckdb
+
+from fin.audit.errors import ReferenceDifferenceUnknown, ReferenceNotQueryable
 from fin.audit.logger import Run
-from fin.db.conn import connect
+from fin.db.conn import connect, transaction
 from fin.db.rows import fetch_dicts
 from fin.diligence import adjustments, queries
+from fin.diligence.engagement import company_database, require_open, rupees
 from fin.paths import company_db_path
 
 
@@ -33,19 +36,56 @@ def sources(row: dict[str, Any]) -> str:
     return f"fin: {row['fin_source']}; {reference}"
 
 
+def _check_queryable(
+    con: duckdb.DuckDBPyConnection, engagement: dict[str, Any], company: str, row: dict[str, Any]
+) -> None:
+    """E983 unless the difference is at or above the engagement's query threshold and the figure
+    is in no query of the engagement that is not withdrawn (as `fin query raise --items` and the
+    `discrepancies` view's `queryable`)."""
+    threshold = engagement["query_threshold"]
+    if abs(row["difference"]) < threshold:
+        raise ReferenceNotQueryable(
+            f"reference figure #{row['value_id']} of {company} differs by "
+            f"{rupees(row['difference'])}, below the query threshold {rupees(threshold)}; "
+            "nothing raised"
+        ).with_context(value_id=row["value_id"], difference=row["difference"])
+    linked = con.execute(
+        "SELECT q.query_id, q.status FROM reference_values v JOIN accountant_queries q "
+        "ON q.query_id = v.query_id AND q.engagement_id = ? "
+        "WHERE v.value_id = ? AND q.status <> 'withdrawn'",
+        [engagement["engagement_id"], row["value_id"]],
+    ).fetchone()
+    if linked is not None:
+        raise ReferenceNotQueryable(
+            f"reference figure #{row['value_id']} of {company} is already in query "
+            f"#{linked[0]} ({linked[1]}); nothing raised. Withdraw it first to raise a new one"
+        ).with_context(value_id=row["value_id"], query_id=linked[0])
+
+
 def raise_query(run: Run, company: str, value_id: int, question: str) -> dict[str, Any]:
     """A draft query: the difference (fin minus the reference) as its amount, the figure's period
-    and scope, both sources. E982, or the query's own refusals (E803, E881, E861)."""
+    and scope, both sources; the figure keeps the link (`reference_values.query_id`). E982,
+    E983, or the query's own refusals (E803, E881, E861)."""
     row = difference(run, company, value_id)
-    return queries.raise_manual(
-        run,
-        company,
-        amount=row["difference"],
-        period=row["period"],
-        scope=row["scope"],
-        sources=sources(row),
-        question=question,
-    )
+    with company_database(run, company, write=True) as con, transaction(con):
+        engagement = require_open(con, company)
+        _check_queryable(con, engagement, company, row)
+        query = queries.manual_in(
+            run,
+            company,
+            con,
+            engagement,
+            amount=row["difference"],
+            period=row["period"],
+            scope=row["scope"],
+            sources=sources(row),
+            question=question,
+        )
+        con.execute(
+            "UPDATE reference_values SET query_id = ? WHERE value_id = ?",
+            [query["query_id"], value_id],
+        )
+        return query
 
 
 def propose_adjustment(

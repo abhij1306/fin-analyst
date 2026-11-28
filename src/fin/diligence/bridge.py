@@ -15,7 +15,7 @@ from fin.audit.errors import EngagementState
 from fin.audit.logger import Run
 from fin.config import Display, load_config
 from fin.db.rows import fetch_dicts
-from fin.diligence.engagement import company_database, format_engagement
+from fin.diligence.engagement import MISSING, company_database, format_engagement
 from fin.display import money, number
 from fin.display import shown as converted
 from fin.metrics.missing import not_computed_rows
@@ -108,12 +108,12 @@ def missing(row: dict[str, Any], inputs: tuple[str, ...]) -> str:
 
 
 def _line(label: str, value: Any, display: Display, note: str = "") -> str:
-    shown = "n/a" if value is None else number(converted(value, display), display)
+    shown = MISSING if value is None else number(converted(value, display), display)
     return f"  {label:<56} {shown:>16}{note}"
 
 
 def _ratio(label: str, value: Any, note: str) -> str:
-    shown = "n/a" if value is None else f"{value:.2%}"
+    shown = MISSING if value is None else f"{value:.2%}"
     return f"  {label:<56} {shown:>16}{note}"
 
 

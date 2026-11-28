@@ -1,4 +1,4 @@
-"""Reference documents' error classes (E980-E982; SPEC-10, fin.reference; the table is in
+"""Reference documents' error classes (E980-E983; SPEC-10, fin.reference; the table is in
 docs/errors.md). They are re-exported by `fin.audit.errors`, so import them from there like every
 other error. Each stops the command: exit 2."""
 
@@ -26,3 +26,10 @@ class ReferenceDifferenceUnknown(FinError):
     proposed."""
 
     code = "E982"
+
+
+class ReferenceNotQueryable(FinError):
+    """E983. `fin reference query`: the difference is below the engagement's query threshold, or
+    the figure is already in a query of the engagement that is not withdrawn. Nothing raised."""
+
+    code = "E983"

@@ -126,5 +126,6 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E980 | `fin reference add`: no source name (`--source`) | Nothing loaded. Name the third party the figures come from, e.g. `--source "Banker databook"` |
 | E981 | `fin reference propose`, `confirm` or `reject`: a proposal that is not an object with line, account or metric, confidence (0 to 1) and reason; an unknown line id; an account of another statement or per share; a metric not in rupees; or a line not waiting for that decision (confirm needs a proposal) | Nothing changed. List the lines with `uv run fin reference lines <company> --all` and fix the proposal |
 | E982 | `fin reference query` or `adjust`: no reference figure with that id, or it does not differ from fin's (it agrees, fin has no figure, or its line is not mapped) | Nothing raised or proposed. Take the id of a difference from `uv run fin reference compare <company>` |
+| E983 | `fin reference query`: the difference is below the open engagement's query threshold, or the figure is already in a query of the engagement that is not withdrawn | Nothing raised. Query a difference at or above the threshold; see the figure's query with `uv run fin discrepancies <company>` (withdraw it first to raise a new one) |
 
 The code that raises each error is in `src/fin/audit/errors.py`.

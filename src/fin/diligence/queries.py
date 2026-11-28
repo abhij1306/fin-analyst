@@ -180,21 +180,38 @@ def raise_manual(
     not a year of the engagement nor its stub."""
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
-        if period not in periods_of(engagement):
-            raise QueryPeriodInvalid(
-                f"{period} is not a period of {company}'s open engagement "
-                f"({', '.join(periods_of(engagement))}); nothing raised"
-            )
-        values = {
-            "origin": "manual",
-            "finding_id": None,
-            "period": period,
-            "scope": scope,
-            "question": question,
-            "amount": amount,
-            "sources": sources,
-        }
-        return _insert(run, company, con, engagement, values)
+        values = {"amount": amount, "period": period, "scope": scope, "sources": sources}
+        return manual_in(run, company, con, engagement, question=question, **values)
+
+
+def manual_in(
+    run: Run,
+    company: str,
+    con: duckdb.DuckDBPyConnection,
+    engagement: dict[str, Any],
+    *,
+    amount: Decimal,
+    period: str,
+    scope: str | None,
+    sources: str,
+    question: str,
+) -> dict[str, Any]:
+    """`raise_manual` in the caller's transaction (a reference figure's query, which links it)."""
+    if period not in periods_of(engagement):
+        raise QueryPeriodInvalid(
+            f"{period} is not a period of {company}'s open engagement "
+            f"({', '.join(periods_of(engagement))}); nothing raised"
+        )
+    values = {
+        "origin": "manual",
+        "finding_id": None,
+        "period": period,
+        "scope": scope,
+        "question": question,
+        "amount": amount,
+        "sources": sources,
+    }
+    return _insert(run, company, con, engagement, values)
 
 
 def edit(run: Run, company: str, query_id: int, question: str) -> dict[str, Any]:

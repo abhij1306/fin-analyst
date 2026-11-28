@@ -12,14 +12,12 @@ from fin.audit.errors import DependencyMissing, EngagementState, FinError
 from fin.audit.logger import Run
 from fin.config import Display
 from fin.diligence import adjusted, adjustments, bridge, engagement, gates, queries
-from fin.diligence.engagement import rupees
+from fin.diligence.engagement import MISSING, rupees
 from fin.display import PER_SHARE, display_settings, number, shown
 from fin.paths import company_db_path
 from fin.statements import TITLES, latest_annual_period, statement_rows
 
 BRIDGE_VIEWS = ("bridge", "pl")
-# A figure fin does not have, as `fin engagement bridge` shows it: with brackets a zero is a dash.
-MISSING = "n/a"
 AS_REPORTED = ("balance_sheet", "cash_flow")  # no adjustment kind changes them yet
 
 

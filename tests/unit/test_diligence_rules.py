@@ -53,7 +53,19 @@ def test_the_largest_amount_is_accepted() -> None:
 def test_amounts_display_with_sign_before_the_rupee() -> None:
     assert rupees(Decimal("-35000000.00")) == "-₹35,000,000.00"
     assert rupees(Decimal("1250.5")) == "₹1,250.5"
-    assert rupees(None) == "-"
+    # with the brackets display a zero is a dash, so a missing amount is never one
+    assert rupees(None) == "n/a"
+
+
+def test_a_query_with_no_amount_lists_it_as_n_a_not_a_dash() -> None:
+    from fin.diligence.queries import format_query
+
+    row = {
+        "query_id": 7, "status": "draft", "period": "FY25", "scope": "standalone",
+        "amount": None, "origin": "manual", "finding_id": None, "question": "Why?",
+        "sources": "tb.xlsx TB!A1", "answer": None, "answer_source": None, "note": None,
+    }  # fmt: skip
+    assert format_query(row).splitlines()[0] == "#7 draft FY25 standalone n/a (manual): Why?"
 
 
 @pytest.mark.parametrize(
