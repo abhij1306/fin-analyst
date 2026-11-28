@@ -464,7 +464,10 @@ def test_map_set_can_target_an_added_account(root: Path) -> None:
     )  # fmt: skip
 
     assert result.exit_code == 0, result.output
-    assert result.stdout == "bluepeak: balance_sheet 'Old dues' -> long_overdue_debtors (added)\n"
+    assert result.stdout == (
+        "bluepeak: balance_sheet 'Old dues' -> long_overdue_debtors (added); 0 loaded facts in 0 "
+        "documents now use it\n"
+    )
 
 
 def test_export_prints_added_accounts_and_global_labels_as_seed_rows(root: Path) -> None:

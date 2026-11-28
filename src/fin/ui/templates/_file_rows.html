@@ -40,6 +40,9 @@
     {% endif %}
   </section>
 </div>
+{% for statement, rows in data.accounts.items() %}
+<datalist id="accounts-{{ statement }}">{% for name, description in rows %}<option value="{{ name }}">{{ description }}</option>{% endfor %}</datalist>
+{% endfor %}
 <div class="card">
   <header><h2>Findings on filed data</h2></header>
   <section class="flush">
@@ -49,8 +52,13 @@
       <tbody>
         {% for f in data.findings %}
         <tr><td>{{ badge(f.status) }}</td><td class="fname">{{ f.file_name }}<div class="sub">{{ clip((f.fin_source or "") ~ (" vs " ~ f.other_source if f.other_source else ""), 40) }}</div></td><td>{{ f.code or f.check_name }}</td>
-          <td>{{ clip(f.finding) }}</td>
-          <td class="num act">{% if f.status == "open" %}{{ act("finding-accept", f.finding_id, "Save as is", company, ask="Accept this finding: the figure stays as the company filed it, and the finding stays attached as accepted.") }}{% endif %}</td></tr>
+          <td>{{ clip(f.finding) }}{% for m in f.mappings_list %}<div class="sub">From mapping #{{ m.mapping_id }} ({{ m.source }}): {{ clip(m.label, 40) }} → {{ m.account }}</div>{% endfor %}</td>
+          <td class="num act">{% if f.status == "open" %}<div class="actions">{{ act("finding-accept", f.finding_id, "Save as is", company, ask="Accept this finding: the figure stays as the company filed it, and the finding stays attached as accepted.") }}
+            {% for m in f.mappings_list %}<form class="inline" hx-post="/act" hx-target="#screen" hx-swap="innerHTML">
+              <input type="hidden" name="action" value="mapping-change"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ m.mapping_id }}">
+              <input class="input" data-size="sm" name="choice" required aria-label="Account for mapping {{ m.mapping_id }}" placeholder="{{ m.account }}" list="accounts-{{ m.statement }}">
+              <button type="submit" class="btn" data-size="sm" data-variant="outline">Change the mapping</button>
+            </form>{% endfor %}</div>{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table></div>

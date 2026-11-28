@@ -1,6 +1,6 @@
 """Mapping and validation of real annual-report layouts (synthetic PDFs): balance-sheet parts under
 sub-headings, OCI, exceptional items printed as a gain, per-share figures, and the fix path for a
-document held with a finding (`fin map set`, then ingest it again with --force)."""
+document held with a finding (`fin map set`, applied to the loaded facts with no re-ingest)."""
 
 import json
 from decimal import Decimal
@@ -148,24 +148,22 @@ def test_a_held_document_loads_after_a_company_mapping_fix(
             "cash_and_bank_balances",
         ],
     )
-    loaded = runner.invoke(app, ["ingest", "acme", str(path), "--force"])
 
     assert mapped.exit_code == 0, mapped.stdout
     assert "acme: balance_sheet 'Cash and cash equivalents' -> cash_and_bank_balances (added)" in (
         mapped.stdout
     )
-    assert loaded.exit_code == 0, loaded.stdout
-    assert "acme/acme_ar24.pdf: loaded as doc_id 2 version 2" in loaded.stdout
-    # The earlier version and its findings are superseded.
-    assert query(root, "acme", "SELECT doc_id, status FROM documents ORDER BY 1") == [
-        (1, "superseded"),
-        (2, "loaded"),
+    # Applied to the held document's facts and checked again: no re-ingest.
+    assert "doc_id 1 acme_ar24.pdf checked again: 0 open findings, loaded" in mapped.stdout
+    assert query(root, "acme", "SELECT doc_id, status FROM documents ORDER BY 1") == [(1, "loaded")]
+    assert query(root, "acme", "SELECT DISTINCT status FROM findings") == [("resolved",)]
+    assert audit_query("SELECT count(*) FROM runs WHERE command = 'ingest' AND record = 'end'") == [
+        (1,)
     ]
-    assert query(root, "acme", "SELECT DISTINCT status FROM findings") == [("superseded",)]
     assert query(
         root,
         "acme",
-        "SELECT account, value FROM facts WHERE doc_id = 2 AND raw_id IN (SELECT raw_id FROM "
+        "SELECT account, value FROM facts WHERE doc_id = 1 AND raw_id IN (SELECT raw_id FROM "
         "raw_values WHERE raw_label = 'Cash and cash equivalents') ORDER BY value",
     ) == [
         ("cash_and_bank_balances", Decimal("2000000.00")),

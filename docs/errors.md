@@ -31,9 +31,9 @@ A command-line usage error (a wrong option, argument or value, exit 2) is report
 | E206 | The PDF add-on (Docling, LiteParse or LlamaParse; the message names it) failed on the pages pdfplumber skipped, could not download its models, or (LlamaParse) found no `LLAMA_CLOUD_API_KEY`; a warning, the pages stay unread | Read the warning in the run log; `uv run fin doctor`; set the key; or ask Claude to read the pages |
 | E207 | `fin ingest --unit` was given, but every statement sheet or page of the file names its own unit; nothing loaded | Ingest the file without `--unit` |
 | E301 | A line is not in the chart of accounts | Loaded as unconfirmed. Run `/review` to confirm a mapping |
-| E302 (warning) | A proposed mapping has low confidence; a warning, not an error | Check it in `/review` |
+| E302 (warning) | A proposed mapping has low confidence (below 0.7 when proposed); or a bulk `fin review confirm` skipped an item below 0.8. A warning, not an error | Check it in `/review`; confirm a skipped item on its own or with `--each` |
 | E303 | A line maps to conflicting accounts | You decide in `/review` |
-| E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id, invalid new account) | Nothing was applied. Check `/review` and the account name, then retry |
+| E304 | A mapping proposal or review request cannot be applied (unknown account, wrong statement, unknown id or mapping, invalid new account, or a bulk confirm whose every id has confidence below 0.8) | Nothing was applied. Check `/review` and the account name, then retry; confirm a low-confidence item on its own or with `--each` |
 | E401-E405 | Findings, not errors: balance sheet (E401), subtotal (E402), cash (E403), documents disagree (E404), unit factor (E405) | The document is held, not rejected. See [Findings](#findings) |
 | E406 | A finding to accept does not exist or is not open | Nothing was accepted. Check the ids with `uv run fin findings list <company>` |
 | E407 | A figure cannot be stated: unknown account, scope or period, a value that is not a number with at most two decimals, an empty reason, or the account, period and scope already have a stated figure | Nothing was stated. Fix the input; to change a stated figure, withdraw it first (`uv run fin fact unstate <company> <id>`) |

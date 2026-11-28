@@ -29,7 +29,8 @@ Ingest documents for the company in `$ARGUMENTS`.
       user agrees:
       - a label mapped to the wrong account (for example old-format "Cash and bank balances", which also holds
         deposits: map it to `cash_and_bank_balances`): `uv run fin map set <company> --statement <statement>
-        --label "<label>" --account <account>`, then `uv run fin ingest <company> <file> --force`;
+        --label "<label>" --account <account>`; it applies to the loaded figures and checks the documents again, no
+        re-ingest (a finding lists the mappings behind it);
       - an unmapped label that is part of the total: confirm its mapping with `/review`;
       - a figure fin read wrongly: show the user the cell or page and the figure fin holds. Only when the user says
         so, correct it: `uv run fin fact correct <company> <fact_id> --value <as printed, in rupees> --reason

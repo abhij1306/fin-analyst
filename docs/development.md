@@ -174,9 +174,10 @@ the sheet has. Which fields are masked (customer, vendor, handler, submitted by)
   sign) reaches only a data folder created afterwards. `fin sql --write` cannot change the dictionary: it works on
   one company's database. For one company, map the label to another account with `fin map set` (below).
 - One company only: `uv run fin map set <co> --statement <statement> --label "<label as written>" --account
-  <account> [--section "<heading>"]`. It wins over the seed for that company, for files ingested from then on. This
-  is also how to fix a wrong mapping behind a held document's findings (`fin findings list`): map it, then
-  `fin ingest <co> <file> --force`.
+  <account> [--section "<heading>"]`. It wins over the seed for that company, for files ingested from then on, and
+  is applied at once to the facts already loaded (`fin.map.review_confirm.remap_facts`); their documents are checked
+  again with no re-ingest. This is how to fix a wrong mapping behind a held document's findings (`fin findings
+  list` names the mapping; the UI's Files screen has "Change the mapping").
 - From review: when no account fits a label, Claude proposes a new one in `fin map propose` (`account` is the new
   name, `new_account` is `{parent, sign, unit, description}`). `fin review confirm` adds it to the shared dictionary
   (`accounts.source = 'review'`, with the run_id) and maps the label, in one transaction; `--name` and `--parent`

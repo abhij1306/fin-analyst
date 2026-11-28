@@ -6,6 +6,8 @@ For each company (every company database and every inbox/ company folder, or the
 - held documents (fin.findings) with their open findings;
 - findings open and accepted;
 - mapping items waiting for review (review/<company>/pending.json);
+- checks that did not run on loaded and held documents, and what would make them run
+  (fin.validate.not_run);
 - figures in loaded and held documents read by Claude (a reading file) or by the PDF add-on,
   as information: whether they are trusted is the user's decision (`fin verify` checks them);
 - figures the user stated where no document gives them, and figures corrected with `fin fact
@@ -29,6 +31,7 @@ from fin.diligence.gates import Context, evaluate
 from fin.ingest import files_in, sha256_of
 from fin.map.review import open_items, read_pending
 from fin.paths import COMPANY_NAME, companies_dir, company_db_path, inbox_dir
+from fin.validate.not_run import format_not_run, list_not_run
 
 PERIOD = re.compile(r"^FY(\d+)(?:-([QH])(\d))?$")
 KINDS = {12: "years", 6: "halves", 3: "quarters", 9: "nine_months"}
@@ -87,6 +90,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
     open_findings = accepted = by_claude = by_addon = stated = corrected = 0
     known: set[str] = set()
     diligence = None
+    not_run: list[dict[str, Any]] = []
     pending = read_pending(run.root, company)
     if db.is_file():
         ensure_database(db, "company")
@@ -103,6 +107,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
             row = con.execute(_SUMMARY).fetchone()
             assert row is not None
             open_findings, accepted, by_claude, by_addon, stated, corrected = row
+            not_run = list_not_run(con)
             known = {sha for (sha,) in con.execute("SELECT sha256 FROM documents").fetchall()}
             diligence = _diligence(con, company, open_items(pending))
     inbox = inbox_dir(run.root, company)
@@ -117,6 +122,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
         "open_findings": open_findings,
         "accepted_findings": accepted,
         "pending_mappings": len(open_items(pending)),
+        "checks_not_run": not_run,
         "read_by_claude": by_claude,
         "read_by_pdf_addon": by_addon,
         "stated_figures": stated,
@@ -188,6 +194,8 @@ def format_status(result: list[dict[str, Any]]) -> str:
             f"  held documents: {_list(held)}",
             f"  findings: {s['open_findings']} open, {s['accepted_findings']} accepted",
             f"  mappings waiting for review: {s['pending_mappings']}",
+            f"  checks not run: {len(s['checks_not_run']) or 'none'}",
+            *(f"    {format_not_run(row)}" for row in s["checks_not_run"]),
             f"  figures read by Claude: {s['read_by_claude']}, by the PDF add-on: "
             f"{s['read_by_pdf_addon']}",
             f"  figures stated by the user: {s['stated_figures']}, corrected: "

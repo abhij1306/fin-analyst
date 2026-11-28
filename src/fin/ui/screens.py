@@ -2,6 +2,7 @@
 loader takes the data folder and a company and returns what its template shows. Numbers are
 the ones fin returns; the UI adds none (docs/web-ui-plan.md)."""
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -13,11 +14,14 @@ from fin.diligence import adjustments, gates, queries
 from fin.diligence.engagement import rupees
 from fin.fdd import findings as fdd
 from fin.findings import list_findings
+from fin.map.dictionary import load_accounts
 from fin.map.review import open_items, read_pending
-from fin.paths import company_db_path, reports_dir
+from fin.map.review_confirm import BULK_CONFIDENCE, low_confidence
+from fin.paths import company_db_path, dictionary_db_path, reports_dir
 from fin.rebuilt.compare import blocks, notes, rebuilt_rows, select_period
 from fin.services.addon import offer
 from fin.services.jobs import list_jobs
+from fin.services.reviews import KINDS
 from fin.statements import (
     TITLES,
     amount,
@@ -68,16 +72,55 @@ def files(root: Path, company: str) -> dict[str, Any]:
         "rows": file_rows(root, company, status["inbox_not_ingested"]),
         "name": company_name(root, company),
         "inbox_folder": f"inbox/{company}/",
-        "findings": list_findings(_run("files", root, company), company),
+        "findings": [
+            {**f, "mappings_list": json.loads(f["mappings"] or "[]")}
+            for f in list_findings(_run("files", root, company), company)
+        ],
+        "accounts": _accounts(root),
         "jobs": list_jobs(root, company),
         "job_labels": JOB_LABELS,
         "addon_offer": offer(root, company),
     }
 
 
+def _accounts(root: Path) -> dict[str, list[tuple[str, str]]]:
+    """The dictionary's accounts per statement (account, description): the choices offered; none
+    before `fin init`."""
+    out: dict[str, list[tuple[str, str]]] = {}
+    if not dictionary_db_path(root).is_file():
+        return out
+    for name, account in load_accounts(root).items():
+        out.setdefault(account.statement, []).append((name, account.description))
+    return out
+
+
+def _review_kind(root: Path, company: str, kind: str) -> dict[str, Any]:
+    """One review kind's waiting rows (as `fin review list --<kind>` prints them), or why it has
+    none (nothing loaded, no open engagement: its code and message)."""
+    spec = KINDS[kind]
+    out: dict[str, Any] = {"kind": kind, "title": spec.title, "choice": spec.choice, "rows": []}
+    if not company_db_path(root, company).is_file():
+        return out
+    try:
+        rows = spec.waiting(_run("mappings", root, company), company)
+    except FinError as error:
+        return out | {"note": f"{error.code}: {error.message}"}
+    out["rows"] = [{"id": row[spec.id_key], "text": spec.text(row)} for row in rows]
+    return out
+
+
 def mappings(root: Path, company: str) -> dict[str, Any]:
-    pending = read_pending(root, company)
-    return {"pending": open_items(pending)}
+    """Mapping items with a low-confidence flag (confirmed one at a time), the ids a bulk confirm
+    takes (a proposal at confidence 0.8 or above), the dictionary's accounts per statement (to
+    choose another), and every other review kind."""
+    items = [{**i, "low": low_confidence(i)} for i in open_items(read_pending(root, company))]
+    return {
+        "pending": items,
+        "bulk": [i["id"] for i in items if i["account"] and not i["low"]],
+        "bulk_confidence": BULK_CONFIDENCE,
+        "accounts": _accounts(root),
+        "kinds": [_review_kind(root, company, kind) for kind in KINDS],
+    }
 
 
 def _query_rows(root: Path, company: str) -> dict[str, Any]:

@@ -1,0 +1,32 @@
+section,label,account
+,Net profit before tax,cf_pbt
+Adjustments for,Depreciation and amortisation expense,cf_add_depreciation
+Adjustments for,Finance costs,cf_add_finance_cost
+Adjustments for,Interest income,cf_less_interest_income
+,Operating profit before working capital changes,cf_op_profit_before_wc
+Movements in working capital,(Increase) / Decrease in trade receivables,cf_change_receivables
+Movements in working capital,(Increase) / Decrease in inventories,cf_change_inventories
+Movements in working capital,Decrease / (Increase) in short-term loans and advances,cf_change_loans
+Movements in working capital,(Increase) / Decrease in long-term loans and advances,cf_change_loans
+Movements in working capital,Decrease / (Increase) in other current assets,cf_change_oca
+Movements in working capital,Decrease / (Increase) in other non-current assets,cf_change_onca
+Movements in working capital,Increase / (Decrease) in trade payables,cf_change_payables
+Movements in working capital,(Decrease) / Increase in other current liabilities,cf_change_ocl
+Movements in working capital,Increase / (Decrease) in other long-term liabilities,cf_change_ocl
+Movements in working capital,Increase / (Decrease) in short-term provisions,cf_change_provisions
+Movements in working capital,(Decrease) / Increase in long-term provisions,cf_change_provisions
+,Cash generated from / (used in) operations,cf_cash_generated
+,Direct taxes paid (net),cf_taxes_paid
+,Net cash flow from / (used in) operating activities (A),cfo
+Cash flow from investing activities,"Purchase of property, plant and equipment (including capital work-in-progress)",cf_capex
+Cash flow from investing activities,"Proceeds from sale of property, plant and equipment",cf_ppe_sale_proceeds
+Cash flow from investing activities,Interest received,cf_interest_received
+,Net cash flow from / (used in) investing activities (B),cfi
+Cash flow from financing activities,Proceeds from long-term borrowings,cf_lt_borrowings_net
+Cash flow from financing activities,Repayment of long-term borrowings,cf_lt_borrowings_net
+Cash flow from financing activities,Proceeds from / (repayment of) short-term borrowings (net),cf_st_borrowings_net
+Cash flow from financing activities,Interest paid,cf_finance_cost_paid
+,Net cash (used in) / from financing activities (C),cff
+,Net (decrease) / increase in cash and cash equivalents (A+B+C),net_change_cash
+,Opening balance of cash and cash equivalents,opening_cash
+,Closing balance of cash and cash equivalents,closing_cash
