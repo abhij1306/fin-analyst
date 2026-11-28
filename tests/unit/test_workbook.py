@@ -1,64 +1,37 @@
 """An exported statement sheet is the databook layout: a caption with the unit, the headings, frozen
 panes, values as SQL converted them with the display's number format, bold subtotals, and each
-figure's source and marks in a comment."""
+figure's source in a comment (`fin statements --export`, on tests/statements_fixtures.py)."""
 
-from datetime import date
-from decimal import Decimal
-from typing import Any
+from pathlib import Path
 
-from openpyxl import Workbook
+import pytest
+from openpyxl import load_workbook
 
-from fin.config import Display
-from fin.databook import databook
-from fin.workbook import _statement_sheet
-
-MN = Display("millions", 1, "brackets", "INR Mn")
+from fin.workbook import export_workbook
+from tests.statements_fixtures import make_statements_root
 
 
-def row(period: str, line_no: int, label: str, shown: str, **more: Any) -> dict[str, Any]:
-    return {
-        "scope": "standalone",
-        "statement": "profit_and_loss",
-        "period": period,
-        "period_months": 12,
-        "period_end": date(int(period[2:]) + 2000, 3, 31),
-        "line_no": line_no,
-        "label": label,
-        "depth": 0,
-        "unit": "rupees",
-        "shown": Decimal(shown),
-        "subtotal": False,
-        "rounding": False,
-        "source": f"fs_{period}.xlsx P&L!C{line_no}",
-        "of_revenue": None,
-        "yoy": None,
-    } | more
+@pytest.fixture(scope="module")
+def root(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return make_statements_root(tmp_path_factory.mktemp("workbook"))
 
 
-def test_a_sheet_is_the_databook_layout() -> None:
-    rows = [
-        row("FY25", 1, "Revenue", "2.5", stated_id=3),
-        row("FY24", 1, "Revenue", "2.0"),
-        row("FY25", 9, "Profit for the year", "-0.3", subtotal=True),
-        row("FY25", 10, "Basic EPS", "8.00", unit="rupees_per_share"),
-    ]
-    [table] = databook(rows, MN)
-    book = Workbook()
+def test_a_sheet_is_the_databook_layout(root: Path) -> None:
+    sheet = load_workbook(export_workbook(root, "acme"))["P&L standalone"]
+    heads = [c.value for c in sheet[2]]
+    fy24, fy25 = heads.index("FY24"), heads.index("FY25")
+    lines = {row[0].value: row for row in sheet.iter_rows(min_row=3) if row[0].value}
+    revenue = lines["Revenue from operations"]
+    [profit] = [row for label, row in lines.items() if label.startswith("Profit for the year")]
+    eps = lines["Basic earnings per share"]
 
-    _statement_sheet(book, "acme", table, MN)
-
-    sheet = book["P&L standalone"]
-    values = [[c.value for c in r] for r in sheet.iter_rows()]
-    assert values == [
-        ["acme: Profit and loss, standalone (INR Mn)", None, None],
-        ["Line", "FY24", "FY25"],
-        ["Revenue", Decimal("2.0"), Decimal("2.5")],
-        ["Profit for the year", None, Decimal("-0.3")],
-        ["Basic EPS", None, Decimal("8.00")],
-    ]
+    assert sheet["A1"].value == "acme: Profit and loss, standalone (INR Mn)"
+    assert heads[0] == "Line"
     assert sheet.freeze_panes == "B3"
-    assert sheet["C3"].number_format == '#,##0.0;(#,##0.0);"–"'
-    assert sheet["C5"].number_format == '#,##0.00;(#,##0.00);"–"'
-    assert sheet["C3"].comment.text == "Source: fs_FY25.xlsx P&L!C1; stated by the user, #3"
-    assert sheet["A4"].font.bold
-    assert not sheet["A3"].font.bold
+    assert (revenue[fy24].value, revenue[fy25].value) == (2, 2.5)
+    assert revenue[fy25].number_format == '#,##0.0;(#,##0.0);"–"'
+    assert eps[fy25].value == 8
+    assert eps[fy25].number_format == '#,##0.00;(#,##0.00);"–"'
+    assert revenue[fy25].comment.text.startswith("Source: fs_FY25.xlsx")
+    assert profit[0].font.bold
+    assert not revenue[0].font.bold

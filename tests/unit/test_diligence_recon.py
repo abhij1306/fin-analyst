@@ -427,10 +427,19 @@ def test_a_stub_loads_labelled_unaudited_and_is_not_reconciled(root: Path, tmp_p
         recon.tb_vs_statements(run_root, "acme")
 
 
-def test_a_zero_on_one_side_only_is_never_matched() -> None:
+def test_a_zero_on_one_side_only_is_never_matched(root: Path) -> None:
     # A stated or filed zero with no ledger mapped to it is a missing ledger, not a match.
-    shown = (Decimal("0.00"), "stated #1")
-    assert recon._line("tb.xlsx", "finance_cost", None, shown)["kind"] == "right_only"
-    total = [Decimal("0.00"), [], []]
-    assert recon._line("tb.xlsx", "finance_cost", total, None)["kind"] == "left_only"
-    assert recon._line("tb.xlsx", "finance_cost", total, shown)["kind"] == "matched"
+    accounts = load_accounts(root)
+    stated = [("finance_cost", Decimal("0.00"), "stated #1")]
+    nil = recon.Ledger(
+        sheet="TB", row=9, name="Interest", net=Decimal("0.00"), account="finance_cost"
+    )
+
+    def kind(found: list[recon.Ledger], figures: list[Any]) -> str:
+        lines = recon.build_lines(accounts, "tb.xlsx", found, figures)
+        [line] = [line for line in lines if line["account"] == "finance_cost"]
+        return str(line["kind"])
+
+    assert kind([], stated) == "right_only"
+    assert kind([nil], []) == "left_only"
+    assert kind([nil], stated) == "matched"
