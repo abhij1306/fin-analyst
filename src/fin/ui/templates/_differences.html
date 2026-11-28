@@ -26,10 +26,10 @@
     <ul class="tree">
     {% for node in data.nodes recursive %}{% set r = node.row %}
       <li>
-        {% if r.queryable %}<input type="checkbox" class="input" name="item" value="{{ r.item_id }}" aria-label="Difference {{ r.item_id }}">{% endif %}
+        {% if r.queryable %}<input type="checkbox" class="input" name="item" value="{{ r.row_id }}" aria-label="Difference {{ r.row_id }}">{% endif %}
         <details{% if r.level == "headline" %} open{% endif %}>
           <summary>
-            {{ badge(r.level, as="info") }} <strong>#{{ r.item_id }} {{ r.period }} {{ r.key }}</strong> {{ r.kind | replace("_", " ") }}:
+            {{ badge(r.level, as="info") }} <strong>#{{ r.row_id }} {{ r.period }} {{ r.key }}</strong> {{ r.kind | replace("_", " ") }}:
             {{ r.left_name }} {{ r.left_amount_text }}, {{ r.right_name }} {{ r.right_amount_text }},
             difference <strong>{{ r.difference_text }}</strong>
             {% if r.children %}; explained below {{ r.explained_text }}, unexplained <strong>{{ r.unexplained_text }}</strong>{% endif %}

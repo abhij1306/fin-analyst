@@ -16,7 +16,7 @@ from fin.display import excel_format
 
 TITLE = "Differences"
 COLUMNS = [
-    ("Line", "item_id"),
+    ("Line", "row_id"),
     ("Under", "parent_id"),
     ("Level", "level"),
     ("Period", "period"),
@@ -41,6 +41,8 @@ MONEY = {"left_amount_shown", "right_amount_shown", "difference_shown", "explain
 
 
 def _value(row: dict[str, Any], key: str) -> Any:
+    if key == "row_id":
+        return row["item_id"] if row["item_id"] is not None else row["row_id"]  # ref-<n>
     if key in ("left_amount_shown", "right_amount_shown") and row["currency"]:
         return row[key.removesuffix("_shown")]  # in its currency, as stored
     return row[key]

@@ -20,7 +20,7 @@ SHOWN = ("left_amount", "right_amount", "difference", "explained", "unexplained"
 _ROWS_SQL = """
 SELECT d.*, {shown} FROM discrepancies d
 WHERE ($level IS NULL OR d.level = $level) AND (NOT $over OR d.over_threshold)
-ORDER BY abs(d.difference) DESC NULLS LAST, d.item_id
+ORDER BY abs(d.difference) DESC NULLS LAST, d.item_id NULLS LAST, d.value_id
 """.format(
     shown=", ".join(
         # a foreign-currency side is not in rupees: it is shown as stored, in its currency
@@ -76,7 +76,7 @@ def describe(row: dict[str, Any], display: Display) -> str:
     """One row as a line of text."""
     under = f" (under #{row['parent_id']})" if row["parent_id"] is not None else ""
     text = (
-        f"#{row['item_id']} {row['level']} {row['period']} {row['key']}{under}: {row['kind']}, "
+        f"#{row['row_id']} {row['level']} {row['period']} {row['key']}{under}: {row['kind']}, "
         f"{row['left_name']} {amount(row, 'left_amount', display)}, {row['right_name']} "
         f"{amount(row, 'right_amount', display)}, difference {amount(row, 'difference', display)}"
     )
@@ -110,10 +110,15 @@ def format_rows(company: str, result: dict[str, Any]) -> str:
                 out.append(f"    {row[f'{side}_name']}: {row[f'{side}_source']}")
         if row["note"]:
             out.append(f"    {row['note']}")
-    if any(row["queryable"] for row in rows):
+    if any(row["queryable"] and row["item_id"] is not None for row in rows):
         out.append(
             f"Rows marked 'can be queried' go to one query per period: `fin query raise {company} "
             "--items <ids> --question ...` (the user approves it)."
+        )
+    if any(row["value_id"] is not None for row in rows):
+        out.append(
+            f"A ref-<n> row goes to a query with `fin reference query {company} <n> --question "
+            "...` (the user approves it)."
         )
     return "\n".join(out)
 
@@ -121,9 +126,9 @@ def format_rows(company: str, result: dict[str, Any]) -> str:
 def tree(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The rows as nodes ({"row", "children"}), roots first, each level in the rows' order. A
     row whose parent is not among the rows is a root."""
-    nodes = {row["item_id"]: {"row": row, "children": []} for row in rows}
+    nodes = {row["row_id"]: {"row": row, "children": []} for row in rows}
     roots = []
     for row in rows:
-        parent = nodes.get(row["parent_id"])
-        (parent["children"] if parent else roots).append(nodes[row["item_id"]])
+        parent = nodes.get(str(row["parent_id"])) if row["parent_id"] is not None else None
+        (parent["children"] if parent else roots).append(nodes[row["row_id"]])
     return roots

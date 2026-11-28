@@ -5,9 +5,13 @@ Readings, not owner decisions, until the owner confirms them.
 ## The headline level is tb_vs_statements
 
 - **Decision**: the headline rows are the stored `tb_vs_statements` lines (trial balance rolled up by confirmed
-  mapping against the reported statement line), the same comparison as SPEC-14's rebuilt - reported.
+  mapping against the reported statement line), the same comparison as SPEC-14's rebuilt - reported, and each
+  reference figure that differs from fin's (`reference_comparison`, SPEC-10, fin - the reference).
 - **Why**: a stored line has an item id, a threshold and a query link, which the drill-down and the query hand-off
-  need. The SPEC-10 reference databook comparison is not merged; when it is, it can become another headline source.
+  need. A reference row has none of them: it is a root with id `ref-<value_id>`, compared with the latest engagement's
+  query threshold, and goes to `fin reference query` (one query per figure). A reference query is not linked to its
+  figure in the database, so the row shows no query status; the Queries screen lists it. A figure fin does not hold
+  (no_fin_figure) is missing, not a difference, and is not a row.
 - **How to change it**: `sources()` in `src/fin/discrepancies/view.py`.
 
 ## Five reconciliations, differing lines only

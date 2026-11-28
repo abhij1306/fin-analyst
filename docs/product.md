@@ -1185,7 +1185,9 @@ Every difference the reconciliations found, in one place, from the headline down
   (kinds `difference`, `left_only`, `right_only`, `fx`) in the latest run of each reconciliation of the latest
   engagement, at four levels: headline (`tb_vs_statements`: trial balance against the statements), account
   (`gl_vs_tb` per ledger, `payroll_vs_gl`), party (the sales and purchase registers' customer and vendor lines) and
-  transaction (their invoice lines, and `bank_vs_invoices`' match, receipt and invoice lines). Every amount is in the
+  transaction (their invoice lines, and `bank_vs_invoices`' match, receipt and invoice lines). Each reference figure
+  that differs from fin's (`reference_comparison`, SPEC-10: fin minus the reference) is a headline row too, with id
+  `ref-<value_id>` and no parent or children; a figure fin does not hold is not a row. Every amount is in the
   statements' sign, lower rung minus the rung above it. An account or party row is under the headline row of the same
   period for its account (or the nearest account above it); an invoice row is under its party row. A row with no parent
   row is a root (bank lines). `explained` is the sum of the rows under it and `unexplained` the difference less that;
@@ -1198,7 +1200,8 @@ Every difference the reconciliations found, in one place, from the headline down
 - **Differences screen** (web UI): the tree, headline first, each row with its two sides, difference, explained and
   unexplained amounts, sources and query status; a unit picker and "over the threshold only". Ticked rows that can be
   queried (one period) open the chat with a request to draft one query from them (`fin query raise --items`); the user
-  approves it on the Queries screen. E008 for a row that cannot be queried or rows of two periods.
+  approves it on the Queries screen. Ticked reference rows ask for one query each (`fin reference query`). E008 for a
+  row that cannot be queried, rows of two periods, or reconciliation lines and reference rows ticked together.
 - **Nothing is fixed**: a difference is the company's, for a query or an adjustment with evidence.
 
 ## Display units and the databook (SPEC-06)

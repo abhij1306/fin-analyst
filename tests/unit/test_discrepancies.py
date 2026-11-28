@@ -256,6 +256,66 @@ def test_a_rupee_bank_line_is_shown_in_the_display_unit(root: Path) -> None:
     )
 
 
+def reference(root: Path) -> None:
+    """A banker's databook for FY25: revenue differs from the audited figure, employee expense
+    agrees, and finance costs is a line fin holds no figure for."""
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "INSERT INTO reference_files (source, file_name, sha256, archive_path, run_id, "
+            "added_at) VALUES ('Banker', 'databook.xlsx', 's', 'a', 'r', now())"
+        )
+        for line_id, (account, value) in enumerate(
+            (("revenue", 1200000), ("employee_expense", 7000000), ("finance_costs", 5000)),
+            start=1,
+        ):
+            con.execute(
+                "INSERT INTO reference_lines (statement, section_key, label_key, section, label, "
+                "status, target_kind, target, run_id, changed_at) VALUES ('profit_and_loss', '', "
+                "?, '', ?, 'dictionary', 'account', ?, 'r', now())",
+                [account, account.replace("_", " ").title(), account],
+            )
+            con.execute(
+                "INSERT INTO reference_values (ref_file_id, line_id, sheet, cell, raw_value_text, "
+                "raw_unit, rupees_per_unit, fiscal_year, period, period_months, period_end, scope, "
+                "value, read_by) VALUES (1, ?, 'PL', ?, '', '', 1, 'FY25', 'FY25', 12, "
+                "DATE '2025-03-31', 'standalone', ?, 'fin')",
+                [line_id, f"D{line_id}", value],
+            )
+
+
+def test_a_reference_figure_that_differs_is_a_headline_row_and_goes_to_its_own_query(
+    root: Path,
+) -> None:
+    from fin.audit.errors import UiActionInvalid
+    from fin.ui.differences_screen import query_prompt
+
+    reconcile(root)
+    reference(root)
+
+    found = rows(root, level="headline")
+    [ref] = [r for r in found if r["reconciliation"] == "reference_comparison"]
+    line = by_key(found)[("headline", "revenue")]
+
+    assert {k: ref[k] for k in (
+        "row_id", "item_id", "value_id", "parent_id", "key", "left_name", "right_name",
+        "left_amount", "right_amount", "difference", "children", "unexplained", "left_source",
+        "right_source", "query_id", "queryable",
+    )} == {
+        "row_id": "ref-1", "item_id": None, "value_id": 1, "parent_id": None, "key": "revenue",
+        "left_name": "fin", "right_name": "Banker", "left_amount": Decimal("1000000.00"),
+        "right_amount": Decimal("1200000.00"), "difference": Decimal("-200000.00"),
+        "children": 0, "unexplained": Decimal("-200000.00"), "left_source": "fs.xlsx FS!C1",
+        "right_source": "databook.xlsx PL!D1", "query_id": None, "queryable": True,
+    }  # fmt: skip
+    assert (ref["threshold"], ref["over_threshold"]) == (line["threshold"], True)
+    assert "ref-1" in query_prompt(root, "acme", ["ref-1"])
+    assert "fin reference query acme <n>" in query_prompt(root, "acme", ["ref-1"])
+    invoice = by_key(rows(root))[("transaction", "INV-2003")]
+    mixed = ["ref-1", str(invoice["item_id"])]
+    with pytest.raises(UiActionInvalid, match="not both"):
+        query_prompt(root, "acme", mixed)
+
+
 def test_the_cli_lists_ranked_rows_and_refuses_an_unknown_level(
     root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

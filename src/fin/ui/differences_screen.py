@@ -16,6 +16,7 @@ from fin.display import display_settings
 from fin.paths import company_db_path
 
 MAX_ASK = 50  # the most rows one request to the assistant names
+REF = "ref-"  # the row id prefix of a reference figure (`discrepancies.row_id`)
 MONEY = ("left_amount", "right_amount", "difference", "explained", "unexplained")
 
 
@@ -65,29 +66,55 @@ def differences_screen(
     }
 
 
+def _valid(item: str) -> bool:
+    number = item.removeprefix(REF)
+    return number.isascii() and number.isdigit()
+
+
 def query_prompt(root: Path, company: str, items: list[str]) -> str:
-    """The chat message that asks the assistant to draft one query for the ticked rows. E008 when
-    none is ticked, an id is not a row that can be queried, or the rows are of several periods."""
-    if not 0 < len(items) <= MAX_ASK or not all(i.isascii() and i.isdigit() for i in items):
+    """The chat message that asks the assistant to draft the query for the ticked rows: one query
+    for reconciliation lines (`fin query raise --items`), one per reference figure (ref-<n>, `fin
+    reference query`). E008 when none is ticked, a row cannot be queried, lines and reference
+    figures are mixed, or the lines are of several periods."""
+    ids = list(dict.fromkeys(items))
+    if not 0 < len(ids) <= MAX_ASK or not all(_valid(i) for i in ids):
         raise UiActionInvalid(f"tick from 1 to {MAX_ASK} rows that can be queried")
-    ids = list(dict.fromkeys(int(i) for i in items))
-    rows = {r["item_id"]: r for r in discrepancy_rows(root, company)["rows"]}
+    rows = {r["row_id"]: r for r in discrepancy_rows(root, company)["rows"]}
     bad = [i for i in ids if i not in rows or not rows[i]["queryable"]]
     if bad:
         raise UiActionInvalid(
             f"rows {', '.join(f'#{i}' for i in bad)} cannot be queried: only a difference at or "
             "above the threshold that is in no query yet can be"
         )
+    refs = [rows[i]["value_id"] for i in ids if i.startswith(REF)]
+    if refs and len(refs) < len(ids):
+        raise UiActionInvalid(
+            "tick reconciliation lines or reference figures, not both: they go to different queries"
+        )
+    return _reference_prompt(company, refs) if refs else _lines_prompt(company, ids, rows)
+
+
+def _lines_prompt(company: str, ids: list[str], rows: dict[str, dict[str, Any]]) -> str:
     periods = sorted({rows[i]["period"] for i in ids})
     if len(periods) > 1:
         raise UiActionInvalid(
             f"the rows are of several periods ({', '.join(periods)}): one query per period"
         )
-    listed = ",".join(map(str, ids))
     return (
         f"Please draft one accountant query for {company} about the differences #"
-        f"{', #'.join(map(str, ids))} ({periods[0]}). Read them with `uv run fin discrepancies "
+        f"{', #'.join(ids)} ({periods[0]}). Read them with `uv run fin discrepancies "
         f"{company} --json`, word the question neutrally (what differs, both sources, both "
-        f"amounts), and raise it with `uv run fin query raise {company} --items {listed} "
+        f"amounts), and raise it with `uv run fin query raise {company} --items {','.join(ids)} "
         '--question "..."`. Do not approve or send it: I review it on the Queries screen.'
+    )
+
+
+def _reference_prompt(company: str, value_ids: list[int]) -> str:
+    return (
+        f"Please draft one accountant query for {company} for each reference figure "
+        f"{', '.join(f'#ref-{v}' for v in value_ids)}. Read them with `uv run fin reference "
+        f"compare {company} --json`, word each question neutrally (what differs, both sources, "
+        f"both amounts), and raise each with `uv run fin reference query {company} <n> "
+        f'--question "..."` (n: {", ".join(map(str, value_ids))}). Do not approve or send them: '
+        "I review them on the Queries screen."
     )

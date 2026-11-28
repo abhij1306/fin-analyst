@@ -10,6 +10,12 @@ reconciliation of the latest engagement, at one of four levels, each pointing to
 - transaction: the register reconciliations' invoice lines and bank_vs_invoices' match, receipt
   and invoice lines.
 
+A headline row also comes from each reference figure that differs from fin's
+(`reference_comparison`, SPEC-10, state differs: fin - the reference). It has no `item_id` and
+no parent or children; its `value_id` goes to `fin reference query`. A figure fin does not hold
+(no_fin_figure) is not a difference and is not a row. `row_id` names every row: the line's item
+id, or ref-<value_id>.
+
 Only lines that differ are rows (kinds difference, left_only, right_only and fx); month roll-ups,
 matched, unmapped and not reconciled lines are not. Every row is in the statements' sign: the
 lower rung minus the rung above it (register - books, Ledger Vouchers - trial balance, trial
@@ -136,7 +142,8 @@ joined AS (
     FROM linked k LEFT JOIN children c ON c.parent_id = k.item_id
 )
 SELECT
-    j.item_id, j.parent_id, j.level, j.reconciliation, j.period, j.key, j.kind, j.account,
+    j.item_id, NULL::BIGINT AS value_id, CAST(j.item_id AS VARCHAR) AS row_id, j.parent_id,
+    j.level, j.reconciliation, j.period, j.key, j.kind, j.account,
     j.party, j.left_name, j.right_name, j.currency, j.left_amount, j.right_amount,
     j.difference, j.children, j.explained, j.difference - j.explained AS unexplained,
     j.left_source, j.right_source, j.note, j.threshold,
@@ -145,6 +152,20 @@ SELECT
     j.needs_query AND (j.query_id IS NULL OR q.status = 'withdrawn') AS queryable
 FROM joined j
 LEFT JOIN accountant_queries q ON q.query_id = j.query_id
+UNION ALL BY NAME
+SELECT
+    c.value_id, 'ref-' || c.value_id AS row_id, 'headline' AS level,
+    'reference_comparison' AS reconciliation, c.period, c.target AS key, 'difference' AS kind,
+    CASE WHEN c.target_kind = 'account' THEN c.target END AS account, 'fin' AS left_name,
+    c.source AS right_name, c.fin_value AS left_amount, c.reference_value AS right_amount,
+    c.difference, 0 AS children, CAST(0 AS DECIMAL(20, 2)) AS explained,
+    c.difference AS unexplained, c.fin_source AS left_source,
+    c.file_name || ' ' || c.reference_ref AS right_source, c.scope || ': ' || c.label AS note,
+    e.query_threshold AS threshold, abs(c.difference) >= e.query_threshold AS over_threshold,
+    true AS queryable
+FROM reference_comparison c
+LEFT JOIN engagement e ON e.engagement_id = (SELECT max(engagement_id) FROM engagement)
+WHERE c.state = 'differs'
 """
 
 
