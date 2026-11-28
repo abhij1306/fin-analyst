@@ -814,7 +814,8 @@ currency. The account number is masked (the client, 2026-11-27; `diligence/bank_
 `mask_values` (kind `bank_account`) and `bank_statements`, `bank_lines`, findings, `fin` output, logs, saved parses,
 exports and reports carry its token `ACCT-0001`; the same number gets the same token in every file, so the statements of
 one account still chain. A known account number in remarks or reference (a transfer between the company's own
-accounts) is its token too, also in the lines loaded before that account was. Only `fin query export` writes the real
+accounts) is its token too, also in the lines loaded before that account was. A statement no profile reads (E807)
+lists its title lines with every run of nine or more digits shown as "[number not shown]". Only `fin query export` writes the real
 number, for the accountant. The original file in the archive, the PDF and its evidence crops show the number as filed,
 and so does a file name that contains it. Bank statements loaded before this change hold the number: re-ingest them
 (`fin delete <co>`, then load again; that also removes their saved parses). The period of `source_files` is the engagement period (or the stub) holding all the statement's dates

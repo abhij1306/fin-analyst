@@ -34,12 +34,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from fin.audit.errors import BankHeaderMissing, ParseError, SourcePeriodInvalid
+from fin.audit.errors import BankHeaderMissing, LayoutUnknown, ParseError, SourcePeriodInvalid
 from fin.audit.logger import Run
 from fin.config import Config
 from fin.db.conn import connect, transaction
 from fin.diligence import bank_checks, bank_pdf
-from fin.diligence.bank_mask import mask_text, remask_lines
+from fin.diligence.bank_mask import hide_numbers, mask_text, remask_lines
 from fin.diligence.bank_raw import Raw, RawRow
 from fin.diligence.engagement import require_open
 from fin.diligence.loading import (
@@ -250,8 +250,12 @@ def bank_period(
 
 
 def excel_raw(path: Path, profile: str | None) -> Raw:
-    """An Excel statement as a `Raw`. E101/E102, E807, E808; E204 when two sheets hold a table."""
-    table = read_table(path, KIND, profile)
+    """An Excel statement as a `Raw`. E101/E102, E807 (the title lines it lists with long numbers
+    hidden: they may hold the account number), E808; E204 when two sheets hold a table."""
+    try:
+        table = read_table(path, KIND, profile)
+    except LayoutUnknown as exc:
+        raise LayoutUnknown(hide_numbers(exc.message)).with_context(file=path.name) from None
     if len({r.sheet for r in table.rows}) > 1:
         raise ParseError(f"{path.name}: one bank statement per file; its sheets each hold a table")
     rows = [RawRow(r.sheet, None, r.row, r.cells) for r in table.rows]

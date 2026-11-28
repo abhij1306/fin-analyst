@@ -275,11 +275,17 @@ def test_a_file_is_loaded_once_and_unknown_layouts_and_headers_are_refused(
     sheet = book.active
     assert sheet is not None
     sheet.append([f"Statement for {CUSTOMER}"])
+    sheet.append(["Account No: 556677889900 (savings)"])
     sheet.append(["When", "Narration", "Money"])
     sheet.append(["01/04/2024", "x", 5])
     book.save(tmp_path / "odd.xlsx")
-    with pytest.raises(LayoutUnknown, match="no bank column profile|no bank profile|no bank"):
+    with pytest.raises(
+        LayoutUnknown, match="no bank column profile|no bank profile|no bank"
+    ) as err:
         load(root, tmp_path / "odd.xlsx")
+    # the title lines are listed, the account number in them is not (SPEC-17 item 1)
+    assert "Account No: [number not shown] (savings)" in err.value.message
+    assert "556677889900" not in str(err.value)
 
     book = Workbook()
     sheet = book.active

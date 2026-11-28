@@ -29,7 +29,7 @@ from fin.audit.errors import (
 )
 from fin.audit.logger import Run
 from fin.config import Config
-from fin.diligence.bank_mask import mask_parse, masked_copy, unmask_parse
+from fin.diligence.bank_mask import hide_numbers, mask_parse, unmask_parse
 from fin.diligence.bank_raw import Pages, Raw, RawRow
 from fin.extract.addon import Request, page_count
 from fin.extract.fallback import cache_dir, engine
@@ -246,7 +246,7 @@ def read_pdf(
             )
         return Raw(profile, period[0], period[1], lines, rows, data["engine"], rel)
     names = ", ".join(p.name for p in candidates) or "none"
-    shown = " / ".join(_top_lines(masked_copy(db, pages))) or "none"
+    shown = hide_numbers(" / ".join(_top_lines(pages))) or "none"
     raise LayoutUnknown(
         f"{path.name}: no bank column profile matches the tables {data['engine']} read (tried: "
         f"{names}). Title and header lines: {shown}. "

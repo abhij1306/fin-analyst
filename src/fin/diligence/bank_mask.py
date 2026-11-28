@@ -29,6 +29,8 @@ from fin.diligence.mask import ACCOUNT, Masker
 from fin.extract.profiles import Profile
 
 TOKEN = re.compile(r"(?<![\w-])ACCT-\d{4,}(?![\w-])")
+LONG_NUMBER = re.compile(r"\d{9,}")  # an Indian bank account number has 9 to 18 digits
+HIDDEN = "[number not shown]"
 
 
 def mask_text(text: str, tokens: dict[str, str]) -> str:
@@ -88,11 +90,10 @@ def unmask_parse(db: Path, pages: Pages) -> Pages:
     return _map_pages(pages, real)
 
 
-def masked_copy(db: Path, pages: Pages) -> Pages:
-    """The parse with the masked account numbers as tokens, to list its lines in a message."""
-    with connect(db) as con:
-        tokens = Masker(con, "").accounts()
-    return _map_pages(pages, lambda text: mask_text(text, tokens))
+def hide_numbers(text: str) -> str:
+    """`text` with each run of nine or more digits as HIDDEN: the title lines a statement no
+    profile reads are listed in E807, and its account number is not known yet."""
+    return LONG_NUMBER.sub(HIDDEN, text)
 
 
 def remask_lines(con: duckdb.DuckDBPyConnection, tokens: dict[str, str]) -> int:

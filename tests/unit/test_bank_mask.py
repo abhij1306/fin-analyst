@@ -17,7 +17,7 @@ from fin.config import load_config, write_default_config
 from fin.db.conn import connect, transaction, utcnow
 from fin.db.schema import ensure_database
 from fin.diligence.bank import ingest_bank
-from fin.diligence.bank_mask import mask_text, numbers_in
+from fin.diligence.bank_mask import hide_numbers, mask_text, numbers_in
 from fin.diligence.mask import ACCOUNT, Masker
 from fin.extract import fallback
 from fin.extract.profiles import profiles_for
@@ -179,3 +179,5 @@ def test_numbers_are_found_by_the_profiles_and_masked_as_whole_numbers() -> None
     tokens = {FIRST: "ACCT-0001"}
     assert mask_text(f"TRF {FIRST}/x", tokens) == "TRF ACCT-0001/x"
     assert mask_text(f"TRF 9{FIRST}", tokens) == f"TRF 9{FIRST}"  # part of a longer number
+    # an E807 message lists title lines before any number is known: long numbers are hidden
+    assert hide_numbers(f"A/c {FIRST} from 01-04-2024") == "A/c [number not shown] from 01-04-2024"
