@@ -282,8 +282,10 @@ def test_a_missing_unit_says_which_lines_were_above_the_header(samples: Path) ->
         extract_workbook(samples / "broken" / "Bluepeak_Polymers_FY2024-25_NO_UNIT.xlsx")
     seen = caught.value.context
     assert seen is not None
-    assert seen["sheet"] and seen["header_row"] > 1
-    assert seen["lines"] and all(isinstance(line, str) for line in seen["lines"])
+    assert seen["sheet"]
+    assert seen["header_row"] > 1
+    assert seen["lines"]
+    assert all(isinstance(line, str) for line in seen["lines"])
 
 
 def test_missing_period_header_is_e202(tmp_path: Path) -> None:

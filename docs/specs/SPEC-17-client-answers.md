@@ -12,9 +12,11 @@ list, keep credit terms on the engagement, and show the recast against the books
 1. **Mask bank account numbers** (answer 1). On load, a bank statement's account number is stored once in
    `mask_values` under a new kind and replaced by its token in the data tables, `fin` output, logs, exports and
    reports, like the fields masked today ([masking.md](../decisions/masking.md), option 3). The same number gets
-   the same token in every file, so statements of one account still join. The original PDF and its evidence crops
-   show the number as filed; that limit is stated in the docs. No migration: bank statements loaded before are
-   re-ingested.
+   the same token in every file, so statements of one account still join. The saved parse of a bank PDF
+   (`cache/bank/*.json`) holds the token too, not the number. The original PDF and its evidence crops show the
+   number as filed; that limit is stated in the docs. No migration: bank statements loaded before are loaded again
+   with `--force` (the same file is otherwise refused as a duplicate, E105), and their old saved parses are
+   removed.
 2. **USD orders are valued** (answer 10). An orderbook order in USD is converted at a rate the user states for the
    engagement and its as-at date (`fin engagement rate <co> USD <rate> --as-at <date>`), recorded with the actor in
    the audit log. Converted amounts are marked with the rate used. With no rate stated the order stays "not
@@ -44,7 +46,7 @@ Out of scope: masking locations or product names (not asked for); fetching excha
 ## Acceptance criteria
 
 - [ ] After loading the synthetic bank statements, no table other than `mask_values`, no `fin` output, log line,
-      export or report holds an account number; the masking registry test ([engineering.md](../engineering.md)
+      saved parse, export or report holds an account number; the masking registry test ([engineering.md](../engineering.md)
       rule 5) covers the new kind.
 - [ ] Two statements of one account carry one token and still pass the continuity checks.
 - [ ] A USD order shows no rupee amount without a stated rate, and the stated rate times its value with one; the
