@@ -16,9 +16,12 @@ from fin.services.ingest import reingest_document
 runner = CliRunner()
 
 
-@pytest.fixture
-def outside(data_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A loaded document whose archive_path was changed to a file outside the data folder."""
+@pytest.fixture(params=["archive_path", "reading_path"])
+def outside(
+    data_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Path:
+    """A loaded document whose archive_path, or reading_path, was changed to a file outside the
+    data folder."""
     monkeypatch.delenv("CLAUDECODE", raising=False)
     assert runner.invoke(app, ["init"]).exit_code == 0
     book = Workbook()
@@ -38,7 +41,7 @@ def outside(data_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     target = tmp_path / "keep.txt"
     target.write_text("not fin's", encoding="utf-8")
     with connect(company_db_path(data_root, "acme"), write=True) as con:
-        con.execute("UPDATE documents SET archive_path = '../keep.txt'")
+        con.execute(f"UPDATE documents SET {request.param} = '../keep.txt'")  # a column name
     return target
 
 

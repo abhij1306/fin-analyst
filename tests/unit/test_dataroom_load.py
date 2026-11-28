@@ -159,7 +159,8 @@ def test_a_statements_file_held_for_its_unit_is_not_marked_loaded(
 
     (row,) = read_plan(data_root, "acme")
     assert (row.status, row.approved) == ("failed", True)
-    assert row.outcome is not None and row.outcome.startswith("held: bs.xlsx: which unit?")
+    assert row.outcome is not None
+    assert row.outcome.startswith("held: bs.xlsx: which unit?")
     assert counts(data_root) == (0, 0)
 
 
