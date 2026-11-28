@@ -211,7 +211,8 @@ the sheet has. Which fields are masked (customer, vendor, handler, submitted by)
   confirmed in review that the seed does not have yet, as rows for `schedule_iii.csv` and `labels.csv`. Paste them
   at the end of each file, run the tests, and commit; `fin init` then adds them on any other machine. Labels print
   normalized, which matches the same way.
-- Changing `normalize.py` is safe for stored mappings: their keys are normalized again when read.
+- Changing `normalize.py` changes how labels are keyed: a mapping stored under the old key no longer matches (keys are
+  normalized when stored, not again when read; there is no compatibility code), so its labels come back for review.
 - Test: add the label to a case in `tests/unit/test_dictionary.py` or `tests/unit/test_normalize.py`.
 
 ### Sign conventions

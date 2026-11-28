@@ -6,10 +6,11 @@ proposes a `recast` adjustment for the period's difference (revenue effect; no c
 EBITDA effect is the same): fin proposes, the user accepts or rejects. Running again on changed
 data:
 
-- a proposed recast adjustment of fin's own (its source reference starts "service_recast") that no
-  longer matches is rejected with the reason "superseded by recast run #n" (fin's own proposal
-  replaced, not a decision) and a new one is proposed for what is not yet accepted or proposed;
-  one a person proposed by hand is never touched;
+- a proposed recast adjustment of fin's own (`recast_recon_id` set, which only this command
+  does) that no longer matches is rejected with the reason "superseded by recast run #n" (fin's
+  own proposal replaced, not a decision) and a new one is proposed for what is not yet accepted or
+  proposed; one a person proposed by hand is never touched. While gate G2 is not approved nothing
+  is replaced (a rejection needs G2, as `fin adjust reject` does): the result says so;
 - an accepted one stays; the difference left over is proposed as another adjustment;
 - a recast adjustment the user rejected for this very difference stands: nothing is proposed again.
 """
@@ -19,9 +20,10 @@ from typing import Any
 
 import duckdb
 
-from fin.audit.errors import RecastCannotRun
+from fin.audit.errors import GateNotApproved, RecastCannotRun
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
+from fin.diligence import gates
 from fin.diligence.adjustments import Evidence, propose_in
 from fin.diligence.engagement import company_database, record_event, require_open, rupees
 from fin.reconcile import recast, store
@@ -38,6 +40,15 @@ from fin.reconcile.recast import (
 def difference_of(result: dict[str, Any]) -> Decimal:
     [line] = [x for x in result["lines"] if x["level"] == "period"]
     return Decimal(line["difference"])
+
+
+def _g2_approved(run: Run, con: duckdb.DuckDBPyConnection, company: str) -> bool:
+    """Whether gate G2 (and G1) is approved now, as `fin adjust reject` requires."""
+    try:
+        gates.require(gates.context(con, run.root, company), "G2", "fin recast run")
+    except GateNotApproved:
+        return False
+    return True
 
 
 def _propose(
@@ -57,6 +68,13 @@ def _propose(
             "no adjustment needed: no difference"
             if difference == 0 and not rows
             else "adjustments already cover the difference"
+        )
+    stale = [adj_id for adj_id, status, _, _, ours in rows if status == "proposed" and ours]
+    if stale and not _g2_approved(run, con, company):
+        return (
+            f"proposed adjustment {', '.join(f'#{i}' for i in stale)} no longer matches the "
+            "difference; it is not replaced while gate G2 is not approved (a replacement is a "
+            f"rejection). Approve G2, then run again: `fin gate status {company}`"
         )
     for adj_id, status, _, _, ours in rows:
         if status == "proposed" and ours:
@@ -90,7 +108,10 @@ def _propose(
             f"{rupees(recon_line['left_amount'])} against {rupees(recon_line['right_amount'])} "
             "booked by invoice date"
         ),
-        evidence=Evidence(source_ref=f"service_recast {period} (recon #{result['recon_id']})"),
+        evidence=Evidence(
+            source_ref=f"service_recast {period} (recon #{result['recon_id']})",
+            recast_recon_id=result["recon_id"],
+        ),
     )
     return f"proposed adjustment #{adjustment['adj_id']} ({rupees(delta)})"
 

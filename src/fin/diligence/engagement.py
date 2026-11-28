@@ -156,6 +156,21 @@ def require_open(con: duckdb.DuckDBPyConnection, company: str) -> dict[str, Any]
     return row
 
 
+def refuse_if_closed(con: duckdb.DuckDBPyConnection, company: str) -> None:
+    """E803 when the company has engagements and none is open: the latest one is closed, so the
+    classifications its gates signed off (ledger mappings, net debt and tax classes) stay as they
+    were. A company with no engagement at all decides them freely."""
+    row = con.execute(
+        "SELECT count(*), count(*) FILTER (WHERE status = 'open') FROM engagement"
+    ).fetchone()
+    if row is not None and row[0] and not row[1]:
+        raise EngagementState(
+            f"{company}'s latest engagement is closed; its signed-off classifications do not "
+            f"change. Nothing changed. Open a new one with `fin engagement open {company} "
+            "--periods ...` to change them"
+        )
+
+
 MAX_DUE_DAYS = 3650  # as config.toml [diligence] invoice_due_days
 
 

@@ -22,6 +22,7 @@ from fin.services.result import ActionResult
 Work = Callable[..., ActionResult]  # work(root, company, progress=..., **arguments)
 ACTIVE = ("queued", "running")
 SHOWN = 10  # jobs listed per company
+LEFT_RUNNING = "failed: its worker stopped before it could record the outcome"
 
 
 class Jobs:
@@ -76,12 +77,14 @@ class Jobs:
                 self._run(job_id)
             except BaseException as exc:  # the run logged it (E012, with its traceback)
                 lines = [f"unexpected {type(exc).__name__}: {exc}"]
-                self._update(
-                    job_id, state="failed", code=UnexpectedError.code, lines=json.dumps(lines),
-                    ended_at=utcnow(),
-                )  # fmt: skip
-                with self._lock:
-                    self._start_worker()  # the jobs still queued run in a new worker
+                try:
+                    self._update(
+                        job_id, state="failed", code=UnexpectedError.code,
+                        lines=json.dumps(lines), ended_at=utcnow(),
+                    )  # fmt: skip
+                finally:  # even when that write fails: the next job marks this one failed
+                    with self._lock:
+                        self._start_worker()  # the jobs still queued run in a new worker
                 raise
 
     def _update(self, job_id: int, **fields: Any) -> None:
@@ -92,7 +95,19 @@ class Jobs:
     def _run(self, job_id: int) -> None:
         with connect(audit_db_path(self.root)) as con:
             [job] = fetch_dicts(con, "SELECT * FROM jobs WHERE job_id = ?", [job_id])
-        self._update(job_id, state="running", started_at=utcnow(), progress="started")
+        with connect(audit_db_path(self.root), write=True) as con:
+            # one worker runs one job at a time: another job still running was left by a worker
+            # that died before it could record the failure
+            con.execute(
+                "UPDATE jobs SET state = 'failed', code = ?, lines = ?, ended_at = ? "
+                "WHERE state = 'running' AND job_id <> ?",
+                [UnexpectedError.code, json.dumps([LEFT_RUNNING]), utcnow(), job_id],
+            )
+            con.execute(
+                "UPDATE jobs SET state = 'running', started_at = ?, progress = 'started' "
+                "WHERE job_id = ?",
+                [utcnow(), job_id],
+            )
 
         def progress(line: str) -> None:
             self._update(job_id, progress=line)

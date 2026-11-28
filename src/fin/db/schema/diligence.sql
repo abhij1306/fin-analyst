@@ -103,6 +103,7 @@ CREATE TABLE adjustments (
     query_id INTEGER,
     finding_id BIGINT,
     source_ref VARCHAR,
+    recast_recon_id INTEGER,  -- set only by `fin recast run`: the recast run that proposed it (it may replace only those)
     status VARCHAR NOT NULL CHECK (status IN ('proposed', 'accepted', 'rejected')),
     reason VARCHAR,
     created_run_id VARCHAR NOT NULL,

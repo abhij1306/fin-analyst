@@ -22,7 +22,7 @@ from fin.config import load_config, write_default_config
 from fin.db.conn import connect, utcnow
 from fin.db.schema import ensure_database
 from fin.diligence import gates, ledgers, payroll, queries
-from fin.diligence.answers import record_reply
+from fin.diligence.answers import read_reply
 from fin.diligence.export import export_queries
 from fin.diligence.export_data import Issue, line_difference
 from fin.diligence.export_xlsx import source_marks
@@ -272,9 +272,9 @@ def test_a_reply_file_that_is_not_text_needs_text(root: Path, tmp_path: Path) ->
     assert "E860" in refused.output
     assert ok.exit_code == 0
     assert "reply.pdf (archive/acme/" in ok.output
-    missing, context = tmp_path / "none.txt", run(root)
+    missing = tmp_path / "none.txt"
     with pytest.raises(ReplyFileError):
-        record_reply(context, "acme", missing, None)
+        read_reply("acme", missing, None)
 
 
 def test_golden_checks_cover_the_issue_and_each_kind_of_difference(root: Path) -> None:

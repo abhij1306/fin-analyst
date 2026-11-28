@@ -140,12 +140,20 @@ def answer_query(
     file fin cannot read)."""
 
     def body(run: Run) -> list[str]:
-        text, source = answer.text, answer.source
+        text, source, reply = answer.text, answer.source, None
         if answer.file is not None:
-            text, from_file = answers.record_reply(run, company, answer.file, answer.text)
-            source = f"{answer.source}; {from_file}" if answer.source else from_file
+            reply = answers.read_reply(company, answer.file, answer.text)
+            text = reply.text
+            source = f"{answer.source}; {reply.source}" if answer.source else reply.source
         rows = queries.set_status(
-            run, company, [query_id], "answered", answer=text, answer_source=source
+            run,
+            company,
+            [query_id],
+            "answered",
+            answer=text,
+            answer_source=source,
+            # archived in the same transaction: a refused answer leaves no file
+            on_change=None if reply is None else lambda: answers.archive_reply(run, company, reply),
         )
         return [queries.format_query(row) for row in rows]
 

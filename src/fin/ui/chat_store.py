@@ -14,7 +14,9 @@ from fin.paths import atomic_write
 
 Conversation = dict[str, object]
 TITLE_LENGTH = 48
-LOCK = threading.RLock()  # the reader thread of a turn and the routes use the same files
+# The reader thread of a turn and the routes use the same files: a change holds it across load,
+# change and save, so two requests never save over each other.
+LOCK = threading.RLock()
 
 
 def chat_dir(root: Path) -> Path:

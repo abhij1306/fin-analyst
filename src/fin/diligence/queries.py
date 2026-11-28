@@ -13,6 +13,7 @@ is not changed. Every query raised, edited or changed is appended to the audit t
 """
 
 import re
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
@@ -135,7 +136,8 @@ def draft_in(
 
 def raise_from_finding(run: Run, company: str, finding_id: int, question: str) -> dict[str, Any]:
     """A draft query on an open or accepted finding: its period, scope, difference (as the amount)
-    and sources. E805 for an unknown finding or one no longer open or accepted."""
+    and sources. E805 for an unknown finding or one no longer open or accepted; E881 when its
+    period is not a year of the engagement nor its stub."""
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
         rows = fetch_dicts(con, "SELECT * FROM findings WHERE finding_id = ?", [finding_id])
@@ -154,6 +156,11 @@ def raise_from_finding(run: Run, company: str, finding_id: int, question: str) -
                 "SELECT period FROM source_files WHERE file_id = ?", [finding["file_id"]]
             ).fetchone()
             period = row[0] if row else period
+        if period not in periods_of(engagement):
+            raise QueryPeriodInvalid(
+                f"finding {finding_id} of {company} is on {period}, not a period of the open "
+                f"engagement ({', '.join(periods_of(engagement))}); nothing raised"
+            ).with_context(finding_id=finding_id, period=period)
         values = {
             "origin": "finding",
             "finding_id": finding_id,
@@ -241,9 +248,11 @@ def set_status(
     answer: str | None = None,
     answer_source: str | None = None,
     note: str | None = None,
+    on_change: Callable[[], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Move every query in `ids` to `target` (with the answer, or the reason for a withdrawal), all
-    or none. E805 for an unknown id or a change TRANSITIONS does not allow."""
+    or none. E805 for an unknown id or a change TRANSITIONS does not allow. `on_change` runs after
+    the change, inside its transaction (a reply's archive copy): when it raises, nothing changes."""
     ids = list(dict.fromkeys(ids))
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
@@ -262,6 +271,8 @@ def set_status(
                 [target, run.run_id, utcnow(), answer, answer_source, note, query_id],
             )
             record_event(run, company, con, "query", query_id)
+        if on_change is not None:
+            on_change()
         return [_get(con, engagement, company, query_id) for query_id in ids]
 
 

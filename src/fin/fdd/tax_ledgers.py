@@ -19,7 +19,7 @@ from fin.audit.errors import TaxLedgerInvalid
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
-from fin.diligence.engagement import company_database
+from fin.diligence.engagement import company_database, refuse_if_closed
 from fin.map.review import LOW_CONFIDENCE
 
 CLASSES = ("gst_output", "gst_input", "rcm", "tds", "income_tax", "mat_credit")
@@ -158,6 +158,7 @@ def confirm(
     id or class, or a rejected row with no `tax_class`."""
     ids = list(dict.fromkeys(ids))
     with company_database(run, company, write=True) as con, transaction(con):
+        refuse_if_closed(con, company)
         rows = _by_ids(con, ids)
         for row in rows:
             chosen = tax_class if tax_class is not None else row["tax_class"]
@@ -183,6 +184,7 @@ def reject(run: Run, company: str, ids: list[int], *, actor: str) -> list[dict[s
     """Reject the proposals, all or nothing (E951 for an unknown id): the ledger has no class."""
     ids = list(dict.fromkeys(ids))
     with company_database(run, company, write=True) as con, transaction(con):
+        refuse_if_closed(con, company)
         for row in _by_ids(con, ids):
             con.execute(
                 "UPDATE tax_ledgers SET status = 'rejected', tax_class = NULL, run_id = ?, "

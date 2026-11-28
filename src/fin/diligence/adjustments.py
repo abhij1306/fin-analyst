@@ -11,7 +11,8 @@ rejects (table `adjustments`, db/schema/diligence.sql):
 
     proposed -> accepted, or proposed -> rejected (with the reason).
 
-Accepting or rejecting needs gate G2 approved (fin.diligence.gates): E801 otherwise.
+Accepting or rejecting needs gate G2 approved (fin.diligence.gates): E801 otherwise. Accepting
+needs live evidence: a withdrawn query or a resolved or superseded finding is not evidence (E805).
 
 Every adjustment proposed or decided is appended to the audit table `diligence_events`.
 """
@@ -76,6 +77,24 @@ def _check_links(
                 f"finding {finding_id} of {company} does not exist; nothing proposed. Findings: "
                 f"`fin findings list {company}`"
             )
+
+
+def _require_live_evidence(
+    con: duckdb.DuckDBPyConnection, company: str, row: dict[str, Any]
+) -> None:
+    """E805 when the adjustment's only evidence is a withdrawn query or a finding that is resolved
+    or superseded: neither is a live difference, so it cannot back an accepted adjustment."""
+    dead = con.execute(
+        f"SELECT count(*) FROM adjustments a WHERE adj_id = ? AND {gates.NO_LIVE_EVIDENCE}",
+        [row["adj_id"]],
+    ).fetchone()
+    if dead is not None and dead[0]:
+        raise DiligenceChangeRefused(
+            f"adjustment {row['adj_id']} of {company} has no live evidence: {evidence_text(row)} "
+            "(a withdrawn query or a resolved or superseded finding is not evidence). Give it "
+            f"evidence in a new proposal (`fin adjust propose {company} ...`) or reject it. "
+            "Nothing changed"
+        ).with_context(adj_id=row["adj_id"], query_id=row["query_id"], finding_id=row["finding_id"])
 
 
 ZERO = Decimal("0.00")
@@ -155,6 +174,8 @@ class Evidence:
     query_id: int | None = None
     finding_id: int | None = None
     source_ref: str | None = None
+    # set only by `fin recast run` (no command option): the recast run whose difference it is
+    recast_recon_id: int | None = None
 
 
 NO_EVIDENCE = Evidence()
@@ -287,6 +308,7 @@ def propose_in(
         "query_id": query_id,
         "finding_id": finding_id,
         "source_ref": source_ref or None,
+        "recast_recon_id": evidence.recast_recon_id,
         "status": "proposed",
         "created_run_id": run.run_id,
         "created_at": now,
@@ -319,6 +341,8 @@ def decide(
                     f"adjustment {row['adj_id']} of {company} is {row['status']}; only a proposed "
                     f"adjustment can be {status}. Nothing changed"
                 )
+            if status == "accepted":
+                _require_live_evidence(con, company, row)
         for adj_id in ids:
             con.execute(
                 "UPDATE adjustments SET status = ?, reason = ?, status_run_id = ?, status_at = ? "

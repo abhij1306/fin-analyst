@@ -17,6 +17,7 @@ import duckdb
 from fin.audit.errors import DataFolderNotWritable, DependencyMissing
 from fin.audit.logger import Run
 from fin.db.conn import connect
+from fin.findings import recheck_held
 from fin.ingest_read import sha256_of
 from fin.map.review import write_pending
 from fin.metrics.export import refresh_analytics
@@ -134,10 +135,16 @@ def delete_document(run: Run, company: str, doc_id: int) -> list[str]:
     name = versions[-1][1]
     run.event("delete", f"{company}/{name}: deleted doc_id {ids}", context={"removed": files})
     write_pending(run, company)  # its labels leave the Mappings screen
+    # a document held by a comparison with the deleted one is checked again without it
+    rechecked = recheck_held(run, company)
     refresh_analytics(run)
     return [
         f"deleted {name} (doc_id {', '.join(map(str, ids))}): {counts['facts']} figures, "
         f"{counts['findings']} findings",
         f"removed {len(files)} files: {', '.join(files) or 'none'}",
         f"backup in {backup.relative_to(run.root).as_posix()}/",
+        *(
+            f"held document rechecked: doc_id {doc['doc_id']} {doc['file']} is {doc['status']}"
+            for doc in rechecked
+        ),
     ]

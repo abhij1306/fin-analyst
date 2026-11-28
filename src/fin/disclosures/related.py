@@ -176,7 +176,14 @@ def decide(
     ids = list(dict.fromkeys(ids))
     with company_database(run, company, write=True) as con, transaction(con):
         engagement_id = require_open(con, company)["engagement_id"]
-        for row in _rows(con, engagement_id, ids):
+        rows = _rows(con, engagement_id, ids)
+        for row in rows:
+            if status == "confirmed" and row["status"] != "proposed":
+                raise RelatedPartyLinkInvalid(
+                    f"related party link #{row['link_id']} is {row['status']}; only a proposed "
+                    "link can be confirmed. Nothing changed"
+                ).with_context(link_id=row["link_id"], status=row["status"])
+        for row in rows:
             con.execute(
                 "UPDATE related_party_links SET status = ?, run_id = ?, changed_at = ? "
                 "WHERE link_id = ?",

@@ -94,15 +94,24 @@ class ChatRoutes:
         return self.reply(company, chosen, prefill)
 
     def begin(
-        self, conv: chat_store.Conversation, company: str, text: str, once: str | None = None
+        self, conv_id: str, company: str, text: str, once: str | None = None, item: str = ""
     ) -> HTMLResponse:
-        """Start the turn; the panel then shows the user's message and the live stream."""
-        try:
-            self.chat.start(conv, text, once)
-        except ChatBusy as error:
-            return self.reply(company, conv, notice=error)
-        except FinError as error:  # claude is missing or cannot start: nothing was sent
-            return self.reply(company, conv, text, error)
+        """Start the turn, then store the user's message (and, for Allow once, the request's
+        answer `item`): one lock holds load, start and save, so nothing is stored for a turn that
+        did not start and two requests never save over each other. The panel then shows the
+        message and the live stream."""
+        with chat_store.LOCK:
+            conv = chat_store.load(self.root, conv_id)
+            found = _permission(conv, item) if item else None
+            try:
+                self.chat.start(conv, text, once)
+            except ChatBusy as error:
+                return self.reply(company, conv, notice=error)
+            except FinError as error:  # claude is missing or cannot start: nothing was sent
+                return self.reply(company, conv, "" if item else text, error)
+            if found is not None:
+                found["state"] = "allowed"
+            chat_store.add_user_item(self.root, conv, text)
         return self.reply(company, conv)
 
     def send(
@@ -121,8 +130,7 @@ class ChatRoutes:
         if self.chat.running(str(chosen["id"])):
             busy = ChatBusy("this conversation is still working: wait for it or press Stop")
             return self.reply(company, chosen, text, busy)
-        chat_store.add_user_item(self.root, chosen, message)
-        return self.begin(chosen, company, message)
+        return self.begin(str(chosen["id"]), company, message)
 
     def allow(self, conv: str = Form(), item: str = Form()) -> HTMLResponse:
         chosen = chat_store.load(self.root, conv)
@@ -133,15 +141,14 @@ class ChatRoutes:
             return self.reply(
                 company, chosen, notice=ChatBusy("this conversation is still working")
             )
-        found["state"] = "allowed"
         said = f"Allowed once: {found['tool']} {found['summary']}. Please go on."
-        chat_store.add_user_item(self.root, chosen, said)
-        return self.begin(chosen, company, said, rule)
+        return self.begin(conv, company, said, rule, item)
 
     def deny(self, conv: str = Form(), item: str = Form()) -> HTMLResponse:
-        chosen = chat_store.load(self.root, conv)
-        _permission(chosen, item)["state"] = "denied"
-        chat_store.save(self.root, chosen)
+        with chat_store.LOCK:
+            chosen = chat_store.load(self.root, conv)
+            _permission(chosen, item)["state"] = "denied"
+            chat_store.save(self.root, chosen)
         return self.reply(str(chosen["company"]), chosen)
 
     def stop(self, conv: str = Form()) -> Response:

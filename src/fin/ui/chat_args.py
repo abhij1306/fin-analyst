@@ -44,6 +44,12 @@ GUIDANCE = (
 DECISION_RE = re.compile(
     r"\bfin\s+(?:" + "|".join(r"\s+".join(map(re.escape, c)) for c in DECISION_COMMANDS) + r")\b"
 )
+# A command that runs fin and expands or chains anything (a variable, a command substitution, a
+# second command): what it runs cannot be read from its text, so it is treated as a decision.
+RUNS_FIN = re.compile(r"\bfin\b")
+SHELL_EXPANSION = re.compile(r"[$`;|]|&&")
+# The service functions of the decisions, called from Python (`python -c "from fin..."`).
+DECISION_FUNCTIONS = re.compile(r"\b(?:approve_gate|mark_fdd_findings|set_query_status)\b")
 RULE_SAFE = re.compile(r"[^*()\\\n]+")  # a command or path that can be allowed as an exact rule
 ONCE_TOOLS = {"Bash": "command", "Edit": "file_path", "Write": "file_path", "Read": "file_path"}
 ONCE_RULE = re.compile(r"(?:Bash|Edit|Write|Read)\([^*()\\\n]+\)")  # what once_rule makes
@@ -59,7 +65,13 @@ def disallowed_tools() -> list[str]:
 
 
 def is_decision(command: str) -> bool:
-    """Whether a shell command is one of the user's decisions."""
+    """Whether a shell command is one of the user's decisions, or may be: one that runs fin and
+    expands or chains anything (`$`, a backtick, `;`, `&&`, `||`, `|`), or that names a
+    decision's service function. Such a command is never offered Allow once."""
+    if RUNS_FIN.search(command) and SHELL_EXPANSION.search(command):
+        return True
+    if DECISION_FUNCTIONS.search(command):
+        return True
     try:
         words = " ".join(shlex.split(command, posix=True))
     except ValueError:  # an unbalanced quote: look at the raw text
@@ -69,10 +81,13 @@ def is_decision(command: str) -> bool:
 
 def once_rule(tool: str, tool_input: dict[str, object]) -> str | None:
     """The `--allowedTools` rule that allows exactly this one call (Allow once), or None when it
-    cannot be named exactly (other tools, or a value with a wildcard, bracket or backslash)."""
+    cannot be named exactly (other tools, or a value with a wildcard, bracket or backslash) or is a
+    Bash command `is_decision` takes for a decision."""
     key = ONCE_TOOLS.get(tool)
     value = tool_input.get(key) if key else None
     if not isinstance(value, str) or not RULE_SAFE.fullmatch(value):
+        return None
+    if tool == "Bash" and is_decision(value):
         return None
     return f"{tool}({value})"
 
@@ -80,7 +95,9 @@ def once_rule(tool: str, tool_input: dict[str, object]) -> str | None:
 def checked_rule(rule: str) -> str:
     """A stored Allow once rule, only if it has the shape once_rule makes (E008 otherwise): the
     conversation file must not be able to hand claude anything else."""
-    if not ONCE_RULE.fullmatch(rule):
+    if not ONCE_RULE.fullmatch(rule) or (
+        rule.startswith("Bash(") and is_decision(rule.removeprefix("Bash(")[:-1])
+    ):
         raise UiActionInvalid(f"not a rule the chat can allow: {rule!r}")
     return rule
 
