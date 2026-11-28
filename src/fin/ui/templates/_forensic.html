@@ -9,6 +9,8 @@
 <form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML"><input type="hidden" name="action" value="forensic-run"><input type="hidden" name="company" value="{{ company }}"><button type="submit" class="btn" data-size="sm">Run the forensic tests</button></form>
 <a class="btn" data-size="sm" data-variant="outline" href="/settings?company={{ company | urlencode }}#forensic-settings">Settings</a>
 {% endcall %}
+{#- Asked again when a job ends (job-done, sent by the Jobs card), so a run's status and flags show without a reload. -#}
+<div id="forensic-results" hx-get="/partials/forensic?company={{ company | urlencode }}" hx-trigger="job-done from:body" hx-select="#forensic-results" hx-swap="outerHTML">
 <div class="card">
   <header><h2>Status</h2><p class="muted">Each test per period: ran, stale (the data, a mapping, the threshold or a setting changed since: run again), too few entries, cannot run (what it needs) or not run.</p></header>
   <section class="flush"><div class="table-container"><table class="table">
@@ -58,5 +60,6 @@
   </section>
 </form>
 {% endif %}
+</div>
 {% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
 {% endif %}

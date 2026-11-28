@@ -51,6 +51,8 @@ def test_the_screen_shows_each_state_and_the_flags_by_test(setup: tuple[Path, Te
     assert "corvane_ledger_vouchers_fy25.xlsx" in page.text
     assert f'name="item" value="{flag_ids(root, "je_gap")[0]}"' in page.text
     assert 'value="forensic-run"' in page.text
+    # A finished run job refreshes the status and the flags without a reload.
+    assert f'hx-get="/partials/forensic?company={CO}" hx-trigger="job-done from:body"' in page.text
 
 
 def test_ticked_flags_open_the_chat_with_a_request_to_draft_one_query(

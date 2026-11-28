@@ -43,16 +43,16 @@ SETTINGS = (
         "the published bound of nonconformity of the mean absolute deviation of first digits",
     ),
 )
-SERIES = re.compile(r"^(.*?)(\d+)$")
+SERIES = re.compile(r"\d+$")  # the trailing number; what is before it is the prefix
 
 
 def je_gap(ctx: Context) -> Outcome:
     least = ctx.settings["min_series"]
     series: dict[tuple, dict[int, str]] = {}
     for x in ctx.lines:
-        if x.voucher_no and (found := SERIES.match(x.voucher_no)):
-            key = (x.voucher_type, found[1])
-            series.setdefault(key, {})[int(found[2])] = found[2]
+        if x.voucher_no and (found := SERIES.search(x.voucher_no)):
+            key = (x.voucher_type, x.voucher_no[: found.start()])
+            series.setdefault(key, {})[int(found[0])] = found[0]
     if not series or max(len(s) for s in series.values()) < least:
         return Outcome.too_few(max((len(s) for s in series.values()), default=0), least)
     file_id, name = ctx.books.files[ctx.period][:2]
@@ -114,10 +114,10 @@ def je_rare_ledger(ctx: Context) -> Outcome:
 def _pairs(ctx: Context, lines: list[Line]) -> dict[tuple[str, str], Line]:
     """(account debited, account credited) -> the first debit line of the pair in the voucher."""
     debits = [x for x in lines if x.debit]
-    credits = [x for x in lines if x.credit]
+    credit_lines = [x for x in lines if x.credit]
     out: dict[tuple[str, str], Line] = {}
     for d in debits:
-        for c in credits:
+        for c in credit_lines:
             out.setdefault((ctx.account(d.ledger), ctx.account(c.ledger)), d)
     return out
 

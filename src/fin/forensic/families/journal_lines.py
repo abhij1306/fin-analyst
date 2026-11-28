@@ -68,7 +68,7 @@ def _big(ctx: Context, lines: list[Line], journal: bool = True) -> tuple[list[Li
     ]
 
 
-def _ran(ctx: Context, flags: list[Flag], near: int, population: int) -> Outcome:
+def _ran(flags: list[Flag], near: int, population: int) -> Outcome:
     return Outcome(flags=flags, near_misses=near, population=population)
 
 
@@ -80,7 +80,7 @@ def je_round(ctx: Context) -> Outcome:
         for x in big
         if x.amount % unit == 0
     ]
-    return _ran(ctx, flags, sum(x.amount % unit == 0 for x in near), len(big))
+    return _ran(flags, sum(x.amount % unit == 0 for x in near), len(big))
 
 
 def _month_end(day: date) -> bool:
@@ -104,7 +104,7 @@ def je_weekend(ctx: Context) -> Outcome:
         for x in big
         if (why := _off_day(ctx, x.entry_date))
     ]
-    return _ran(ctx, flags, sum(bool(_off_day(ctx, x.entry_date)) for x in near), len(big))
+    return _ran(flags, sum(bool(_off_day(ctx, x.entry_date)) for x in near), len(big))
 
 
 def je_duplicate(ctx: Context) -> Outcome:
@@ -128,7 +128,7 @@ def je_duplicate(ctx: Context) -> Outcome:
                 )
             elif x.amount >= ctx.min_amount * NEAR:
                 near += 1
-    return _ran(ctx, flags, near, len(ctx.lines))
+    return _ran(flags, near, len(ctx.lines))
 
 
 def _last_days(day: date, end: date, days: int) -> bool:
@@ -157,7 +157,7 @@ def je_period_end(ctx: Context) -> Outcome:
         _last_days(x.entry_date, ctx.end, wider) and not _last_days(x.entry_date, ctx.end, days)
         for x in fresh
     )
-    return _ran(ctx, flags, near, len(big))
+    return _ran(flags, near, len(big))
 
 
 def je_reversed(ctx: Context) -> Outcome:
@@ -189,7 +189,7 @@ def je_reversed(ctx: Context) -> Outcome:
             )
         elif matches:
             near += 1
-    return _ran(ctx, flags, near, len(big))
+    return _ran(flags, near, len(big))
 
 
 def je_sensitive(ctx: Context) -> Outcome:
@@ -200,7 +200,7 @@ def je_sensitive(ctx: Context) -> Outcome:
         for x in big
         if ctx.account(x.ledger) in accounts
     ]
-    return _ran(ctx, flags, sum(ctx.account(x.ledger) in accounts for x in near), len(big))
+    return _ran(flags, sum(ctx.account(x.ledger) in accounts for x in near), len(big))
 
 
 def je_under_limit(ctx: Context) -> Outcome:
@@ -219,7 +219,7 @@ def je_under_limit(ctx: Context) -> Outcome:
         under(x.amount, band) is None and under(x.amount, band * Decimal("1.2")) is not None
         for x in big
     )
-    return _ran(ctx, flags, near, len(big))
+    return _ran(flags, near, len(big))
 
 
 TESTS = (
