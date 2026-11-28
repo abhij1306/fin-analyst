@@ -1414,6 +1414,7 @@ Every `fin` command, with the screen that does it, "chat" (Claude runs it in the
 | `fin disclosures list` | chat |
 | `fin disclosures load` | chat |
 | `fin disclosures related` | chat |
+| `fin discrepancies` | Differences |
 | `fin delete` | terminal only: deletes a whole company; it asks for the company's name typed in the terminal |
 | `fin doctor` | Health |
 | `fin document delete` | Files |

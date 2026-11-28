@@ -5,7 +5,10 @@ command is") reads it without the `ui` extra."""
 NAV = [
     ("Data", ["Files", "Mappings", "Statements"]),
     ("Analysis", ["Questions", "Reports", "Dashboards"]),
-    ("Diligence", ["Engagement", "Differences", "Queries", "Gates", "Bridge", "Findings", "References"]),
+    (
+        "Diligence",
+        ["Engagement", "Differences", "Queries", "Gates", "Bridge", "Findings", "References"],
+    ),
     ("System", ["Settings", "Health", "Log"]),
 ]
 # Each group with its screens as (id, label); SCREENS is every screen, Home first.
