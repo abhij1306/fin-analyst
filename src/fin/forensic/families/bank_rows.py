@@ -39,6 +39,32 @@ def _near(ctx: Context, amount: Decimal) -> bool:
     return ctx.min_amount * NEAR <= amount < ctx.min_amount
 
 
+def _chain(ctx: Context, st: Statement) -> tuple[list[Flag], int]:
+    """The statement's balance breaks at or above min_amount, and the near misses."""
+    flags, near = [], 0
+    previous: Decimal | None = st.opening
+    for x in st.lines:
+        if x.balance is None:  # the chain restarts at the next row with a balance
+            previous = None
+            continue
+        if previous is not None:
+            expected = previous + x.credit - x.debit
+            gap = x.balance - expected
+            if abs(gap) >= ctx.min_amount:
+                flags.append(
+                    x.flag(
+                        f"balance {money(x.balance)} on {x.account}, expected {money(expected)}"
+                        f" (the balance above {money(previous)} + credit {money(x.credit)} - "
+                        f"debit {money(x.debit)}); {money(abs(gap))} apart",
+                        gap,
+                    )
+                )
+            elif gap and _near(ctx, abs(gap)):
+                near += 1
+        previous = x.balance
+    return flags, near
+
+
 def bank_balance_chain(ctx: Context) -> Outcome:
     found = statements(ctx)
     without = [s for s in found if all(x.balance is None for x in s.lines)]
@@ -50,27 +76,10 @@ def bank_balance_chain(ctx: Context) -> Outcome:
     for st in found:
         if st in without:
             continue
-        previous: Decimal | None = st.opening
-        for x in st.lines:
-            population += 1
-            if x.balance is None:  # the chain restarts at the next row with a balance
-                previous = None
-                continue
-            if previous is not None:
-                expected = previous + x.credit - x.debit
-                gap = x.balance - expected
-                if abs(gap) >= ctx.min_amount:
-                    flags.append(
-                        x.flag(
-                            f"balance {money(x.balance)} on {x.account}, expected {money(expected)}"
-                            f" (the balance above {money(previous)} + credit {money(x.credit)} - "
-                            f"debit {money(x.debit)}); {money(abs(gap))} apart",
-                            gap,
-                        )
-                    )
-                elif gap and _near(ctx, abs(gap)):
-                    near += 1
-            previous = x.balance
+        found_flags, found_near = _chain(ctx, st)
+        flags += found_flags
+        near += found_near
+        population += len(st.lines)
     return Outcome(flags=flags, near_misses=near, population=population, needs=needs)
 
 
@@ -93,6 +102,23 @@ def bank_date_order(ctx: Context) -> Outcome:
     return Outcome(flags=flags, near_misses=near, population=population)
 
 
+def _same(ctx: Context, lines: list[BankLine]) -> tuple[list[Flag], int]:
+    """A group of identical rows: each at or above min_amount is flagged; the near misses."""
+    flags, near = [], 0
+    for x in lines:
+        others = ", ".join(str(o.row) for o in lines if o is not x)
+        if x.amount >= ctx.min_amount:
+            flags.append(
+                x.flag(
+                    f"the same {x.side} of {money(x.amount)} on {x.day:%d-%b-%Y} with the "
+                    f"same remarks and reference as row(s) {others} on {x.account}"
+                )
+            )
+        elif _near(ctx, x.amount):
+            near += 1
+    return flags, near
+
+
 def bank_duplicate(ctx: Context) -> Outcome:
     flags, near, population = [], 0, 0
     for st in statements(ctx):
@@ -100,20 +126,10 @@ def bank_duplicate(ctx: Context) -> Outcome:
         groups: dict[tuple, list[BankLine]] = {}
         for x in st.lines:
             groups.setdefault((x.day, x.side, x.amount, x.remarks, x.reference), []).append(x)
-        for lines in groups.values():
-            if len(lines) < 2:
-                continue
-            for x in lines:
-                others = ", ".join(str(o.row) for o in lines if o is not x)
-                if x.amount >= ctx.min_amount:
-                    flags.append(
-                        x.flag(
-                            f"the same {x.side} of {money(x.amount)} on {x.day:%d-%b-%Y} with the "
-                            f"same remarks and reference as row(s) {others} on {x.account}"
-                        )
-                    )
-                elif _near(ctx, x.amount):
-                    near += 1
+        for lines in (g for g in groups.values() if len(g) > 1):
+            found_flags, found_near = _same(ctx, lines)
+            flags += found_flags
+            near += found_near
     return Outcome(flags=flags, near_misses=near, population=population)
 
 

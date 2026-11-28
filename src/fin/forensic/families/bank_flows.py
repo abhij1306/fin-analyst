@@ -73,6 +73,17 @@ def _pairs(bank: Bank, account: str, days: int) -> dict[tuple, tuple[BankLine, B
     return out
 
 
+def _round_trip(x: BankLine, back: BankLine) -> Flag:
+    party = x.party if x.party and x.party == back.party else None
+    named = f"; both lines name {party}" if party else ""
+    return x.flag(
+        f"{money(x.amount)} {'out' if x.debit else 'in'} on {x.day:%d-%b-%Y} and "
+        f"the same amount {'back' if x.debit else 'out'} on {back.day:%d-%b-%Y} "
+        f"({back.source}), {(back.day - x.day).days} days later, on {x.account}{named}",
+        party=party,
+    )
+
+
 def bank_round_trip(ctx: Context) -> Outcome:
     bank, days = _bank(ctx), ctx.settings["flow_days"]
     mine = [x for x in bank.lines(ctx.period) if x.amount >= ctx.min_amount]
@@ -83,18 +94,7 @@ def bank_round_trip(ctx: Context) -> Outcome:
         paired = {_key(line) for pair in pairs.values() for line in pair}
         for x in (x for x in mine if x.account == account):
             if _key(x) in pairs:
-                first, back = pairs[_key(x)]
-                party = first.party if first.party and first.party == back.party else None
-                named = f"; both lines name {party}" if party else ""
-                flags.append(
-                    x.flag(
-                        f"{money(x.amount)} {'out' if x.debit else 'in'} on {x.day:%d-%b-%Y} and "
-                        f"the same amount {'back' if x.debit else 'out'} on {back.day:%d-%b-%Y} "
-                        f"({back.source}), {(back.day - x.day).days} days later, on {account}"
-                        f"{named}",
-                        party=party,
-                    )
-                )
+                flags.append(_round_trip(*pairs[_key(x)]))
             elif _key(x) in later and _key(x) not in paired:
                 near += 1
     return Outcome(flags=flags, near_misses=near, population=len(mine))
@@ -102,6 +102,12 @@ def bank_round_trip(ctx: Context) -> Outcome:
 
 def _named(x: BankLine) -> list[str]:
     return sorted({t for t in TOKEN.findall(x.text) if t != x.account})
+
+
+def _gaps(bank: Bank, x: BankLine, other: str) -> list[int]:
+    """Days between x and each line of its amount on the other account, up to the wider window."""
+    gaps = (abs((y.day - x.day).days) for y, _ in bank.account(other) if y.amount == x.amount)
+    return [g for g in gaps if g <= _wider(OWN_DAYS)]
 
 
 def bank_own_transfer(ctx: Context) -> Outcome:
@@ -115,11 +121,7 @@ def bank_own_transfer(ctx: Context) -> Outcome:
             if not covering:
                 continue  # that account's statement for the date is not loaded: nothing to compare
             population += 1
-            gaps = [
-                abs((y.day - x.day).days)
-                for y, _ in bank.account(other)
-                if y.amount == x.amount and abs((y.day - x.day).days) <= _wider(OWN_DAYS)
-            ]
+            gaps = _gaps(bank, x, other)
             if any(g <= OWN_DAYS for g in gaps):
                 continue
             if gaps:
@@ -135,6 +137,17 @@ def bank_own_transfer(ctx: Context) -> Outcome:
     return Outcome(flags=flags, near_misses=near, population=population)
 
 
+def _early_debits(
+    bank: Bank, period: str, first: date, days: int
+) -> dict[tuple[str, Decimal], list[BankLine]]:
+    """(account, amount) -> the period's debits in its first `days` days, in date order."""
+    debits: dict[tuple[str, Decimal], list[BankLine]] = {}
+    for y in sorted(bank.lines(period), key=lambda y: (y.day, y.row)):
+        if y.debit and 0 <= (y.day - first).days < days:
+            debits.setdefault((y.account, y.amount), []).append(y)
+    return debits
+
+
 def bank_period_end_credit(ctx: Context) -> Outcome:
     bank = _bank(ctx)
     following = bank.next(ctx.period)
@@ -142,10 +155,7 @@ def bank_period_end_credit(ctx: Context) -> Outcome:
         return Outcome.cannot("the next period's bank statements (to find a reversal)")
     days, back = ctx.settings["period_end_days"], ctx.settings["reversal_days"]
     end, first = bank.bounds[ctx.period][1], bank.bounds[following][0]
-    debits: dict[tuple[str, Decimal], list[BankLine]] = {}
-    for y in bank.lines(following):
-        if y.debit and 0 <= (y.day - first).days < _wider(back):
-            debits.setdefault((y.account, y.amount), []).append(y)
+    debits = _early_debits(bank, following, first, _wider(back))
     covered = {s.account for s in bank.of(following)}
     unchecked: set[str] = set()  # accounts with no statement in the next period: not checked
     flags, near, population = [], 0, 0
@@ -156,7 +166,7 @@ def bank_period_end_credit(ctx: Context) -> Outcome:
             unchecked.add(x.account)
             continue
         population += 1
-        found = sorted(debits.get((x.account, x.amount), []), key=lambda y: (y.day, y.row))
+        found = debits.get((x.account, x.amount), [])
         soon = [y for y in found if (y.day - first).days < back]
         if soon:
             y = soon[0]
