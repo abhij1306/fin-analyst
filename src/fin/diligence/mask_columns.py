@@ -17,6 +17,7 @@ MASKED: dict[str, tuple[str, ...]] = {
     "orderbook_lines": ("customer",),
     "passthrough_customers": ("customer",),
     "payroll_lines": ("employee_name", "employee_code"),
+    "recon_items": ("party",),
     "recon_match_lines": ("party",),
     "register_lines": ("customer", "vendor", "handler", "submitted_by"),
     "sample_lines": ("party",),

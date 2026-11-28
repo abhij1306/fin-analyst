@@ -60,6 +60,33 @@ def report_response(path: Path) -> FileResponse:
     return FileResponse(path, headers={"Content-Security-Policy": REPORT_CSP})
 
 
+def _add_drawer_routes(app: FastAPI, root: Path, templates: Jinja2Templates) -> None:
+    """A figure's source, the Differences screen's ask, and a report file."""
+
+    @app.get("/partials/statement-source", response_class=HTMLResponse)
+    def statement_source(request: Request, company: str) -> HTMLResponse:
+        """One figure of the Statements screen: its source and marks, for the drawer."""
+        chosen = known(root, company) or ""
+        data = source_of(root, chosen, dict(request.query_params))
+        return templates.TemplateResponse(request, "_source.html", {"data": data})
+
+    @app.get("/partials/differences-ask")
+    def differences_ask(
+        company: str, item: Annotated[list[str] | None, Query()] = None
+    ) -> Response:
+        """The ticked rows of the Differences screen: the chat opens with a request to the
+        assistant to draft one query for them (nothing is sent or changed here)."""
+        text = query_prompt(root, known(root, company) or "", item or [])
+        where = "/chat/panel?" + urlencode({"company": company, "prefill": text})
+        target = json.dumps({"path": where, "target": "#chat", "swap": "outerHTML"})
+        return Response(status_code=204, headers={"HX-Location": target})
+
+    @app.get("/report-file")
+    def report_file(company: str, name: str) -> FileResponse:
+        """A report or export of the company: HTML opens in the browser, the others download."""
+        return report_response(screens.report_file(root, known(root, company) or "", name))
+
+
 def create_app(root: Path, token: str, port: int, claude: list[str] | None = None) -> FastAPI:
     """The app for one data folder. `claude` is the command that starts Claude Code (tests give a
     fake one); by default the `claude` on the path."""
@@ -130,29 +157,7 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
         context = {"company": chosen, "data": screen_data("files", chosen, request)}
         return templates.TemplateResponse(request, "_file_rows.html", context)
 
-    @app.get("/partials/statement-source", response_class=HTMLResponse)
-    def statement_source(request: Request, company: str) -> HTMLResponse:
-        """One figure of the Statements screen: its source and marks, for the drawer."""
-        chosen = known(root, company) or ""
-        data = source_of(root, chosen, dict(request.query_params))
-        return templates.TemplateResponse(request, "_source.html", {"data": data})
-
-    @app.get("/partials/differences-ask")
-    def differences_ask(
-        company: str, item: Annotated[list[str] | None, Query()] = None
-    ) -> Response:
-        """The ticked rows of the Differences screen: the chat opens with a request to the
-        assistant to draft one query for them (nothing is sent or changed here)."""
-        text = query_prompt(root, known(root, company) or "", item or [])
-        where = "/chat/panel?" + urlencode({"company": company, "prefill": text})
-        target = json.dumps({"path": where, "target": "#chat", "swap": "outerHTML"})
-        return Response(status_code=204, headers={"HX-Location": target})
-
-    @app.get("/report-file")
-    def report_file(company: str, name: str) -> FileResponse:
-        """A report or export of the company: HTML opens in the browser, the others download."""
-        return report_response(screens.report_file(root, known(root, company) or "", name))
-
+    _add_drawer_routes(app, root, templates)
     add_action_routes(app, root, templates, known)
     add_diligence_routes(app, root, templates, known)
     add_chat_routes(app, root, templates, chat)

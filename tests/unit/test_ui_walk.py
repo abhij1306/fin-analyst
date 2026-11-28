@@ -16,12 +16,12 @@ pytest.importorskip("jinja2")
 pytest.importorskip("httpx")
 pytest.importorskip("multipart")
 
-from fastapi.testclient import TestClient  # noqa: E402
-from typer.testing import CliRunner  # noqa: E402
+from fastapi.testclient import TestClient
+from typer.testing import CliRunner
 
-from fin.cli import app  # noqa: E402
-from fin.services.jobs import list_jobs  # noqa: E402
-from fin.ui.server import create_app  # noqa: E402
+from fin.cli import app
+from fin.services.jobs import list_jobs
+from fin.ui.server import create_app
 
 TOKEN = "t0ken"
 PORT = 8765

@@ -13,30 +13,30 @@ pytest.importorskip("fastapi")
 pytest.importorskip("jinja2")
 pytest.importorskip("httpx")
 
-from fastapi.testclient import TestClient  # noqa: E402
-from typer.testing import CliRunner  # noqa: E402
+from fastapi.testclient import TestClient
+from typer.testing import CliRunner
 
-import fin.dashboard  # noqa: E402
-import fin.services.reports  # noqa: E402
-import fin.services.system  # noqa: E402
-from fin.audit.errors import DependencyMissing  # noqa: E402
-from fin.cli import app as cli  # noqa: E402
-from fin.config import load_config  # noqa: E402
-from fin.dashboard import last_good_build_dir  # noqa: E402
-from fin.db.conn import connect  # noqa: E402
-from fin.doctor import Check  # noqa: E402
-from fin.fdd import findings  # noqa: E402
-from fin.paths import audit_db_path  # noqa: E402
-from fin.services.jobs import list_jobs  # noqa: E402
-from fin.services.questions import saved_questions  # noqa: E402
-from fin.services.reports import export_statements, report_lines  # noqa: E402
-from fin.services.result import Done  # noqa: E402
-from fin.ui import system_screens  # noqa: E402
-from fin.ui.nav import SCREENS  # noqa: E402
-from fin.ui.server import create_app  # noqa: E402
-from fin.ui.system_routes import dashboard_file  # noqa: E402
-from tests.engagement_root import engagement_root  # noqa: E402
-from tests.qoe_fixtures import run  # noqa: E402
+import fin.dashboard
+import fin.services.reports
+import fin.services.system
+from fin.audit.errors import DependencyMissing
+from fin.cli import app as cli
+from fin.config import load_config
+from fin.dashboard import last_good_build_dir
+from fin.db.conn import connect
+from fin.doctor import Check
+from fin.fdd import findings
+from fin.paths import audit_db_path
+from fin.services.jobs import list_jobs
+from fin.services.questions import saved_questions
+from fin.services.reports import export_statements, report_lines
+from fin.services.result import Done
+from fin.ui import system_screens
+from fin.ui.nav import SCREENS
+from fin.ui.server import create_app
+from fin.ui.system_routes import dashboard_file
+from tests.engagement_root import engagement_root
+from tests.qoe_fixtures import run
 
 TOKEN = "t0ken"
 PORT = 8765
