@@ -330,8 +330,9 @@ def test_a_reference_query_links_its_figure_so_it_is_not_queried_twice(root: Pat
     assert (ref["query_id"], ref["query_status"], ref["queryable"]) == (
         query["query_id"], "draft", False,
     )  # fmt: skip
+    again_run = run(root)
     with pytest.raises(ReferenceNotQueryable, match=f"already in query #{query['query_id']}"):
-        raise_query(run(root), "acme", 1, "Again?")
+        raise_query(again_run, "acme", 1, "Again?")
     with pytest.raises(UiActionInvalid, match="cannot be queried"):
         query_prompt(root, "acme", ["ref-1"])
     manual = [q for q in queries.list_queries(run(root), "acme") if q["origin"] == "manual"]
@@ -359,9 +360,28 @@ def test_a_reference_difference_below_the_threshold_cannot_be_queried(root: Path
     assert (ref["difference"], ref["over_threshold"], ref["queryable"]) == (
         Decimal("-1.00"), False, False,
     )  # fmt: skip
+    below_run = run(root)
     with pytest.raises(ReferenceNotQueryable, match="below the query threshold"):
-        raise_query(run(root), "acme", 1, "Why?")
+        raise_query(below_run, "acme", 1, "Why?")
     assert [q for q in queries.list_queries(run(root), "acme") if q["origin"] == "manual"] == []
+
+
+def test_a_reference_difference_outside_the_engagement_periods_cannot_be_queried(
+    root: Path,
+) -> None:
+    from fin.audit.errors import QueryPeriodInvalid
+    from fin.reference.handoff import raise_query
+
+    reconcile(root)
+    reference(root)
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE engagement SET periods = 'FY24'")  # the FY25 figure is outside it
+
+    [ref] = [r for r in rows(root) if r["row_id"] == "ref-1"]
+    assert (ref["period"], ref["over_threshold"], ref["queryable"]) == ("FY25", True, False)
+    outside_run = run(root)
+    with pytest.raises(QueryPeriodInvalid, match="FY25 is not a period"):
+        raise_query(outside_run, "acme", 1, "Why?")
 
 
 def test_the_cli_lists_ranked_rows_and_refuses_an_unknown_level(

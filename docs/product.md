@@ -1207,7 +1207,8 @@ Every difference the reconciliations found, in one place, from the headline down
   row is a root (bank lines). `explained` is the sum of the rows under it and `unexplained` the difference less that;
   a foreign-currency line without a rupee value has a blank difference (missing is not zero), and so has its parent's
   explained amount. Each row carries its two sources, note, threshold, whether it is over the threshold, its query and
-  status, and whether a query can be raised on it: at or above the threshold and in no query but a withdrawn one. A
+  status, and whether a query can be raised on it: at or above the threshold and in no query but a withdrawn one (a
+  reference row also needs a period of the engagement, as `fin reference query` does, E881). A
   reference row's query is the one `fin reference query` linked to its figure, and it is compared with the latest
   engagement's query threshold; the CLI, the sheet's Query column and the screen show the same.
 - **Recast against the books** (SPEC-17 item 5, decisions in [decisions/spec-17.md](decisions/spec-17.md)): per annual

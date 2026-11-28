@@ -20,7 +20,11 @@ from fin.paths import company_db_path
 def difference(run: Run, company: str, value_id: int) -> dict[str, Any]:
     """The comparison row of a reference figure that differs from fin's. E982 otherwise."""
     with connect(company_db_path(run.root, company)) as con:
-        rows = fetch_dicts(con, "SELECT * FROM reference_comparison WHERE value_id = ?", [value_id])
+        return _difference(con, company, value_id)
+
+
+def _difference(con: duckdb.DuckDBPyConnection, company: str, value_id: int) -> dict[str, Any]:
+    rows = fetch_dicts(con, "SELECT * FROM reference_comparison WHERE value_id = ?", [value_id])
     if not rows or rows[0]["state"] != "differs":
         state = "no such figure" if not rows else rows[0]["state"]
         raise ReferenceDifferenceUnknown(
@@ -66,9 +70,10 @@ def raise_query(run: Run, company: str, value_id: int, question: str) -> dict[st
     """A draft query: the difference (fin minus the reference) as its amount, the figure's period
     and scope, both sources; the figure keeps the link (`reference_values.query_id`). E982,
     E983, or the query's own refusals (E803, E881, E861)."""
-    row = difference(run, company, value_id)
+    difference(run, company, value_id)  # E982 before the backup
     with company_database(run, company, write=True) as con, transaction(con):
         engagement = require_open(con, company)
+        row = _difference(con, company, value_id)  # as it is in this transaction
         _check_queryable(con, engagement, company, row)
         query = queries.manual_in(
             run,

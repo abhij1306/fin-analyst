@@ -52,7 +52,8 @@ Readings, not owner decisions, until the owner confirms them.
 ## A reference difference is queried as a line is (orchestrator's reading, 2026-11-28)
 
 - **Decision**: a reference row can be queried only when its difference is at or above the latest engagement's query
-  threshold and the figure is in no query of that engagement but a withdrawn one, the rule every reconciliation line
+  threshold, its period is one of that engagement's (else the query is refused, E881), and the figure is in no query
+  of that engagement but a withdrawn one, the rule every reconciliation line
   follows (`needs_query`, `fin query raise --items`). `fin reference query` refuses otherwise (E983) and stores the
   link (`reference_values.query_id`); the view, the CLI, the export sheet and the screen read the same column.
 - **Why**: before, every reference row was "can be queried", so one figure could be queried twice and the screen's
