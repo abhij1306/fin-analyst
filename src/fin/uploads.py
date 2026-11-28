@@ -1,4 +1,5 @@
-"""Saving uploaded files into a company's inbox folder, safely (docs/web-ui-plan.md).
+"""Saving uploaded files into a company's inbox folder, safely (docs/web-ui-plan.md). Outside the
+`fin.ui` package: the services (`fin.services.files`, `fin.services.dataroom`) save uploads too.
 
 A plain file name (no folders, no dot first, letters, digits, space and . _ - ( ) &), a supported
 format, a size limit, never over an existing file, and only inside the inbox folder. All files are

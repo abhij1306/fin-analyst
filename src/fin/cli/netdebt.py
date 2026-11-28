@@ -10,11 +10,15 @@ from typing import Annotated, Any
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.errors import NetDebtClassInvalid
 from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company
 from fin.diligence import netdebt, netdebt_items
 from fin.diligence.engagement import parse_rupees
+from fin.paths import data_dir
+from fin.services import decisions
+from fin.services.result import show as show_result
 
 netdebt_app = typer.Typer(
     no_args_is_help=True, help="FDD net debt: cash, debt and debt-like items per period end."
@@ -153,15 +157,10 @@ def item_list(
 @item_app.command("accept")
 def item_accept(company: Company, ids: Ids) -> None:
     """Accept proposed items: they count in net debt. Only when the user says so."""
-    execute(
-        "netdebt item accept",
-        {"company": company, "ids": ids},
-        lambda run: _echo(
-            netdebt_items.decide(run, company, ids, "accepted"),
-            False,
-            netdebt_items.format_item,
-            "",
-        ),
+    show_result(
+        decisions.decide_netdebt_items(
+            data_dir(), company, ids, "accepted", via="cli", actor=from_environment()
+        )
     )
 
 
@@ -172,13 +171,14 @@ def item_reject(
     reason: Annotated[str, typer.Option("--reason", help="Why it is rejected.")],
 ) -> None:
     """Reject proposed items, with the reason. Only when the user says so."""
-    execute(
-        "netdebt item reject",
-        {"company": company, "ids": ids, "reason": reason},
-        lambda run: _echo(
-            netdebt_items.decide(run, company, ids, "rejected", reason),
-            False,
-            netdebt_items.format_item,
-            "",
-        ),
+    show_result(
+        decisions.decide_netdebt_items(
+            data_dir(),
+            company,
+            ids,
+            "rejected",
+            via="cli",
+            actor=from_environment(),
+            reason=reason,
+        )
     )

@@ -10,11 +10,15 @@ from typing import Annotated, Any
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.errors import ProvisionLedgerInvalid
 from fin.audit.logger import Run, execute
 from fin.cli.core import app, check_company
 from fin.diligence import provisions
 from fin.diligence.engagement import rupees
+from fin.paths import data_dir
+from fin.services import decisions
+from fin.services.result import show as show_result
 
 provisions_app = typer.Typer(
     no_args_is_help=True,
@@ -68,18 +72,11 @@ def format_show(data: dict[str, Any]) -> str:
     return "\n".join(out)
 
 
-def format_ledger(row: dict[str, Any]) -> str:
-    return (
-        f"provision ledger #{row['provision_id']} [{row['status']}] {row['ledger']!r} -> "
-        f"{row['kind']}: {row['reason']}"
-    )
-
-
 def _echo(rows: list[dict[str, Any]], json_output: bool) -> None:
     if json_output:
         typer.echo(json.dumps(rows, indent=2, default=str))
     else:
-        typer.echo("\n".join(map(format_ledger, rows)) or "no provision ledgers")
+        typer.echo("\n".join(map(provisions.format_ledger, rows)) or "no provision ledgers")
 
 
 @provisions_app.command("show")
@@ -142,18 +139,18 @@ def propose(
 @provisions_app.command("confirm")
 def confirm(company: Company, ids: Ids) -> None:
     """Confirm proposed provision ledgers. Only when the user says so."""
-    execute(
-        "provisions confirm",
-        {"company": company, "ids": ids},
-        lambda run: _echo(provisions.decide(run, company, ids, "confirmed"), False),
+    show_result(
+        decisions.decide_provision_ledgers(
+            data_dir(), company, ids, "confirmed", via="cli", actor=from_environment()
+        )
     )
 
 
 @provisions_app.command("reject")
 def reject(company: Company, ids: Ids) -> None:
     """Reject proposed or confirmed provision ledgers. Only when the user says so."""
-    execute(
-        "provisions reject",
-        {"company": company, "ids": ids},
-        lambda run: _echo(provisions.decide(run, company, ids, "rejected"), False),
+    show_result(
+        decisions.decide_provision_ledgers(
+            data_dir(), company, ids, "rejected", via="cli", actor=from_environment()
+        )
     )

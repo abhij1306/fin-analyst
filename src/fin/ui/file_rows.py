@@ -9,7 +9,6 @@ from typing import Any
 
 from fin.db.conn import connect
 from fin.db.rows import fetch_dicts
-from fin.db.schema import ensure_database
 from fin.ingest import UNIT_ANSWERS
 from fin.ingest_read import sha256_of
 from fin.paths import company_db_path, inbox_dir, review_dir
@@ -121,8 +120,7 @@ def file_rows(root: Path, company: str, waiting: list[str]) -> list[dict[str, An
     files whose content is not loaded, from `fin.status`)."""
     documents: list[dict[str, Any]] = []
     path = company_db_path(root, company)
-    if path.is_file():
-        ensure_database(path, "company")
+    if path.is_file():  # made and checked where it is created (fin.db.schema.ensure_database)
         with connect(path) as con:
             documents = fetch_dicts(con, DOCUMENTS)
     rows = [_document_row(root, company, doc) for doc in documents]

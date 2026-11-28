@@ -16,7 +16,7 @@ from fin.audit.errors import UiActionInvalid
 from fin.services.files import create_company, upload
 from fin.services.result import ActionResult, Refused
 from fin.ui import actions, screens
-from fin.ui.uploads import check_length
+from fin.uploads import check_length
 
 Known = Callable[[Path, str | None], str | None]
 
@@ -49,16 +49,19 @@ def respond(
     known: Known,
     act: Callable[[str], ActionResult],
 ) -> HTMLResponse:
-    """Run `act` for the company and show `screen` with its outcome. Before any company exists
-    nothing runs (E008); a refusal of the form's fields (E008) is shown like a refused run."""
-    chosen = known(root, company) or ""
+    """Run `act` for the company and show `screen` with its outcome. A form that names no company
+    runs nothing (E008), never the first company in its place; a refusal of the form's fields
+    (E008) is shown like a refused run."""
+    chosen = known(root, company) if company else None
     try:
         if not chosen:
-            raise UiActionInvalid("there is no company yet; nothing changed")
+            first = known(root, None)
+            why = "choose the company" if first else "there is no company yet"
+            raise UiActionInvalid(f"{why}; nothing changed")
         outcome = act(chosen)
     except UiActionInvalid as error:
         outcome = Refused.before_run(error)
-    return acted(templates, root, request, screen, chosen, outcome)
+    return acted(templates, root, request, screen, chosen or "", outcome)
 
 
 def add_action_routes(app: FastAPI, root: Path, templates: Jinja2Templates, known: Known) -> None:
@@ -71,9 +74,9 @@ def _add_act_route(app: FastAPI, root: Path, templates: Jinja2Templates, known: 
     @app.post("/act", response_class=HTMLResponse)
     def act(
         request: Request,
-        action: str = Form(),
-        company: str = Form(),
-        item: str = Form(),
+        action: str = Form(""),
+        company: str = Form(""),
+        item: str = Form(""),
         reason: str = Form(""),
         choice: str = Form(""),
     ) -> HTMLResponse:

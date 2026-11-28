@@ -14,7 +14,9 @@ For each company (every company database and every inbox/ company folder, or the
   correct` (fin.facts), as information;
 - files in inbox/<company>/ not yet ingested (no document with the same sha256);
 - with an open diligence engagement: its queries by status, proposed adjustments, and each gate's
-  state (fin.diligence.gates).
+  state (fin.diligence.gates);
+- how many items of each kind wait for the user (WAITING): the owner of the counts `fin status`,
+  the Home screen and the UI's tab counts show.
 """
 
 import re
@@ -24,10 +26,13 @@ from typing import Any
 import duckdb
 
 from fin.audit.logger import Run
+from fin.dataroom.scan import awaiting_approval, plan_of
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
+from fin.diligence import customers, ledgers
 from fin.diligence.engagement import QUERY_STATUSES, open_engagement_row
 from fin.diligence.gates import Context, evaluate
+from fin.fdd import tax_ledgers
 from fin.ingest import files_in, sha256_of
 from fin.map.review import open_items, read_pending
 from fin.paths import COMPANY_NAME, companies_dir, company_db_path, inbox_dir
@@ -35,6 +40,42 @@ from fin.validate.not_run import format_not_run, list_not_run
 
 PERIOD = re.compile(r"^FY(\d+)(?:-([QH])(\d))?$")
 KINDS = {12: "years", 6: "halves", 3: "quarters", 9: "nine_months"}
+# Everything that waits for the user, in the order `fin status` and the Home screen list it. The
+# review kinds use `fin review list --<kind>`'s names (fin.services.reviews.KINDS).
+WAITING = {
+    "mappings": "mapping items to review",
+    "ledgers": "Tally ledgers to review",
+    "customers": "customer sectors to review",
+    "tax": "tax ledger classes to review",
+    "related": "related party links to review",
+    "netdebt": "net debt classes to review",
+    "matches": "bank matches to review",
+    "reference_lines": "proposed reference lines to confirm or reject",
+    "open_findings": "open findings on filed data",
+    "inbox": "files in the inbox not loaded yet",
+    "dataroom": "data-room files waiting for approval",
+    "queries": "queries to approve, mark sent or close",
+    "adjustments": "proposed adjustments to decide",
+    "fdd_drafts": "draft FDD findings to mark final or drop",
+    "provisions": "provision ledgers to confirm or reject",
+    "netdebt_items": "net debt items to accept or reject",
+}
+# Query statuses that wait for the user: approve a draft, mark an approved one sent, close an
+# answered one.
+QUERY_ACTIONABLE = ("draft", "approved", "answered")
+_COMPANY_WAITING = """
+SELECT
+    (SELECT count(*) FROM netdebt_classes WHERE status = 'proposed'),
+    (SELECT count(*) FROM reference_lines WHERE status = 'proposed'),
+    (SELECT count(*) FROM provision_ledgers WHERE status = 'proposed')
+"""
+_ENGAGEMENT_WAITING = """
+SELECT
+    (SELECT count(*) FROM related_party_links WHERE engagement_id = $1 AND status = 'proposed'),
+    (SELECT count(*) FROM match_proposals WHERE engagement_id = $1 AND status = 'proposed'),
+    (SELECT count(*) FROM fdd_findings WHERE engagement_id = $1 AND status = 'draft'),
+    (SELECT count(*) FROM netdebt_items WHERE engagement_id = $1 AND status = 'proposed')
+"""
 
 _SUMMARY = """
 SELECT
@@ -91,6 +132,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
     known: set[str] = set()
     diligence = None
     not_run: list[dict[str, Any]] = []
+    counts: dict[str, int] = {}
     pending = read_pending(run.root, company)
     if db.is_file():
         ensure_database(db, "company")
@@ -110,10 +152,16 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
             not_run = list_not_run(con)
             known = {sha for (sha,) in con.execute("SELECT sha256 FROM documents").fetchall()}
             diligence = _diligence(con, company, open_items(pending))
+            counts = _counts(con, diligence)
     inbox = inbox_dir(run.root, company)
     waiting = (
         [p.name for p in files_in(inbox) if sha256_of(p) not in known] if inbox.is_dir() else []
     )
+    counts |= {
+        "mappings": len(open_items(pending)),
+        "open_findings": open_findings,
+        "inbox": len(waiting),
+    }
     return {
         "company": company,
         "periods": periods,
@@ -129,6 +177,35 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
         "corrected_figures": corrected,
         "inbox_not_ingested": waiting,
         "diligence": diligence,
+        "waiting": {key: counts.get(key, 0) for key in WAITING},
+    }
+
+
+def _counts(con: duckdb.DuckDBPyConnection, diligence: dict[str, Any] | None) -> dict[str, int]:
+    """What waits for the user in the company database (WAITING); the review kinds count the
+    rows `fin review list --<kind>` lists. Items of an engagement count only while it is open."""
+    row = con.execute(_COMPANY_WAITING).fetchone()
+    assert row is not None
+    counts = {
+        "ledgers": len(ledgers.read(con, True)),
+        "customers": len(customers.read(con, True)),
+        "tax": len(tax_ledgers.read(con, True)),
+        "netdebt": row[0],
+        "reference_lines": row[1],
+        "provisions": row[2],
+        "dataroom": len(awaiting_approval(plan_of(con))),
+    }
+    if diligence is None:
+        return counts
+    found = con.execute(_ENGAGEMENT_WAITING, [diligence["engagement_id"]]).fetchone()
+    assert found is not None
+    return counts | {
+        "related": found[0],
+        "matches": found[1],
+        "fdd_drafts": found[2],
+        "netdebt_items": found[3],
+        "queries": sum(diligence["queries"].get(s, 0) for s in QUERY_ACTIONABLE),
+        "adjustments": diligence["proposed_adjustments"],
     }
 
 
@@ -201,9 +278,14 @@ def format_status(result: list[dict[str, Any]]) -> str:
             f"  figures stated by the user: {s['stated_figures']}, corrected: "
             f"{s['corrected_figures']} (`fin fact list {c}`)",
             f"  inbox files not ingested: {_list(s['inbox_not_ingested'])}",
+            f"  waiting for you: {_waiting_line(s['waiting'])}",
         ]
         out += _format_diligence(s["diligence"])
     return "\n".join(out)
+
+
+def _waiting_line(counts: dict[str, int]) -> str:
+    return "; ".join(f"{n} {WAITING[key]}" for key, n in counts.items() if n) or "nothing"
 
 
 def _format_diligence(d: dict[str, Any] | None) -> list[str]:

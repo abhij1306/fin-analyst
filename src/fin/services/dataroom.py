@@ -2,15 +2,20 @@
 the approved ones. `fin dataroom scan|approve|load` and the Files screen call these; the UI runs
 the scan and the load as jobs (`fin.services.jobs`) and approving as the user's decision."""
 
+import shutil
+import uuid
 from pathlib import Path
+from typing import BinaryIO
 
-from fin.audit.errors import DataroomPlanMissing
+from fin.audit.errors import DataroomPlanMissing, FinError
 from fin.audit.logger import Run
 from fin.config import load_config
 from fin.dataroom.load import approve, load
 from fin.dataroom.scan import PlanRow, read_plan, scan
 from fin.metrics.export import refresh_analytics
+from fin.paths import dataroom_dir
 from fin.services.result import ActionResult, Progress, perform
+from fin.uploads import save_uploads
 
 
 def plan_rows(root: Path, company: str) -> list[PlanRow]:
@@ -19,6 +24,40 @@ def plan_rows(root: Path, company: str) -> list[PlanRow]:
         return read_plan(root, company)
     except DataroomPlanMissing:
         return []
+
+
+def upload_folder(root: Path, company: str) -> Path:
+    """A new folder for one upload of a data room, under dataroom/<company>/uploads/ (not made
+    yet: `save_zip` makes it inside its run)."""
+    return dataroom_dir(root, company) / "uploads" / uuid.uuid4().hex
+
+
+def save_zip(
+    root: Path,
+    company: str,
+    folder: Path,
+    files: list[tuple[str, BinaryIO]],
+    *,
+    via: str,
+    actor: str,
+) -> ActionResult:
+    """Save an uploaded data room (.zip files) into `folder` (from `upload_folder`), in a run of
+    its own, so no file lands without a run record. The scan is the next step (`scan_folder`).
+    E008 refuses all files and leaves no folder."""
+
+    def body(run: Run) -> list[str]:
+        folder.mkdir(parents=True)
+        try:
+            names = save_uploads(folder, files, (".zip",))
+        except (FinError, OSError):
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
+        for name in names:
+            run.event("dataroom upload", f"saved {name} to {folder}", context={"company": company})
+        return [f"{name} saved; the scan starts as a job" for name in names]
+
+    args = {"company": company, "folder": str(folder), "files": [n for n, _ in files]}
+    return perform(root, "dataroom upload", args | {"via": via, "actor": actor}, body)
 
 
 def scan_folder(

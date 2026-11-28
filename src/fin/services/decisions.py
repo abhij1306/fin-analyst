@@ -1,5 +1,6 @@
 """The decisions only the user takes: confirm, reject or change mappings, accept findings, move
-queries, accept or reject adjustments, approve a gate, mark FDD findings final or draft. The CLI
+queries, accept or reject adjustments, approve a gate, mark FDD findings final or draft, confirm or
+reject provision ledgers and accept or reject net debt items. The CLI
 commands and the UI's buttons (`fin.ui.actions`) call these. `via` ("cli" or "ui") is recorded
 in the run's arguments with `actor` (`fin.actor`: the UI passes 'user'); everything else in the
 run record is the same whichever interface called."""
@@ -9,7 +10,7 @@ from typing import Any
 
 from fin.audit.errors import InvalidMapping
 from fin.audit.logger import Run
-from fin.diligence import adjustments, gates, queries
+from fin.diligence import adjustments, gates, netdebt_items, provisions, queries
 from fin.fdd import findings as fdd
 from fin.findings import accept, recheck_held
 from fin.map import review, review_confirm
@@ -267,3 +268,42 @@ def decide_reference_lines(
     return perform(
         root, command, {"company": company, "ids": ids, "via": via, "actor": actor}, body
     )
+
+
+PROVISION_COMMANDS = {"confirmed": "provisions confirm", "rejected": "provisions reject"}
+NETDEBT_ITEM_COMMANDS = {"accepted": "netdebt item accept", "rejected": "netdebt item reject"}
+
+
+def decide_provision_ledgers(
+    root: Path, company: str, ids: list[int], target: str, *, via: str, actor: str
+) -> ActionResult:
+    """`fin provisions confirm|reject`: `target` is "confirmed" or "rejected" (E921 for an id not
+    waiting for it)."""
+
+    def body(run: Run) -> list[str]:
+        rows = provisions.decide(run, company, ids, target)
+        return [provisions.format_ledger(row) for row in rows]
+
+    args = {"company": company, "ids": ids, "via": via, "actor": actor}
+    return perform(root, PROVISION_COMMANDS[target], args, body)
+
+
+def decide_netdebt_items(
+    root: Path,
+    company: str,
+    ids: list[int],
+    target: str,
+    *,
+    via: str,
+    actor: str,
+    reason: str | None = None,
+) -> ActionResult:
+    """`fin netdebt item accept|reject`: `target` is "accepted" or "rejected" (with the reason;
+    E933 without one, or for an item not proposed)."""
+
+    def body(run: Run) -> list[str]:
+        rows = netdebt_items.decide(run, company, ids, target, reason)
+        return [netdebt_items.format_item(row) for row in rows]
+
+    args = {"company": company, "ids": ids, "reason": reason, "via": via, "actor": actor}
+    return perform(root, NETDEBT_ITEM_COMMANDS[target], args, body)

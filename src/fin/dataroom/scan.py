@@ -229,11 +229,17 @@ def read_plan(root: Path, company: str) -> list[PlanRow]:
     rows = []
     if path.is_file():
         with connect(path) as con:
-            rows = con.execute(f"SELECT {COLUMNS} FROM dataroom_files ORDER BY file_id").fetchall()
+            rows = plan_of(con)
     if not rows:
         raise DataroomPlanMissing(
             f"{company} has no data-room plan; run `uv run fin dataroom scan {company} <folder>`"
         )
+    return rows
+
+
+def plan_of(con: duckdb.DuckDBPyConnection) -> list[PlanRow]:
+    """The plan in an open company database, in the order the files were found (may be empty)."""
+    rows = con.execute(f"SELECT {COLUMNS} FROM dataroom_files ORDER BY file_id").fetchall()
     return [PlanRow(*row) for row in rows]
 
 
@@ -247,6 +253,12 @@ def plan_groups(rows: list[PlanRow]) -> tuple[list[PlanRow], list[PlanRow], list
     archives = [r for r in rows if r.reason is None and r.kind == "archive"]
     skipped = [r for r in rows if r.reason is not None and not r.proposed_kind]
     return usable, archives, skipped
+
+
+def awaiting_approval(rows: list[PlanRow]) -> list[PlanRow]:
+    """The files fin can use that the user has not approved and that are not loaded yet."""
+    usable, _, _ = plan_groups(rows)
+    return [r for r in usable if not r.approved and r.status == "planned"]
 
 
 def format_plan(company: str, rows: list[PlanRow]) -> str:

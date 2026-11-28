@@ -134,6 +134,13 @@ def list_ledgers(run: Run, company: str) -> list[dict[str, Any]]:
         return _ledgers(con)
 
 
+def format_ledger(row: dict[str, Any]) -> str:
+    return (
+        f"provision ledger #{row['provision_id']} [{row['status']}] {row['ledger']!r} -> "
+        f"{row['kind']}: {row['reason']}"
+    )
+
+
 def assumptions(fdd: dict[str, Any]) -> dict[str, Any]:
     """The gratuity assumptions, as config.toml [fdd] states them."""
     return {
