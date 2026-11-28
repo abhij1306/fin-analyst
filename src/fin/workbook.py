@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook
+from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
@@ -66,7 +67,8 @@ def _header(sheet: Any, first: list[str], periods: list[str]) -> None:
 
 def _statement_sheet(book: Workbook, title: str, rows: list[dict[str, Any]], unit: str) -> None:
     """One statement and scope: one row per line (an account, or the "Unmapped / other" line
-    under a subtotal), one column per period, in `unit`."""
+    under a subtotal), one column per period, in `unit`. A figure the user stated (no document
+    gives it) or corrected (`fin fact correct`) carries a cell comment saying so."""
     periods = _periods(rows)
     sheet = book.create_sheet(title)
     _header(sheet, [f"Line ({unit_title(unit)})"], periods)
@@ -74,14 +76,22 @@ def _statement_sheet(book: Workbook, title: str, rows: list[dict[str, Any]], uni
     for r in rows:
         entry = order.setdefault((r["line_no"], r["label"]), {"depth": r["depth"]})
         entry[r["period"]] = in_unit(r["value"], PER_SHARE if r["unit"] == PER_SHARE else unit)
+        if r["stated_id"] is not None:
+            note = f"Stated by the user (#{r['stated_id']}, fin fact list)"
+            entry.setdefault("notes", {})[r["period"]] = note
+        elif r["corrected_id"] is not None:
+            note = f"Corrected (correction #{r['corrected_id']}, fin fact list)"
+            entry.setdefault("notes", {})[r["period"]] = note
     for (_, label), entry in sorted(order.items()):
         sheet.append([label] + [entry.get(p) for p in periods])
         first = sheet.cell(row=sheet.max_row, column=1)
         first.alignment = Alignment(indent=entry["depth"])
         if label == OTHER_LABEL:
             first.font = Font(italic=True)
-        for cell in sheet[sheet.max_row][1:]:
+        for period, cell in zip(periods, sheet[sheet.max_row][1:], strict=True):
             cell.number_format = MONEY_FORMAT
+            if period in entry.get("notes", {}):
+                cell.comment = Comment(entry["notes"][period], "fin")
     sheet.column_dimensions["A"].width = 60
 
 

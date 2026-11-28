@@ -16,7 +16,10 @@ ledger_accounts and tax_ledgers, and the reconciliations recon_runs, recon_items
 query_items) is refused with E806 before the backup: those tables change only through
 `fin engagement|query|adjust|gate`, `fin ingest --kind`, `fin map ledgers` with `fin review
 --ledgers`, `fin reconcile`, `fin recast`, `fin sample`, `fin walkthrough` and the FDD commands,
-which check the gates and log every change. SQL naming
+which check the gates and log every change. A statement other than a SELECT that names facts,
+raw_values, stated_figures or fact_corrections is refused with E505, also before the backup:
+figures come from documents (`fin ingest`, `fin review`) or from the user (`fin fact state`),
+and a figure fin misread is corrected with `fin fact correct`. SQL naming
 mask_values is refused with E810 (fin.query.run.refuse_masked). A statement that would end the
 transaction or reach past the company database (BEGIN, COMMIT, ROLLBACK, ATTACH, DETACH, COPY FROM
 DATABASE, LOAD/INSTALL) or change the schema (CREATE, DROP, ALTER, PRAGMA, SET, EXPORT, VACUUM) is
@@ -35,6 +38,7 @@ from fin.audit.errors import (
     DataFolderNotWritable,
     DependencyMissing,
     DiligenceTableWrite,
+    FigureTableWrite,
     MaskedTableRead,
     SqlFailed,
 )
@@ -55,6 +59,10 @@ DILIGENCE_TABLE = re.compile(
     r"|disclosure_files|disclosures|related_party_links"
     r"|netdebt_classes|netdebt_items|fdd_findings)\b"
 )
+
+# The figures: loaded by `fin ingest`, mapped by `fin review`, stated by `fin fact state`, never
+# written by hand (SPEC-08: an assistant once inserted zero rows as if read from a document).
+FIGURE_TABLE = re.compile(r"\b(facts|raw_values|stated_figures|fact_corrections)\b")
 
 # Statements that would end the wrapping transaction or reach past the company database.
 REFUSED = {
@@ -116,7 +124,8 @@ def _changed_rows(con: duckdb.DuckDBPyConnection, statement: Any) -> int:
 def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
     """Check every statement before any runs. E504 when the SQL does not parse or a statement is
     one of REFUSED; E806 when a statement other than a SELECT names a diligence table (a name match
-    is enough: when in doubt, refuse); E810 when the SQL names mask_values."""
+    is enough: when in doubt, refuse); E505 when one names a figure table (FIGURE_TABLE)
+    (checked after every statement passed the others); E810 when the SQL names mask_values."""
     refuse_masked(sql)
     try:
         statements = con.extract_statements(sql)
@@ -143,6 +152,17 @@ def check_write_sql(con: duckdb.DuckDBPyConnection, sql: str) -> None:
                 "changes data only; restore from backups/<run_id> if a company database was "
                 "changed. Nothing was run"
             )
+    for statement in statements:
+        if statement.type == duckdb.StatementType.SELECT:
+            continue
+        named = sorted(set(FIGURE_TABLE.findall((statement.query or sql).lower())))
+        if named:
+            raise FigureTableWrite(
+                f"`fin sql --write` does not change the figures (found: {', '.join(named)}). "
+                "Load a document (`fin ingest`, `--reading` for pages fin could not read), map its "
+                "lines (`fin review`), state a figure the documents do not give (`fin fact "
+                "state`) or correct one fin misread (`fin fact correct`). Nothing was run"
+            ).with_context(tables=named)
 
 
 def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> dict[str, Any]:
@@ -155,7 +175,7 @@ def write_sql(run: Run, company: str, sql: str, question: str | None = None) -> 
     with connect(path) as con:
         try:
             check_write_sql(con, sql)
-        except (DiligenceTableWrite, MaskedTableRead, SqlFailed):
+        except (DiligenceTableWrite, FigureTableWrite, MaskedTableRead, SqlFailed):
             run.record(
                 "queries",
                 {

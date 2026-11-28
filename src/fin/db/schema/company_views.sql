@@ -130,17 +130,42 @@ GROUP BY l.doc_id, l.account, l.period, l.scope;
 -- When several current documents report the same account, period and scope (a later report repeats a period as a
 -- comparative), the value comes from the document whose own period it is (documents.period_end = the period's
 -- end); otherwise from the latest report (latest documents.period_end, then the latest ingest).
+-- Then the figures the user stated (stated_figures, not withdrawn) for an account, period and scope no loaded
+-- document gives: stated_id is set, and fact_id and doc_id are NULL and fact_ids is empty (no document line). A
+-- stated figure never replaces a document's: once a loaded document gives it, the document's value is used.
 CREATE VIEW current_facts AS
+WITH from_documents AS (
+    SELECT
+        x.fact_id, x.fact_ids, x.doc_id, x.account, x.fiscal_year, x.period, x.period_months, x.period_end, x.scope,
+        x.value, NULL::BIGINT AS stated_id
+    FROM document_facts x
+    JOIN documents d ON d.doc_id = x.doc_id
+    WHERE d.status = 'loaded'
+    QUALIFY row_number() OVER (
+        PARTITION BY x.account, x.period, x.scope
+        ORDER BY d.period_end = x.period_end DESC, d.period_end DESC, d.doc_id DESC
+    ) = 1
+)
+SELECT * FROM from_documents
+UNION ALL
 SELECT
-    x.fact_id, x.fact_ids, x.doc_id, x.account, x.fiscal_year, x.period, x.period_months, x.period_end, x.scope,
-    x.value
-FROM document_facts x
-JOIN documents d ON d.doc_id = x.doc_id
-WHERE d.status = 'loaded'
-QUALIFY row_number() OVER (
-    PARTITION BY x.account, x.period, x.scope
-    ORDER BY d.period_end = x.period_end DESC, d.period_end DESC, d.doc_id DESC
-) = 1;
+    NULL::BIGINT, []::BIGINT[], NULL::INTEGER, s.account, s.fiscal_year, s.period, s.period_months, s.period_end,
+    s.scope, s.value, s.stated_id
+FROM stated_figures s
+WHERE s.status = 'stated'
+    AND NOT EXISTS (
+        SELECT 1 FROM from_documents x WHERE x.account = s.account AND x.period = s.period AND x.scope = s.scope
+    );
+
+-- The figures the user stated and has not withdrawn (`fin fact list`, the report's data coverage). in_use is false
+-- while a loaded document gives the same account, period and scope (the document's figure is used instead).
+CREATE VIEW stated_now AS
+SELECT
+    s.stated_id, s.account, s.fiscal_year, s.period, s.period_months, s.period_end, s.scope, s.value, s.reason,
+    s.read_by, s.run_id, s.stated_at,
+    EXISTS (SELECT 1 FROM current_facts c WHERE c.stated_id = s.stated_id) AS in_use
+FROM stated_figures s
+WHERE s.status = 'stated';
 
 -- How much of what the loaded documents print is mapped, per scope and statement (report "Data coverage", the
 -- dashboard quality page). figures: values read (one per line and period); mapped: of those, confirmed to an
@@ -191,3 +216,16 @@ FROM (
 
 -- Where a raw value was printed: `sheet!cell` for Excel, `page N` for PDF.
 CREATE MACRO source_ref(sheet, cell, page) AS coalesce(sheet || '!' || cell, 'page ' || page);
+
+-- The figures corrected with `fin fact correct` in documents that are loaded or held: the latest correction of each
+-- fact (fact_corrections), with the fact's account, period and scope and the cell or page it was read from.
+CREATE VIEW corrected_now AS
+SELECT
+    c.correction_id, c.fact_id, c.doc_id, f.account, f.period, f.scope, c.original_value, c.value, c.reason,
+    c.actor, c.on_request, c.run_id, c.corrected_at, d.file_name, source_ref(r.sheet, r.cell, r.page) AS source
+FROM fact_corrections c
+JOIN facts f ON f.fact_id = c.fact_id
+LEFT JOIN raw_values r ON r.raw_id = f.raw_id
+JOIN documents d ON d.doc_id = c.doc_id
+WHERE d.status IN ('loaded', 'held')
+QUALIFY row_number() OVER (PARTITION BY c.fact_id ORDER BY c.correction_id DESC) = 1;

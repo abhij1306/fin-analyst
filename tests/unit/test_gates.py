@@ -78,6 +78,8 @@ def test_g1_checklist_names_what_is_missing(con: duckdb.DuckDBPyConnection) -> N
         (False, "FY25: no loaded document has mapped figures for it"),
         (False, "held documents: doc_id 2 b.xlsx (`fin findings list acme`)"),
         (False, "1 mapping items waiting for review (`fin review list acme`)"),
+        (True, "no figures stated by the user"),
+        (True, "no figures corrected after fin read them"),
         (True, "no trial balance loaded and no stub: the trial balance checks apply once one is"),
     ]
     assert [(line["ok"], line["text"]) for line in g2["checklist"]] == [
@@ -281,6 +283,49 @@ def test_g1_reopens_when_a_figure_changes(con: duckdb.DuckDBPyConnection, tmp_pa
         ("G3", "open", None),
         ("G4", "open", None),
     ]
+
+
+def state_figure(con: duckdb.DuckDBPyConnection, period: str) -> None:
+    con.execute(
+        "INSERT INTO stated_figures (account, fiscal_year, period, period_months, period_end, "
+        "scope, value, reason, actor, status, run_id, stated_at) VALUES ('finance_cost', ?, ?, 12, "
+        "DATE '2024-03-31', 'standalone', 0, 'no line', 'user', 'stated', 'r1', now())",
+        [period, period],
+    )
+
+
+def test_g1_reopens_when_the_user_states_a_figure(
+    con: duckdb.DuckDBPyConnection, tmp_path: Path
+) -> None:
+    run = Run("gate approve", {}, tmp_path)
+    con.execute("UPDATE documents SET status = 'loaded' WHERE doc_id = 2")
+    approve_in(run, ctx(con), "G1")
+
+    state_figure(con, "FY24")
+
+    assert states(ctx(con))[0] == (
+        "G1",
+        "reopened",
+        "changed since it was approved: figures, stated figures",
+    )
+
+
+def test_g1_needs_a_loaded_document_for_a_period_a_stated_figure_alone_does_not_cover(
+    con: duckdb.DuckDBPyConnection,
+) -> None:
+    con.execute("DELETE FROM documents WHERE doc_id = 2")
+    state_figure(con, "FY25")
+
+    [gate] = [g for g in evaluate(ctx(con)) if g["gate"] == "G1"]
+
+    assert [(line["ok"], line["text"]) for line in gate["checklist"]][:2] == [
+        (True, "FY24: a loaded document has mapped figures for it"),
+        (False, "FY25: no loaded document has mapped figures for it"),
+    ]
+    assert (True, "figures stated by the user, not from a document: #1 finance_cost FY25 "
+            "standalone 0.00: no line (`fin fact list acme`)") in [
+        (line["ok"], line["text"]) for line in gate["checklist"]
+    ]  # fmt: skip
 
 
 def test_g2_stays_approved_as_an_approved_query_moves_on_and_reopens_when_reworded(

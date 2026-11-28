@@ -31,9 +31,14 @@ Ingest documents for the company in `$ARGUMENTS`.
         deposits: map it to `cash_and_bank_balances`): `uv run fin map set <company> --statement <statement>
         --label "<label>" --account <account>`, then `uv run fin ingest <company> <file> --force`;
       - an unmapped label that is part of the total: confirm its mapping with `/review`;
-      - a figure fin read wrongly: `uv run fin sql <company> --write --sql "UPDATE facts SET value = ... WHERE
-        fact_id = ..."` (backed up and audit-logged).
-      Every held document is checked again after `fin sql --write` and `fin review confirm`, and `fin ingest
+      - a figure fin read wrongly: show the user the cell or page and the figure fin holds. Only when the user says
+        so, correct it: `uv run fin fact correct <company> <fact_id> --value <as printed, in rupees> --reason
+        "<what fin misread>"` (backed up, logged, marked as corrected). Never to make a check pass when the source
+        shows the figure, and never for a figure under a diligence query or adjustment (E409);
+      - a line the document does not have at all (a nil finance cost, say): only when the user asks, state it with
+        `uv run fin fact state <company> --account <account> --period <period> --scope <scope> --value 0
+        --reason "<the user's words>"`. It never replaces a figure a document gives (that records a finding).
+      Every held document is checked again after `fin review confirm`, and `fin ingest
       --force` checks the new version. Report the result: a finding that no longer appears is resolved; a document
       with no open findings is loaded. Never change data to make a check pass when the source itself shows the
       figure: that is the user's call to save as is.

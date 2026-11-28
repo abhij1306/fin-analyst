@@ -10,6 +10,8 @@ import pytest
 from typer.testing import CliRunner, Result
 
 from fin.cli import app
+from fin.db.conn import connect
+from fin.paths import company_db_path
 
 runner = CliRunner()
 FIRST = "Bluepeak_Polymers_FY2023-24.xlsx"
@@ -75,6 +77,8 @@ def test_gates_unlock_in_order_and_reopen_when_data_changes(root: Path, audit_qu
         "    pass: FY25: a loaded document has mapped figures for it\n"
         "    pass: no held documents\n"
         "    pass: no mapping items waiting for review\n"
+        "    pass: no figures stated by the user\n"
+        "    pass: no figures corrected after fin read them\n"
         "    pass: no trial balance loaded and no stub: the trial balance checks apply once one"
         " is\n"
         "    unlocks: approving G2\n"
@@ -167,12 +171,12 @@ def test_a_changed_figure_reopens_g1(root: Path) -> None:
     assert fin("gate", "approve", "bluepeak", "G1").exit_code == 0
     assert fin("gate", "approve", "bluepeak", "G2").exit_code == 0
 
-    fixed = fin(
-        "sql", "bluepeak", "--write", "--sql",
-        "UPDATE facts SET value = value + 5000000 WHERE account = 'depreciation' "
-        "AND period = 'FY25'",
-    )  # fmt: skip
-    assert fixed.exit_code == 0, fixed.output
+    # A figure changed under the gate (`fin sql --write` refuses facts, E505).
+    with connect(company_db_path(root, "bluepeak"), write=True) as con:
+        con.execute(
+            "UPDATE facts SET value = value + 5000000 WHERE account = 'depreciation' "
+            "AND period = 'FY25'"
+        )
 
     status = json.loads(fin("gate", "status", "bluepeak", "--json").stdout)
     assert [(g["gate"], g["state"], g["reason"]) for g in status["gates"]] == [

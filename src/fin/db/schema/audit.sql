@@ -150,6 +150,45 @@ CREATE TABLE findings (
     status VARCHAR
 );
 
+-- Figures the user states (fin.facts, `fin fact state|unstate`). action: 'stated' (stored), 'finding' (a loaded
+-- document gives the figure: nothing stored, finding_id is the finding recorded) or 'withdrawn'. stated_id is the
+-- company database's stated_figures.stated_id (NULL for 'finding'); backup_path the company database copied first.
+CREATE TABLE stated_figures (
+    run_id VARCHAR NOT NULL,
+    recorded_at TIMESTAMP NOT NULL,
+    company VARCHAR NOT NULL,
+    action VARCHAR NOT NULL CHECK (action IN ('stated', 'finding', 'withdrawn')),
+    stated_id BIGINT,
+    finding_id BIGINT,
+    account VARCHAR NOT NULL,
+    period VARCHAR NOT NULL,
+    scope VARCHAR NOT NULL,
+    value DECIMAL(20, 2) NOT NULL,
+    reason VARCHAR,
+    actor VARCHAR NOT NULL,
+    backup_path VARCHAR NOT NULL
+);
+
+-- Corrections of a figure fin read wrongly (fin.facts, `fin fact correct`): correction_id and fact_id are the company
+-- database's; actor ('user' or 'ai:<provider>', fin.actor) and on_request as in mapping_decisions; backup_path the
+-- company database copied first.
+CREATE TABLE fact_corrections (
+    run_id VARCHAR NOT NULL,
+    recorded_at TIMESTAMP NOT NULL,
+    company VARCHAR NOT NULL,
+    correction_id BIGINT NOT NULL,
+    fact_id BIGINT NOT NULL,
+    account VARCHAR,
+    period VARCHAR,
+    scope VARCHAR NOT NULL,
+    original_value DECIMAL(20, 2) NOT NULL,
+    value DECIMAL(20, 2) NOT NULL,
+    reason VARCHAR NOT NULL,
+    actor VARCHAR NOT NULL,
+    on_request BOOLEAN NOT NULL,
+    backup_path VARCHAR NOT NULL
+);
+
 -- Diligence (fin.diligence): every engagement, accountant query and adjustment added, and every status change, and
 -- every exchange rate the user states. kind: 'engagement', 'query', 'adjustment', 'gate' or 'rate'; item_id: its id in
 -- the company database (engagement_id, query_id, adj_id or rate_id; status 'stated' for a rate), or for a gate its

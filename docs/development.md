@@ -8,7 +8,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 - `cli/`: the `fin` commands (Typer), one module per group: `core.py` (the root `app`, `--version`, shared argument checks), `init.py` (init, doctor), `ingest.py` (ingest, ingest-batch, verify), `findings.py` (findings, status), `statements.py` (statements, export), `data.py` (sql, dashboard, audit, delete, update, report), `evals.py` (eval init, run, bundle). Each command runs through the audit logger. To add a command group, make a module that does `from fin.cli.core import app` and decorates its commands, then add it to the import line in `cli/__init__.py` (the order is the order in `fin --help`).
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
-- `audit/errors.py`: error classes and codes (the FDD ones, E9xx, in `audit/errors_fdd.py`, and the data-room ones, E814, E815 and E819, in `audit/errors_dataroom.py`, both re-exported) (E001 to E972). `audit/logger.py`: run records and logging.
+- `audit/errors.py`: error classes and codes (the FDD ones, E9xx, in `audit/errors_fdd.py`, the data-room ones, E814, E815 and E819, in `audit/errors_dataroom.py`, and E830 to E874 in `audit/errors_dd.py`, all re-exported) (E001 to E972). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
   database from its schema file.
@@ -95,7 +95,10 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   coverage and unread pages to `shared/analytics.duckdb` (`TABLES`), for the dashboards.
 - `statements.py`: the `standard_statements` view (made per connection from the dictionary's account tree) and
   `fin statements`. `workbook.py`: `fin export` (the Excel workbook).
-- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806), `evidence.py` (`fin sql --evidence` pages).
+- `query/`: `run.py` (`fin sql`, read, and `--evidence`), `write.py` (`fin sql --write`; refuses the diligence tables, E806, and the figure tables, E505), `evidence.py` (`fin sql --evidence` pages).
+- `facts.py`: figures the user states (`fin fact state|unstate|list`, CLI `cli/facts.py`; table `stated_figures`,
+  merged into `current_facts`) and corrections of a figure fin misread (`fin fact correct`; table
+  `fact_corrections`, view `corrected_now`). `metrics/missing.py`: why a metric is not computed (the inputs it lacks).
 - `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
   Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule, and the FDD report's no-valuation, rating or buy rule, E972), `render.py`

@@ -53,6 +53,8 @@ def home(status: dict[str, Any]) -> dict[str, Any]:
         (status["pending_mappings"], "mappings waiting for you"),
         (status["open_findings"], "open findings on filed data"),
         (status["accepted_findings"], "accepted findings"),
+        (status["stated_figures"], "figures you stated, not from a document"),
+        (status["corrected_figures"], "figures corrected after fin misread them"),
         (gate[0] if gate else "-", f"next gate ({gate[1]})" if gate else "no gate waiting"),
     ]
     return {

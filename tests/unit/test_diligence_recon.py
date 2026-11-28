@@ -130,7 +130,10 @@ def map_all(root: Path) -> None:
 def g1_lines(root: Path) -> list[tuple[bool, str]]:
     with connect(company_db_path(root, "acme")) as con:
         [g1, *_] = gates.evaluate(gates.context(con, root, "acme"))
-    return [(line["ok"], line["text"]) for line in g1["checklist"]][3:]
+    # the trial balance lines: after the periods, held documents and mapping items, and without the
+    # stated and corrected figure lines (fin.facts)
+    shown = [(line["ok"], line["text"]) for line in g1["checklist"]]
+    return [line for line in shown if not line[1].startswith("no figures ")][3:]
 
 
 def test_the_stub_is_the_year_to_date_after_the_last_period() -> None:

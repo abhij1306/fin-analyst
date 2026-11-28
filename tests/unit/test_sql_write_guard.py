@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fin.audit.errors import DiligenceTableWrite, MaskedTableRead, SqlFailed
+from fin.audit.errors import DiligenceTableWrite, FigureTableWrite, MaskedTableRead, SqlFailed
 from fin.audit.logger import Run
 from fin.db.conn import connect
 from fin.db.schema import ensure_database
@@ -54,14 +54,59 @@ def test_writes_naming_a_diligence_table_are_refused(tmp_path: Path, sql: str, f
 @pytest.mark.parametrize(
     "sql",
     [
-        "UPDATE facts SET value = 1 WHERE engagement_id = 2",
-        "SELECT * FROM gate_approvals; UPDATE facts SET value = 1",
-        "DELETE FROM facts WHERE account = 'adjusted_ebitda'",
+        "UPDATE documents SET status = 'loaded' WHERE engagement_id = 2",
+        "SELECT * FROM gate_approvals; UPDATE documents SET status = 'held'",
+        "DELETE FROM findings WHERE label = 'adjusted_ebitda'",
+        "UPDATE findings SET message = 'x' WHERE label = 'current_facts'",
     ],
 )
 def test_other_writes_pass(tmp_path: Path, sql: str) -> None:
     with connect(tmp_path / "x.duckdb", write=True) as con:
         assert check_write_sql(con, sql) is None
+
+
+@pytest.mark.parametrize(
+    ("sql", "found"),
+    [
+        ("INSERT INTO facts SELECT * FROM facts", "facts"),
+        ("UPDATE main.Facts SET value = 0 WHERE account = 'finance_cost'", "facts"),
+        ("DELETE FROM raw_values", "raw_values"),
+        ("UPDATE stated_figures SET status = 'withdrawn'", "stated_figures"),
+        ("DELETE FROM fact_corrections", "fact_corrections"),
+        ("UPDATE documents SET status = 'held'; DELETE FROM facts", "facts"),
+        ("INSERT INTO raw_values SELECT * FROM raw_values "
+         "WHERE raw_id IN (SELECT raw_id FROM facts)", "facts, raw_values"),
+    ],
+)  # fmt: skip
+def test_writes_naming_a_figure_table_are_e505(tmp_path: Path, sql: str, found: str) -> None:
+    with connect(tmp_path / "x.duckdb", write=True) as con, pytest.raises(FigureTableWrite) as e:
+        check_write_sql(con, sql)
+
+    assert str(e.value) == (
+        f"E505: `fin sql --write` does not change the figures (found: {found}). Load a document "
+        "(`fin ingest`, `--reading` for pages fin could not read), map its lines (`fin review`), "
+        "state a figure the documents do not give (`fin fact state`) or correct one fin misread "
+        "(`fin fact correct`). Nothing was run"
+    )
+
+
+def test_a_write_into_facts_is_refused_before_the_backup_and_logged(tmp_path: Path) -> None:
+    path = company_db_path(tmp_path, "acme")
+    ensure_database(path, "company")
+    run = Run("sql", {}, tmp_path)
+    sql = "INSERT INTO facts (raw_id, doc_id, account, fiscal_year, period_end, scope, value, "
+    sql += "confirmed, run_id, read_by) VALUES (1, 1, 'finance_cost', 'FY24', DATE '2024-03-31', "
+    sql += "'standalone', 0, true, 'invented', 'claude')"
+
+    with pytest.raises(FigureTableWrite):
+        write_sql(run, "acme", sql)
+
+    with connect(path) as con:
+        assert con.execute("SELECT count(*) FROM facts").fetchone() == (0,)
+    assert not (tmp_path / "backups").exists()
+    assert [(table, row["sql"], row["mode"]) for table, row in run._records] == [
+        ("queries", sql, "write")
+    ]
 
 
 @pytest.mark.parametrize(
@@ -146,7 +191,8 @@ def test_the_written_sql_cannot_read_files(tmp_path: Path) -> None:
         write_sql(
             Run("sql", {}, tmp_path),
             "acme",
-            f"UPDATE facts SET value = (SELECT count(*) FROM read_csv('{secret.as_posix()}'))",
+            "UPDATE documents SET file_name = "
+            f"(SELECT count(*) FROM read_csv('{secret.as_posix()}'))",
         )
 
 

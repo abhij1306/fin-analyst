@@ -17,13 +17,16 @@ E801 until it is approved (`require`), checked in the same transaction as their 
 Gates in this build (docs/diligence.md):
     G1 Ingestion    every annual period in scope has figures in current_facts (a loaded document,
                     mapped and confirmed: what the metrics use), no held documents, no mapping
-                    items waiting for review; and the trial balance checks
+                    items waiting for review (the figures the user stated are listed for the user
+                    to see, and do not fail it); and the trial balance checks
                     (`fin.diligence.tb_checks`), once a payroll file is loaded its unit confirmed by
                     the user (`fin.diligence.payroll`) and, once a bank statement is loaded, every
                     bank parse tying (`fin.diligence.bank_checks`). Its inputs are the
-                    periods, the documents, the mapping items and the figures (every
-                    current_facts value by account, period and scope), so a changed figure
-                    (`fin sql --write` on facts, a review that maps a line) reopens it, and
+                    periods, the documents, the mapping items, the stated figures and the
+                    figures (every current_facts value by account, period and scope), so a
+                    changed figure
+                    (a re-ingest, a review that maps a line, a figure the user states, a
+                    correction with `fin fact correct`, also listed) reopens it, and
                     the trial balance inputs (source files, ledger mappings, reconciliations) and
                     the bank statements and their findings;
     G2 Reconciliation no query in draft: every query's wording is reviewed. Its inputs are each
@@ -117,7 +120,9 @@ def _periods(ctx: Context) -> list[str]:
 def _data_checklist(ctx: Context) -> list[Line]:
     covered = {
         period
-        for (period,) in ctx.con.execute("SELECT DISTINCT period FROM current_facts").fetchall()
+        for (period,) in ctx.con.execute(
+            "SELECT DISTINCT period FROM current_facts WHERE doc_id IS NOT NULL"
+        ).fetchall()
     }
     lines = [
         (True, f"{period}: a loaded document has mapped figures for it")
@@ -143,7 +148,48 @@ def _data_checklist(ctx: Context) -> list[Line]:
         )
     else:
         lines.append((True, "no mapping items waiting for review"))
+    lines.append(_stated_line(ctx))
+    lines.append(_corrected_line(ctx))
     return lines + tb_checks.checklist(ctx) + payroll.checklist(ctx) + bank_checks.checklist(ctx)
+
+
+_STATED_SQL = """
+SELECT stated_id, account, period, scope, value, reason FROM stated_now ORDER BY stated_id
+"""
+
+
+def _stated_line(ctx: Context) -> Line:
+    """The figures the user stated (fin.facts), listed for the user to see before approving. A
+    stated figure is allowed in an engagement, so the line passes either way."""
+    stated = _rows(ctx, _STATED_SQL)
+    if not stated:
+        return (True, "no figures stated by the user")
+    figures = "; ".join(
+        f"#{i} {account} {period} {scope} {value}: {reason}"
+        for i, account, period, scope, value, reason in stated
+    )
+    return (True, f"figures stated by the user, not from a document: {figures} (`fin fact list "
+            f"{ctx.company}`)")  # fmt: skip
+
+
+_CORRECTED_SQL = """
+SELECT correction_id, fact_id, account, period, scope, original_value, value, reason
+FROM corrected_now ORDER BY correction_id
+"""
+
+
+def _corrected_line(ctx: Context) -> Line:
+    """The figures corrected after fin misread them (`fin fact correct`), listed for the user to
+    see before approving. Correcting fin's own reading is allowed, so the line passes."""
+    corrected = _rows(ctx, _CORRECTED_SQL)
+    if not corrected:
+        return (True, "no figures corrected after fin read them")
+    figures = "; ".join(
+        f"#{i} fact {fact} {account} {period} {scope} {before} -> {after}: {reason}"
+        for i, fact, account, period, scope, before, after, reason in corrected
+    )
+    return (True, f"figures corrected after fin misread them: {figures} (`fin fact list "
+            f"{ctx.company}`)")  # fmt: skip
 
 
 def _data_inputs(ctx: Context) -> dict[str, Any]:
@@ -154,6 +200,10 @@ def _data_inputs(ctx: Context) -> dict[str, Any]:
             ctx,
             "SELECT account, period, scope, value FROM current_facts "
             "ORDER BY account, period, scope",
+        ),
+        "stated figures": _rows(ctx, "SELECT stated_id, reason FROM stated_now ORDER BY stated_id"),
+        "corrected figures": _rows(
+            ctx, "SELECT correction_id, fact_id, value, reason FROM corrected_now ORDER BY 1"
         ),
         "mapping items": sorted(
             [item["id"], item["status"], item["statement"], item["section"], item["label"]]

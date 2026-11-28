@@ -8,6 +8,8 @@ For each company (every company database and every inbox/ company folder, or the
 - mapping items waiting for review (review/<company>/pending.json);
 - figures in loaded and held documents read by Claude (a reading file) or by the PDF add-on,
   as information: whether they are trusted is the user's decision (`fin verify` checks them);
+- figures the user stated where no document gives them, and figures corrected with `fin fact
+  correct` (fin.facts), as information;
 - files in inbox/<company>/ not yet ingested (no document with the same sha256);
 - with an open diligence engagement: its queries by status, proposed adjustments, and each gate's
   state (fin.diligence.gates).
@@ -38,7 +40,9 @@ SELECT
     (SELECT count(*) FROM facts f JOIN documents d USING (doc_id)
      WHERE f.read_by LIKE 'ai:%' AND d.status IN ('loaded', 'held')),
     (SELECT count(*) FROM facts f JOIN documents d USING (doc_id)
-     WHERE f.read_by <> 'fin' AND f.read_by NOT LIKE 'ai:%' AND d.status IN ('loaded', 'held'))
+     WHERE f.read_by <> 'fin' AND f.read_by NOT LIKE 'ai:%' AND d.status IN ('loaded', 'held')),
+    (SELECT count(*) FROM stated_now),
+    (SELECT count(*) FROM corrected_now)
 """
 _HELD = """
 SELECT d.doc_id, d.file_name,
@@ -80,7 +84,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
     db = company_db_path(run.root, company)
     periods: dict[str, list[str]] = {kind: [] for kind in KINDS.values()}
     held: list[dict[str, Any]] = []
-    open_findings = accepted = by_claude = by_addon = 0
+    open_findings = accepted = by_claude = by_addon = stated = corrected = 0
     known: set[str] = set()
     diligence = None
     pending = read_pending(run.root, company)
@@ -98,7 +102,7 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
             ]
             row = con.execute(_SUMMARY).fetchone()
             assert row is not None
-            open_findings, accepted, by_claude, by_addon = row
+            open_findings, accepted, by_claude, by_addon, stated, corrected = row
             known = {sha for (sha,) in con.execute("SELECT sha256 FROM documents").fetchall()}
             diligence = _diligence(con, company, open_items(pending))
     inbox = inbox_dir(run.root, company)
@@ -115,6 +119,8 @@ def company_status(run: Run, company: str) -> dict[str, Any]:
         "pending_mappings": len(open_items(pending)),
         "read_by_claude": by_claude,
         "read_by_pdf_addon": by_addon,
+        "stated_figures": stated,
+        "corrected_figures": corrected,
         "inbox_not_ingested": waiting,
         "diligence": diligence,
     }
@@ -184,6 +190,8 @@ def format_status(result: list[dict[str, Any]]) -> str:
             f"  mappings waiting for review: {s['pending_mappings']}",
             f"  figures read by Claude: {s['read_by_claude']}, by the PDF add-on: "
             f"{s['read_by_pdf_addon']}",
+            f"  figures stated by the user: {s['stated_figures']}, corrected: "
+            f"{s['corrected_figures']} (`fin fact list {c}`)",
             f"  inbox files not ingested: {_list(s['inbox_not_ingested'])}",
         ]
         out += _format_diligence(s["diligence"])

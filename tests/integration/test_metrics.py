@@ -169,8 +169,13 @@ def test_metric_inputs_trace_each_metric_to_its_facts(ingested: Path) -> None:
 
 def test_a_data_change_rebuilds_analytics(root: Path) -> None:
     analytics = analytics_db_path(root)
-    # A label taken back to review: kestrel FY25 revenue no longer confirmed.
-    sql = "UPDATE facts SET confirmed = false WHERE account = 'revenue' AND fiscal_year = 'FY25'"
+    # A label taken back to review: kestrel FY25 revenue no longer confirmed. `fin sql --write`
+    # refuses facts (E505), so the label is changed here and the write is one it allows.
+    with connect(company_db_path(root, "kestrel"), write=True) as con:
+        con.execute(
+            "UPDATE facts SET confirmed = false WHERE account = 'revenue' AND fiscal_year = 'FY25'"
+        )
+    sql = "UPDATE documents SET status = status WHERE false"
 
     result = runner.invoke(app, ["sql", "kestrel", "--write", "--sql", sql])
 

@@ -313,11 +313,12 @@ def _shown(printed: str | None, value: Any) -> str:
 
 def format_finding(row: dict[str, Any]) -> str:
     """Two lines: what and where, then this document's figure and what it was compared with."""
-    document = (
-        f"{row['file_name']} (doc_id {row['doc_id']}, {row['document_status']})"
-        if row["doc_id"] is not None
-        else f"{row['file_name']} (source file_id {row['file_id']})"
-    )
+    if row["doc_id"] is not None:
+        document = f"{row['file_name']} (doc_id {row['doc_id']}, {row['document_status']})"
+    elif row["file_id"] is not None:
+        document = f"{row['file_name']} (source file_id {row['file_id']})"
+    else:  # a figure the user stated that a loaded document gives (fin.facts)
+        document = f"{row['file_name']} (stated figure)"
     head = (
         f"#{row['finding_id']} {row['status']} {row['code'] or row['check_name']} "
         f"{row['company']}/{document}: {row['message']}"

@@ -19,7 +19,7 @@ from typer.testing import CliRunner, Result
 
 from fin.cli import app
 from fin.db.conn import connect
-from fin.paths import audit_db_path
+from fin.paths import audit_db_path, company_db_path
 from tests.integration.test_ingest_results import q1_results, q2_results, q4_results
 
 runner = CliRunner()
@@ -214,11 +214,11 @@ def test_rerender_with_unchanged_data_gives_identical_numbers_and_hash(
     assert hashes[0] == hashes[1]
 
     # A changed value changes the hash.
-    sql = (
-        "UPDATE facts SET value = value + 1 WHERE fact_id = "
-        "(SELECT fact_id FROM current_facts WHERE account = 'revenue' AND fiscal_year = 'FY25')"
-    )
-    assert runner.invoke(app, ["sql", "kestrel", "--write", "--sql", sql]).exit_code == 0
+    with connect(company_db_path(root, "kestrel"), write=True) as con:
+        con.execute(
+            "UPDATE facts SET value = value + 1 WHERE fact_id = (SELECT fact_id FROM "
+            "current_facts WHERE account = 'revenue' AND fiscal_year = 'FY25')"
+        )
     assert report().exit_code == 0
     assert report_rows(root)[-1][3] != hashes[0]
 

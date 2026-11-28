@@ -312,8 +312,8 @@ def kestrel(clean_root: Callable[..., Path]) -> Path:
     return clean_root("kestrel")
 
 
-def test_sql_write_changes_a_value_with_backup_and_audit_row(kestrel: Path) -> None:
-    sql = "UPDATE facts SET value = 1.00 WHERE account = 'revenue' AND fiscal_year = 'FY25'"
+def test_sql_write_changes_data_with_backup_and_audit_row(kestrel: Path) -> None:
+    sql = "UPDATE documents SET status = 'superseded'"
 
     result = invoke("sql", "kestrel", "--write", "--sql", sql)
 
@@ -322,40 +322,61 @@ def test_sql_write_changes_a_value_with_backup_and_audit_row(kestrel: Path) -> N
     assert out["rows_affected"] == 1
     assert out["backup_path"] == f"backups/{out['query_id']}/companies/kestrel.duckdb"
     with connect(company_db_path(kestrel, "kestrel")) as con:
-        changed = "SELECT value FROM facts WHERE account = 'revenue' AND fiscal_year = 'FY25'"
-        assert con.execute(changed).fetchall() == [(Decimal("1.00"),)]
+        assert con.execute("SELECT status FROM documents").fetchall() == [("superseded",)]
     with connect(kestrel / out["backup_path"]) as con:
-        assert con.execute(changed).fetchall() == [
-            (fact("kestrel", "standalone", "FY25", "revenue"),)
-        ]
+        assert con.execute("SELECT status FROM documents").fetchall() == [("loaded",)]
     assert audit_rows(
         kestrel,
         "SELECT sql, mode, row_count, backup_path FROM queries WHERE query_id = ?",
         [out["query_id"]],
     ) == [(sql, "write", 1, out["backup_path"])]
-    # Metrics are refreshed: revenue of 1.00 makes FY25 receivable days 365 x receivables / 1.00.
+    # Metrics are refreshed: with its only document superseded, kestrel has no metrics.
     with connect(analytics_db_path(kestrel)) as con:
-        assert con.execute(
-            "SELECT value FROM metrics WHERE company = 'kestrel' AND fiscal_year = 'FY25' "
-            "AND metric = 'receivable_days'"
-        ).fetchall() == [
-            (Decimal(365) * fact("kestrel", "standalone", "FY25", "trade_receivables"),)
+        assert con.execute("SELECT count(*) FROM metrics WHERE company = 'kestrel'").fetchall() == [
+            (0,)
         ]
 
 
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "UPDATE facts SET value = 0 WHERE account = 'revenue'",
+        "INSERT INTO raw_values SELECT * FROM raw_values",
+        "DELETE FROM stated_figures",
+        "DELETE FROM fact_corrections",
+    ],
+)
+def test_sql_write_refuses_the_figure_tables(kestrel: Path, sql: str) -> None:
+    before = query_rows(kestrel, "SELECT count(*), sum(value) FROM facts")
+    backups = sorted((kestrel / "backups").glob("*"))  # the fixture's own ingests back up
+
+    result = invoke("sql", "kestrel", "--write", "--sql", sql)
+
+    assert result.exit_code == 2
+    assert result.stderr.startswith("E505: `fin sql --write` does not change the figures")
+    assert query_rows(kestrel, "SELECT count(*), sum(value) FROM facts") == before
+    assert sorted((kestrel / "backups").glob("*")) == backups
+
+
+def query_rows(root: Path, sql: str) -> list[tuple[Any, ...]]:
+    with connect(company_db_path(root, "kestrel")) as con:
+        return con.execute(sql).fetchall()
+
+
 def test_sql_write_rolls_back_every_statement_when_one_fails(kestrel: Path) -> None:
-    sql = "UPDATE facts SET value = 999; UPDATE facts SET nope = 1"
+    sql = "UPDATE documents SET file_name = 'x.xlsx'; UPDATE documents SET nope = 1"
 
     result = invoke("sql", "kestrel", "--write", "--sql", sql)
 
     assert result.exit_code == 2
     assert result.stderr.startswith("E504: the change failed and was rolled back")
-    with connect(company_db_path(kestrel, "kestrel")) as con:
-        assert con.execute("SELECT count(*) FROM facts WHERE value = 999").fetchone() == (0,)
+    assert query_rows(kestrel, "SELECT count(*) FROM documents WHERE file_name = 'x.xlsx'") == [
+        (0,)
+    ]
 
 
 def test_sql_write_records_the_question(kestrel: Path) -> None:
-    sql = "UPDATE facts SET value = 1.00 WHERE account = 'revenue' AND fiscal_year = 'FY25'"
+    sql = "UPDATE documents SET status = 'loaded'"
     out = json.loads(invoke("sql", "kestrel", "--write", "--question", "fix", "--sql", sql).stdout)
     assert audit_rows(
         kestrel, "SELECT question FROM queries WHERE query_id = ?", [out["query_id"]]
@@ -363,9 +384,8 @@ def test_sql_write_records_the_question(kestrel: Path) -> None:
 
 
 def test_sql_write_counts_rows_changed_by_a_statement_with_returning(kestrel: Path) -> None:
-    where = "WHERE account = 'revenue' AND fiscal_year = 'FY25'"
-    changed = f"UPDATE facts SET value = 1.00 {where} RETURNING fact_id, value"
-    none = "UPDATE facts SET value = 1.00 WHERE fact_id = -1 RETURNING fact_id"
+    changed = "UPDATE documents SET status = 'loaded' WHERE doc_id = 1 RETURNING doc_id, status"
+    none = "UPDATE documents SET status = 'loaded' WHERE doc_id = -1 RETURNING doc_id"
 
     out = json.loads(invoke("sql", "kestrel", "--write", "--sql", changed).stdout)
     nothing = invoke("sql", "kestrel", "--write", "--sql", none)
@@ -376,10 +396,6 @@ def test_sql_write_counts_rows_changed_by_a_statement_with_returning(kestrel: Pa
 
 
 def test_a_row_without_a_fact_id_gets_no_provenance(kestrel: Path) -> None:
-    # A raw value no fact points to (its fact deleted).
-    drop = "DELETE FROM facts WHERE fact_id = (SELECT min(fact_id) FROM facts)"
-    assert invoke("sql", "kestrel", "--write", "--sql", drop).exit_code == 0
-
     result = invoke("sql", "kestrel", "--sql", "SELECT CAST(NULL AS BIGINT) AS fact_id")
 
     assert result.exit_code == 0, result.output

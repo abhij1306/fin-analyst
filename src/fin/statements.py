@@ -3,7 +3,9 @@
 For each period and scope, the profit and loss, balance sheet and cash flow in the dictionary's
 account tree (`shared/dictionary.duckdb` accounts), whatever labels the filing used:
 
-- every account with a value in `current_facts` (confirmed, from loaded documents);
+- every account with a value in `current_facts` (confirmed, from loaded documents, or a figure the
+  user stated where no document gives it: `stated_id`, marked "stated" in the text; a figure
+  corrected with `fin fact correct` has `corrected_id`, marked "corrected");
 - in standard order: an account's lines (in `templates/dictionary/schedule_iii.csv` order), then
   the account itself, as printed statements do; memo lines (no parent and no lines) last;
 - depth, for indentation: on the balance sheet, the number of shown subtotals above the line; on
@@ -70,7 +72,11 @@ CREATE OR REPLACE TEMP VIEW standard_statements AS
 WITH vals AS (
     SELECT
         f.period, f.period_months, f.fiscal_year, f.period_end, f.scope, f.account, f.value,
-        f.fact_id, f.fact_ids
+        f.fact_id, f.fact_ids, f.stated_id,
+        (
+            SELECT max(c.correction_id) FROM corrected_now c
+            WHERE list_contains(f.fact_ids, c.fact_id)
+        ) AS corrected_id
     FROM current_facts f
     JOIN statement_accounts a USING (account)
 ),
@@ -101,7 +107,7 @@ above AS (
 lines AS (
     SELECT
         v.period, v.period_months, v.fiscal_year, v.period_end, v.scope, a.statement, a.position,
-        a.account, a.label, v.value, v.fact_id, v.fact_ids,
+        a.account, a.label, v.value, v.fact_id, v.fact_ids, v.stated_id, v.corrected_id,
         CASE
             WHEN NOT a.running THEN coalesce(n.n, 0)
             WHEN s.explained IS NOT NULL OR a.is_root THEN 0
@@ -122,12 +128,12 @@ SELECT
     period, period_months, fiscal_year, period_end, scope, statement, 2 * position AS line_no,
     depth, 'line' AS line_type, account, label, value, explained,
     div6(CAST(explained * 100 AS HUGEINT), CAST(value * 100 AS HUGEINT)) AS coverage, fact_id,
-    fact_ids
+    fact_ids, stated_id, corrected_id
 FROM lines
 UNION ALL
 SELECT
     period, period_months, fiscal_year, period_end, scope, statement, 2 * position - 1, lines_depth,
-    'other', NULL, '{other}', value - explained, NULL, NULL, NULL, NULL
+    'other', NULL, '{other}', value - explained, NULL, NULL, NULL, NULL, NULL, NULL
 FROM lines
 WHERE explained IS NOT NULL AND explained <> value
 """
@@ -265,7 +271,8 @@ def amount(value: Decimal, symbol: str = "") -> str:
 def format_statements(company: str, rows: list[dict[str, Any]]) -> str:
     """Plain text: one block per scope, period and statement; amounts in the document unit (named
     in each header), per-share lines as printed. A subtotal its lines do not fully explain says
-    how much they explain."""
+    how much they explain. A figure the user stated says so, with its id, and so does a figure
+    corrected with `fin fact correct` (`fin fact list`)."""
     out: list[str] = []
     block = None
     money_unit = next((r["unit"] for r in rows if r["unit"] != PER_SHARE), "rupees")
@@ -283,5 +290,9 @@ def format_statements(company: str, rows: list[dict[str, Any]]) -> str:
         if row["coverage"] is not None and row["coverage"] != 1:
             explained = amount(in_unit(row["explained"], row["unit"]))
             line += f"  (lines explain {explained}, {row['coverage']:.2%})"
+        if row["stated_id"] is not None:
+            line += f"  (stated by the user, #{row['stated_id']})"
+        if row["corrected_id"] is not None:
+            line += f"  (corrected, correction #{row['corrected_id']})"
         out.append(line.rstrip())
     return "\n".join(out)

@@ -261,12 +261,12 @@ def test_verify_checks_a_corrected_figure_as_corrected(root: Path, tmp_path: Pat
     first = write_reading(tmp_path / "r1.csv", BALANCE_SHEET + PROFIT_AND_LOSS)
     assert runner.invoke(app, ["ingest", "acme", str(pdf), "--reading", str(first)]).exit_code == 0
     # Printed 28.50 lakh; corrected to 28.60 lakh (and the total with it).
-    fixed = runner.invoke(
-        app,
-        ["sql", "acme", "--write", "--sql", "UPDATE facts SET value = value + 10000 WHERE "
-         "period = 'FY25' AND account IN ('cash', 'total_assets', 'total_equity_and_liabilities')"],
-    )  # fmt: skip
-    assert fixed.exit_code == 0, fixed.output
+    # (`fin sql --write` refuses facts, E505: a correction of fin's reading is made here.)
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute(
+            "UPDATE facts SET value = value + 10000 WHERE period = 'FY25' "
+            "AND account IN ('cash', 'total_assets', 'total_equity_and_liabilities')"
+        )
     corrected = [
         (*BALANCE_SHEET[0][:5], "28.60", 1),
         BALANCE_SHEET[1],

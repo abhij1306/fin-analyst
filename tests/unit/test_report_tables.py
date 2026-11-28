@@ -99,6 +99,8 @@ def test_a_printed_subtotal_its_lines_do_not_explain_is_kept_and_marked() -> Non
 def test_missing_data_lists_a_quarter() -> None:
     report = data() | {
         "coverage": [],
+        "stated": [],
+        "corrected": [],
         "unread": [],
         "unconfirmed": [],
         "missing": [

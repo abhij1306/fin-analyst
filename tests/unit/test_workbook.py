@@ -19,6 +19,8 @@ def row(period: str, end: date, unit: str, value: str, label: str = "Revenue") -
         "depth": 0,
         "unit": unit,
         "value": Decimal(value),
+        "stated_id": None,
+        "corrected_id": None,
     }
 
 
