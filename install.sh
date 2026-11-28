@@ -150,7 +150,7 @@ run_retrying() { # run_retrying PAUSE_SECONDS COMMAND...: up to 3 attempts, agai
       rm -f "$out"
       die "'$*' failed 3 times with a network error; check the network and run ./install.sh again"
     fi
-    echo "'$*' failed with a network error (attempt $attempt of 3); trying again in $pause seconds"
+    echo "'$*' failed with a network error (attempt $attempt of 3); trying again in $pause seconds" >&2
     sleep "$pause"
   done
 }

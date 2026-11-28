@@ -34,7 +34,7 @@ REPO_FOLDER = "repo folder"  # the name of the check that the repo is not in a t
 REPO = Path(__file__).resolve().parents[2]
 # Folders the system may empty, besides TMPDIR; install.sh warns about the same (TEMP_ROOTS there,
 # tests/unit/test_doctor.py keeps them equal). They are only compared with the repo's path, never
-# written to, hence the NOSONAR (S5443).
+# written to, hence the suppressions of the publicly-writable-folder rule (S5443).
 TEMP_ROOTS = (
     "/tmp",  # NOSONAR
     "/private/tmp",  # NOSONAR
@@ -152,7 +152,8 @@ def check_python_source() -> Check:
 
 def in_temp_folder(path: Path) -> bool:
     """`path` is inside a folder the system may empty (TEMP_ROOTS, TMPDIR, the temp folder)."""
-    roots = [*TEMP_ROOTS, tempfile.gettempdir(), os.environ.get("TMPDIR", "")]  # NOSONAR: read only
+    # TMPDIR is only compared with the repo's path, never written to.
+    roots = [*TEMP_ROOTS, tempfile.gettempdir(), os.environ.get("TMPDIR", "")]  # NOSONAR
     candidates = {path, path.resolve()}
     for root in filter(None, roots):
         for folder in {Path(root), Path(root).resolve()}:

@@ -191,7 +191,8 @@ def test_repo_in_a_temporary_folder_warns(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert check.ok
     assert check.warning
     assert check.detail == f"{repo} is in a temporary folder, which the system or an app can delete"
-    assert check.fix is not None and "~/fin-analyst" in check.fix
+    assert check.fix is not None
+    assert "~/fin-analyst" in check.fix
 
 
 def test_repo_in_a_chosen_folder_is_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

@@ -109,6 +109,6 @@ def test_a_network_failure_then_success_carries_on(tmp_path: Path) -> None:
     assert attempts == 2
     assert result.returncode == 0
     assert "failed with a network error (attempt 1 of 3); trying again in 60 seconds" in (
-        result.stdout
+        result.stderr
     )
     assert result.stdout.rstrip().endswith("done")
