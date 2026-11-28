@@ -69,6 +69,7 @@ def test_ticked_flags_open_the_chat_with_a_request_to_propose_a_finding(
     weekend = ids(root, "je_weekend")
     query = raise_from_flags(fm.run(root), root, CO, [int(i) for i in weekend], "Why?")
     assert f"--query {query['query_id']}" in prefill(client, weekend)
+    assert "--query" not in prefill(client, weekend + rare[:1])  # not every flag is in it
 
 
 def test_no_flag_or_a_stale_one_is_refused(setup: tuple[Path, TestClient]) -> None:

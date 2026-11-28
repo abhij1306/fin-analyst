@@ -103,11 +103,13 @@ def finding_prompt(root: Path, company: str, items: list[str]) -> str:
             f"flags {', '.join(f'#{i}' for i in bad)} are not of a current run: run the forensic "
             "tests again"
         )
-    queries = sorted({flags[i]["query_id"] for i in ids if flags[i]["query_status"] not in OPEN})
+    # --query only when every ticked flag is in the same query that is not withdrawn
+    queries = {flags[i]["query_id"] if flags[i]["query_status"] not in OPEN else None for i in ids}
+    (query,) = queries if len(queries) == 1 else (None,)
     link = (
-        f" Link query #{queries[0]}, raised on these flags, with `--query {queries[0]}`: the "
-        "amount and the management response come from it."
-        if len(queries) == 1
+        f" Link query #{query}, raised on these flags, with `--query {query}`: the amount and "
+        "the management response come from it."
+        if query is not None
         else ""
     )
     return (
