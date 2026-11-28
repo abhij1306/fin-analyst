@@ -1,7 +1,7 @@
 """The routes that change data: `POST /act` (a decision or a document deletion), `POST /upload`
 (files into the inbox) and `POST /company` (a new company). All need the token cookie (middleware)
 and an Origin that is this server (`fin.ui.csrf`). The answer is the screen again, with the
-outcome on top (code and run_id when it failed)."""
+outcome on top (code and run_id when it failed); `respond` builds it for every form route."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -13,10 +13,12 @@ from starlette.datastructures import UploadFile
 
 from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
-from fin.services.files import create_company
+from fin.services.files import create_company, upload
 from fin.services.result import ActionResult, Refused
 from fin.ui import actions, screens
-from fin.ui.uploads import MAX_REQUEST_BYTES
+from fin.ui.uploads import check_length
+
+Known = Callable[[Path, str | None], str | None]
 
 
 def acted(
@@ -31,30 +33,41 @@ def acted(
     context = {
         "company": company,
         "tab_counts": screens.tab_counts(root, company or None),
-        "data": screens.LOADERS[screen](root, company),
+        "data": screens.LOADERS[screen](root, company) if company else {"empty": True},
         "screen": screen,
         "outcome": outcome,
     }
     return templates.TemplateResponse(request, "_acted.html", context)
 
 
-def add_action_routes(
-    app: FastAPI,
-    root: Path,
+def respond(
     templates: Jinja2Templates,
-    known: Callable[[Path, str | None], str | None],
-) -> None:
+    root: Path,
+    request: Request,
+    screen: str,
+    company: str,
+    known: Known,
+    act: Callable[[str], ActionResult],
+) -> HTMLResponse:
+    """Run `act` for the company and show `screen` with its outcome. Before any company exists
+    nothing runs (E008); a refusal of the form's fields (E008) is shown like a refused run."""
+    chosen = known(root, company) or ""
+    try:
+        if not chosen:
+            raise UiActionInvalid("there is no company yet; nothing changed")
+        outcome = act(chosen)
+    except UiActionInvalid as error:
+        outcome = Refused.before_run(error)
+    return acted(templates, root, request, screen, chosen, outcome)
+
+
+def add_action_routes(app: FastAPI, root: Path, templates: Jinja2Templates, known: Known) -> None:
     _add_act_route(app, root, templates, known)
     _add_upload_route(app, root, templates, known)
     _add_company_route(app, root, templates)
 
 
-def _add_act_route(
-    app: FastAPI,
-    root: Path,
-    templates: Jinja2Templates,
-    known: Callable[[Path, str | None], str | None],
-) -> None:
+def _add_act_route(app: FastAPI, root: Path, templates: Jinja2Templates, known: Known) -> None:
     @app.post("/act", response_class=HTMLResponse)
     def act(
         request: Request,
@@ -64,37 +77,34 @@ def _add_act_route(
         reason: str = Form(""),
         choice: str = Form(""),
     ) -> HTMLResponse:
-        chosen = known(root, company) or ""
         spec = actions.ACTIONS.get(action)
-        try:
-            outcome = actions.decide(root, chosen, action, item, reason, choice)
-        except UiActionInvalid as error:
-            outcome = Refused.before_run(error)
-        screen = spec.screen if spec else "home"
-        return acted(templates, root, request, screen, chosen, outcome)
+        return respond(
+            templates,
+            root,
+            request,
+            spec.screen if spec else "home",
+            company,
+            known,
+            lambda co: actions.decide(root, co, action, item, reason, choice),
+        )
 
 
-def _add_upload_route(
-    app: FastAPI,
-    root: Path,
-    templates: Jinja2Templates,
-    known: Callable[[Path, str | None], str | None],
-) -> None:
+def _add_upload_route(app: FastAPI, root: Path, templates: Jinja2Templates, known: Known) -> None:
     @app.post("/upload", response_class=HTMLResponse)
-    async def upload(request: Request) -> HTMLResponse:
-        # A refusal before the company is known is shown as an error alert (E008, E001).
-        if int(request.headers.get("content-length", "-1")) not in range(MAX_REQUEST_BYTES + 1):
-            raise UiActionInvalid("the upload is empty, of unknown size or too large")
+    async def upload_files(request: Request) -> HTMLResponse:
+        check_length(request.headers.get("content-length"))  # an error alert (E008)
         form = await request.form()
-        chosen = known(root, str(form.get("company", ""))) or ""
         sent = [f for f in form.getlist("files") if isinstance(f, UploadFile) and f.filename]
-        try:
-            if not chosen:
-                raise UiActionInvalid("there is no company yet; nothing was saved")
-            outcome = actions.upload(root, chosen, [(f.filename or "", f.file) for f in sent])
-        except UiActionInvalid as error:
-            outcome = Refused.before_run(error)
-        return acted(templates, root, request, "files", chosen, outcome)
+        files = [(f.filename or "", f.file) for f in sent]
+        return respond(
+            templates,
+            root,
+            request,
+            "files",
+            str(form.get("company", "")),
+            known,
+            lambda co: upload(root, co, files, via="ui", actor=USER),
+        )
 
 
 def _add_company_route(app: FastAPI, root: Path, templates: Jinja2Templates) -> None:

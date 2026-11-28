@@ -23,7 +23,6 @@ from fin.reference.compare import comparison
 from fin.reference.lines import list_lines
 from fin.services.addon import offer
 from fin.services.dataroom import plan_rows
-from fin.services.jobs import list_jobs
 from fin.services.reports import REPORT_KINDS
 from fin.services.reviews import KINDS
 from fin.status import company_status
@@ -32,7 +31,7 @@ from fin.ui.actions import MAX_IDS
 from fin.ui.differences_screen import differences_screen
 from fin.ui.diligence_screens import screen_run, with_engagement
 from fin.ui.file_rows import company_name, file_rows
-from fin.ui.job_routes import LABELS as JOB_LABELS
+from fin.ui.job_routes import jobs_card
 from fin.ui.statements_screen import statements_screen
 
 REPORT_SUFFIXES = (".html", ".docx", ".pdf", ".xlsx")
@@ -61,8 +60,7 @@ def files(root: Path, company: str) -> dict[str, Any]:
             for f in list_findings(screen_run("files", root, company), company)
         ],
         "accounts": _accounts(root),
-        "jobs": list_jobs(root, company),
-        "job_labels": JOB_LABELS,
+        **jobs_card(root, company),
         "addon_offer": offer(root, company),
         "plan": _plan(root, company),
     }
@@ -169,12 +167,10 @@ def report_files(root: Path, company: str) -> list[str]:
 
 
 def reports_screen(root: Path, company: str) -> dict[str, Any]:
-    jobs = list_jobs(root, company)
     return {
         "files": report_files(root, company),
         "folder": f"reports/{company}/",
-        "jobs": jobs,
-        "job_labels": JOB_LABELS,
+        **jobs_card(root, company),
         "kinds": REPORT_KINDS,
         "narratives": system_screens.narratives(root, company),
     }

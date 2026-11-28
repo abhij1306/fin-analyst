@@ -28,14 +28,31 @@ def safe_name(raw: str, suffixes: tuple[str, ...] = SUFFIXES) -> str:
     return name
 
 
-def save_one(handle: BinaryIO, target: Path) -> None:
-    """Write one uploaded file to `target` (a new file). E008 over MAX_FILE_BYTES."""
+def check_length(header: str | None) -> None:
+    """E008 for a request whose Content-Length is missing, not a number or over
+    MAX_REQUEST_BYTES, before its body is read."""
+    size = int(header) if header and header.isascii() and header.isdigit() else -1
+    if size not in range(MAX_REQUEST_BYTES + 1):
+        raise UiActionInvalid("the upload is empty, of unknown size or too large")
+
+
+def _check_size(handle: BinaryIO, name: str) -> None:
+    """E008 when the uploaded file is over MAX_FILE_BYTES; the handle is left at its start."""
     handle.seek(0, 2)
     if handle.tell() > MAX_FILE_BYTES:
-        raise UiActionInvalid(f"{target.name} is over {MAX_FILE_BYTES // 1024 // 1024} MB")
+        raise UiActionInvalid(f"{name} is over {MAX_FILE_BYTES // 1024 // 1024} MB")
     handle.seek(0)
+
+
+def _write(handle: BinaryIO, target: Path) -> None:
     with target.open("xb") as out:
         shutil.copyfileobj(handle, out)
+
+
+def save_one(handle: BinaryIO, target: Path) -> None:
+    """Write one uploaded file to `target` (a new file). E008 over MAX_FILE_BYTES."""
+    _check_size(handle, target.name)
+    _write(handle, target)
 
 
 def save_uploads(
@@ -55,13 +72,10 @@ def save_uploads(
             raise UiActionInvalid(
                 f"{target.name} is in the inbox already (or not a plain name); rename the file"
             )
-    for (_, handle), target in zip(files, targets, strict=True):
-        handle.seek(0, 2)
-        if handle.tell() > MAX_FILE_BYTES:
-            raise UiActionInvalid(f"{target.name} is over {MAX_FILE_BYTES // 1024 // 1024} MB")
-        handle.seek(0)
+    pairs = [(handle, target) for (_, handle), target in zip(files, targets, strict=True)]
+    for handle, target in pairs:
+        _check_size(handle, target.name)
     folder.mkdir(parents=True, exist_ok=True)
-    for (_, handle), target in zip(files, targets, strict=True):
-        with target.open("xb") as out:
-            shutil.copyfileobj(handle, out)
+    for handle, target in pairs:
+        _write(handle, target)
     return names

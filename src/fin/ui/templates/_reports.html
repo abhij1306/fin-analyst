@@ -1,4 +1,5 @@
 {% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
+{% from "_chat_items.html" import ask %}
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
@@ -13,6 +14,7 @@
   <input type="hidden" name="action" value="export"><input type="hidden" name="company" value="{{ company }}">
   <button type="submit" class="btn" data-size="sm">Export to Excel</button>
 </form>
+{{ ask(company, "/report " ~ company ~ " ", "Write the narrative in chat", "outline") }}
 {% endcall %}
 {% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}
 {% if data.narratives %}

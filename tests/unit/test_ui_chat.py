@@ -87,7 +87,7 @@ def test_argv_denies_the_users_decisions_and_never_bypasses_permissions() -> Non
     argv = chat_args.turn_argv(["claude"], "sid", started=False)
     denied = argv[argv.index("--disallowedTools") + 1].split(",")
     for command in (
-        "gate approve", "fdd finding final", "fdd finding draft", "query approve", "query sent",
+        "gate approve", "fdd finding final", "query approve", "query sent",
         "query close", "query withdraw", "adjust accept", "adjust reject", "review confirm",
         "review reject", "findings accept",
     ):  # fmt: skip

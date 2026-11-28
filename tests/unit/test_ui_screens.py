@@ -26,7 +26,7 @@ from fin.dashboard import last_good_build_dir
 from fin.db.conn import connect
 from fin.doctor import Check
 from fin.fdd import findings
-from fin.paths import audit_db_path
+from fin.paths import audit_db_path, company_db_path
 from fin.services.jobs import list_jobs
 from fin.services.questions import saved_questions
 from fin.services.reports import export_statements, report_lines
@@ -217,6 +217,7 @@ def test_the_reports_screen_lists_the_narratives_with_their_sections(tmp_path: P
     (folder / "narrative.md").write_text("# Acme\n\n## Summary\n\ntext\n\n## Growth\n", "utf-8")
     listing = signed_in(root).get("/partials/reports?company=acme").text
     assert '<td class="fname">standalone/narrative.md</td><td>Summary, Growth</td>' in listing
+    assert '"prefill": "/report acme "' in listing  # the narrative is written in chat
 
 
 @pytest.mark.timeout(180)  # an ingested company and a job
@@ -330,6 +331,28 @@ def test_the_log_filters_by_command_and_actor_and_traces_a_figure(
         "E504: &#39;one&#39; is not a fact id"
         in client.get("/partials/log?company=kestrel&fact=one").text
     )
+
+
+def test_each_diligence_screen_without_an_engagement_links_to_where_one_opens(
+    tmp_path: Path,
+) -> None:
+    root = engagement_root(tmp_path)
+    with connect(company_db_path(root, "acme"), write=True) as con:
+        con.execute("UPDATE engagement SET status = 'closed'")
+    client = signed_in(root)
+    link = 'href="/engagement?company=acme">Open an engagement on the Engagement screen'
+    for screen in ("queries", "gates", "findings", "differences"):  # Bridge shows the latest one
+        assert link in client.get(f"/partials/{screen}?company=acme").text, screen
+    assert link not in client.get("/partials/engagement?company=acme").text  # its form is there
+
+
+def test_a_draft_edit_before_any_company_exists_runs_nothing(data_root: Path) -> None:
+    assert CliRunner().invoke(cli, ["init"]).exit_code == 0
+    form = {"company": "", "item": "1", "title": "Settled dispute fees added back"}
+    page = signed_in(data_root).post("/fdd-edit", data=form, headers=ORIGIN).text
+    assert "Not done: E008" in page
+    assert "there is no company yet; nothing changed" in page
+    assert _audit_runs(data_root, "fdd finding update") == []
 
 
 def _audit_runs(root: Path, command: str) -> list[str]:

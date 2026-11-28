@@ -18,7 +18,9 @@ MAX_CODE = 40
 MAX_NAME = 120
 
 
-def upload(root: Path, company: str, files: list[tuple[str, BinaryIO]]) -> ActionResult:
+def upload(
+    root: Path, company: str, files: list[tuple[str, BinaryIO]], *, via: str, actor: str
+) -> ActionResult:
     """Put files into the company's inbox folder. Nothing is loaded until Ingest runs."""
     inbox = inbox_dir(root, company)
 
@@ -30,7 +32,8 @@ def upload(root: Path, company: str, files: list[tuple[str, BinaryIO]]) -> Actio
             "Nothing is loaded yet: press Ingest."
         ]
 
-    return perform(root, "ui upload", {"company": company, "files": [n for n, _ in files]}, body)
+    args = {"company": company, "files": [n for n, _ in files], "via": via, "actor": actor}
+    return perform(root, "ui upload", args, body)
 
 
 def create_company(root: Path, code: str, name: str, *, via: str, actor: str) -> ActionResult:

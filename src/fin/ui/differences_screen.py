@@ -56,7 +56,7 @@ def differences_screen(
     try:
         result = discrepancy_rows(root, company, display=display)
     except EngagementState as error:
-        return base | {"no_engagement": f"{error.code}: {error.message}"}
+        return base | {"no_engagement": f"{error.code}: {error.message}", "can_open": True}
     nodes = tree([_shown(row, display) for row in result["rows"]])
     shown = _over(nodes) if over else nodes
     return base | {

@@ -20,9 +20,8 @@ from fin.config import SCOPES
 from fin.diligence import adjust_import, engagement
 from fin.diligence.stub import STUB
 from fin.services import diligence as services
-from fin.services.result import ActionResult, Refused
-from fin.ui import uploads
-from fin.ui.action_routes import acted
+from fin.services.result import ActionResult
+from fin.ui import action_routes, uploads
 from fin.ui.actions import ITEM_ID
 
 
@@ -88,14 +87,7 @@ def add_diligence_routes(
     def respond(
         request: Request, screen: str, company: str, act: Callable[[str], ActionResult]
     ) -> HTMLResponse:
-        chosen = known(root, company) or ""
-        try:
-            if not chosen:
-                raise UiActionInvalid("there is no company yet; nothing changed")
-            outcome = act(chosen)
-        except UiActionInvalid as error:
-            outcome = Refused.before_run(error)
-        return acted(templates, root, request, screen, chosen, outcome)
+        return action_routes.respond(templates, root, request, screen, company, known, act)
 
     @app.post("/engagement/open", response_class=HTMLResponse)
     def engagement_open(
@@ -183,10 +175,7 @@ def add_diligence_routes(
 
     @app.post("/adjust/import", response_class=HTMLResponse)
     async def adjust_import_file(request: Request) -> HTMLResponse:
-        if int(request.headers.get("content-length", "-1")) not in range(
-            uploads.MAX_REQUEST_BYTES + 1
-        ):
-            raise UiActionInvalid("the upload is empty, of unknown size or too large")
+        uploads.check_length(request.headers.get("content-length"))
         form = await request.form()
         sent = form.get("file")
         sheet = str(form.get("sheet", "")).strip() or None

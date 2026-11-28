@@ -1,9 +1,10 @@
 {% from "_ui.html" import head, badge, empty, no_company, no_engagement %}
+{% from "_chat_items.html" import ask %}
 {% if data.empty %}
 {{ no_company() }}
 {% elif data.no_engagement %}
 {{ head("Differences") }}
-{{ no_engagement(data.no_engagement) }}
+{{ no_engagement(data.no_engagement, company, data.can_open) }}
 {% else %}
 {% call head("Differences", "Every difference of the latest reconciliations, largest first, in " ~ data.unit_label ~ ". Each row opens to the differences below it; what they do not explain is shown, never spread.") %}{% endcall %}
 <form class="pickers" method="get" action="/differences" hx-get="/differences" hx-trigger="change" hx-target="body" hx-select="body" hx-swap="outerHTML" hx-push-url="true" aria-label="Difference pickers">
@@ -13,7 +14,7 @@
   <noscript><button type="submit" class="btn" data-size="sm">Show</button></noscript>
 </form>
 {% if not data.nodes %}
-<div class="card"><section>{{ empty("No differences", "Run the reconciliations first (fin reconcile " ~ company ~ "), or there is nothing over the threshold.") }}</section></div>
+<div class="card"><section>{{ empty("No differences", "Run the reconciliations first (fin reconcile " ~ company ~ "), or there is nothing over the threshold.") }}<p class="pad">{{ ask(company, "Please run the reconciliations for " ~ company ~ " (fin reconcile " ~ company ~ ") and tell me what differs.", "Ask the assistant to run them", "outline") }}</p></section></div>
 {% else %}
 <form class="card" hx-get="/partials/differences-ask" hx-target="#differences-outcome" aria-label="Differences">
   <input type="hidden" name="company" value="{{ company }}">

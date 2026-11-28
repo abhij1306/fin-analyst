@@ -1,5 +1,5 @@
-"""The decisions a person takes in the UI, the deletion of a document and the upload of files
-(docs/web-ui-plan.md, docs/specs/SPEC-03).
+"""The decisions a person takes in the UI and the deletion of a document (docs/web-ui-plan.md,
+docs/specs/SPEC-03).
 
 Each entry names the service function its CLI command calls (`fin.services`): same run record
 apart from `via`: audit log, backup, gate checks, masking and refusals. The actor is always the
@@ -17,13 +17,13 @@ from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.diligence import gates
 from fin.services import dataroom, decisions, fdd, reviews
-from fin.services.files import delete_documents, upload
+from fin.services.files import delete_documents
 from fin.services.result import ActionResult
 
 ITEM_ID = re.compile(r"\d{1,18}", re.ASCII)  # a BIGINT id; ASCII digits only
 MAX_IDS = 500  # the most ids one bulk decision takes
 
-__all__ = ["ACTIONS", "Action", "decide", "upload"]
+__all__ = ["ACTIONS", "Action", "decide"]
 
 
 @dataclass(frozen=True)
