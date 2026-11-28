@@ -2,17 +2,42 @@
 {% if data.empty %}
 {{ no_company() }}
 {% else %}
-{{ head("Log") }}
+{{ head("Log", "What fin did for this company, newest first, and the trail of any figure.") }}
+<div class="card">
+  <header><h2>Trace a figure</h2><p>A fact id (the evidence pages and <code>fin sql</code> show it), or a metric and period, back to its file and cell or page.</p></header>
+  <section>
+    <form class="filters" hx-get="/log" hx-select="#screen" hx-target="#screen" hx-swap="outerHTML" hx-push-url="true">
+      <input type="hidden" name="company" value="{{ company }}">
+      <div class="field"><label class="label" for="trail-fact">Fact id</label><input class="input" id="trail-fact" name="fact" inputmode="numeric" value="{{ data.fact }}"></div>
+      <div class="field"><label class="label" for="trail-metric">Metric</label><input class="input" id="trail-metric" name="metric" value="{{ data.metric }}"></div>
+      <div class="field"><label class="label" for="trail-period">Period</label><input class="input" id="trail-period" name="period" placeholder="FY25" value="{{ data.period }}"></div>
+      <button type="submit" class="btn" data-size="sm" data-variant="outline">Trace</button>
+    </form>
+    {% if data.trail and data.trail.error %}<p class="muted">{{ data.trail.error }}</p>
+    {% elif data.trail %}<pre class="trail">{{ data.trail.text }}</pre>{% endif %}
+  </section>
+</div>
 <div class="card">
   <header><h2>Runs</h2></header>
+  <section>
+    <form class="filters" hx-get="/log" hx-select="#screen" hx-target="#screen" hx-swap="outerHTML" hx-trigger="change" hx-push-url="true">
+      <input type="hidden" name="company" value="{{ company }}">
+      <div class="field"><label class="label" for="log-command">Command</label>
+        <select class="select" id="log-command" name="command"><option value="">All commands</option>
+          {% for c in data.commands %}<option value="{{ c }}"{% if c == data.command %} selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+      <div class="field"><label class="label" for="log-actor">Actor</label>
+        <select class="select" id="log-actor" name="actor"><option value="">Everyone</option>
+          {% for value, text in data.actors %}<option value="{{ value }}"{% if value == data.actor %} selected{% endif %}>{{ text }}</option>{% endfor %}</select></div>
+    </form>
+  </section>
   <section class="flush">
     {% if data.runs %}
     <div class="table-container"><table class="table">
-      <thead><tr><th>Started</th><th>Command</th><th>Status</th><th class="num">Loaded</th><th class="num">Failed</th><th>Problems</th><th>Run</th></tr></thead>
+      <thead><tr><th>Started</th><th>Command</th><th>Actor</th><th>Status</th><th class="num">Loaded</th><th class="num">Failed</th><th>Problems</th><th>Run</th></tr></thead>
       <tbody>
         {% for r in data.runs %}
         {% set pv = r.problems | problems_view %}
-        <tr><td>{{ r.started_at | when }}</td><td>{{ r.command }}</td><td>{{ badge(r.status or "running") }}</td>
+        <tr><td>{{ r.started_at | when }}</td><td>{{ r.command }}</td><td>{{ r.actor }}</td><td>{{ badge(r.status or "running") }}</td>
           <td class="num">{{ r.loaded if r.loaded is not none else "" }}</td><td class="num">{{ r.failed if r.failed is not none else "" }}</td>
           <td>{% if pv %}<details class="problems"><summary><span class="badge" data-variant="{{ 'destructive' if pv.tone == 'bad' else 'secondary' }}" data-tone="{{ pv.tone }}">{{ pv.label }}</span></summary>
             <ul>{% for g in pv.groups %}<li>{{ g.code }}: {{ g.message }}{% if g.count > 1 %} <span class="muted">× {{ g.count }}</span>{% endif %}</li>{% endfor %}</ul></details>{% endif %}</td>
@@ -21,7 +46,7 @@
       </tbody>
     </table></div>
     {% else %}
-    <div class="pad">{{ empty("No runs yet.") }}</div>
+    <div class="pad">{{ empty("No runs." if data.command or data.actor else "No runs yet.") }}</div>
     {% endif %}
   </section>
 </div>

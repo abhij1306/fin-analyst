@@ -19,10 +19,11 @@ from fastapi.templating import Jinja2Templates
 
 from fin import __version__
 from fin.audit.errors import DependencyMissing, FinError, UiUnavailable
+from fin.fdd import findings as fdd_findings
 from fin.services.jobs import Jobs
 from fin.status import companies
 from fin.ui import format as ui_format
-from fin.ui import screens
+from fin.ui import screens, system_screens
 from fin.ui.action_routes import add_action_routes
 from fin.ui.chat_routes import add_chat_routes
 from fin.ui.chat_run import Chat
@@ -30,30 +31,13 @@ from fin.ui.csrf import origin_guard
 from fin.ui.differences_screen import query_prompt
 from fin.ui.diligence_routes import add_diligence_routes
 from fin.ui.job_routes import WORK, add_job_routes
+from fin.ui.nav import NAV_GROUPS, SCREENS
 from fin.ui.security import new_token, protect
 from fin.ui.setup import STATIC_DIR, TEMPLATE_DIR
 from fin.ui.statements_screen import statement_source as source_of
+from fin.ui.system_routes import REPORT_CSP, add_system_routes
 
 DEFAULT_PORT = 8765
-REPORT_CSP = "sandbox allow-scripts allow-popups allow-downloads"
-SCREENS = [
-    (name.lower(), name)
-    for name in (
-        "Home",
-        "Files",
-        "Mappings",
-        "Statements",
-        "References",
-        "Engagement",
-        "Differences",
-        "Queries",
-        "Gates",
-        "Bridge",
-        "Findings",
-        "Reports",
-        "Log",
-    )
-]  # (id, label): the tabs of the top bar, in order
 
 
 def known(root: Path, company: str | None) -> str | None:
@@ -97,7 +81,8 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     templates = Jinja2Templates(directory=TEMPLATE_DIR)
     ui_format.register(templates.env)
-    templates.env.globals["SCREENS"] = SCREENS
+    templates.env.globals["NAV"] = NAV_GROUPS
+    templates.env.globals["FDD_CHOICES"] = fdd_findings.CHOICES
 
     @app.exception_handler(FinError)
     async def fin_error(request: Request, exc: FinError) -> HTMLResponse:
@@ -106,12 +91,14 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
         )
 
     def screen_data(screen: str, company: str | None, request: Request) -> dict[str, object]:
+        loader = screens.LOADERS[screen]
+        if screen in system_screens.ANY_COMPANY:
+            return loader(root, company)  # type: ignore[arg-type]
         if company is None:
             return {"empty": True}
         if screen in screens.WITH_QUERY:
-            query = dict(request.query_params)
-            return screens.LOADERS[screen](root, company, query)  # type: ignore[call-arg]
-        return screens.LOADERS[screen](root, company)
+            return loader(root, company, dict(request.query_params))  # type: ignore[call-arg]
+        return loader(root, company)
 
     def add_routes(screen: str) -> None:
         @app.get("/" if screen == "home" else f"/{screen}", response_class=HTMLResponse)
@@ -170,6 +157,7 @@ def create_app(root: Path, token: str, port: int, claude: list[str] | None = Non
     add_diligence_routes(app, root, templates, known)
     add_chat_routes(app, root, templates, chat)
     add_job_routes(app, root, templates, known, jobs)
+    add_system_routes(app, root, templates, known)
     return app
 
 

@@ -1,0 +1,25 @@
+{% from "_ui.html" import head, badge, empty %}
+{% call head("Health", "The checks fin doctor runs, each with its fix.") %}
+{% if company %}
+<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+  <input type="hidden" name="action" value="update"><input type="hidden" name="company" value="{{ company }}">
+  <button type="submit" class="btn" data-size="sm">Update fin</button>
+</form>
+{% endif %}
+{% endcall %}
+<div class="card">
+  <header><h2>Checks</h2><p>{{ "All checks passed." if not data.failed else data.failed ~ " check(s) failed." }}</p></header>
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Check</th><th>State</th><th>Detail</th><th>Fix</th></tr></thead>
+      <tbody>
+        {% for c in data.checks %}
+        <tr><td class="fname">{{ c.name }}</td>
+          <td>{% if not c.ok %}{{ badge("failed", "failed" ~ (" " ~ c.code if c.code else "")) }}{% elif c.warning %}{{ badge("warning") }}{% else %}{{ badge("ok") }}{% endif %}</td>
+          <td>{{ c.detail }}</td><td>{{ (c.fix or "") | code }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+{% if company %}{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}{% endif %}

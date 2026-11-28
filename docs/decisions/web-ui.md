@@ -13,6 +13,7 @@ Builder readings of the owner's 2026-11-26 decisions in [../web-ui-plan.md](../w
 - **Decision**: PR 1 showed the screens not built yet as disabled tabs; PR 2 builds them all, so every tab opens. The top bar is a Basecoat tab list (`role="tablist"`, `aria-selected`, `aria-controls="screen"`, the screen is the `tabpanel`); the tabs are links, so a screen has its own address. The chosen company is in every tab link (Home too) and the company picker reloads the current screen with the new company.
 - **Why**: the review notes of #106 (tab semantics; keep the company between screens).
 - **How to change it**: `src/fin/ui/server.py` (`SCREENS`), `templates/base.html`.
+- **Changed by SPEC-11**: the tab list became Home plus four grouped Basecoat dropdown menus with `aria-current="page"` ([spec-11.md](spec-11.md), 1); the company stays in every link.
 
 ## 3. The chat (placeholder in PR 1-3; built in PR 4, see 9)
 

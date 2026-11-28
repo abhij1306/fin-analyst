@@ -1,5 +1,6 @@
 {% from "_ui.html" import head, badge, clip, empty, no_company, no_engagement %}
 {% from "_actions.html" import act %}
+{% from "_finding_edit.html" import edit_finding %}
 {% from "_chat_items.html" import ask %}
 {% if data.empty %}
 {{ no_company() }}
@@ -7,7 +8,7 @@
 {{ head("FDD findings", "Claude proposes findings; only you mark one final.") }}
 {{ no_engagement(data.no_engagement) }}
 {% else %}
-{{ head("FDD findings", "Claude proposes findings; only you mark one final.") }}
+{{ head("FDD findings", "Claude proposes findings; you can edit or drop a draft; only you mark one final.") }}
 <div class="card">
   <header><h2>Findings</h2></header>
   <section class="flush">
@@ -17,9 +18,11 @@
       <tbody>
         {% for f in data.findings %}
         <tr><td class="num">{{ f.finding_id }}</td><td>{{ badge(f.status) }}</td><td>{{ badge(f.severity) if f.severity else "" }}</td><td>{{ f.area }}</td>
-          <td>{{ clip(f.title, 40) }}<div class="sub">{{ clip(f.observation, 40) }}</div></td><td class="num">{{ f.amount }}</td>
+          <td>{{ clip(f.title, 40) }}<div class="sub">{{ clip(f.observation, 40) }}</div><div class="sub">Evidence: {{ clip(f.evidence, 40) }}</div></td><td class="num">{{ f.amount }}</td>
           <td>{% for flag in f.flags %}{{ badge(flag, as="warn") }} {% endfor %}</td>
-          <td class="act"><div class="actions">{% if f.status == "draft" %}{{ act("fdd-final", f.finding_id, "Mark final", company, ask="Mark this finding final: it appears in the FDD report with the amount and sources as they are now.") }}
+          <td class="act"><div class="actions">{% if f.status == "draft" %}{{ edit_finding(f, company) }}
+            {{ act("fdd-drop", f.finding_id, "Drop", company, ask="Drop this draft: it stays in the list of dropped findings and leaves the report.", variant="ghost") }}
+            {{ act("fdd-final", f.finding_id, "Mark final", company, ask="Mark this finding final: it appears in the FDD report with the amount and sources as they are now.") }}
             {% elif f.status == "final" %}{{ act("fdd-draft", f.finding_id, "Return to draft", company, variant="ghost") }}{% endif %}
             {{ ask(company, "About " ~ company ~ ", FDD finding " ~ f.finding_id ~ ": ") }}</div></td></tr>
         {% endfor %}

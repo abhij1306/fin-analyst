@@ -1,0 +1,27 @@
+{#- Edit a draft FDD finding (as `fin fdd finding update`) in a Basecoat dialog. The amount is never typed: it
+    comes from the linked evidence. Text with a typed number or judging language is refused (E970). -#}
+{% macro edit_finding(f, company) %}
+{% set uid = "fdd-edit-" ~ f.finding_id %}
+{% set names = {"area": "Area", "severity": "Severity", "impact_type": "Impact", "deal_consideration": "Deal consideration"} %}
+<button type="button" class="btn" data-size="sm" data-variant="outline" onclick="document.getElementById('d-{{ uid }}').showModal()">Edit</button>
+<dialog id="d-{{ uid }}" class="dialog" aria-labelledby="t-{{ uid }}">
+  <div>
+    <header><h2 id="t-{{ uid }}">Edit draft finding {{ f.finding_id }}</h2><p>No typed numbers: the amount comes from the linked evidence.</p></header>
+    <form class="form" hx-post="/fdd-edit" hx-target="#screen" hx-swap="innerHTML">
+      <input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="item" value="{{ f.finding_id }}">
+      {% for name in ("title", "observation", "implication", "evidence") %}
+      <div class="field"><label class="label" for="{{ uid }}-{{ name }}">{{ name | capitalize }}</label>
+        <textarea class="textarea" id="{{ uid }}-{{ name }}" name="{{ name }}" rows="2">{{ f[name] or "" }}</textarea></div>
+      {% endfor %}
+      {% for name, values in FDD_CHOICES.items() %}
+      <div class="field"><label class="label" for="{{ uid }}-{{ name }}">{{ names[name] }}</label>
+        <select class="select" id="{{ uid }}-{{ name }}" name="{{ name }}">{% for v in values %}<option value="{{ v }}"{% if v == f[name] %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+      {% endfor %}
+      <footer>
+        <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="btn">Save the draft</button>
+      </footer>
+    </form>
+  </div>
+</dialog>
+{% endmacro %}

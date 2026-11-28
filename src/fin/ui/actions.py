@@ -4,7 +4,8 @@
 Each entry names the service function its CLI command calls (`fin.services`): same run record
 apart from `via`: audit log, backup, gate checks, masking and refusals. The actor is always the
 user (`fin.actor.USER`), even when `fin ui` was started from inside Claude Code. The UI never
-drafts or proposes. A refusal comes back as a Refused with its code and run_id, not raised."""
+drafts or proposes (it edits and drops a draft finding, as `fin fdd finding update|drop`). A
+refusal comes back as a Refused with its code and run_id, not raised."""
 
 import re
 from collections.abc import Callable
@@ -15,7 +16,7 @@ from typing import Any
 from fin.actor import USER
 from fin.audit.errors import UiActionInvalid
 from fin.diligence import gates
-from fin.services import dataroom, decisions, reviews
+from fin.services import dataroom, decisions, fdd, reviews
 from fin.services.files import delete_documents, upload
 from fin.services.result import ActionResult
 
@@ -80,6 +81,7 @@ ACTIONS: dict[str, Action] = {
     ),
     "dataroom-approve": Action("files", dataroom.approve_rows),
     "dataroom-undo": Action("files", dataroom.approve_rows, {"undo": True}),
+    "fdd-drop": Action("findings", fdd.drop_findings),
 }
 
 

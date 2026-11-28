@@ -30,7 +30,7 @@
     <span class="status"><span class="dot"></span>local only · fin {{ version }}</span>
   </header>
   <div class="split">
-    <main id="screen" role="tabpanel" aria-labelledby="tab-{{ screen }}">{% block screen %}{% endblock %}</main>
+    <main id="screen">{% block screen %}{% endblock %}</main>
     {% include "_chat.html" %}
   </div>
 </body>

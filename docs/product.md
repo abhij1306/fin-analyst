@@ -1350,7 +1350,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
 - **Install**: `./install.sh` (by default; `--no-ui` leaves it out) or `uv run fin ui setup` (`uv sync --frozen --extra ui`: FastAPI, Jinja2, uvicorn, python-multipart for uploads; the chosen PDF add-on is kept). No frontend build and no npm: pages are HTML rendered by the server, with htmx and the Basecoat component CSS and JS (shadcn/ui as plain HTML classes) vendored under `src/fin/ui/static/vendor/` (versions and licences in `VENDOR.md`). `fin parser use`, `fin update` and `install.sh` keep the `ui` extra once installed. `fin doctor` has a `web ui` line (installed or not; never a failure).
 - **`fin ui`**: starts the server on 127.0.0.1 (default port 8765, `--port`), prints and opens a link with a random token, stops on Ctrl-C. Without the extra it stops with E006 and says how to install it; a busy port is E006 too.
 - **Local only**: the server binds 127.0.0.1; a request with another Host, or without the token cookie (HttpOnly, SameSite=Strict, set from the link's token), is refused with E007; no CORS headers; no API documentation pages.
-- **Screens**: a top bar with the company picker and the screen tabs (a tab list: `role="tablist"`, the open screen is `aria-selected`), and a chat panel on the right. The chosen company stays in the link of every tab, including Home, and changing the picker reloads the same screen for that company. Every screen shows what fin's own modules return; a page is `/<screen>?company=<name>` and its partial `/partials/<screen>?company=<name>`.
+- **Screens**: a top bar with the company picker and the navigation (SPEC-11): **Home**, then four Basecoat dropdown menus, Data (Files, Mappings, Statements), Analysis (Questions, Reports, Dashboards), Diligence (Engagement, Queries, Gates, Bridge, Findings) and System (Settings, Health, Log). Each item is a link; the open screen is `aria-current="page"` and its group's button is highlighted; a group's button shows the number of things waiting in its screens. A chat panel is on the right. The chosen company stays in the link of every screen, including Home, and changing the picker reloads the same screen for that company. Every screen shows what fin's own modules return; a page is `/<screen>?company=<name>` and its partial `/partials/<screen>?company=<name>`.
   - Home: what `fin status` returns: counts, periods and gaps, the next gate, and what waits for the user (each row links to its screen).
   - Files (docs/specs/SPEC-03): **Ingest**, **New company**, the upload form, the Jobs card, one row per file and the findings on filed data (open and accepted, as `fin findings list`); while PDF pages were skipped and no add-on is chosen, the PDF add-on offer (above). A row is a document (its current version: loaded or held, with its figures, unmapped labels, figures read by the PDF add-on and figures read by AI, marked "read by AI, not checked"), a file that failed (the code, message and run_id ingest wrote to `review/<company>/<file>.error.json`) or an inbox file not loaded yet (waiting). A failed row shows its code; a held row the codes of the open findings that hold it. A failed or held row, and a document with statement pages fin did not read, shows one next step (`fin.services.next_steps`: a text for every ingest error code): a file held for its unit (E203) asks "Which unit is this file in?" with one button per answer (lakhs, crores, millions, thousands, rupees): it starts the job **Load with the unit**, which loads its `review/` copy as `fin ingest <company> <file> --unit <answer>` does (the unit stored as given by the user); no tables or no text layer (E201, E104) offer **Read with the assistant** and **Choose a PDF add-on**; an unsupported type (E103) says to save it as .xlsx or a PDF with text. While a job runs, the rows ask for themselves every second, so each file's outcome shows as soon as ingest has it; the rest of the page stays usable. **New company** (also on the empty screen before any company exists) takes the company's name and a short code (lower-case letters, digits, `-` and `_`; its folders and database are named after it): a run "company create" makes the database and `inbox/<code>/`, stores the name (table `company_profile`, shown on the Files screen) and opens its Files screen; a code in use or not valid, or an empty name, is E008.
   - Files, data room (SPEC-13): a folder on this computer (**Scan folder**) or a `.zip` (**Upload and scan**: saved in its own folder under `dataroom/<company>/uploads/`, `.zip` only, the upload limits below; E008 otherwise) is scanned as a job, as `fin dataroom scan`. The plan shows each file fin can use (kind, profile, period, duplicates, approved or not, or its load outcome) and what will be skipped with the reason and next step. **Approve** and **Undo approval** are the user's decision per row (`fin dataroom approve [--undo]`); **Load approved** loads the approved rows as a job, as `fin dataroom load`.
@@ -1365,8 +1365,12 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Gates: each gate's state, why it reopened, its checklist and what it unlocks (as `fin gate status`). A failing line links to the screen that closes it (a `fin query`, `fin adjust`, `fin review`, `fin findings` or `fin fdd finding` command in the line), or offers **Ask Claude** when no screen does. An E801 refusal anywhere links to the gate it names.
   - Bridge (money in the display unit, SPEC-06): reported to adjusted EBITDA per period and scope, one step per accepted adjustment with its status and evidence, and the adjustments not applied (proposed, rejected) apart with the proposed sum (as `fin engagement bridge`); `?view=pl` shows `adjusted_pl` side by side (reported, adjustment, adjusted) and the balance sheet and cash flow as reported, with a note that adjustments change only the P&L. Another view is E001.
   - Findings: the engagement's FDD findings (not dropped) with status, severity, amount and flags.
-  - Reports: **Export to Excel** (a background job, see "Jobs" below; as `fin export`) and the HTML, Word, PDF and Excel files under `reports/<company>/`; HTML opens in the browser as a sandboxed page (it cannot use the UI's token), the others download. A name that is not one of the listed files is refused with E001.
-  - Log: the company's latest 100 runs (newest first) with their problems.
+  - Reports: **Health report**, **Diligence report** and **FDD report** (each a job, as `fin report <company> [--diligence|--fdd]`: the first run writes the narrative stub, which Claude fills in chat; the next run checks it and renders), **Export to Excel** (a job; as `fin export`), the narratives under `reports/<company>/` with their section headings (the rendered report adds the findings and data coverage), and the HTML, Word, PDF and Excel files under `reports/<company>/`; HTML opens in the browser as a sandboxed page (it cannot use the UI's token), the others download. A name that is not one of the listed files is refused with E001.
+  - Questions: the questions asked of the company's data and saved (`fin sql --question`; read runs with a result), newest first, the latest 100: question, SQL, rows, when. **Open evidence** shows the evidence page (sandboxed, as a report), **Download** saves it, **Run again** is a job that runs the same SQL again with a new evidence page (a run "sql" with `rerun_of`). **Ask a question** puts `/ask` in the chat box: Claude writes the SQL. An id the company does not have is E001.
+  - Dashboards: **Build the dashboard** (a job, as `fin dashboard --build`: `fin.dashboard.build()`) and the last good build in a frame. The Evidence site is built under the base path `/dashboard-site` (`dashboards/evidence.config.yaml`), which is where the UI serves `<data>/dashboard/build`; the dev server (`fin dashboard`) is at `http://localhost:3000/dashboard-site`. A page outside the build is E001.
+  - Settings (opens without a company): the data folder, the display settings the company's numbers are shown with (unit, decimals, negatives, caption: `[display]`, or the company's own `[display.companies.<name>]`; read-only here, the Statements screen picks another unit for a view), config.toml's PDF add-on (or why config.toml cannot be read), and **Install** for each PDF add-on (the add-on job, as `fin parser use`). Other AI providers are on hold (SPEC-16).
+  - Health (opens without a company): `fin doctor`'s checks, each with its fix, and **Update fin** (a job, as `fin update`: refused when doctor fails afterwards, with its problems).
+  - Log: the company's latest 100 runs (newest first) with who ran each (the run's `actor`, or "not recorded") and their problems, filtered by command and by actor; a figure's trail (`fin audit`) by fact id, or by metric and period (E504 for a fact id that is not a number or a figure the company does not have).
   - Queries, Gates, Bridge and Findings say so (E803, or nothing loaded) when the company has no open engagement.
 - **Decisions (step 3)**: the buttons are the user's decisions, each through the service the matching CLI command calls (`fin.services.decisions`), in a run with that command's name (run record, audit log, backup, gate checks, masking, refusals). The run's arguments record `via` (`ui` or `cli`) and `actor`; apart from `via` the run record is the CLI's. A button press is always the user's (`actor` `user`), even when `fin ui` was started from inside Claude Code. The alert shows the lines the CLI prints. The UI never drafts or proposes; Claude does that in chat (step 4). After a button the screen is shown again with an alert: "Done", or "Not done: <code>" with the CLI's message and the run_id.
   - Mappings: Confirm (the proposed account, company scope; held documents are checked again and the metrics refreshed, as `fin review confirm`), Use account (another account, searched over the dictionary's accounts of the statement, as `--account`) and Reject (`fin review reject`). One button confirms every proposal at confidence 0.8 or above; a lower one is marked and confirmed on its own. The other review kinds have Confirm, Use account / sector / tax class where the CLI has that choice, and Reject (`fin review confirm|reject <co> <ids> --<kind>`).
@@ -1376,13 +1380,120 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - Home: the checks that did not run, with why and what would make each run (as `fin status`).
   - Queries: Approve a draft, Mark sent (a dialog: only if you sent it; fin sends nothing), Close an answered query (dialog), Withdraw (dialog with the reason, as `--reason`); adjustments: Accept, Reject (dialog with the reason). They refuse as the CLI does (E805, and E801 while a gate is not approved).
   - Gates: Approve in a confirmation dialog (`fin gate approve`; refused with E802 while the checklist fails or an earlier gate is not approved).
-  - Findings: Mark final in a confirmation dialog, Return to draft (`fin fdd finding final [--undo]`; E971).
+  - Findings: on a draft, **Edit** (title, observation, implication, evidence, area, impact, severity, deal consideration: `fin fdd finding update`; E970 for a field at fault, such as a typed figure; a form with no field filled is E008) and **Drop** in a confirmation dialog (`fin fdd finding drop`); Mark final in a confirmation dialog, Return to draft (`fin fdd finding final [--undo]`; E971). Only a click marks a finding final.
   - Raise, edit, answer, export and import (above) are the user's own forms, recorded with `actor` `user` and `via` `ui` like the buttons.
-  - Not in the UI: proposing an adjustment one at a time, and the other review kinds (ledgers, customers, tax, related parties, net debt, matches).
+  - Not in the UI: proposing an adjustment one at a time, and the other proposals (Claude does those in chat). Every command's place is in "Where each command is" below.
   - Every change is a `POST` that needs the token cookie and an `Origin` header naming the server (else E007, nothing runs). A missing reason, an unknown action or a bad id is E008 and starts no run.
 - **Chat (step 4)**: the panel on the right of every screen runs the installed Claude Code headless (`claude -p --output-format stream-json --verbose --include-partial-messages`) in the repo folder, so CLAUDE.md, skills and the client's hooks apply (never `--bare`, never a bypass mode), with `FIN_DATA_DIR` set to the UI's data folder. It uses the user's own Claude Code login; the UI warns when `ANTHROPIC_API_KEY` is set (Claude Code would bill that key) and is for one person on one machine, not for hosting or sharing.
   - One `claude` process per conversation at a time (E011 while one runs); each turn is a process (`--session-id` first, `--resume` after), so a conversation resumes after `fin ui` restarts. Conversations are JSON files in `<data folder>/chat/`; the list and **New chat** are in the panel header. **Stop** ends the process. Text streams in over server-sent events (htmx SSE extension); tool calls show collapsed; errors show with their code.
   - The user's decisions are denied to Claude with `--disallowedTools` (`fin gate approve`, `fin fdd finding final|draft`, `fin query approve|sent|close|withdraw`, `fin adjust accept|reject`, `fin review confirm|reject`, `fin findings accept`, provisions confirm/reject, net debt item accept/reject, each also as `uv run fin ...`); Claude points to the button. Any other request that is not already allowed is shown in the chat with **Allow once** (the next turn gets `--allowedTools` for exactly that command or file) or **Deny**.
   - **Ask Claude** buttons (every screen, and rows of Mappings, Queries and Findings) and the skill chips `/ask`, `/ingest`, `/diligence`, `/report`, `/status` put text in the message box; the user sends it. Claude missing or not startable is E009, not logged in is E010.
-- **Jobs**: a long action runs as a background job, so the page answers at once. One worker thread runs the jobs one at a time in order; a later one is shown as queued. Each job is a row of `jobs` in audit.duckdb (action, arguments, state, the last progress line, result lines, code, run_id, times); the Jobs card on the Reports and Files screens asks for itself every second while a job is queued or running, and a reload shows the same jobs. States: queued, running, done, refused (the action's error code and message), failed (E012, the run has the traceback), interrupted (the server stopped before it ended: marked at the next `fin ui`; start it again). `POST /job` needs the token cookie and the Origin (E007); an action that is not a job is E008. The jobs: Export to Excel, Install a PDF add-on (Files screen; the service `fin.services.addon`, which `fin parser use` calls too), Ingest, Re-ingest, Load with the unit, Scan a data room and Load the approved files (`fin.services.dataroom`, which `fin dataroom` calls too) (each job's run records `via` `ui` and `actor` `user`); `POST /job` takes `item` for Re-ingest (the doc_id) and Load with the unit (the held file's name), and Scan a data room (the folder, which must exist), and `choice` for Install a PDF add-on (the add-on) and Load with the unit (the answer); anything else is E008. While a job writes, a page that reads the same database waits for it (as for another command; E501 after the retries).
+- **Jobs**: a long action runs as a background job, so the page answers at once. One worker thread runs the jobs one at a time in order; a later one is shown as queued. Each job is a row of `jobs` in audit.duckdb (action, arguments, state, the last progress line, result lines, code, run_id, times); the Jobs card (Files, Reports, Questions, Dashboards, Settings and Health) asks for itself every second while a job is queued or running, and a reload shows the same jobs. States: queued, running, done, refused (the action's error code and message), failed (E012, the run has the traceback), interrupted (the server stopped before it ended: marked at the next `fin ui`; start it again). `POST /job` needs the token cookie and the Origin (E007); an action that is not a job is E008. The jobs: Export to Excel, Make a report, Install a PDF add-on (Files and Settings; the service `fin.services.addon`, which `fin parser use` calls too), Ingest, Re-ingest, Load with the unit, Scan a data room and Load the approved files (`fin.services.dataroom`, which `fin dataroom` calls too), Build the dashboard, Update fin and Run a question again (each job's run records `via` `ui` and `actor` `user`); `POST /job` takes `item` for Re-ingest (the doc_id), Load with the unit (the held file's name), Run a question again (the query_id) and Scan a data room (the folder, which must exist), and `choice` for Install a PDF add-on (the add-on), Load with the unit (the answer) and Make a report (health, diligence or fdd); anything else is E008. While a job writes, a page that reads the same database waits for it (as for another command; E501 after the retries).
 - **Uploads**: the Files screen saves .xlsx, .xlsm, .xls and .pdf files into `inbox/<company>/` of the chosen company (a run "ui upload", one event per file). The name must be plain (letters, digits, space, `. _ - ( ) &`; a path is cut to its last part; no leading dot, no `..`), at most 50 MB per file and 100 MB per request, and it never overwrites a file already in the inbox; all files are checked first, so a refusal (E008) saves none; before any company exists the upload is refused (E008). The button does not ingest: the screen says the files are waiting; **Ingest** loads them.
+
+### Where each command is
+
+Every `fin` command, with the screen that does it, "chat" (Claude runs it in the chat panel; the user's decisions are denied to it there) or "terminal only" with the reason (SPEC-11). `tests/unit/test_command_coverage.py` fails when a command has no row.
+
+| Command | Where |
+|---|---|
+| `fin adjust accept` | Queries |
+| `fin adjust import` | Queries |
+| `fin adjust list` | Queries |
+| `fin adjust propose` | chat |
+| `fin adjust reject` | Queries |
+| `fin analytics` | chat |
+| `fin audit` | Log |
+| `fin contracts coverage` | chat |
+| `fin dashboard` | Dashboards |
+| `fin dataroom approve` | chat |
+| `fin dataroom load` | chat |
+| `fin dataroom plan` | chat |
+| `fin dataroom propose` | chat |
+| `fin dataroom scan` | chat |
+| `fin disclosures list` | chat |
+| `fin disclosures load` | chat |
+| `fin disclosures related` | chat |
+| `fin delete` | terminal only: deletes a whole company; it asks for the company's name typed in the terminal |
+| `fin doctor` | Health |
+| `fin document delete` | Files |
+| `fin engagement bridge` | Bridge |
+| `fin engagement close` | Engagement |
+| `fin engagement open` | Engagement |
+| `fin engagement passthrough` | chat |
+| `fin engagement rate` | chat |
+| `fin engagement status` | Engagement |
+| `fin engagement terms` | chat |
+| `fin eval bundle` | terminal only: the golden evaluation runs on the client's own machine from its runbook (docs/client-handoff.md), not in the UI |
+| `fin eval init` | terminal only: the golden evaluation runs on the client's own machine from its runbook (docs/client-handoff.md), not in the UI |
+| `fin eval run` | terminal only: the golden evaluation runs on the client's own machine from its runbook (docs/client-handoff.md), not in the UI |
+| `fin export` | Reports |
+| `fin fact correct` | chat |
+| `fin fact list` | chat |
+| `fin fact state` | chat |
+| `fin fact unstate` | chat |
+| `fin fdd finding drop` | Findings |
+| `fin fdd finding final` | Findings |
+| `fin fdd finding list` | Findings |
+| `fin fdd finding propose` | chat |
+| `fin fdd finding update` | Findings |
+| `fin findings accept` | Files |
+| `fin findings list` | Files |
+| `fin gate approve` | Gates |
+| `fin gate status` | Gates |
+| `fin ingest` | Files |
+| `fin ingest-batch` | chat |
+| `fin init` | terminal only: makes the data folder before anything else runs; install.sh runs it |
+| `fin map accounts` | chat |
+| `fin map customers` | chat |
+| `fin map ledgers` | chat |
+| `fin map propose` | chat |
+| `fin map set` | Files |
+| `fin map tax` | chat |
+| `fin metric add` | chat |
+| `fin metric list` | chat |
+| `fin metric remove` | chat |
+| `fin netdebt item accept` | terminal only: the user's decision, denied to Claude in chat, and no screen has it yet |
+| `fin netdebt item list` | chat |
+| `fin netdebt item propose` | chat |
+| `fin netdebt item reject` | terminal only: the user's decision, denied to Claude in chat, and no screen has it yet |
+| `fin netdebt propose` | chat |
+| `fin netdebt show` | chat |
+| `fin parser show` | Settings |
+| `fin parser use` | Settings |
+| `fin payroll confirm-unit` | chat |
+| `fin provisions confirm` | terminal only: the user's decision, denied to Claude in chat, and no screen has it yet |
+| `fin provisions ledgers` | chat |
+| `fin provisions propose` | chat |
+| `fin provisions reject` | terminal only: the user's decision, denied to Claude in chat, and no screen has it yet |
+| `fin provisions show` | chat |
+| `fin query answer` | Queries |
+| `fin query approve` | Queries |
+| `fin query checklist` | chat |
+| `fin query close` | Queries |
+| `fin query edit` | Queries |
+| `fin query export` | Queries |
+| `fin query list` | Queries |
+| `fin query raise` | Queries |
+| `fin query sent` | Queries |
+| `fin query withdraw` | Queries |
+| `fin recast contracts` | chat |
+| `fin recast run` | chat |
+| `fin reconcile` | chat |
+| `fin report` | Reports |
+| `fin review confirm` | Mappings |
+| `fin review list` | Mappings |
+| `fin review reject` | Mappings |
+| `fin sample draw` | chat |
+| `fin sample show` | chat |
+| `fin schema` | chat |
+| `fin sql` | Questions |
+| `fin statements` | Statements |
+| `fin status` | Home |
+| `fin ui` | terminal only: starts the web UI itself |
+| `fin ui setup` | terminal only: installs the web UI itself |
+| `fin update` | Health |
+| `fin verify` | chat |
+| `fin visibility` | chat |
+| `fin walkthrough record` | chat |
+| `fin walkthrough summary` | chat |

@@ -1,0 +1,33 @@
+{% from "_ui.html" import head, empty %}
+{{ head("Settings", "What fin is set to. config.toml in the data folder holds these values.") }}
+{% if data.problem %}
+<div class="alert" data-variant="destructive"><h2>config.toml cannot be read</h2><section><p>{{ data.problem | code }}</p></section></div>
+{% endif %}
+<div class="card">
+  <header><h2>Data</h2></header>
+  <section>
+    <dl class="settings">
+      <dt>Data folder</dt><dd><code>{{ data.data_folder }}</code> <span class="muted">(read-only: set FIN_DATA_DIR before <code>fin ui</code> to use another)</span></dd>
+      {% set d = data.display %}
+      <dt>Numbers shown in</dt><dd>{% if d %}{{ d.unit }}, {{ d.decimals }} decimals, negatives as {{ d.negatives }}, labelled "{{ d.unit_label }}" <span class="muted">({% if data.display_own %}<code>[display.companies.{{ company }}]</code>{% else %}<code>[display]</code>{% endif %} in config.toml; the Statements screen picks another unit for a view)</span>{% else %}-{% endif %}</dd>
+      <dt>Assistant</dt><dd>Claude Code on this machine <span class="muted">(other AI providers are on hold)</span></dd>
+    </dl>
+  </section>
+</div>
+<div class="card">
+  <header><h2>PDF add-on</h2><p>Reads the statement pages pdfplumber skips. Chosen now: <strong>{{ data.parser or "-" }}</strong>.</p></header>
+  <section class="flush">
+    <div class="table-container"><table class="table">
+      <thead><tr><th>Add-on</th><th>About</th><th class="act"></th></tr></thead>
+      <tbody>
+        {% for a in data.addons %}
+        <tr><td class="fname">{{ a.label }}</td><td>{{ a.about }}</td>
+          <td class="act">{% if company and a.name != data.parser %}<form class="inline" hx-post="/job" hx-target="#jobs" hx-swap="outerHTML">
+            <input type="hidden" name="action" value="addon"><input type="hidden" name="company" value="{{ company }}"><input type="hidden" name="choice" value="{{ a.name }}">
+            <button type="submit" class="btn" data-size="sm" data-variant="outline">Install {{ a.label }}</button></form>{% elif a.name == data.parser %}<span class="muted">chosen</span>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+{% if company %}{% with jobs = data.jobs, job_labels = data.job_labels %}{% include "_jobs.html" %}{% endwith %}{% endif %}

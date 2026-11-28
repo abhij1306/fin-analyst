@@ -80,7 +80,7 @@ jobs:
   # extra. No frontend build: pages are server-rendered HTML with vendored htmx and Basecoat.
   ui:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10 # the end-to-end walk ingests and renders a report
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
@@ -89,7 +89,7 @@ jobs:
           cache-dependency-glob: uv.lock
           cache-suffix: ui
       - run: uv sync --frozen --extra ui # NOSONAR: uv refuses --no-build for the editable project install
-      - run: .venv/bin/pytest tests/unit/test_ui_server.py tests/unit/test_ui_actions.py tests/unit/test_ui_cli.py tests/unit/test_ui_files.py tests/unit/test_ui_differences.py -n auto --durations=5
+      - run: .venv/bin/pytest tests/unit/test_ui_*.py -n auto --durations=5
 
   # The optional PDF add-ons, one job each (uv sync --extra <name>): the tests that run the real
   # engine on synthetic PDFs (Docling: CPU-only PyTorch on Linux, pyproject.toml; models cached
