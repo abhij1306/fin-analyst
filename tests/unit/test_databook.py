@@ -28,7 +28,9 @@ LAKHS = (
 )
 
 # Division by a unit's size (Python) and any division in a template expression. Loading a
-# document converts its own unit to rupees (extract/, ingest.py): that is storing, not showing.
+# document converts its own unit to rupees (extract/, ingest.py), and remapping a label to or from a
+# per-share account stores the figure as printed again (map/review_confirm.py, as ingest.py does):
+# that is storing, not showing.
 PY_DIVISION = re.compile(
     r"/\s*\(?\s*[\w.\[\]\"']*(?:per_unit|PER_UNIT|DISPLAY_UNITS|rupees_per)"
     r"|/\s*\(?\s*(?:Decimal\(\s*[\"']?)?"
@@ -36,7 +38,7 @@ PY_DIVISION = re.compile(
 )
 TEMPLATE_EXPRESSION = re.compile(r"\{[{%].*?[}%]\}", re.DOTALL)
 QUOTED = re.compile(r"\"[^\"]*\"|'[^']*'")
-LOADING = ("extract", "ingest.py")
+LOADING = ("extract", "ingest.py", "review_confirm.py")
 
 
 @pytest.fixture(scope="module")
