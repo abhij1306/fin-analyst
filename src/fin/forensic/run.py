@@ -69,7 +69,7 @@ def _outcome(test: ForensicTest, ctx: Context, books: Books) -> Outcome:
         return Outcome.cannot(f"{', '.join(unset)} on Settings (`fin forensic set`)")
     outcome = test.run(ctx)
     left_out = books.bank.left_out(ctx.period) if books.bank and "bank" in test.kinds else None
-    if left_out and outcome.outcome == "ran":
+    if left_out:  # named whatever the outcome, also when it was the period's only statement
         outcome.needs = "; ".join(filter(None, [outcome.needs, left_out]))
     return outcome
 

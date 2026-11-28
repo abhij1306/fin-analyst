@@ -11,7 +11,9 @@ it: the company's input tax credit is at risk) is right_only, one in 2B and not 
 left_only, a different taxable value is a difference: at or above the threshold each is for a query
 (`fin query raise --items`). Level 'invoice', key '<month> <vendor token> <invoice number>'.
 A credit or debit note is its own line (its type in the key), never added to an invoice with the
-same number. Unlike the four GST reconciliations it is not a gate input (`fin.reconcile.NOT_GATED`).
+same number; the register has no document type, so a note pairs with the register line of its
+vendor and number that no 2B invoice took. Unlike the four GST reconciliations it is not a gate
+input (`fin.reconcile.NOT_GATED`).
 """
 
 from dataclasses import dataclass, field
@@ -99,6 +101,13 @@ def _pairs(left: list[Doc], right: list[Doc]) -> list[tuple[Doc | None, Doc | No
             rest.append(doc)
         else:
             pairs.append((doc, other, None))
+    # The register has no document type: a credit or debit note pairs with the register line of
+    # its vendor and number left after the invoices took theirs (never added to an invoice).
+    for doc in [d for d in rest if d.note]:
+        other = by_key.pop((doc.vendor, norm(doc.number), None), None)
+        if other is not None:
+            rest.remove(doc)
+            pairs.append((doc, other, None))
     free = list(by_key.values())
     for doc in rest:
         found = next(
@@ -106,7 +115,6 @@ def _pairs(left: list[Doc], right: list[Doc]) -> list[tuple[Doc | None, Doc | No
                 r
                 for r in free
                 if norm(r.number) == norm(doc.number)
-                and r.note == doc.note
                 and r.amount == doc.amount
                 and _month(r.day) == _month(doc.day)
             ),

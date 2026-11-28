@@ -15,7 +15,7 @@ from typing import Any
 
 import duckdb
 
-from fin.diligence.mask import PARTY_KINDS, Parties
+from fin.diligence.mask import Parties, party_tokens
 from fin.forensic.registry import Flag
 from fin.reconcile.bank_lines import period_bounds
 
@@ -87,9 +87,16 @@ class Statement:
     opening: Decimal
     lines: tuple[BankLine, ...]
     currency: str = "INR"
+    # every row of the balance chain in file order: the lines and the rows with no movement that
+    # print a balance (left out of every other test); empty: the lines
+    chain: tuple[BankLine, ...] = ()
 
     def covers(self, day: date) -> bool:
         return self.start <= day <= self.end
+
+    @property
+    def rows(self) -> tuple[BankLine, ...]:
+        return self.chain or self.lines
 
 
 def order(line: BankLine, statement: Statement) -> tuple[Any, ...]:
@@ -142,7 +149,7 @@ WHERE s.status = 'loaded' AND s.engagement_id = ? ORDER BY b.file_id
 LINES = """
 SELECT sheet, page, "row", account, txn_date, coalesce(remarks, ''), coalesce(reference, ''),
     debit, credit, balance
-FROM bank_lines WHERE file_id = ? AND (debit <> 0 OR credit <> 0)
+FROM bank_lines WHERE file_id = ? AND (debit <> 0 OR credit <> 0 OR balance IS NOT NULL)
 ORDER BY page NULLS FIRST, sheet, "row"
 """
 
@@ -167,11 +174,7 @@ def bank_hash(con: duckdb.DuckDBPyConnection, engagement_id: int) -> str:
         "ORDER BY file_id",
         ids,
     ).fetchall()
-    tokens = con.execute(
-        "SELECT match_key, token FROM mask_values WHERE list_contains(?, kind) ORDER BY token",
-        [list(PARTY_KINDS)],
-    ).fetchall()
-    text = json.dumps([files, tokens], default=str, separators=(",", ":"))
+    text = json.dumps([files, party_tokens(con)], default=str, separators=(",", ":"))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
@@ -180,7 +183,7 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Bank:
     statements, foreign = [], []
     rows = con.execute(STATEMENTS, [engagement["engagement_id"]]).fetchall()
     for file_id, name, period, account, start, end, opening, currency in rows:
-        lines = []
+        chain = []
         for sheet, page, row, acct, day, remarks, reference, debit, credit, balance in con.execute(
             LINES, [file_id]
         ).fetchall():
@@ -189,7 +192,10 @@ def load(con: duckdb.DuckDBPyConnection, engagement: dict[str, Any]) -> Bank:
                 file_id, name, sheet, page, row, acct, day, remarks, reference, debit, credit,
                 balance, party,
             )  # fmt: skip
-            lines.append(line)
-        st = Statement(file_id, name, period, account, start, end, opening, tuple(lines), currency)
+            chain.append(line)
+        lines = tuple(x for x in chain if x.debit or x.credit)
+        st = Statement(
+            file_id, name, period, account, start, end, opening, lines, currency, tuple(chain)
+        )
         (statements if currency == "INR" else foreign).append(st)
     return Bank(statements, period_bounds(engagement), foreign)

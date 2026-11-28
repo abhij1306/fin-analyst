@@ -38,10 +38,15 @@ JOIN nwc_accounts n ON n.account = m.account
 WHERE s.kind = 'trial_balance' AND s.status = 'loaded'
     AND s.engagement_id = (SELECT max(engagement_id) FROM engagement);
 
+-- A component's name when no ledger is in it (has is not true), for missing_components.
+CREATE MACRO nwc_gap(has, name) AS CASE WHEN has IS NOT TRUE THEN name END;
+
 -- Working capital at each year-end and at the stub's end, one row per loaded trial balance of the latest engagement.
 -- basis is 'audited' for an annual period and 'unaudited' for the stub (unaudited management accounts). The five
 -- components are the balances as shown; net_working_capital = receivables + inventories + other current assets -
--- payables - other current liabilities. mapped_ledgers / unmapped_ledgers: the trial balance's ledgers confirmed and
+-- payables - other current liabilities. A component with no ledger confirmed to its accounts is NULL (unknown, never
+-- 0; a confirmed ledger with a nil balance is 0); net_working_capital is then the sum of the known components and
+-- missing_components names the ones left out (NULL when none is; net_working_capital NULL when all are). mapped_ledgers / unmapped_ledgers: the trial balance's ledgers confirmed and
 -- not confirmed to an account (while any is unmapped, the figures may be incomplete).
 CREATE VIEW nwc_year_end AS
 WITH tbs AS (
@@ -65,16 +70,22 @@ coverage AS (
 )
 SELECT
     b.engagement_id, b.period, b.basis, b.period_start, b.period_end,
-    CAST(coalesce(sum(p.balance) FILTER (WHERE p.component = 'trade_receivables'), 0) AS DECIMAL(38, 2))
+    CAST(sum(p.balance) FILTER (WHERE p.component = 'trade_receivables') AS DECIMAL(38, 2))
         AS trade_receivables,
-    CAST(coalesce(sum(p.balance) FILTER (WHERE p.component = 'inventories'), 0) AS DECIMAL(38, 2)) AS inventories,
-    CAST(coalesce(sum(p.balance) FILTER (WHERE p.component = 'other_current_assets'), 0) AS DECIMAL(38, 2))
+    CAST(sum(p.balance) FILTER (WHERE p.component = 'inventories') AS DECIMAL(38, 2)) AS inventories,
+    CAST(sum(p.balance) FILTER (WHERE p.component = 'other_current_assets') AS DECIMAL(38, 2))
         AS other_current_assets,
-    CAST(coalesce(sum(p.balance) FILTER (WHERE p.component = 'trade_payables'), 0) AS DECIMAL(38, 2))
+    CAST(sum(p.balance) FILTER (WHERE p.component = 'trade_payables') AS DECIMAL(38, 2))
         AS trade_payables,
-    CAST(coalesce(sum(p.balance) FILTER (WHERE p.component = 'other_current_liabilities'), 0) AS DECIMAL(38, 2))
+    CAST(sum(p.balance) FILTER (WHERE p.component = 'other_current_liabilities') AS DECIMAL(38, 2))
         AS other_current_liabilities,
-    CAST(coalesce(sum(p.signed), 0) AS DECIMAL(38, 2)) AS net_working_capital,
+    CAST(sum(p.signed) AS DECIMAL(38, 2)) AS net_working_capital,
+    nullif(concat_ws(', ',
+        nwc_gap(bool_or(p.component = 'trade_receivables'), 'trade receivables'),
+        nwc_gap(bool_or(p.component = 'inventories'), 'inventories'),
+        nwc_gap(bool_or(p.component = 'other_current_assets'), 'other current assets'),
+        nwc_gap(bool_or(p.component = 'trade_payables'), 'trade payables'),
+        nwc_gap(bool_or(p.component = 'other_current_liabilities'), 'other current liabilities')), '') AS missing_components,
     coalesce(max(c.mapped_ledgers), 0) AS mapped_ledgers,
     coalesce(max(c.unmapped_ledgers), 0) AS unmapped_ledgers,
     b.file_name AS trial_balance_file
@@ -185,7 +196,8 @@ LEFT JOIN LATERAL (
 WHERE i.status = 'included';
 
 -- Working capital at each month end, from Ledger Vouchers movements on the previous trial balance's closing: one
--- row per month of each period that has at least one included ledger. Columns as nwc_year_end. ledgers_included /
+-- row per month of each period that has at least one included ledger. Columns as nwc_year_end (a component with no
+-- included ledger is NULL and named in missing_components). ledgers_included /
 -- ledgers_excluded: the period's working capital ledgers in and out of the view (nwc_monthly_ledgers says why): a
 -- month with excluded ledgers is not the complete working capital. There are no monthly trial balances, so this is
 -- the only monthly view.
@@ -197,16 +209,22 @@ WITH counts AS (
 )
 SELECT
     l.engagement_id, l.period, l.month_end,
-    CAST(coalesce(sum(l.balance) FILTER (WHERE l.component = 'trade_receivables'), 0) AS DECIMAL(38, 2))
+    CAST(sum(l.balance) FILTER (WHERE l.component = 'trade_receivables') AS DECIMAL(38, 2))
         AS trade_receivables,
-    CAST(coalesce(sum(l.balance) FILTER (WHERE l.component = 'inventories'), 0) AS DECIMAL(38, 2)) AS inventories,
-    CAST(coalesce(sum(l.balance) FILTER (WHERE l.component = 'other_current_assets'), 0) AS DECIMAL(38, 2))
+    CAST(sum(l.balance) FILTER (WHERE l.component = 'inventories') AS DECIMAL(38, 2)) AS inventories,
+    CAST(sum(l.balance) FILTER (WHERE l.component = 'other_current_assets') AS DECIMAL(38, 2))
         AS other_current_assets,
-    CAST(coalesce(sum(l.balance) FILTER (WHERE l.component = 'trade_payables'), 0) AS DECIMAL(38, 2))
+    CAST(sum(l.balance) FILTER (WHERE l.component = 'trade_payables') AS DECIMAL(38, 2))
         AS trade_payables,
-    CAST(coalesce(sum(l.balance) FILTER (WHERE l.component = 'other_current_liabilities'), 0) AS DECIMAL(38, 2))
+    CAST(sum(l.balance) FILTER (WHERE l.component = 'other_current_liabilities') AS DECIMAL(38, 2))
         AS other_current_liabilities,
     CAST(sum(l.balance * l.nwc_sign) AS DECIMAL(38, 2)) AS net_working_capital,
+    nullif(concat_ws(', ',
+        nwc_gap(bool_or(l.component = 'trade_receivables'), 'trade receivables'),
+        nwc_gap(bool_or(l.component = 'inventories'), 'inventories'),
+        nwc_gap(bool_or(l.component = 'other_current_assets'), 'other current assets'),
+        nwc_gap(bool_or(l.component = 'trade_payables'), 'trade payables'),
+        nwc_gap(bool_or(l.component = 'other_current_liabilities'), 'other current liabilities')), '') AS missing_components,
     c.ledgers_included, c.ledgers_excluded
 FROM nwc_monthly_lines l
 JOIN counts c ON c.period = l.period
@@ -214,17 +232,18 @@ GROUP BY l.engagement_id, l.period, l.month_end, c.ledgers_included, c.ledgers_e
 
 -- Year-end (and stub-end) and month-end working capital in one list, for the dashboard: granularity 'year_end' (as_of
 -- the period's end date, from the trial balance) or 'month_end' (from the Ledger Vouchers). ledgers_included and
--- ledgers_excluded are NULL for a year-end row; unmapped_ledgers is NULL for a month-end row.
+-- ledgers_excluded are NULL for a year-end row; unmapped_ledgers is NULL for a month-end row; missing_components as in
+-- nwc_year_end.
 CREATE VIEW nwc_series AS
 SELECT
     period, 'year_end' AS granularity, period_end AS as_of, basis, trade_receivables, inventories,
     other_current_assets, trade_payables, other_current_liabilities, net_working_capital,
-    unmapped_ledgers, NULL::BIGINT AS ledgers_included, NULL::BIGINT AS ledgers_excluded
+    unmapped_ledgers, NULL::BIGINT AS ledgers_included, NULL::BIGINT AS ledgers_excluded, missing_components
 FROM nwc_year_end
 UNION ALL
 SELECT
     m.period, 'month_end', m.month_end, CASE WHEN m.period = e.stub THEN 'unaudited' ELSE 'audited' END,
     m.trade_receivables, m.inventories, m.other_current_assets, m.trade_payables, m.other_current_liabilities,
-    m.net_working_capital, NULL::BIGINT, m.ledgers_included, m.ledgers_excluded
+    m.net_working_capital, NULL::BIGINT, m.ledgers_included, m.ledgers_excluded, m.missing_components
 FROM nwc_monthly m
 JOIN (SELECT stub FROM engagement ORDER BY engagement_id DESC LIMIT 1) e ON true;

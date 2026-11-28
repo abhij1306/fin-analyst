@@ -16,6 +16,7 @@ from fin.forensic.bank import BankLine, Statement, money
 from fin.forensic.books import Context
 from fin.forensic.registry import Flag, ForensicTest, Outcome
 from fin.forensic.settings import Setting
+from fin.reconcile.base import rows_text
 
 SETTINGS = (
     Setting(
@@ -39,49 +40,64 @@ def _near(ctx: Context, amount: Decimal) -> bool:
     return ctx.min_amount * NEAR <= amount < ctx.min_amount
 
 
-def _chain(ctx: Context, st: Statement) -> tuple[list[Flag], int]:
-    """The statement's balance breaks at or above min_amount, and the near misses."""
-    flags, near = [], 0
-    previous: Decimal | None = st.opening
-    for x in st.lines:
-        if x.balance is None:  # the chain restarts at the next row with a balance
-            previous = None
+def _chain(ctx: Context, st: Statement) -> tuple[list[Flag], int, list[BankLine]]:
+    """The statement's balance breaks at or above min_amount, the near misses and the rows that
+    print no balance. Every row is in the chain, a row with no movement too (its balance is the one
+    the next row starts from); a row with no balance carries the expected balance to the next."""
+    flags, near, blank = [], 0, []
+    previous = st.opening
+    for x in st.rows:
+        expected = previous + x.credit - x.debit
+        if x.balance is None:
+            blank.append(x)
+            previous = expected
             continue
-        if previous is not None:
-            expected = previous + x.credit - x.debit
-            gap = x.balance - expected
-            if abs(gap) >= ctx.min_amount:
-                flags.append(
-                    x.flag(
-                        f"balance {money(x.balance)} on {x.account}, expected {money(expected)}"
-                        f" (the balance above {money(previous)} + credit {money(x.credit)} - "
-                        f"debit {money(x.debit)}); {money(abs(gap))} apart",
-                        gap,
-                    )
+        gap = x.balance - expected
+        if abs(gap) >= ctx.min_amount:
+            flags.append(
+                x.flag(
+                    f"balance {money(x.balance)} on {x.account}, expected {money(expected)}"
+                    f" (the balance above {money(previous)} + credit {money(x.credit)} - "
+                    f"debit {money(x.debit)}); {money(abs(gap))} apart",
+                    gap,
                 )
-            elif gap and _near(ctx, abs(gap)):
-                near += 1
+            )
+        elif gap and _near(ctx, abs(gap)):
+            near += 1
         previous = x.balance
-    return flags, near
+    return flags, near, blank
+
+
+def _no_balance(blank: list[BankLine]) -> str | None:
+    """The needs line naming the rows with no balance (the chain ran through them)."""
+    if not blank:
+        return None
+    refs = rows_text([(x.file_name, x.sheet, x.row) for x in blank])
+    return (
+        f"a balance on {len(blank)} row(s) ({refs}): those rows are not checked, the row after "
+        "each is checked against the expected balance"
+    )
 
 
 def bank_balance_chain(ctx: Context) -> Outcome:
     found = statements(ctx)
-    without = [s for s in found if all(x.balance is None for x in s.lines)]
+    without = [s for s in found if all(x.balance is None for x in s.rows)]
     names = ", ".join(f"{s.account} {s.start:%d-%b-%Y} to {s.end:%d-%b-%Y}" for s in without)
     needs = f"the statement {names}: it prints no row balance" if without else None
     if not found:
         return Outcome.cannot("a loaded bank statement in rupees for the period")
     if len(without) == len(found):
         return Outcome.cannot(f"row balances on the period's bank statements ({names}: none)")
-    flags, near, population = [], 0, 0
+    flags, near, population, blank = [], 0, 0, []
     for st in found:
         if st in without:
             continue
-        found_flags, found_near = _chain(ctx, st)
+        found_flags, found_near, found_blank = _chain(ctx, st)
         flags += found_flags
         near += found_near
-        population += len(st.lines)
+        blank += found_blank
+        population += len(st.rows)
+    needs = "; ".join(filter(None, [needs, _no_balance(blank)])) or None
     return Outcome(flags=flags, near_misses=near, population=population, needs=needs)
 
 

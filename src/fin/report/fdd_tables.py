@@ -322,13 +322,13 @@ def gst_table(data: dict[str, Any], unit: Display) -> str:
     rows = [
         [
             r["name"], r["period"], str(r["differences"]), str(r["at_or_above_threshold"]),
-            str(r["in_a_query"]), _m(r["total_difference"], unit),
+            str(r["in_a_query"]), _m(r["total_difference"], unit), str(r["not_compared"]),
         ]
         for r in data["tax"]["reconciliations"]
     ]  # fmt: skip
     return table(
         ["GST reconciliation", "Period", "Lines that differ", "At or above the threshold",
-         "In a query", "Total difference"],
+         "In a query", "Total difference", "Not compared (a blank figure)"],
         rows,
         "Not loaded: no GST return reconciled (`fin reconcile <co> gstr1_vs_sales_register`).",
     )  # fmt: skip

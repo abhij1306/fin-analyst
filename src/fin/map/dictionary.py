@@ -74,6 +74,20 @@ def load_accounts(root: Path) -> dict[str, Account]:
     return {row[0]: Account(*row[1:]) for row in rows}
 
 
+def copy_review_accounts(root: Path, con: duckdb.DuckDBPyConnection) -> None:
+    """Copy the accounts added in review that add into a subtotal to the company database
+    (`review_accounts`), so its stand-in totals sum every dictionary child. Call it where facts
+    are written, inside their transaction."""
+    rows = [
+        [name, a.parent, a.sign]
+        for name, a in load_accounts(root).items()
+        if a.source == "review" and a.parent and a.sign
+    ]
+    con.execute("DELETE FROM review_accounts")
+    if rows:
+        con.executemany("INSERT INTO review_accounts VALUES (?, ?, ?)", rows)
+
+
 def insert_account(
     con: duckdb.DuckDBPyConnection, row: dict[str, str], source: str, run_id: str | None
 ) -> None:

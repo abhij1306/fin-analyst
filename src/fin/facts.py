@@ -46,7 +46,7 @@ from fin.db.rows import fetch_dicts
 from fin.db.schema import ensure_database
 from fin.findings import recheck_held, record
 from fin.ingest_read import MAX_RUPEES  # as E890: a figure this large is a wrong unit
-from fin.map.dictionary import load_accounts
+from fin.map.dictionary import copy_review_accounts, load_accounts
 from fin.metrics.export import refresh_analytics
 from fin.paths import company_db_path
 from fin.query.write import backup
@@ -281,6 +281,7 @@ def state(
         "actor": actor,
     }
     with connect(path, write=True) as con, transaction(con):
+        copy_review_accounts(run.root, con)
         _refuse_twice(con, s)
         docs = fetch_dicts(con, _DOCUMENT_SQL, [s.value, s.account, s.period, s.scope])
         if docs:

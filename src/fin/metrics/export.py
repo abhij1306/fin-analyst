@@ -143,6 +143,7 @@ ANALYTICS_VIEWS = [
             "unmapped_ledgers",
             "ledgers_included",
             "ledgers_excluded",
+            "missing_components",
         ],
     ),
 ]

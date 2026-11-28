@@ -1,6 +1,6 @@
 """SPEC-19 on synthetic statements: the cases the mock does not reach (a statement with no row
-balances, a chain that restarts at a row with none, an own-account line whose other account is not
-covered, the user's cash words, a period-end credit whose account the next period does not cover
+balances, a chain that runs on through a row with none, an own-account line whose other account is
+not covered, the user's cash words, a period-end credit whose account the next period does not cover
 from its first day, a statement not in rupees) and the words of a bank test's state."""
 
 from datetime import date, timedelta
@@ -85,15 +85,16 @@ def test_another_statement_still_runs_and_names_the_one_without() -> None:
     )
 
 
-def test_a_row_with_no_balance_restarts_the_chain() -> None:
+def test_a_row_with_no_balance_carries_the_expected_balance() -> None:
     rows = [
         line(0, credit=500000, balance=500000),
         line(1, debit=200000),
-        line(2, debit=100000, balance=900000),
+        line(2, debit=100000, balance=200000),
     ]
     outcome = bank_balance_chain(context([statement(rows)]))
 
     assert outcome.outcome == "ran" and not outcome.flags and outcome.population == 3
+    assert (outcome.needs or "").startswith("a balance on 1 row(s) (s1.xlsx Statement!9)")
 
 
 def test_an_own_account_line_is_compared_only_where_the_other_statement_covers_it() -> None:

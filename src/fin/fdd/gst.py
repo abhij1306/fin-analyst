@@ -5,10 +5,12 @@ by `fin.diligence.sources` in one transaction, stored as its return (`source_fil
 'gstr3b'), so a later file of the same return and period supersedes the earlier one. Each row is one
 return month (`gst_returns`, db/schema/fdd_gst.sql) with its sheet and row. A month that cannot be
 read, falls outside the file's period or appears twice is E950 and nothing loads; months of the
-period with no row are listed, not refused (a return not filed is for a query).
+period with no row are listed, not refused (a return not filed is for a query). A blank figure is
+stored NULL (unknown), never 0: the reconciliations list its month as not compared.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 import duckdb
@@ -52,6 +54,13 @@ def month_of(value: Any, profile: Profile, where: str) -> date:
     )
 
 
+def figure(value: Any, profile: Profile, where: str) -> Decimal | None:
+    """A return figure in rupees; a blank cell is unknown (None), never 0. E204 for text."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    return amount(value, profile, where)
+
+
 def months_between(start: date, end: date) -> list[date]:
     """The first day of every month from start's to end's."""
     out, day = [], start.replace(day=1)
@@ -84,8 +93,8 @@ def rows(table: Table, file: dict[str, Any], run_id: str) -> list[list[Any]]:
                 f"{where}: {month:%b-%Y} is also on row {seen[month]}; nothing loaded"
             )
         seen[month] = r.row
-        values = [amount(r.cells.get(f), profile, where) for f in AMOUNTS]
-        extra = [amount(r.cells.get(f), profile, where) if is_3b else None for f in EXTRA_3B]
+        values = [figure(r.cells.get(f), profile, where) for f in AMOUNTS]
+        extra = [figure(r.cells.get(f), profile, where) if is_3b else None for f in EXTRA_3B]
         out.append(
             [
                 file["file_id"],

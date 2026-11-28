@@ -301,6 +301,7 @@ AS_FILED: dict[str, tuple[str, ...]] = {
         "read_by",
     ),
     "related_party_links": ("party", "link_kind", "target", "status", "reason", "run_id"),
+    "review_accounts": ("account", "parent"),
     "sample_lines": ("sheet", "selection", "invoice_no"),
     "samples": ("kind", "period", "run_id"),
     "saved_metric_operands": ("metric", "operand", "kind"),

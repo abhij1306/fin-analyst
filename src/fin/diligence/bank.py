@@ -55,7 +55,7 @@ from fin.diligence.stub import UNAUDITED
 from fin.extract.ledger import amount, cell_text, parse_date, read_table
 from fin.extract.periods import fiscal_year_of
 from fin.extract.profiles import Profile
-from fin.extract.units import parse_figure
+from fin.extract.units import parse_figure, to_rupees
 from fin.findings import record
 from fin.ingest import sha256_of
 from fin.paths import company_db_path
@@ -118,7 +118,7 @@ def _find(pattern: re.Pattern[str] | None, lines: list[str]) -> str | None:
 def _money(text: str) -> Decimal:
     figure = parse_figure(text)
     assert figure is not None  # the header patterns only match figures
-    return figure.quantize(Decimal("0.01"))
+    return to_rupees(figure, 1)  # half up to the paisa, like every figure
 
 
 def _read_lines(raw: Raw, name: str) -> tuple[list[BankLine], list[str]]:

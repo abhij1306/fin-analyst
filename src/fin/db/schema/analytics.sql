@@ -218,5 +218,6 @@ CREATE TABLE qoe_nwc (
     net_working_capital DECIMAL(38, 2),
     unmapped_ledgers BIGINT,
     ledgers_included BIGINT,
-    ledgers_excluded BIGINT
+    ledgers_excluded BIGINT,
+    missing_components VARCHAR  -- the components with no ledger, left out of the net (nwc_year_end)
 );

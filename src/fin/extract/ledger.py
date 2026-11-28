@@ -24,7 +24,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from fin.audit.errors import LayoutUnknown, ParseError, SourcePeriodInvalid
 from fin.extract.excel import open_workbook, parse_number
 from fin.extract.profiles import Profile, load_profile, norm, profiles_for
-from fin.extract.units import parse_figure
+from fin.extract.units import parse_figure, to_rupees
 
 HEADER_SEARCH_ROWS = 60  # the column header is looked for in this many rows from the top
 SHOWN_ROWS = 12  # rows listed when no profile matches
@@ -120,11 +120,12 @@ def parse_date(value: Any, profile: Profile) -> date | None:
 
 
 def amount(value: Any, profile: Profile, where: str) -> Decimal:
-    """An amount cell in rupees: blank is 0. E204 when it is not a number."""
+    """An amount cell in rupees, rounded half up to the paisa like every figure (`to_rupees`):
+    blank is 0. E204 when it is not a number."""
     if value is None or (isinstance(value, str) and not value.strip()):
         return Decimal("0.00")
     _, number = parse_number(value, where)
-    return (number * profile.unit).quantize(Decimal("0.01"))
+    return to_rupees(number, profile.unit)
 
 
 def _period(sheet: Worksheet, first_data_row: int, profile: Profile) -> tuple[date, date] | None:

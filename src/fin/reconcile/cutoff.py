@@ -69,14 +69,15 @@ def _settings(
 
 # Columns: file_id, file_name, sheet, row, invoice_no, invoice_date, service_start, amount_inr,
 # party, service_end, and before_year_end: for a service that runs across the year end, the share
-# of the amount for its service days up to the year end (by days), else NULL.
+# of the amount for its service days up to the year end (by days, `day_share`: rounded once, as the
+# recast rounds it), else NULL.
 _SELECT = """
 WITH y AS (SELECT ?::DATE AS year_end)
 SELECT r.file_id, s.file_name, r.sheet, r."row", r.invoice_no, r.invoice_date, r.service_start,
     r.amount_inr, CASE r.kind WHEN 'sales' THEN r.customer ELSE r.vendor END, r.service_end,
     CASE WHEN r.service_start <= y.year_end AND r.service_end > y.year_end
-        THEN CAST(round(r.amount_inr * (date_diff('day', r.service_start, y.year_end) + 1)
-            / (date_diff('day', r.service_start, r.service_end) + 1), 2) AS DECIMAL(20, 2)) END
+        THEN day_share(r.amount_inr, date_diff('day', r.service_start, y.year_end) + 1,
+            date_diff('day', r.service_start, r.service_end) + 1) END
 FROM register_lines r JOIN source_files s USING (file_id), y
 WHERE s.engagement_id = ? AND s.status = 'loaded' AND r.kind = ?
   AND r.invoice_date BETWEEN ? AND ?
