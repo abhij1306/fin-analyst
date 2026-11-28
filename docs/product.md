@@ -1052,7 +1052,7 @@ table and no `[dataroom]` table in config.toml: re-create it with `uv run fin in
 
 Who took an action is passed in by the interface, never read deeper down: the web UI passes `user`; the CLI passes
 `ai:claude` when Claude Code runs it (`CLAUDECODE` is set) and `user` otherwise (`fin.actor`). It is stored as `user`
-or `ai:<provider>`: `mapping_decisions.actor` (proposals are always `ai:claude`; `on_request` is true when an AI
+or `ai:<provider>`: `mapping_decisions.actor`, `engagement_rates.actor` (proposals are always `ai:claude`; `on_request` is true when an AI
 confirmed, edited or rejected because the user asked), the `actor` argument of every decision's run, and `read_by` of
 what an AI read (`ai:claude`: facts from a reading, contracts, walkthroughs, disclosures). Status, eval counts, evidence
 and the listings test the `ai:` prefix, and output names `ai:claude` "Claude". Data loaded by an earlier fin stored

@@ -7,6 +7,7 @@ from typing import Annotated
 
 import typer
 
+from fin.actor import from_environment
 from fin.audit.logger import Run, execute
 from fin.config import SCOPES
 from fin.diligence import bridge, engagement, passthrough, rates
@@ -242,7 +243,7 @@ def engagement_rate(
             result: object = rows
         else:
             assert rate is not None and as_at is not None
-            result = rates.state_rate(run, company, currency, rate, as_at)
+            result = rates.state_rate(run, company, currency, rate, as_at, from_environment())
             text = rates.format_stated(result)
         typer.echo(json.dumps(result, indent=2, default=str) if json_output else text)
 

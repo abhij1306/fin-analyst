@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from fin.actor import CLAUDE, USER
 from fin.audit.errors import DiligenceTableWrite, RateInvalid
 from fin.audit.logger import Run
 from fin.config import load_config
@@ -66,7 +67,7 @@ def test_a_usd_order_has_no_rupee_amount_until_a_rate_is_stated(root: Path) -> N
     before = orderbook(root)
     assert o3(root)[:3] == (None, None, None)
 
-    result = rates.state_rate(run(root), "acme", "usd", RATE, "2025-03-31")
+    result = rates.state_rate(run(root), "acme", "usd", RATE, "2025-03-31", USER)
 
     value, unbilled, rate, note = o3(root)
     assert result["orders"] == 1 and result["rate"]["currency"] == "USD"
@@ -79,7 +80,7 @@ def test_a_usd_order_has_no_rupee_amount_until_a_rate_is_stated(root: Path) -> N
 
 
 def test_a_rate_as_at_another_date_does_not_apply(root: Path) -> None:
-    result = rates.state_rate(run(root), "acme", "USD", RATE, "2025-03-30")
+    result = rates.state_rate(run(root), "acme", "USD", RATE, "2025-03-30", USER)
 
     assert result["orders"] == 0 and "counts only for an orderbook" in rates.format_stated(result)
     assert o3(root)[0] is None
@@ -87,10 +88,10 @@ def test_a_rate_as_at_another_date_does_not_apply(root: Path) -> None:
 
 def test_the_latest_rate_stated_is_used_and_every_one_is_audited(root: Path) -> None:
     first = run(root)
-    rates.state_rate(first, "acme", "USD", "80", "2025-03-31")
+    rates.state_rate(first, "acme", "USD", "80", "2025-03-31", USER)
     first.flush()
     second = run(root)
-    rates.state_rate(second, "acme", "USD", RATE, "2025-03-31")
+    rates.state_rate(second, "acme", "USD", RATE, "2025-03-31", CLAUDE)
     second.flush()
 
     assert o3(root)[0] == Decimal("4205000.00")
@@ -102,7 +103,8 @@ def test_the_latest_rate_stated_is_used_and_every_one_is_audited(root: Path) -> 
     details = [json.loads(detail) for _, _, detail in events]
     assert [e[1] for e in events] == ["stated", "stated"]
     assert [d["rate"] for d in details] == ["80.000000", "84.100000"]
-    assert {d["actor"] for d in details} <= {"human", "claude"}
+    assert [d["actor"] for d in details] == [USER, CLAUDE]
+    assert "stated by Claude" in rates.format_rate(rates.list_rates(run(root), "acme")[0])
     assert [d["run_id"] for d in details] == [first.run_id, second.run_id]
     assert [r["rate"] for r in rates.list_rates(run(root), "acme")] == [Decimal(RATE)]
 
@@ -113,7 +115,7 @@ def test_the_reconciliation_counts_a_converted_order(root: Path) -> None:
             "DELETE FROM register_lines WHERE customer = (SELECT customer FROM register_lines "
             "WHERE invoice_no = 'INV-1002')"
         )
-    rates.state_rate(run(root), "acme", "USD", RATE, "2025-03-31")
+    rates.state_rate(run(root), "acme", "USD", RATE, "2025-03-31", USER)
 
     (result,) = run_new(run(root), "acme", "orderbook_vs_register", "FY25")
 
@@ -132,7 +134,7 @@ def test_a_rate_that_cannot_be_stored_is_refused(
     root: Path, currency: str, rate: str, as_at: str
 ) -> None:
     with pytest.raises(RateInvalid) as caught:
-        rates.state_rate(run(root), "acme", currency, rate, as_at)
+        rates.state_rate(run(root), "acme", currency, rate, as_at, USER)
     assert caught.value.code == "E962"
     assert rates.list_rates(run(root), "acme") == []
 

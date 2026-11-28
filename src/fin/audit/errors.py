@@ -497,6 +497,12 @@ class PayrollRowInvalid(FinError):
 
 
 # E830-E874: in fin.audit.errors_dd (split for size), re-exported here.
+# E814, E815, E819: data-room intake, in fin.audit.errors_dataroom (split for size), re-exported.
+from fin.audit.errors_dataroom import (  # noqa: E402, F401
+    DataroomFolderInvalid,
+    DataroomPlanMissing,
+    DataroomRowInvalid,
+)
 from fin.audit.errors_dd import (  # noqa: E402, F401
     AnalyticsUnavailable,
     BundleNotAnonymous,
@@ -518,13 +524,6 @@ from fin.audit.errors_dd import (  # noqa: E402, F401
     RecastCannotRun,
     ReplyFileError,
     UnknownToken,
-)
-
-# E814, E815, E819: data-room intake, in fin.audit.errors_dataroom (split for size), re-exported.
-from fin.audit.errors_dataroom import (  # noqa: E402, F401
-    DataroomFolderInvalid,
-    DataroomPlanMissing,
-    DataroomRowInvalid,
 )
 
 # E9xx: the FDD extension, in fin.audit.errors_fdd (split for size), re-exported here.

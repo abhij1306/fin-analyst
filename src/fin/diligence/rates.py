@@ -15,12 +15,12 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from fin.actor import label
 from fin.audit.errors import RateInvalid
 from fin.audit.logger import Run
 from fin.db.conn import transaction, utcnow
 from fin.db.rows import fetch_dicts
 from fin.diligence.engagement import company_database, require_open
-from fin.map.review import _current_actor
 
 CURRENCY = re.compile(r"^[A-Z]{3}$")
 ISO_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # fromisoformat also takes 2025-W13-1 and 20250331
@@ -57,12 +57,15 @@ def parse_rate(currency: str, rate: str, as_at: str) -> tuple[str, Decimal, date
     return code, value, day
 
 
-def state_rate(run: Run, company: str, currency: str, rate: str, as_at: str) -> dict[str, Any]:
+def state_rate(
+    run: Run, company: str, currency: str, rate: str, as_at: str, actor: str
+) -> dict[str, Any]:
     """Store the rate the user states for the open engagement: rupees per unit of `currency` as at
     `as_at`. Returns {"rate": the row, "orders": how many loaded orders in that currency are as at
-    that date}. E962 for a value `parse_rate` refuses; E803 when no engagement is open."""
+    that date}. `actor`: who states it (`fin.actor`: the UI passes USER, the CLI
+    `from_environment()`). E962 for a value `parse_rate` refuses; E803 when no engagement is
+    open."""
     code, value, day = parse_rate(currency, rate, as_at)
-    actor, _ = _current_actor()
     with company_database(run, company, write=True) as con, transaction(con):
         engagement_id = require_open(con, company)["engagement_id"]
         [row] = fetch_dicts(
@@ -106,7 +109,7 @@ def list_rates(run: Run, company: str) -> list[dict[str, Any]]:
 def format_rate(row: dict[str, Any]) -> str:
     return (
         f"{row['currency']} {row['rate']} rupees as at {row['as_at']} (#{row['rate_id']}, "
-        f"stated by {row['actor']} {row['stated_at']:%Y-%m-%d})"
+        f"stated by {label(row['actor'])} {row['stated_at']:%Y-%m-%d})"
     )
 
 

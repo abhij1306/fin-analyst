@@ -27,7 +27,7 @@ CREATE TABLE orderbook_lines (
 -- Exchange rates the user states for an engagement (`fin engagement rate <co> USD 84.10 --as-at 2025-03-31`,
 -- fin.diligence.rates; SPEC-17 item 2): rupees per unit of the currency, as at a date. fin never fetches or assumes a
 -- rate. Rows are appended; the latest stated for a currency and date is the one used (engagement_rates_current).
--- actor: who ran the command ('human', or 'claude' when the user asked Claude to state it).
+-- actor: who stated it (fin.actor: 'user', or 'ai:claude' when Claude ran the command for the user).
 CREATE SEQUENCE engagement_rates_seq START 1;
 CREATE TABLE engagement_rates (
     rate_id INTEGER PRIMARY KEY DEFAULT nextval('engagement_rates_seq'),
@@ -35,7 +35,7 @@ CREATE TABLE engagement_rates (
     currency VARCHAR NOT NULL,
     rate DECIMAL(20, 6) NOT NULL CHECK (rate > 0),
     as_at DATE NOT NULL,
-    actor VARCHAR NOT NULL CHECK (actor IN ('human', 'claude')),
+    actor VARCHAR NOT NULL CHECK (actor = 'user' OR actor LIKE 'ai:%'),
     run_id VARCHAR NOT NULL,
     stated_at TIMESTAMP NOT NULL
 );
