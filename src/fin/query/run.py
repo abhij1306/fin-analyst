@@ -33,7 +33,7 @@ from fin.db.rows import fetch_dicts
 from fin.paths import company_db_path
 from fin.query.evidence import write_evidence
 from fin.query.guide import column_hint
-from fin.statements import add_view
+from fin.rebuilt.view import add_views
 
 # The source_ref of a line in a sum whose raw value records no sheet, cell or page.
 NO_SOURCE = "no source"
@@ -98,10 +98,10 @@ def check_select(con: duckdb.DuckDBPyConnection, sql: str) -> None:
 def run_select(root: Path, company: str, sql: str) -> list[dict[str, Any]]:
     """Run one SELECT on a read-only connection and return the rows, with provenance columns added
     when the result has `fact_ids`, `fact_id` or `raw_id`. The `standard_statements` view
-    (fin.statements) is available to it."""
+    (fin.statements) and the `rebuilt_statements` view (fin.rebuilt) are available to it."""
     with connect(company_db_path(root, company)) as con:
         check_select(con, sql)
-        add_view(con, root)  # standard_statements
+        add_views(con, root)  # standard_statements, rebuilt_statements
         lock_files(con)
         try:
             rows = fetch_dicts(con, sql)

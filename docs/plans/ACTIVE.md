@@ -84,9 +84,9 @@ Updated: 2026-11-28.
 | 13 | 1 | Scan a data room into a plan: unpack, drop duplicates, name each file's kind | high | done (#117) |
 | 13 | 2 | Load an approved data-room plan in one run | | done (#117) |
 | 13 | 3 | Show and approve the data-room plan on the Files screen | | todo |
-| 14 | 1 | Rebuild the P&L and balance sheet from the trial balance for every year | high | todo |
-| 14 | 2 | Derive an indirect cash flow from the rebuilt balances | high | todo |
-| 14 | 3 | Show reported, rebuilt and difference in statements and on the Statements screen | | todo |
+| 14 | 1 | Rebuild the P&L and balance sheet from the trial balance for every year | high | done (#122) |
+| 14 | 2 | Derive an indirect cash flow from the rebuilt balances | high | done (#122) |
+| 14 | 3 | Show reported, rebuilt and difference in statements and on the Statements screen | | done (#122) |
 | 15 | 1 | Join the reconciliations into one discrepancies view with levels and parents | high | todo |
 | 15 | 2 | Add fin discrepancies and the export sheet | | todo |
 | 15 | 3 | Add the differences screen with drill-down and query hand-off | | todo |

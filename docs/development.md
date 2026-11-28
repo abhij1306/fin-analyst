@@ -100,6 +100,10 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 - `facts.py`: figures the user states (`fin fact state|unstate|list`, CLI `cli/facts.py`; table `stated_figures`,
   merged into `current_facts`) and corrections of a figure fin misread (`fin fact correct`; table
   `fact_corrections`, view `corrected_now`). `metrics/missing.py`: why a metric is not computed (the inputs it lacks).
+- `rebuilt/`: the statements rebuilt from the trial balance (SPEC-14): `view.py` (the `rebuilt_statements` view, its
+  cash flow lines `CASH_LINES`, and which periods can be rebuilt), `sql.py` (its SQL, over `rebuilt_ledgers` in
+  `db/schema/rebuilt.sql`), `compare.py` (reported, rebuilt and difference for `fin statements --rebuilt`, the export
+  and the Statements screen).
 - `report/`: `data.py` (what the report reads, categories, charts), `tables.py` (display formatting and the
   Markdown tables), `chart.py` (the SVG line chart),
   `lint.py` (the no-typed-numbers rule, and the FDD report's no-valuation, rating or buy rule, E972), `render.py`

@@ -1,8 +1,8 @@
 """Creating the databases from their schema files (docs/product.md §10).
 
 Each database kind has one schema file (several for `company`: tables, metric views, diligence
-tables, diligence views, diligence source files, views on the registers) in `schema/`, holding
-its final tables and views: `audit` for
+tables, diligence views, diligence source files, views on the registers, the rebuilt
+statements' ledgers) in `schema/`, holding its final tables and views: `audit` for
 `shared/audit.duckdb`, `dictionary` for `shared/dictionary.duckdb`, `analytics` for
 `shared/analytics.duckdb`, `company` for each `companies/<company>.duckdb`. A
 database is created from its file once, when it does not exist yet. There are no migrations: to
@@ -55,6 +55,7 @@ SCHEMA_FILES = {
         "fdd_netdebt.sql",
         "fdd_findings.sql",
         "dataroom.sql",
+        "rebuilt.sql",
     ],
 }
 
