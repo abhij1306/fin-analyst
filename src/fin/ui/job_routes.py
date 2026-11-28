@@ -161,7 +161,7 @@ def add_job_routes(
     def shown(request: Request, company: str) -> HTMLResponse:
         return templates.TemplateResponse(request, "_jobs.html", jobs_context(root, company))
 
-    def chosen(company: str | None, install_wide: bool) -> str:
+    def chosen(company: str | None, install_wide: bool = False) -> str:
         name = known(root, company)
         if name is None and install_wide:
             return ""  # no company yet: the install's own jobs

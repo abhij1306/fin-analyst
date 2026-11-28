@@ -1388,7 +1388,7 @@ Plan and owner decisions: [web-ui-plan.md](web-ui-plan.md); builder's readings: 
   - One `claude` process per conversation at a time (E011 while one runs); each turn is a process (`--session-id` first, `--resume` after), so a conversation resumes after `fin ui` restarts. Conversations are JSON files in `<data folder>/chat/`; the list and **New chat** are in the panel header. **Stop** ends the process. Text streams in over server-sent events (htmx SSE extension); tool calls show collapsed; errors show with their code.
   - The user's decisions are denied to Claude with `--disallowedTools` (`fin gate approve`, `fin fdd finding final|draft`, `fin query approve|sent|close|withdraw`, `fin adjust accept|reject`, `fin review confirm|reject`, `fin findings accept`, provisions confirm/reject, net debt item accept/reject, each also as `uv run fin ...`); Claude points to the button. Any other request that is not already allowed is shown in the chat with **Allow once** (the next turn gets `--allowedTools` for exactly that command or file) or **Deny**.
   - **Ask Claude** buttons (every screen, and rows of Mappings, Queries and Findings) and the skill chips `/ask`, `/ingest`, `/diligence`, `/report`, `/status` put text in the message box; the user sends it. Claude missing or not startable is E009, not logged in is E010.
-- **Jobs**: a long action runs as a background job, so the page answers at once. One worker thread runs the jobs one at a time in order; a later one is shown as queued. Each job is a row of `jobs` in audit.duckdb (action, arguments, state, the last progress line, result lines, code, run_id, times); the Jobs card (Files, Reports, Questions, Dashboards, Settings and Health) asks for itself every second while a job is queued or running, and a reload shows the same jobs. States: queued, running, done, refused (the action's error code and message), failed (E012, the run has the traceback), interrupted (the server stopped before it ended: marked at the next `fin ui`; start it again). `POST /job` needs the token cookie and the Origin (E007); an action that is not a job is E008. The jobs: Export to Excel, Make a report, Install a PDF add-on (Files and Settings; the service `fin.services.addon`, which `fin parser use` calls too), Ingest, Re-ingest, Load with the unit, Scan a data room and Load the approved files (`fin.services.dataroom`, which `fin dataroom` calls too), Build the dashboard, Update fin and Run a question again (each job's run records `via` `ui` and `actor` `user`); `POST /job` takes `item` for Re-ingest (the doc_id), Load with the unit (the held file's name), Run a question again (the query_id) and Scan a data room (the folder, which must exist), and `choice` for Install a PDF add-on (the add-on), Load with the unit (the answer) and Make a report (health, diligence or fdd); anything else is E008. While a job writes, a page that reads the same database waits for it (as for another command; E501 after the retries).
+- **Jobs**: a long action runs as a background job, so the page answers at once. One worker thread runs the jobs one at a time in order; a later one is shown as queued. Each job is a row of `jobs` in audit.duckdb (action, arguments, state, the last progress line, result lines, code, run_id, times); the Jobs card (Files, Reports, Questions, Dashboards, Settings and Health) asks for itself every second while a job is queued or running, and a reload shows the same jobs. States: queued, running, done, refused (the action's error code and message), failed (E012, the run has the traceback), interrupted (the server stopped before it ended: marked at the next `fin ui`; start it again). `POST /job` needs the token cookie and the Origin (E007); an action that is not a job is E008. The jobs: Export to Excel, Make a report, Install a PDF add-on (Files and Settings; the service `fin.services.addon`, which `fin parser use` calls too), Ingest, Re-ingest, Load with the unit, Scan a data room and Load the approved files (`fin.services.dataroom`, which `fin dataroom` calls too), Build the dashboard, Update fin and Run a question again (each job's run records `via` `ui` and `actor` `user`; Install a PDF add-on and Update fin also run before any company exists, from Settings and Health once `fin init` has run); `POST /job` takes `item` for Re-ingest (the doc_id), Load with the unit (the held file's name), Run a question again (the query_id) and Scan a data room (the folder, which must exist), and `choice` for Install a PDF add-on (the add-on), Load with the unit (the answer) and Make a report (health, diligence or fdd); anything else is E008. While a job writes, a page that reads the same database waits for it (as for another command; E501 after the retries).
 - **Uploads**: the Files screen saves .xlsx, .xlsm, .xls and .pdf files into `inbox/<company>/` of the chosen company (a run "ui upload", one event per file). The name must be plain (letters, digits, space, `. _ - ( ) &`; a path is cut to its last part; no leading dot, no `..`), at most 50 MB per file and 100 MB per request, and it never overwrites a file already in the inbox; all files are checked first, so a refusal (E008) saves none; before any company exists the upload is refused (E008). The button does not ingest: the screen says the files are waiting; **Ingest** loads them.
 
 ### Where each command is
@@ -1406,11 +1406,11 @@ Every `fin` command, with the screen that does it, "chat" (Claude runs it in the
 | `fin audit` | Log |
 | `fin contracts coverage` | chat |
 | `fin dashboard` | Dashboards |
-| `fin dataroom approve` | chat |
-| `fin dataroom load` | chat |
+| `fin dataroom approve` | Files |
+| `fin dataroom load` | Files |
 | `fin dataroom plan` | chat |
 | `fin dataroom propose` | chat |
-| `fin dataroom scan` | chat |
+| `fin dataroom scan` | Files |
 | `fin disclosures list` | chat |
 | `fin disclosures load` | chat |
 | `fin disclosures related` | chat |
@@ -1480,6 +1480,14 @@ Every `fin` command, with the screen that does it, "chat" (Claude runs it in the
 | `fin recast contracts` | chat |
 | `fin recast run` | chat |
 | `fin reconcile` | chat |
+| `fin reference add` | chat |
+| `fin reference adjust` | chat |
+| `fin reference compare` | References |
+| `fin reference confirm` | References |
+| `fin reference lines` | References |
+| `fin reference propose` | chat |
+| `fin reference query` | chat |
+| `fin reference reject` | References |
 | `fin report` | Reports |
 | `fin review confirm` | Mappings |
 | `fin review list` | Mappings |
