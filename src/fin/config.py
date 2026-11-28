@@ -1,4 +1,4 @@
-"""`config.toml` in the data folder: tolerances, display unit, defaults, diligence.
+"""`config.toml` in the data folder: tolerances, display unit, defaults, diligence, data room.
 
 `fin init` writes `DEFAULT_CONFIG_TOML` once and never overwrites it. After that the file is the
 only source of these values: `load_config` reads it strictly and raises a coded error when it is
@@ -108,6 +108,11 @@ inquiry_topics = [
     "provisions", "related_parties", "tax", "contingencies", "other",
 ]
 
+[dataroom]
+# Data-room intake (`fin dataroom scan`): an archive that would unpack to more than this many
+# megabytes is refused and listed, never unpacked.
+archive_limit_mb = 2048
+
 [pdf]
 # The optional PDF add-on that reads the statement pages pdfplumber cannot (and scanned results
 # filings): "none", "docling", "liteparse" or "llamaparse". `uv run fin parser use <name>` (or
@@ -124,6 +129,7 @@ class Config:
     tolerances: dict[str, Decimal]
     query_threshold: Decimal  # [diligence]: a difference at or above it becomes a query
     adjustment_categories: tuple[str, ...]  # [diligence]: the categories an adjustment may have
+    archive_limit_mb: int  # [dataroom]: the most an archive may unpack to, in megabytes
     pdf_parser: str = "none"  # [pdf] parser: the PDF add-on for the pages pdfplumber skips
     match_window_days: int = 60  # [diligence]: date window of bank matching passes 2 and 3
     fx_window_days: int = 7  # [diligence]: window for a receipt's booked rupee value
@@ -237,7 +243,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
     # [pdf] and [fdd] are optional: a config.toml written before the PDF add-on or the FDD
     # extension has none. The add-on is opt-in, so no [pdf] means none chosen; no [fdd] means the
     # defaults of the default file.
-    tables = ("config_version", "display", "defaults", "tolerances", "diligence")
+    tables = ("config_version", "display", "defaults", "tolerances", "diligence", "dataroom")
     optional = tuple(name for name in ("pdf", "fdd") if name in data)
     _keys(data, (*tables, *optional), "the file", path)
     pdf = _table(data, "pdf", path) if "pdf" in data else {"parser": "none"}
@@ -287,6 +293,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
             "names in lower-case letters, digits and '_'",
         )
 
+    limit = _archive_limit(_table(data, "dataroom", path), path)
     _keys(pdf, ("parser",), "[pdf]", path)
     parser = _choice(pdf, "parser", PARSERS, "pdf", path)
 
@@ -299,6 +306,7 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         tolerances=tolerances,
         query_threshold=threshold,
         adjustment_categories=tuple(categories),
+        archive_limit_mb=limit,
         pdf_parser=parser,
         match_window_days=diligence["match_window_days"],
         fx_window_days=diligence["fx_window_days"],
@@ -306,6 +314,17 @@ def _parse(data: dict[str, Any], path: Path) -> Config:
         coverage_top_n=fdd["coverage_top_n"],
         fdd=fdd,
     )
+
+
+def _archive_limit(table: dict[str, Any], path: Path) -> int:
+    """[dataroom] archive_limit_mb: whole megabytes, 1 to 1,000,000."""
+    _keys(table, ("archive_limit_mb",), "[dataroom]", path)
+    limit = table["archive_limit_mb"]
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1_000_000:
+        raise _invalid(
+            path, f"dataroom.archive_limit_mb = {limit!r}; expected whole megabytes, 1 to 1000000"
+        )
+    return limit
 
 
 def _fdd(table: dict[str, Any], path: Path) -> dict[str, Any]:

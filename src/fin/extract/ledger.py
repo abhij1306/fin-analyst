@@ -17,6 +17,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from openpyxl.workbook.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from fin.audit.errors import LayoutUnknown, ParseError, SourcePeriodInvalid
@@ -71,6 +72,11 @@ def _header(sheet: Worksheet, profile: Profile) -> tuple[int, dict[int, str]] | 
         if len(found) == len(set(profile.columns.values())):
             return top + profile.header_rows, found
     return None
+
+
+def has_header(book: Workbook, profile: Profile) -> bool:
+    """True when a sheet of `book` has the profile's column header (the test `read_table` uses)."""
+    return any(_header(sheet, profile) is not None for sheet in book.worksheets)
 
 
 def _header_text(

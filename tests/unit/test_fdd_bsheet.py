@@ -356,7 +356,7 @@ def test_golden_kinds_read_the_f3_views(root: Path) -> None:
 
 def test_the_fdd_table_is_optional_and_checked(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
-    start, end = DEFAULT_CONFIG_TOML.index("[fdd]"), DEFAULT_CONFIG_TOML.index("[pdf]")
+    start, end = DEFAULT_CONFIG_TOML.index("[fdd]"), DEFAULT_CONFIG_TOML.index("[dataroom]")
     path.write_text(DEFAULT_CONFIG_TOML[:start] + DEFAULT_CONFIG_TOML[end:], encoding="utf-8")
     assert load_config(tmp_path).fdd == FDD_DEFAULTS
     for old, new, problem in (

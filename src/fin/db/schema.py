@@ -46,6 +46,7 @@ SCHEMA_FILES = {
         "fdd_disclosures.sql",
         "fdd_netdebt.sql",
         "fdd_findings.sql",
+        "dataroom.sql",
     ],
 }
 

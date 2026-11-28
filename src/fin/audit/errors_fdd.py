@@ -1,5 +1,24 @@
 """The FDD extension's error classes (E9xx, docs/fdd.md; the table is in docs/errors.md). They are
-re-exported by `fin.audit.errors`, so import them from there like every other error."""
+re-exported by `fin.audit.errors`, so import them from there like every other error. Exit codes:
+
+- E950-E951 (FDD F6 GST and income tax: a GST return row that cannot be loaded; a tax ledger
+  class proposal or review that is not valid) stop the command: exit 2.
+- E960-E961 (FDD orderbook: an orderbook row that cannot be read; `fin visibility` with no backlog
+  source loaded) stop the command: exit 2.
+- E901-E903 (FDD walkthroughs, fin.sampling: a sample that cannot be drawn, a walkthrough file that
+  cannot be used, an unknown sample id) stop the command: exit 2.
+- E910 (FDD inquiries, fin.diligence.inquiries: an unknown topic or an unusable checklist template)
+  stops the command: exit 2.
+- E940-E941 (FDD disclosures: a reading CSV that cannot be used; a related party link proposal or
+  review that is not valid) stop the command: exit 2.
+- E920-E923 (FDD provisions and cut-off: a provision ledger proposal or review that is not valid; a
+  cut-off reconciliation that cannot run, which is a `ReconCannotRun` like E840; `fin provisions
+  show` with no engagement or a period not in it), E930-E934 (FDD net debt: a class proposal or
+  review, a debt-like item or its decision, `fin netdebt show` that is not valid) and E970-E972
+  (FDD findings and report: a finding that is not valid, an unknown finding or one not in the
+  state the command needs, a narrative with valuation, rating or buy/don't-buy language) stop the
+  command: exit 2.
+"""
 
 from fin.audit.errors import FinError, ReconCannotRun
 

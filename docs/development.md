@@ -8,7 +8,7 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
 
 - `cli/`: the `fin` commands (Typer), one module per group: `core.py` (the root `app`, `--version`, shared argument checks), `init.py` (init, doctor), `ingest.py` (ingest, ingest-batch, verify), `findings.py` (findings, status), `statements.py` (statements, export), `data.py` (sql, dashboard, audit, delete, update, report), `evals.py` (eval init, run, bundle). Each command runs through the audit logger. To add a command group, make a module that does `from fin.cli.core import app` and decorates its commands, then add it to the import line in `cli/__init__.py` (the order is the order in `fin --help`).
 - `config.py`, `paths.py`: `config.toml` settings, and every data-folder path.
-- `audit/errors.py`: error classes and codes (the FDD ones, E9xx, in `audit/errors_fdd.py`, re-exported) (E001 to E972). `audit/logger.py`: run records and logging.
+- `audit/errors.py`: error classes and codes (the FDD ones, E9xx, in `audit/errors_fdd.py`, and the data-room ones, E814, E815 and E819, in `audit/errors_dataroom.py`, both re-exported) (E001 to E972). `audit/logger.py`: run records and logging.
   `audit/trace.py`: `fin audit`.
 - `db/conn.py`: the only way to open a database; `db/rows.py`: query results as dicts. `db/schema.py`: creates a
   database from its schema file.
@@ -32,6 +32,10 @@ Rules are in `CLAUDE.md`. Local checks: `uv run ruff check <files>`, `uv run ruf
   fin's top-left points); `pdf_tables.py` reads those grids into `PdfValue`s with `pdf.py`'s and `periods.py`'s
   helpers and guards, the same for every engine (no engine needed, so its tests are fast). `fin parser use <name>`
   (`parser.py`) installs and records the choice.
+- `dataroom/` (SPEC-13, `fin dataroom`, CLI `cli/dataroom.py`, table `db/schema/dataroom.sql`): `unpack.py` (a .zip
+  into its own folder, or refused with nothing written), `kinds.py` (a file's kind from its type and the column
+  profile whose headers it has; `REASONS`, each with its next step), `scan.py` (the walk, duplicates, the stored plan,
+  `read_plan`, `format_plan`), `load.py` (`propose`, `approve`, `load`: the approved rows in one run).
 - `verify.py`: `fin verify`, compares a Claude reading with what is loaded for a document, records the run
   (`verify_runs`, `verify_lines`) and its disagreements as findings.
 - `diligence/`: a diligence engagement on one company (`docs/diligence.md`). `engagement.py` (`fin engagement

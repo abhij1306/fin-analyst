@@ -1,0 +1,67 @@
+[
+  {
+    "path": "books/fy25/ledger_fy24.pdf",
+    "kind": "unknown",
+    "profile": null,
+    "period": null,
+    "reason": "fin reads statements from text PDFs and finds none it can read in this one (a ledger, register or scanned PDF is this case)",
+    "next_step": "Ask the company for the Excel export, or have the assistant read it (fin ingest --reading)",
+    "duplicates": []
+  },
+  {
+    "path": "books/fy25/trial_balance.xlsx",
+    "kind": "trial_balance",
+    "profile": "tally_trial_balance",
+    "period": "2024-04-01 to 2025-03-31",
+    "reason": null,
+    "next_step": null,
+    "duplicates": [
+      "registers.zip/tb_copy.xlsx"
+    ]
+  },
+  {
+    "path": "misc/notes.xlsx",
+    "kind": "unknown",
+    "profile": null,
+    "period": null,
+    "reason": "its headers fit no column profile and it has no statement sheet",
+    "next_step": "Write a column profile for its headers (docs/development.md) and scan again",
+    "duplicates": []
+  },
+  {
+    "path": "reference/fdd_databook.xlsx",
+    "kind": "reference_databook",
+    "profile": null,
+    "period": null,
+    "reason": "a third party's diligence databook (it has a sheet such as quality of earnings, net debt or net working capital): fin keeps a third party's figures apart from the company's and cannot load them as a reference yet",
+    "next_step": "Keep it in the data room: it is loaded as a reference once fin can hold reference figures (SPEC-10); it is never loaded as company data",
+    "duplicates": []
+  },
+  {
+    "path": "registers.zip",
+    "kind": "archive",
+    "profile": null,
+    "period": null,
+    "reason": null,
+    "next_step": null,
+    "duplicates": []
+  },
+  {
+    "path": "registers.zip/billing/registers.xlsx",
+    "kind": "registers",
+    "profile": "billing_registers",
+    "period": null,
+    "reason": null,
+    "next_step": null,
+    "duplicates": []
+  },
+  {
+    "path": "statements/annual.pdf",
+    "kind": "statements",
+    "profile": null,
+    "period": "2024-03-31, 2025-03-31",
+    "reason": null,
+    "next_step": null,
+    "duplicates": []
+  }
+]

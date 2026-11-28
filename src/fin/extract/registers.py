@@ -73,12 +73,24 @@ def _find_parts(book: Workbook, profile: Profile, problems: list[str]) -> dict[s
     return found
 
 
+def _apart(found: dict[str, tuple]) -> bool:
+    """True when each sheet kind was found on a sheet of its own."""
+    return len({sheet.title for sheet, _ in found.values()}) == len(found)
+
+
+def fits(book: Workbook, profile: Profile) -> bool:
+    """True when each sheet kind of the registers profile has its header on a sheet of its own in
+    `book` (the test `_read_profile` uses)."""
+    found = _find_parts(book, profile, [])
+    return len(found) == len(profile.parts) and _apart(found)
+
+
 def _read_profile(book: Workbook, profile: Profile, problems: list[str]) -> RegisterTable | None:
     """The table when the profile fits the workbook; else None, with the reason in `problems`."""
     found = _find_parts(book, profile, problems)
     if len(found) != len(profile.parts):
         return None
-    if len({sheet.title for sheet, _ in found.values()}) < len(found):
+    if not _apart(found):
         problems.append(f"{profile.name}: one sheet has both the sales and purchase headers")
         return None
     rows = {part: _rows(sheet, first, cols) for part, (sheet, (first, cols)) in found.items()}

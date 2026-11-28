@@ -34,16 +34,8 @@ a command returns when the error ends it:
 - E863-E865 (service-period recast: it cannot run for lack of a loaded sales register or a period of
   the engagement; a contract reading that cannot be used; a contract naming a customer or invoice
   no loaded sales register has) stop the command: exit 2.
-- E950-E951 (FDD F6 GST and income tax: a GST return row that cannot be loaded; a tax ledger
-  class proposal or review that is not valid) stop the command: exit 2.
 - E873-E874 (the diligence report, fin.report.dd_render: the company has no engagement; a narrative
   reference to a figure or period the report does not have) stop the command: exit 2.
-- E960-E961 (FDD orderbook: an orderbook row that cannot be read; `fin visibility` with no backlog
-  source loaded) stop the command: exit 2.
-- E901-E903 (FDD walkthroughs, fin.sampling: a sample that cannot be drawn, a walkthrough file that
-  cannot be used, an unknown sample id) stop the command: exit 2.
-- E910 (FDD inquiries, fin.diligence.inquiries: an unknown topic or an unusable checklist template)
-  stops the command: exit 2.
 - E820-E821 (payroll: `fin payroll confirm-unit` names no loaded payroll file; a payroll row with no
   employee name or code, or an unreadable date) stop the command: exit 2.
 - E858-E861 (the query export, fin.diligence.export: no approved query, a file that cannot be read
@@ -51,15 +43,11 @@ a command returns when the error ends it:
   exit 2.
 - E854-E855 (bank matching: a match proposal file that is not valid, an unknown match proposal id or
   a status change not allowed) stop the command: exit 2.
-- E940-E941 (FDD disclosures: a reading CSV that cannot be used; a related party link proposal or
-  review that is not valid) stop the command: exit 2.
-- E920-E923 (FDD provisions and cut-off: a provision ledger proposal or review that is not valid; a
-  cut-off reconciliation that cannot run, which is a `ReconCannotRun` like E840; `fin provisions
-  show` with no engagement or a period not in it), E930-E934 (FDD net debt: a class proposal or
-  review, a debt-like item or its decision, `fin netdebt show` that is not valid) and E970-E972
-  (FDD findings and report: a finding that is not valid, an unknown finding or one not in the
-  state the command needs, a narrative with valuation, rating or buy/don't-buy language) stop the
-  command: exit 2.
+- E9xx (the FDD extension) stop the command: exit 2; each range is described in
+  `fin.audit.errors_fdd`.
+- E814, E815 and E819 (data-room intake, fin.dataroom: a folder that cannot be scanned, a company
+  with no data-room plan, a plan row that cannot be approved or given that kind) stop the command:
+  exit 2.
 - E830-E833 (golden evaluation, fin.evals: no golden set, a golden set that cannot be read, nothing
   to bundle, a bundle that would contain a real name) stop the command: exit 2.
 """
@@ -660,6 +648,13 @@ class FigureReferenceUnknown(FinError):
 
     code = "E874"
 
+
+# E814, E815, E819: data-room intake, in fin.audit.errors_dataroom (split for size), re-exported.
+from fin.audit.errors_dataroom import (  # noqa: E402, F401
+    DataroomFolderInvalid,
+    DataroomPlanMissing,
+    DataroomRowInvalid,
+)
 
 # E9xx: the FDD extension, in fin.audit.errors_fdd (split for size), re-exported here.
 from fin.audit.errors_fdd import (  # noqa: E402, F401
