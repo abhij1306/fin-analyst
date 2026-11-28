@@ -129,6 +129,12 @@ def open_engagement_row(con: duckdb.DuckDBPyConnection) -> dict[str, Any] | None
     return rows[0] if rows else None
 
 
+def is_open(run: Run, company: str) -> bool:
+    """Whether the company has an open engagement (the list commands say so instead of E803)."""
+    with company_database(run, company) as con:
+        return open_engagement_row(con) is not None
+
+
 def require_open(con: duckdb.DuckDBPyConnection, company: str) -> dict[str, Any]:
     """The open engagement. E803 when there is none."""
     row = open_engagement_row(con)

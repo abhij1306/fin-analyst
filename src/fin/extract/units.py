@@ -17,6 +17,8 @@ _UNIT = re.compile(
     r"(?:\binr?\s+|₹\s*|\brs\.?\s*)(rupees|(?:thousand|lakh|lac|million|crore)s?)\b",
     re.I,
 )
+# "All amounts in INR, unless otherwise stated": "in INR" with no unit word after it means rupees.
+_IN_INR = re.compile(r"\bin\s+inr\b", re.I)
 _PAISE = Decimal("0.01")
 
 # A figure printed as nil: a lone dash or the word "nil" (any case).
@@ -27,10 +29,11 @@ _FIGURE = re.compile(r"^([({])?\s*(?:(-)\s*)?([\d,]*\d(?:\.\d+)?|\.\d+)\s*(\))?$
 
 
 def unit_in(text: str) -> str | None:
-    """The unit named in `text` ("lakh", "crore", ...), or None."""
+    """The unit named in `text` ("lakh", "crore", ...), or None. "in INR" with no unit word
+    after it is rupees."""
     match = _UNIT.search(text)
     if match is None:
-        return None
+        return "rupees" if _IN_INR.search(text) else None
     word = match.group(1).lower().rstrip("s")
     return "rupees" if word == "rupee" else word
 

@@ -1,7 +1,8 @@
 # Implementation tracker
 
-One row per PR-plan row of each spec ([specs/README.md](../specs/README.md)). A PR marks its own row
-`done (#n)` ([process.md](../process.md)). Work in flight is read from open PRs, not from this file.
+One row per PR-plan row of each spec ([specs/README.md](../specs/README.md)). A PR covers a whole spec, or a group
+of its rows that can ship together (the CLI rows, then the UI rows); it is split only where a later row waits on
+another spec (owner, 2026-11-28; [process.md](../process.md) step 2). A PR marks each of its rows `done (#n)`. Work in flight is read from open PRs, not from this file.
 
 Statuses: `todo`, `done (#n)`, `blocked (Qn)` (waits on an owner decision), `human`, `deferred`.
 
@@ -38,7 +39,7 @@ Updated: 2026-11-28.
 | 00 | 5 | Add the gate-input and masking registries with their tests | high | todo |
 | 00 | 6 | Add the CLI and docs consistency tests | | todo |
 | 00 | 7 | Clear the open Sonar findings in src and add the categories tally | | todo |
-| 01 | 1 | Fix the unit line, evidence crash, negative amounts and empty lists from the client run | | todo |
+| 01 | 1 | Fix the unit line, evidence crash, negative amounts and empty lists from the client run | | done (#116) |
 | 02 | 1 | Move the decision actions into shared service functions | | todo |
 | 02 | 2 | Pass the actor explicitly and store it as user or ai:provider | high | todo |
 | 02 | 3 | Add background jobs with progress to the UI | | todo |

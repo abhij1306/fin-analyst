@@ -97,6 +97,23 @@ def test_values_get_sheet_cell_period_section_and_rupees(tmp_path: Path) -> None
     ]  # fmt: skip
 
 
+def test_a_sheet_in_inr_with_no_unit_word_loads_in_rupees(tmp_path: Path) -> None:
+    path = write_sheet(
+        tmp_path / "t.xlsx",
+        [
+            ["ACME LIMITED"],
+            ["Standalone Balance Sheet"],
+            ["All amounts in INR, unless otherwise stated"],
+            ["Particulars", "31.03.2025"],
+            ["Borrowings", "1,200.50"],
+        ],
+    )
+    extraction = extract_workbook(path)
+    assert [(v.cell, v.raw, v.rupees) for v in extraction.values] == [
+        ("B5", "1,200.50", Decimal("1200.50"))
+    ]
+
+
 def write_merged(
     path: Path, rows: list[list[object]], merges: list[str], title: str = "Results"
 ) -> Path:

@@ -20,6 +20,12 @@ from fin.extract.units import parse_figure, to_rupees, unit_in
         ("(in rupees)", "rupees"),
         ("(in rupee)", None),
         ("(in lakhss)", None),
+        # "in INR" with no unit word after it means rupees; a unit word after INR still wins.
+        ("All amounts in INR, unless otherwise stated", "rupees"),
+        ("(Amount in INR)", "rupees"),
+        ("All amounts in INR lakhs, unless otherwise stated", "lakh"),
+        ("Revenue INR", None),
+        ("in INRs", None),
     ],
 )
 def test_unit_in(text: str, expected: str | None) -> None:

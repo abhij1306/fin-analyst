@@ -162,12 +162,21 @@ class Run:
 
     def log_unexpected(self, stage: str, exc: BaseException) -> None:
         """Record an exception that has no error class, with its traceback and the platform. A
-        defect (any `Exception`) gets E012; an interrupt or exit has no code."""
+        defect (`is_defect`) gets E012; an interrupt or exit has no code."""
         self.log_error(
             stage,
             f"unexpected {type(exc).__name__}: {exc}",
-            UnexpectedError.code if isinstance(exc, Exception) else None,
+            UnexpectedError.code if is_defect(exc) else None,
             {"traceback": traceback.format_exception(exc), "platform": platform.platform()},
+        )
+
+    def unexpected_message(self, exc: BaseException) -> str:
+        """What the user is shown for a defect (E012) instead of a traceback: the run_id and the
+        log that holds the traceback."""
+        log = self.jsonl_path.relative_to(self.root).as_posix()
+        return (
+            f"unexpected {type(exc).__name__}: {exc}. This is a defect in fin: report "
+            f"{UnexpectedError.code} and run_id {self.run_id}; the traceback is in {log}"
         )
 
     def _run_row(self, record: str, exit_code: int | None) -> dict[str, Any]:
@@ -288,6 +297,14 @@ class Run:
         return exit_code
 
 
+def is_defect(exc: BaseException) -> bool:
+    """An exception with no error class that is a defect in fin: not an interrupt, and not the
+    exit, abort or usage error of the command line."""
+    return isinstance(exc, Exception) and not isinstance(
+        exc, typer.Exit | typer.Abort | typer.exceptions.TyperException
+    )
+
+
 def execute(
     command: str,
     args: dict[str, Any],
@@ -299,7 +316,8 @@ def execute(
 
     A raised FinError is printed, logged as an error event with its code and context, and becomes
     the exit code. The body sets `run.exit_code` (for example EXIT_FAILURES) and the summary
-    counters. Any other exception is logged (E012, with its traceback) and re-raised.
+    counters. A defect (`is_defect`) is logged (E012, with its traceback) and shown as E012 with
+    the run_id, exiting 2; an interrupt is logged and re-raised.
     """
     run = Run(command, args, data_dir())
     exit_code = EXIT_OK
@@ -313,8 +331,11 @@ def execute(
         exit_code = exc.exit_code
     except BaseException as exc:
         run.log_unexpected(command, exc)
-        run.finish(EXIT_COMMAND_ERROR)
-        raise
+        if not is_defect(exc):
+            run.finish(EXIT_COMMAND_ERROR)
+            raise
+        typer.echo(f"{UnexpectedError.code}: {run.unexpected_message(exc)}", err=True)
+        exit_code = EXIT_COMMAND_ERROR
     exit_code = run.finish(exit_code)
     if exit_code != EXIT_OK:
         raise typer.Exit(exit_code)

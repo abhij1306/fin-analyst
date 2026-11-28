@@ -207,7 +207,9 @@ def test_guard_error_logs_e701_and_exits_3(data_root: Path, audit_query: Query) 
     ) == [("guarded", '{"target": "x"}', "blocked", 3)]
 
 
-def test_unexpected_exception_is_recorded_and_reraised(data_root: Path, audit_query: Query) -> None:
+def test_unexpected_exception_is_recorded_and_shown_as_e012(
+    data_root: Path, audit_query: Query
+) -> None:
     runner.invoke(app, ["init"])
 
     def body(run: Run) -> None:
@@ -215,7 +217,12 @@ def test_unexpected_exception_is_recorded_and_reraised(data_root: Path, audit_qu
 
     result = runner.invoke(_guarded_app(body), [])
 
-    assert isinstance(result.exception, ValueError)
+    assert result.exit_code == 2
+    run_id = run_id_of(result.stderr)
+    assert result.stderr.startswith(
+        "E012: unexpected ValueError: boom. This is a defect in fin: report E012 and run_id "
+        f"{run_id}"
+    )
     assert audit_query(
         "SELECT r.status, r.exit_code, e.message FROM runs r JOIN events e USING (run_id) "
         "WHERE r.command = 'guarded' AND r.record = 'end'"

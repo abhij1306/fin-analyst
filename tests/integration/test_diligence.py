@@ -39,15 +39,20 @@ def approve_gates(*names: str) -> None:
 
 
 def test_every_command_needs_an_open_engagement(root: Path) -> None:
-    for args in (
-        ("engagement", "status", "bluepeak"),
-        ("engagement", "close", "bluepeak"),
-        ("query", "list", "bluepeak"),
-        ("adjust", "list", "bluepeak"),
-    ):
+    for args in (("engagement", "status", "bluepeak"), ("engagement", "close", "bluepeak")):
         result = fin(*args)
         assert result.exit_code == 2, args
         assert result.stderr.startswith("E803: bluepeak has no open engagement; nothing changed.")
+
+
+def test_lists_with_no_open_engagement_say_so_and_exit_0(root: Path) -> None:
+    for kind in ("query", "adjust"):
+        listed = fin(kind, "list", "bluepeak")
+        as_json = fin(kind, "list", "bluepeak", "--json")
+        assert (listed.exit_code, as_json.exit_code) == (0, 0), kind
+        noun = "queries" if kind == "query" else "adjustments"
+        assert listed.stdout == f"bluepeak has no open engagement: no {noun}\n"
+        assert as_json.stdout == "[]\n"
 
 
 def test_engagement_opens_once_and_closes(root: Path, audit_query: Any) -> None:

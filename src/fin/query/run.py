@@ -29,6 +29,9 @@ from fin.paths import company_db_path
 from fin.query.evidence import write_evidence
 from fin.statements import add_view
 
+# The source_ref of a line in a sum whose raw value records no sheet, cell or page.
+NO_SOURCE = "no source"
+
 PROVENANCE_COLUMNS = (
     "source_file",
     "source_ref",
@@ -135,7 +138,7 @@ def _combined(lines: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "source_file": joined("source_file"),
         "source_ref": f"sum of {len(lines)} sources: "
-        + "; ".join(line["source_ref"] for line in lines),
+        + "; ".join(line["source_ref"] or NO_SOURCE for line in lines),
         "source_confirmed": all(line["source_confirmed"] for line in lines),
         "source_read_by": joined("source_read_by"),
     }
@@ -180,7 +183,12 @@ def query(
         run.record("queries", row)
         raise
     row |= {"row_count": len(rows), "result_hash": result_hash(rows)}
+    unsourced: list[int] = []
     if evidence:
-        row["evidence_path"] = write_evidence(run, company, question, sql, to_json_rows(rows))
+        row["evidence_path"], unsourced = write_evidence(
+            run, company, question, sql, to_json_rows(rows)
+        )
     run.record("queries", row)
-    return {**row, "rows": to_json_rows(rows)}
+    # The result rows (numbered from 1) the evidence page has no source for.
+    extra = {"rows_without_source": unsourced} if unsourced else {}
+    return {**row, **extra, "rows": to_json_rows(rows)}
